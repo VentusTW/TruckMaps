@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from typing import Annotated
 
-from truckmaps.sdk import COST_PROVIDER, CoreContext, CoreReady, CostProfile, Module
+from fastapi import APIRouter, Depends
+
+from truckmaps.sdk import COST_PROVIDER, CoreContext, CoreReady, CostProfile, Module, Principal
 
 
 class HelloModule(Module):
@@ -29,6 +31,10 @@ class HelloModule(Module):
         def cost(distance_km: float, duration_h: float = 0.0) -> dict:
             provider = ctx.extensions.get(COST_PROVIDER)
             return {"eur": provider.estimate(distance_km, duration_h, CostProfile())}
+
+        @router.get("/whoami")
+        def whoami(user: Annotated[Principal, Depends(ctx.auth.current_user)]) -> dict:
+            return {"subject": user.subject}
 
         ctx.api.include_router(router)
         ctx.events.subscribe(CoreReady, self._on_core_ready)

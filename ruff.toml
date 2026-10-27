@@ -6,3 +6,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 
 [lint.isort]
 known-first-party = ["truckmaps", "truckmaps_hello"]
+
+[lint.per-file-ignores]
+# Szablon HTML strony testowego logowania.
+"backend/src/truckmaps/core/devlogin.py" = ["E501"]

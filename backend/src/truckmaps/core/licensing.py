@@ -1,31 +1,48 @@
 from collections.abc import Callable, Mapping
 from typing import Annotated
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+
+from truckmaps.sdk import Principal
 
 
 class StaticLicensing:
-    """Licencje z konfiguracji.
+    """Licencje z konfiguracji, przypisane do identyfikatora zalogowanego użytkownika.
 
-    Tymczasowe rozwiązanie fazy 0: konto przychodzi w nagłówku ``X-Account-Id``.
-    W fazie 1 zastąpią je konta (JWT) i subskrypcje ze sklepów.
+    Tymczasowo, do czasu subskrypcji ze sklepów i panelu floty.
     """
 
-    def __init__(self, licenses: Mapping[str, frozenset[str]], *, grant_all: bool = False) -> None:
+    def __init__(
+        self,
+        licenses: Mapping[str, frozenset[str]],
+        *,
+        optional_user: Callable[..., Principal | None],
+        grant_all: bool = False,
+    ) -> None:
         self._licenses = licenses
+        self._optional_user = optional_user
         self._grant_all = grant_all
 
-    def is_granted(self, account_id: str | None, module_id: str) -> bool:
+    def is_granted(self, user: Principal | None, module_id: str) -> bool:
         if self._grant_all:
             return True
-        return account_id is not None and module_id in self._licenses.get(account_id, ())
+        return user is not None and module_id in self._licenses.get(user.subject, ())
 
     def dependency(self, module_id: str) -> Callable[..., None]:
-        def require_license(x_account_id: Annotated[str | None, Header()] = None) -> None:
-            if not self.is_granted(x_account_id, module_id):
+        def require_license(
+            user: Annotated[Principal | None, Depends(self._optional_user)],
+        ) -> None:
+            if self.is_granted(user, module_id):
+                return
+            if user is None:
                 raise HTTPException(
-                    status.HTTP_402_PAYMENT_REQUIRED,
-                    detail=f"Moduł '{module_id}' nie jest aktywny dla tego konta.",
+                    status.HTTP_401_UNAUTHORIZED,
+                    "Wymagane logowanie.",
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
+            raise HTTPException(
+                status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Moduł '{module_id}' nie jest aktywny dla tego konta.",
+            )
 
         return require_license

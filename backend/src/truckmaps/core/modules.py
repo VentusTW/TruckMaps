@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
 
+from truckmaps.core.auth import AuthService
 from truckmaps.core.events import InProcessEventBus
 from truckmaps.core.extensions import ExtensionRegistry, check_implementation
 from truckmaps.core.licensing import StaticLicensing
@@ -83,6 +84,7 @@ class ModuleContext:
     module_id: str
     core_version: str
     api: _ModuleApi
+    auth: AuthService
     events: _ModuleEvents
     extensions: _ModuleExtensions
     logger: logging.Logger = field(repr=False)
@@ -93,12 +95,14 @@ class ModuleManager:
         self,
         *,
         app: FastAPI,
+        auth: AuthService,
         bus: InProcessEventBus,
         extensions: ExtensionRegistry,
         licensing: StaticLicensing,
         enabled: frozenset[str] | None = None,
     ) -> None:
         self._app = app
+        self._auth = auth
         self._bus = bus
         self._extensions = extensions
         self._licensing = licensing
@@ -144,6 +148,7 @@ class ModuleManager:
             module_id=module_id,
             core_version=CORE_VERSION,
             api=_ModuleApi(),
+            auth=self._auth,
             events=_ModuleEvents(self._bus),
             extensions=_ModuleExtensions(self._extensions),
             logger=logging.getLogger(f"truckmaps.module.{module_id}"),

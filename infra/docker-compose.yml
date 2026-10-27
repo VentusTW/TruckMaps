@@ -1,13 +1,21 @@
-# Usługi do rozwoju lokalnego: PostGIS i Valhalla.
-# Uruchomienie z katalogu głównego repozytorium:
-#   docker compose -f infra/docker-compose.yml up -d
-# Hasła bierze z infra/.env (skopiuj infra/.env.example).
+# Usługi do rozwoju lokalnego.
+# Uruchomienie z katalogu głównego repozytorium (hasła z infra/.env, wzór: infra/.env.example):
+#   docker compose -f infra/docker-compose.yml up -d --wait
+# Valhalla (routing) jest w profilu "routing", bo pierwszy start trwa ok. godziny:
+#   docker compose -f infra/docker-compose.yml --profile routing up -d
+#
+# Adresy:
+#   http://localhost:8080  – Zitadel (logowanie, konsola: /ui/console)
+#   http://localhost:8025  – Mailpit (skrzynka z mailami wysłanymi przez Zitadela)
+#   localhost:5432         – PostGIS (bazy: truckmaps, zitadel)
+#   http://localhost:8002  – Valhalla
 
 name: truckmaps
 
 services:
   postgis:
     image: postgis/postgis:16-3.4
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-truckmaps}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Ustaw POSTGRES_PASSWORD w infra/.env}
@@ -15,18 +23,154 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      # Wolumen Dockera, nie folder: na Windows folder montowany do kontenera jest bardzo wolny.
+      - postgres-data:/var/lib/postgresql/data
+      # Tworzy bazę dla Zitadela przy pierwszym starcie pustego wolumenu.
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Przez TCP: tymczasowy serwer z etapu inicjalizacji słucha tylko na sockecie.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
+  # --- Logowanie: Zitadel v4 (API + ekran logowania za Traefikiem) ----------
+  # Konfiguracja na podstawie oficjalnego zitadel/deploy/compose.
+
+  proxy:
+    image: traefik:v3.7.7
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=truckmaps
+      - --entrypoints.web.address=:80
+      - --ping=true
+      - --ping.entrypoint=web
+      - --log.level=WARN
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+      zitadel-login:
+        condition: service_healthy
+
+  zitadel-api:
+    image: ghcr.io/zitadel/zitadel:v4.16.0
+    restart: unless-stopped
+    user: "0"
+    command: start-from-init --masterkey "${ZITADEL_MASTERKEY:?Ustaw ZITADEL_MASTERKEY w infra/.env}"
+    environment:
+      ZITADEL_PORT: 8080
+      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALPORT: 8080
+      ZITADEL_EXTERNALSECURE: false
+      ZITADEL_TLS_ENABLED: false
+      ZITADEL_DATABASE_POSTGRES_DSN: postgresql://${POSTGRES_USER:-truckmaps}:${POSTGRES_PASSWORD}@postgis:5432/zitadel?sslmode=disable
+
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: TruckMaps
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USERNAME:-admin}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Ustaw ZITADEL_ADMIN_PASSWORD w infra/.env}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: false
+
+      # Konto techniczne dla infra/zitadel/bootstrap.py (projekt, aplikacja, SMTP).
+      ZITADEL_FIRSTINSTANCE_PATPATH: /zitadel/bootstrap/admin.pat
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: truckmaps-bootstrap
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: TruckMaps bootstrap
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Automatically Initialized IAM_LOGIN_CLIENT
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: true
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:8080/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:8080/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:8080/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://localhost:8080/ui/v2/login/login?samlRequest=
+    healthcheck:
+      test: ["CMD", "/app/zitadel", "ready"]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - ./data/zitadel-bootstrap:/zitadel/bootstrap:rw
+    depends_on:
+      postgis:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.zitadel-api.loadbalancer.server.port=8080
+      - traefik.http.services.zitadel-api.loadbalancer.server.scheme=h2c
+      - traefik.http.middlewares.zitadel-strip-api.stripprefix.prefixes=/api
+      - traefik.http.middlewares.zitadel-strip-api.stripprefix.forceSlash=false
+      - traefik.http.routers.zitadel-api-alias.rule=Host(`localhost`) && PathPrefix(`/api`)
+      - traefik.http.routers.zitadel-api-alias.entrypoints=web
+      - traefik.http.routers.zitadel-api-alias.middlewares=zitadel-strip-api
+      - traefik.http.routers.zitadel-api-alias.service=zitadel-api
+      - traefik.http.routers.zitadel-api-alias.priority=200
+      - traefik.http.routers.zitadel-canonical.rule=Host(`localhost`) && !PathPrefix(`/ui/v2/login`) && !PathPrefix(`/api`) && !Path(`/`)
+      - traefik.http.routers.zitadel-canonical.entrypoints=web
+      - traefik.http.routers.zitadel-canonical.service=zitadel-api
+      - traefik.http.routers.zitadel-canonical.priority=100
+
+  zitadel-login:
+    image: ghcr.io/zitadel/zitadel-login:v4.16.0
+    restart: unless-stopped
+    user: "0"
+    environment:
+      ZITADEL_API_URL: http://zitadel-api:8080
+      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
+      ZITADEL_SESSION_COOKIE_SECRET: ${LOGIN_SESSION_COOKIE_SECRET:?Ustaw LOGIN_SESSION_COOKIE_SECRET w infra/.env}
+      CUSTOM_REQUEST_HEADERS: Host:localhost,X-Forwarded-Proto:http
+      # Bez potwierdzenia adresu kodem z maila nie da się zalogować.
+      EMAIL_VERIFICATION: "true"
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "node /app/healthcheck.mjs http://localhost:3000/ui/v2/login/healthy"]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - ./data/zitadel-bootstrap:/zitadel/bootstrap:ro
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.zitadel-login.loadbalancer.server.port=3000
+      - traefik.http.middlewares.zitadel-root-rewrite.replacepath.path=/ui/v2/login/
+      - traefik.http.routers.zitadel-root.rule=Host(`localhost`) && Path(`/`)
+      - traefik.http.routers.zitadel-root.entrypoints=web
+      - traefik.http.routers.zitadel-root.middlewares=zitadel-root-rewrite
+      - traefik.http.routers.zitadel-root.service=zitadel-login
+      - traefik.http.routers.zitadel-root.priority=400
+      - traefik.http.routers.zitadel-login.rule=Host(`localhost`) && PathPrefix(`/ui/v2/login`)
+      - traefik.http.routers.zitadel-login.entrypoints=web
+      - traefik.http.routers.zitadel-login.service=zitadel-login
+      - traefik.http.routers.zitadel-login.priority=250
+
+  # Testowa skrzynka: łapie wszystkie maile, nic nie wychodzi do internetu.
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
+  # --- Routing ----------------------------------------------------------------
   # Pierwsze uruchomienie pobiera mapę i buduje kafelki routingu.
   # Polska: ~2 GB do pobrania, ~1 h budowy, potrzeba ok. 8 GB RAM.
-  # Kolejne starty używają gotowych kafelków z infra/data/valhalla.
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest  # przypiąć konkretną wersję po pierwszym udanym starcie
+    profiles: ["routing"]
+    restart: unless-stopped
     environment:
       tile_urls: ${VALHALLA_TILE_URLS:-https://download.geofabrik.de/europe/poland-latest.osm.pbf}
       use_tiles_ignore_pbf: "True"
@@ -40,3 +184,10 @@ services:
       - "127.0.0.1:8002:8002"
     volumes:
       - ./data/valhalla:/custom_files
+
+networks:
+  default:
+    name: truckmaps
+
+volumes:
+  postgres-data:

@@ -1,6 +1,6 @@
 """Aplikacja FastAPI rdzenia.
 
-Uruchomienie: ``uvicorn truckmaps.core.app:create_app --factory``
+Uruchomienie: ``python -m truckmaps.core`` albo ``uvicorn truckmaps.core.app:create_app --factory``
 """
 
 from collections.abc import AsyncIterator, Iterable
@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from truckmaps.core import api
+from truckmaps.core import api, devlogin
+from truckmaps.core.auth import AuthService, OidcProvider, TokenVerifier
 from truckmaps.core.config import Settings
 from truckmaps.core.defaults import register_defaults
 from truckmaps.core.events import InProcessEventBus
@@ -20,12 +21,15 @@ from truckmaps.sdk import CoreReady, Module
 
 
 def create_app(
-    settings: Settings | None = None, modules: Iterable[Module] | None = None
+    settings: Settings | None = None,
+    modules: Iterable[Module] | None = None,
+    *,
+    token_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
     """Tworzy aplikację.
 
     ``modules=None`` ładuje moduły zainstalowane (entry pointy); testy podają
-    listę modułów wprost.
+    listę modułów i weryfikator tokenów wprost.
     """
     settings = settings or Settings.from_env()
     bus = InProcessEventBus()
@@ -37,12 +41,24 @@ def create_app(
 
     app = FastAPI(title="TruckMaps", version=CORE_VERSION, lifespan=lifespan)
 
+    provider = None
+    if settings.oidc_enabled:
+        provider = OidcProvider(
+            settings.oidc_issuer,
+            settings.oidc_client_id,
+            project_id=settings.oidc_project_id,
+        )
+    auth = AuthService(token_verifier or provider)
+
     extensions = ExtensionRegistry()
     register_defaults(extensions)
-    licensing = StaticLicensing(settings.licenses, grant_all=settings.dev_grant_all)
+    licensing = StaticLicensing(
+        settings.licenses, optional_user=auth.optional_user, grant_all=settings.dev_grant_all
+    )
 
     manager = ModuleManager(
         app=app,
+        auth=auth,
         bus=bus,
         extensions=extensions,
         licensing=licensing,
@@ -54,8 +70,11 @@ def create_app(
         for module in modules:
             manager.load(module)
 
+    app.state.auth = auth
     app.state.events = bus
     app.state.extensions = extensions
     app.state.modules = manager
-    app.include_router(api.router)
+    app.include_router(api.build_router(auth.current_user))
+    if settings.dev_login_page and provider is not None:
+        app.include_router(devlogin.build_router(provider, settings.public_url))
     return app

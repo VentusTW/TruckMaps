@@ -4,6 +4,7 @@ from typing import Protocol
 
 from fastapi import APIRouter
 
+from truckmaps.sdk.auth import Auth
 from truckmaps.sdk.events import Event
 from truckmaps.sdk.extensions import ExtensionPoint
 
@@ -46,6 +47,7 @@ class CoreContext(Protocol):
     module_id: str
     core_version: str
     api: ApiRegistry
+    auth: Auth
     events: EventBus
     extensions: Extensions
     logger: logging.Logger

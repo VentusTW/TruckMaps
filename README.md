@@ -4,26 +4,46 @@ Nawigacja i planowanie pracy dla kierowców ciężarówek: trasy dopasowane do w
 
 Plan i architektura: [docs/PLAN.md](docs/PLAN.md).
 
-## Uruchomienie (Windows, Python 3.12)
+## Uruchomienie (Windows, Python 3.12, Docker Desktop)
+
+Jednorazowo:
 
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\pip install -e "backend[dev]" -e backend/modules/hello
-$env:TRUCKMAPS_DEV_GRANT_ALL = "true"
-.venv\Scripts\uvicorn truckmaps.core.app:create_app --factory --reload
+copy infra\.env.example infra\.env
+docker compose -f infra/docker-compose.yml up -d --wait
+.venv\Scripts\python infra\zitadel\bootstrap.py
 ```
 
-- http://127.0.0.1:8000/docs – dokumentacja API
-- http://127.0.0.1:8000/api/modules – stan modułów
-- http://127.0.0.1:8000/api/m/hello/greeting – moduł testowy
+`bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit i zapisuje konfigurację do `.env`.
 
-Konfiguracja przez zmienne środowiskowe:
+Na co dzień:
+
+```powershell
+docker compose -f infra/docker-compose.yml up -d --wait
+.venv\Scripts\python -m truckmaps.core
+```
+
+| Adres | Co to jest |
+|---|---|
+| http://localhost:8000/ | strona powitalna z logowaniem (testowa, do czasu aplikacji Flutter) |
+| http://localhost:8000/docs | dokumentacja API; token do „Authorize” jest na stronie powitalnej po zalogowaniu |
+| http://localhost:8000/api/me | zalogowany użytkownik |
+| http://localhost:8025 | Mailpit – maile wysłane przez Zitadela (kody, potwierdzenia) |
+| http://localhost:8080/ui/console | konsola Zitadela; administrator: `admin@truckmaps.localhost`, hasło z `infra/.env` |
+
+Logowanie: e-mail i hasło (albo klucz dostępu), adres trzeba potwierdzić kodem z maila. Wszystko działa lokalnie i bez opłat; SMS i logowanie z Apple są odłożone.
+
+Konfiguracja przez zmienne środowiskowe (albo plik `.env` w katalogu, z którego startuje serwer):
 
 | Zmienna | Znaczenie |
 |---|---|
 | `TRUCKMAPS_MODULES` | brak lub `*` – wszystkie zainstalowane, pusta – sam rdzeń, `hello,tolls` – wybrane |
-| `TRUCKMAPS_DEV_GRANT_ALL` | `true` – każde konto ma każdy moduł (tylko do rozwoju) |
-| `TRUCKMAPS_LICENSES` | `konto1:hello,tolls;konto2:hello` – konto podawane w nagłówku `X-Account-Id` |
+| `TRUCKMAPS_DEV_GRANT_ALL` | `true` – każdy ma każdy moduł (domyślnie przy `python -m truckmaps.core`) |
+| `TRUCKMAPS_LICENSES` | `sub1:hello,tolls;sub2:hello` – licencje przypisane do identyfikatora użytkownika z `/api/me` |
+| `TRUCKMAPS_OIDC_ISSUER`, `TRUCKMAPS_OIDC_CLIENT_ID`, `TRUCKMAPS_OIDC_PROJECT_ID` | logowanie (zapisuje je `bootstrap.py`) |
+| `TRUCKMAPS_DEV_LOGIN` | `true` – testowa strona logowania pod `/` (domyślnie przy `python -m truckmaps.core`) |
 
 ## Plik exe (Windows)
 
@@ -44,13 +64,12 @@ Wynik: `dist\TruckMaps-Server.exe` (jeden plik, ok. 18 MB, nie wymaga Pythona). 
 
 CI (`.github/workflows/ci.yml`) uruchamia testy osobno dla samego rdzenia, dla rdzenia z każdym modułem z osobna i dla wszystkich modułów razem.
 
-## Usługi: PostGIS i Valhalla
+## Routing: Valhalla
 
-Wymaga Dockera.
+Valhalla jest w profilu `routing`, bo nie startuje razem z resztą:
 
 ```powershell
-copy infra\.env.example infra\.env
-docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml --profile routing up -d
 ```
 
 Pierwszy start Valhalli pobiera mapę Polski i buduje kafelki routingu (ok. 1 h, ok. 8 GB RAM). Test trasy dla ciężarówki 4 m / 40 t:
