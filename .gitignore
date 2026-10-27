@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+
+# Konfiguracja lokalna i sekrety
+.env
+!.env.example
+
+# Dane generowane (OSM, kafelki Valhalli, baza)
+infra/data/
+
+# IDE
+.idea/
+.vscode/

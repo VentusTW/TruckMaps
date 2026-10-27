@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalacja
+        run: |
+          pip install -e "backend[dev]"
+          for module in backend/modules/*/; do pip install -e "$module"; done
+      - run: ruff check .
+      - run: ruff format --check .
+      - name: Granice modułów (import-linter)
+        run: lint-imports
+
+  # Rdzeń musi działać bez żadnego modułu.
+  test-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "backend[dev]"
+      - run: pytest backend/tests
+
+  # Każdy moduł musi działać z samym rdzeniem, bez innych modułów.
+  test-module:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [hello]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e "backend[dev]" -e "backend/modules/${{ matrix.module }}"
+      - run: pytest backend/tests "backend/modules/${{ matrix.module }}/tests"
+
+  # Wszystkie moduły razem.
+  test-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalacja
+        run: |
+          pip install -e "backend[dev]"
+          for module in backend/modules/*/; do pip install -e "$module"; done
+      - run: pytest backend/tests backend/modules/*/tests

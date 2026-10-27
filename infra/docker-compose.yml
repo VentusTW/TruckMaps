@@ -1,0 +1,42 @@
+# Usługi do rozwoju lokalnego: PostGIS i Valhalla.
+# Uruchomienie z katalogu głównego repozytorium:
+#   docker compose -f infra/docker-compose.yml up -d
+# Hasła bierze z infra/.env (skopiuj infra/.env.example).
+
+name: truckmaps
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-truckmaps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Ustaw POSTGRES_PASSWORD w infra/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-truckmaps}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Pierwsze uruchomienie pobiera mapę i buduje kafelki routingu.
+  # Polska: ~2 GB do pobrania, ~1 h budowy, potrzeba ok. 8 GB RAM.
+  # Kolejne starty używają gotowych kafelków z infra/data/valhalla.
+  valhalla:
+    image: ghcr.io/valhalla/valhalla-scripted:latest  # przypiąć konkretną wersję po pierwszym udanym starcie
+    environment:
+      tile_urls: ${VALHALLA_TILE_URLS:-https://download.geofabrik.de/europe/poland-latest.osm.pbf}
+      use_tiles_ignore_pbf: "True"
+      build_admins: "True"
+      build_time_zones: "True"
+      build_elevation: "False"
+      serve_tiles: "True"
+      force_rebuild: "False"
+      server_threads: ${VALHALLA_THREADS:-4}
+    ports:
+      - "127.0.0.1:8002:8002"
+    volumes:
+      - ./data/valhalla:/custom_files

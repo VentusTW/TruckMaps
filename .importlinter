@@ -1,0 +1,38 @@
+# Granice architektury TruckMaps. Sprawdzanie: lint-imports (z katalogu głównego).
+# Nowy moduł dopisz w czterech miejscach: root_packages, modules-use-sdk-only,
+# core-knows-no-modules i modules-independent (pilnuje tego test_architecture.py).
+
+[importlinter]
+root_packages =
+    truckmaps
+    truckmaps_hello
+
+[importlinter:contract:sdk-pure]
+name = SDK nie zależy od wnętrza rdzenia
+type = forbidden
+source_modules =
+    truckmaps.sdk
+forbidden_modules =
+    truckmaps.core
+
+[importlinter:contract:modules-use-sdk-only]
+name = Moduły korzystają tylko z truckmaps.sdk
+type = forbidden
+source_modules =
+    truckmaps_hello
+forbidden_modules =
+    truckmaps.core
+
+[importlinter:contract:core-knows-no-modules]
+name = Rdzeń nie zna konkretnych modułów
+type = forbidden
+source_modules =
+    truckmaps
+forbidden_modules =
+    truckmaps_hello
+
+[importlinter:contract:modules-independent]
+name = Moduły nie importują się nawzajem
+type = independence
+modules =
+    truckmaps_hello
