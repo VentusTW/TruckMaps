@@ -25,6 +25,14 @@ Konfiguracja przez zmienne środowiskowe:
 | `TRUCKMAPS_DEV_GRANT_ALL` | `true` – każde konto ma każdy moduł (tylko do rozwoju) |
 | `TRUCKMAPS_LICENSES` | `konto1:hello,tolls;konto2:hello` – konto podawane w nagłówku `X-Account-Id` |
 
+## Plik exe (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build_exe.ps1
+```
+
+Wynik: `dist\TruckMaps-Server.exe` (jeden plik, ok. 18 MB, nie wymaga Pythona). Po uruchomieniu otwiera przeglądarkę na `/docs`; opcje: `--port 8080`, `--host 0.0.0.0`, `--no-browser`. Do exe trafiają rdzeń i wszystkie moduły z `backend/modules`. Bez exe to samo daje `.venv\Scripts\python -m truckmaps.core`.
+
 ## Sprawdzanie
 
 ```powershell
