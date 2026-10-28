@@ -48,6 +48,7 @@
   .check input { width:auto; margin-top:3px; }
   .alt-hint { color:#c26f00; }
   .search { position:relative; }
+  .swap { flex:none; align-self:flex-start; margin-left:30px; padding:3px 10px; font-size:12px; }
   .addr { display:flex; align-items:center; gap:8px; grid-template-columns:none; }
   .pin { width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center;
          font:600 12px system-ui; color:#fff; } .pin.a { background:#185fa5; } .pin.b { background:#a32d2d; }
@@ -107,6 +108,7 @@
     <label class="addr"><span class="pin a">A</span><input id="from" placeholder="Skąd – adres, miejscowość, firma" autocomplete="off"></label>
     <ul class="suggestions" id="from-list" hidden></ul>
   </div>
+  <button type="button" id="swap" class="swap" title="Zamień start z celem (trasa w drugą stronę)">⇅ Zamień start z celem</button>
   <div class="search">
     <label class="addr"><span class="pin b">B</span><input id="to" placeholder="Dokąd – adres, miejscowość, firma" autocomplete="off"></label>
     <ul class="suggestions" id="to-list" hidden></ul>
@@ -330,6 +332,24 @@ function afterPick() {
   map.flyTo({ center: [point.lng, point.lat], zoom: 13 });
 }
 
+// Trasa w drugą stronę: start ↔ cel (z adresami w polach), punkty pośrednie w odwrotnej kolejności.
+function swapEnds() {
+  if (!start && !end) return;
+  const [oldStart, oldEnd] = [start, end];
+  const [fromLabel, toLabel] = [$("from").value, $("to").value];
+  oldStart?.marker.remove();
+  oldEnd?.marker.remove();
+  start = end = null;
+  $("from").value = $("to").value = "";
+  if (oldEnd) setStart(oldEnd.lngLat, toLabel);
+  if (oldStart) setEnd(oldStart.lngLat, fromLabel);
+  via.reverse();
+  renumberVia();
+  $("hint").textContent = hintText();
+  if (start && end) calculate({ keepView: true });
+}
+$("swap").addEventListener("click", swapEnds);
+
 setupSearch($("from"), $("from-list"), (place) => { setStart(placeLngLat(place), place.label); afterPick(); });
 setupSearch($("to"), $("to-list"), (place) => { setEnd(placeLngLat(place), place.label); afterPick(); });
 
@@ -539,6 +559,8 @@ let currentRoute = null;
 
 function showRoute(route, options = {}) {
   currentRoute = route;
+  // Trasa może przyjść, zanim mapa wczyta warstwy – wtedy rysujemy ją po wczytaniu.
+  if (!map.getSource("route")) return map.once("load", () => showRoute(route, options));
   map.getSource("route").setData({ type: "FeatureCollection", features: routeFeatures(route) });
   map.getSource("alternatives").setData({
     type: "FeatureCollection",
