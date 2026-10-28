@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+/TruckMaps-Server.exe
 .venv/
 .pytest_cache/
 .ruff_cache/

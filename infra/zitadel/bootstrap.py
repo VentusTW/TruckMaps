@@ -1,7 +1,7 @@
 """Konfiguruje lokalnego Zitadela dla TruckMaps. Można uruchamiać wielokrotnie.
 
 - projekt "TruckMaps" i aplikacja OIDC "truckmaps-dev" (PKCE, bez sekretu, tokeny JWT),
-- wysyłka maili przez Mailpit (http://localhost:8025),
+- wysyłka maili przez Mailpit (http://localhost:8025), domyślnie po polsku,
 - zapisuje TRUCKMAPS_OIDC_* do pliku .env w katalogu głównym repozytorium.
 
 Uruchomienie (po ``docker compose -f infra/docker-compose.yml up -d --wait``):
@@ -60,6 +60,8 @@ def main() -> None:
     project_id = ensure_project(client)
     client_id = ensure_app(client, project_id)
     ensure_smtp(client)
+    # Domyślny język maili i ekranów dla użytkowników bez wybranego języka.
+    call(client, "PUT", "/admin/v1/languages/default/pl", {}, allow={400})
 
     write_env(
         {

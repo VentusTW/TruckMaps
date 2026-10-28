@@ -163,8 +163,9 @@ def _logged_out(error: str | None) -> str:
       <p class="muted">Wysokość, masa, długość. Ostrzeżemy, zanim wjedziesz tam, gdzie nie przejedziesz.</p>
       <a class="btn primary" href="/auth/login">Zaloguj się e-mailem</a>
       <a class="btn" href="/auth/login?register=true">Załóż konto</a>
-      <p class="note">Wersja testowa. Maile z kodami trafiają do skrzynki
-        <a href="http://localhost:8025" target="_blank" rel="noopener">Mailpit</a>.</p>"""
+      <p class="note">Wersja testowa: maile z kodami <strong>nie trafiają do prawdziwej poczty</strong>.
+        Kod znajdziesz w lokalnej skrzynce
+        <a href="http://localhost:8025" target="_blank" rel="noopener">Mailpit (localhost:8025)</a>.</p>"""
 
 
 def _logged_in(user: dict, access_token: str) -> str:
