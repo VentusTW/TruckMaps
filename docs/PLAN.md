@@ -226,7 +226,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 
 ### Faza 2 – Rdzeń aplikacja (miesiące 5–8)
 - [ ] Powłoka Flutter, `core_sdk`, rejestracja modułów, ekran „Kup moduł”
-- [ ] Mapa MapLibre, profil pojazdu, wyszukiwanie adresów
+- [x] Mapa MapLibre, profil pojazdu
+- [x] Wyszukiwanie adresów (Photon, dane OSM co tydzień): pola Skąd / Dokąd z podpowiedziami, adres klikniętego punktu
 - [ ] Numery domów tylko na ostatnich kilkuset metrach dojazdu do celu i odjazdu ze startu (pomoc przy nieregularnej numeracji); źródła: OSM `addr:housenumber`, w PL punkty adresowe z rejestru państwowego (GUGiK, dane otwarte)
 - [ ] Planowanie trasy z kolorami ryzyka
 - [ ] Nawigacja: GPS, dopasowanie do drogi, komunikaty głosowe, przeliczanie trasy

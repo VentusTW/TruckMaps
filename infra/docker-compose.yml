@@ -189,6 +189,19 @@ services:
     volumes:
       - ./data/valhalla:/custom_files
 
+  # --- Wyszukiwarka adresów --------------------------------------------------
+  # Photon (dane OSM). Baza powstaje skryptem infra/photon_import.ps1, potem:
+  #   docker compose -f infra/docker-compose.yml --profile search up -d photon
+  photon:
+    image: eclipse-temurin:21-jre
+    profiles: ["search"]
+    restart: unless-stopped
+    command: java -Xmx4g -jar /photon/photon.jar serve -data-dir /photon/data -listen-ip 0.0.0.0
+    ports:
+      - "127.0.0.1:2322:2322"
+    volumes:
+      - ./data/photon:/photon
+
 networks:
   default:
     name: truckmaps

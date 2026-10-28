@@ -59,6 +59,7 @@ Konfiguracja przez zmienne środowiskowe (albo plik `.env` w katalogu, z któreg
 | `TRUCKMAPS_DEV_LOGIN` | `true` – testowa strona logowania pod `/` (domyślnie przy `python -m truckmaps.core`) |
 | `TRUCKMAPS_DATABASE_URL` | baza PostgreSQL TruckMaps; bez niej profile pojazdów i trasy zwracają 503 |
 | `TRUCKMAPS_VALHALLA_URL` | serwer tras, domyślnie `http://127.0.0.1:8002` |
+| `TRUCKMAPS_PHOTON_URL` | wyszukiwarka adresów, domyślnie `http://127.0.0.1:2322` |
 
 Token do testów API bez przeglądarki (konto techniczne w lokalnym Zitadelu):
 
@@ -85,6 +86,17 @@ Wynik: `dist\TruckMaps-Server.exe` (jeden plik, nie wymaga Pythona). Uruchamiaj 
 ```
 
 CI (`.github/workflows/ci.yml`) uruchamia testy osobno dla samego rdzenia, dla rdzenia z każdym modułem z osobna i dla wszystkich modułów razem.
+
+## Wyszukiwarka adresów: Photon
+
+Pola „Skąd / Dokąd” w planerze korzystają z Photon (darmowa wyszukiwarka na danych OSM). Jednorazowo trzeba pobrać i zaimportować dane dla Polski (ok. 850 MB, import kilkanaście minut):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra\photon_import.ps1
+docker compose -f infra/docker-compose.yml --profile search up -d photon
+```
+
+Dane są publikowane co tydzień (parametr `-Release`, np. `261025`). Bez Photon planer działa, tylko punkty trzeba klikać na mapie.
 
 ## Routing: Valhalla
 

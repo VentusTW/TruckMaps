@@ -31,6 +31,7 @@ class Settings:
     """Np. ``postgresql+psycopg://truckmaps:...@localhost:5432/truckmaps``; ``None`` – bez bazy."""
 
     valhalla_url: str = "http://127.0.0.1:8002"
+    photon_url: str = "http://127.0.0.1:2322"
 
     @property
     def oidc_enabled(self) -> bool:
@@ -58,6 +59,7 @@ class Settings:
             dev_login_page=_flag(env, "TRUCKMAPS_DEV_LOGIN"),
             database_url=env.get("TRUCKMAPS_DATABASE_URL") or None,
             valhalla_url=env.get("TRUCKMAPS_VALHALLA_URL", cls.valhalla_url),
+            photon_url=env.get("TRUCKMAPS_PHOTON_URL", cls.photon_url),
         )
 
 

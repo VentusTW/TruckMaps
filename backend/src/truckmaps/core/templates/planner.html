@@ -47,6 +47,14 @@
   .check { display:flex; gap:8px; align-items:flex-start; font-size:13px; grid-template-columns:none; }
   .check input { width:auto; margin-top:3px; }
   .alt-hint { color:#c26f00; }
+  .search { position:relative; }
+  .addr { display:flex; align-items:center; gap:8px; grid-template-columns:none; }
+  .pin { width:22px; height:22px; flex:none; border-radius:50%; display:grid; place-items:center;
+         font:600 12px system-ui; color:#fff; } .pin.a { background:#185fa5; } .pin.b { background:#a32d2d; }
+  .suggestions { position:absolute; z-index:5; left:30px; right:0; top:100%; margin:2px 0 0; padding:4px;
+                 list-style:none; background:var(--card); border:1px solid var(--border); border-radius:10px; }
+  .suggestions button { width:100%; text-align:left; font-size:13px; padding:6px 8px; border:none; border-radius:6px; }
+  .suggestions button:hover, .suggestions button.active { background:var(--bg); }
   .issue { padding:10px 12px; border-radius:10px; border:1px solid #f08c00; font-size:14px; margin-bottom:8px; }
   .issue.unreachable { border-color:#d62828; }
   .issue p { margin:4px 0; }
@@ -95,7 +103,15 @@
   </div>
 
   <h2>Trasa</h2>
-  <p class="muted" id="hint">Kliknij na mapie punkt startu (A), potem cel (B).</p>
+  <div class="search">
+    <label class="addr"><span class="pin a">A</span><input id="from" placeholder="Skąd – adres, miejscowość, firma" autocomplete="off"></label>
+    <ul class="suggestions" id="from-list" hidden></ul>
+  </div>
+  <div class="search">
+    <label class="addr"><span class="pin b">B</span><input id="to" placeholder="Dokąd – adres, miejscowość, firma" autocomplete="off"></label>
+    <ul class="suggestions" id="to-list" hidden></ul>
+  </div>
+  <p class="muted" id="hint">Wpisz adresy albo kliknij na mapie punkt startu (A), potem cel (B).</p>
   <label class="check"><input type="checkbox" id="avoid" checked> Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd</label>
   <div class="row">
     <button type="button" class="primary" id="calc">Wyznacz trasę</button>
@@ -234,17 +250,88 @@ function makeMarker(lngLat, label, color, onMove) {
   return marker;
 }
 
-function setStart(lngLat) {
+function setStart(lngLat, label) {
   start?.marker.remove();
   start = { lngLat, marker: null };
-  start.marker = makeMarker(lngLat, "A", "#185fa5", (p) => { start.lngLat = p; });
+  start.marker = makeMarker(lngLat, "A", "#185fa5", (p) => { start.lngLat = p; fillAddress($("from"), p); });
+  label ? ($("from").value = label) : fillAddress($("from"), lngLat);
 }
 
-function setEnd(lngLat) {
+function setEnd(lngLat, label) {
   end?.marker.remove();
   end = { lngLat, marker: null };
-  end.marker = makeMarker(lngLat, "B", "#a32d2d", (p) => { end.lngLat = p; });
+  end.marker = makeMarker(lngLat, "B", "#a32d2d", (p) => { end.lngLat = p; fillAddress($("to"), p); });
+  label ? ($("to").value = label) : fillAddress($("to"), lngLat);
 }
+
+// --- Wyszukiwarka adresów (Photon) ----------------------------------------------
+async function fillAddress(input, lngLat) {
+  const coords = `${lngLat.lat.toFixed(5)}, ${lngLat.lng.toFixed(5)}`;
+  input.value = coords;
+  try {
+    const place = await api(`/api/geocode/reverse?lat=${lngLat.lat}&lon=${lngLat.lng}`);
+    if (place) input.value = place.label;
+  } catch { /* wyszukiwarka niedostępna – zostają współrzędne */ }
+}
+
+function setupSearch(input, list, onPick) {
+  let timer = null, places = [], active = -1;
+  const hide = () => { list.hidden = true; active = -1; };
+  const render = () => {
+    list.innerHTML = places.map((p, i) =>
+      `<li><button type="button" data-i="${i}" class="${i === active ? "active" : ""}">${escapeHtml(p.label)}</button></li>`).join("");
+    list.hidden = !places.length;
+    list.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      pick(places[Number(b.dataset.i)]);
+    }));
+  };
+  const pick = (place) => { hide(); input.value = place.label; onPick(place); };
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const query = input.value.trim();
+    if (query.length < 3) return hide();
+    timer = setTimeout(async () => {
+      const center = map.getCenter();
+      try {
+        places = await api(`/api/geocode?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}`);
+        active = -1;
+        render();
+        showError("");
+      } catch (e) {
+        places = [];
+        hide();
+        showError(e.message + " Kliknij punkt na mapie.");
+      }
+    }, 250);
+  });
+  input.addEventListener("keydown", (event) => {
+    if (list.hidden) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      active = (active + (event.key === "ArrowDown" ? 1 : -1) + places.length) % places.length;
+      render();
+    } else if (event.key === "Enter" && places.length) {
+      event.preventDefault();
+      pick(places[Math.max(active, 0)]);
+    } else if (event.key === "Escape") {
+      hide();
+    }
+  });
+  input.addEventListener("blur", () => setTimeout(hide, 150));
+}
+
+function placeLngLat(place) { return { lng: place.lon, lat: place.lat }; }
+
+function afterPick() {
+  $("hint").textContent = hintText();
+  if (start && end) return calculate();
+  const point = (end ?? start).lngLat;
+  map.flyTo({ center: [point.lng, point.lat], zoom: 13 });
+}
+
+setupSearch($("from"), $("from-list"), (place) => { setStart(placeLngLat(place), place.label); afterPick(); });
+setupSearch($("to"), $("to-list"), (place) => { setEnd(placeLngLat(place), place.label); afterPick(); });
 
 function distance(a, b) {
   const x = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
@@ -297,6 +384,7 @@ function clearAll() {
   [start, end, ...via].forEach((p) => p?.marker.remove());
   start = end = null;
   via = [];
+  $("from").value = $("to").value = "";
   routeShown = false;
   setViaMode(false);
   clearRoute();
