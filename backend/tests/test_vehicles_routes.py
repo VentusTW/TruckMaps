@@ -165,10 +165,17 @@ def mock_client(handler) -> httpx.Client:
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
+def assert_points(actual: list[tuple[float, float]], expected: list[tuple[float, float]]) -> None:
+    """pytest.approx nie porównuje zagnieżdżonych list (od pytest 9.2), więc punkt po punkcie."""
+    assert len(actual) == len(expected)
+    for got, want in zip(actual, expected, strict=True):
+        assert got == pytest.approx(want)
+
+
 def test_decode_polyline6_round_trip():
     points = [(16.925200, 52.406400), (17.5, 52.3), (21.012200, 52.229700), (-3.7, -40.1)]
 
-    assert decode_polyline6(encode_polyline6(points)) == pytest.approx(points)
+    assert_points(decode_polyline6(encode_polyline6(points)), points)
 
 
 def test_valhalla_router_sends_truck_options():
@@ -189,7 +196,7 @@ def test_valhalla_router_sends_truck_options():
     assert sent["costing_options"]["truck"]["axle_count"] == 5
     assert route.distance_km == 310.4
     assert route.duration_min == 245.0
-    assert route.geometry == pytest.approx([(16.9252, 52.4064), (21.0122, 52.2297)])
+    assert_points(route.geometry, [(16.9252, 52.4064), (21.0122, 52.2297)])
 
 
 def test_valhalla_no_route_and_unavailable():
