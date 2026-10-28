@@ -9,6 +9,8 @@ from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Base, Database
+from truckmaps.core.restrictions import Restriction
+from truckmaps.core.route_analysis import RouteEdge
 from truckmaps.core.routing import (
     NoRouteFound,
     Point,
@@ -42,19 +44,54 @@ class FakeVerifier:
 
 
 class FakeRouter:
-    def __init__(self, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        error: Exception | None = None,
+        edges: list[RouteEdge] | None = None,
+        alternates: list[Route] = (),
+    ):
         self.error = error
+        self.edges = edges
+        self.alternates = list(alternates)
         self.vehicles: list[VehicleIn] = []
+        self.calls: list[tuple[list[Point], list[Point] | None]] = []
 
-    def route(self, origin: Point, destination: Point, vehicle: VehicleIn) -> Route:
+    def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
         if self.error:
             raise self.error
         self.vehicles.append(vehicle)
+        self.calls.append((stops, exclude))
         return Route(
             distance_km=310.4,
             duration_min=245.0,
-            geometry=[(origin.lon, origin.lat), (destination.lon, destination.lat)],
+            geometry=[(p.lon, p.lat) for p in stops],
+            edges=self.edges,
+            alternates=self.alternates if alternates else [],
         )
+
+
+class DetourRouter:
+    """Pierwsza trasa przez osiedle (pomarańczowy), po wykluczeniu – objazd drogą główną."""
+
+    def __init__(self, detour_km: float = 12.0) -> None:
+        self.detour_km = detour_km
+        self.excluded: list[Point] | None = None
+
+    def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
+        a, b = stops[0], stops[-1]
+        geometry = [(a.lon + (b.lon - a.lon) * i / 100, a.lat) for i in range(101)]
+        if exclude:
+            self.excluded = exclude
+            edges = [RouteEdge(way_id=1, begin_index=0, end_index=100, road_class="primary")]
+            return Route(
+                distance_km=self.detour_km, duration_min=15, geometry=geometry, edges=edges
+            )
+        edges = [
+            RouteEdge(way_id=1, begin_index=0, end_index=40, road_class="primary"),
+            RouteEdge(way_id=2, begin_index=40, end_index=60, road_class="residential"),
+            RouteEdge(way_id=3, begin_index=60, end_index=100, road_class="primary"),
+        ]
+        return Route(distance_km=10.0, duration_min=12, geometry=geometry, edges=edges)
 
 
 def as_user(subject: str) -> dict:
@@ -124,8 +161,38 @@ def test_route_uses_owned_vehicle(database):
 
     assert response.status_code == 200
     assert response.json()["distance_km"] == 310.4
+    assert response.json()["analysis"] is None  # router nie zwrócił odcinków
+    assert "edges" not in response.json()
     assert router.vehicles[0].height_m == 4.0
     assert client.post("/api/routes", json=body, headers=as_user("bob")).status_code == 404
+
+
+def test_route_analysis_uses_restrictions_from_database(database):
+    with database.session() as db:
+        db.add(
+            Restriction(
+                osm_type="way",
+                osm_id=77,
+                kind="height",
+                value=3.8,
+                raw="maxheight=3.8",
+                source="osm",
+                source_date="2026-10-27",
+            )
+        )
+        db.commit()
+    router = FakeRouter(edges=[RouteEdge(way_id=77, begin_index=0, end_index=1, names=["Mostowa"])])
+    client = make_client(database, router)
+    vehicle_id = client.post("/api/vehicles", json=TRUCK, headers=as_user("anna")).json()["id"]
+    body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id}
+
+    analysis = client.post("/api/routes", json=body, headers=as_user("anna")).json()["analysis"]
+
+    assert analysis["level"] == "red"
+    assert analysis["segments"] == [{"start_index": 0, "end_index": 1, "level": "red"}]
+    assert analysis["warnings"][0]["message"] == (
+        "Ograniczenie wysokości 3,8 m, pojazd 4 m (Mostowa)"
+    )
 
 
 @pytest.mark.parametrize(
@@ -188,7 +255,7 @@ def test_valhalla_router_sends_truck_options():
         return httpx.Response(200, json={"trip": trip})
 
     router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
-    route = router.route(Point(**POZNAN), Point(**WARSAW), VehicleIn(**TRUCK))
+    route = router.route([Point(**POZNAN), Point(**WARSAW)], VehicleIn(**TRUCK))
 
     assert sent["costing"] == "truck"
     assert sent["costing_options"]["truck"]["height"] == 4.0
@@ -209,4 +276,135 @@ def test_valhalla_no_route_and_unavailable():
     for handler, error in ((no_route, NoRouteFound), (broken, RoutingUnavailable)):
         router = ValhallaRouter("http://v.test", http=mock_client(handler))
         with pytest.raises(error):
-            router.route(Point(**POZNAN), Point(**WARSAW), VehicleIn(**TRUCK))
+            router.route([Point(**POZNAN), Point(**WARSAW)], VehicleIn(**TRUCK))
+
+
+def test_valhalla_router_sends_via_points_and_exclusions():
+    requests = {}
+    shape = encode_polyline6([(16.9, 52.4), (21.0, 52.2)])
+
+    def valhalla(request: httpx.Request) -> httpx.Response:
+        requests[request.url.path] = json.loads(request.content)
+        trip = {"summary": {"length": 1, "time": 60}, "legs": [{"shape": shape}]}
+        return httpx.Response(200, json={"trip": trip, "edges": []})
+
+    router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
+    via = Point(lat=52.3, lon=19.0)
+    avoid = Point(lat=52.35, lon=18.0)
+    router.route([Point(**POZNAN), via, Point(**WARSAW)], VehicleIn(**TRUCK), exclude=[avoid])
+
+    sent = requests["/route"]
+    assert [loc["type"] for loc in sent["locations"]] == ["break", "through", "break"]
+    assert sent["exclude_locations"] == [{"lat": 52.35, "lon": 18.0}]
+    assert sent["costing_options"]["truck"]["use_living_streets"] == 0.0
+    assert "edge.roundabout" in requests["/trace_attributes"]["filters"]["attributes"]
+
+
+def test_edges_fall_back_to_map_snap_when_exact_match_fails():
+    """Punkt pośredni w środku drogi: edge_walk zwraca 443, map_snap ma własną linię trasy."""
+    route_shape = encode_polyline6([(16.90, 52.40), (17.00, 52.40), (17.10, 52.40)])
+    snapped = [(16.90, 52.40), (16.95, 52.401), (17.00, 52.40), (17.10, 52.40)]
+    matches = []
+
+    def valhalla(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if request.url.path == "/route":
+            trip = {"summary": {"length": 14, "time": 900}, "legs": [{"shape": route_shape}]}
+            return httpx.Response(200, json={"trip": trip})
+        matches.append(body["shape_match"])
+        if body["shape_match"] == "edge_walk":
+            return httpx.Response(400, json={"error_code": 443, "error": "edge_walk failed"})
+        edges = [
+            {"way_id": 5, "begin_shape_index": 0, "end_shape_index": 3, "road_class": "primary"}
+        ]
+        return httpx.Response(200, json={"edges": edges, "shape": encode_polyline6(snapped)})
+
+    router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
+    route = router.route(
+        [Point(**POZNAN), Point(lat=52.4, lon=17.0), Point(**WARSAW)], VehicleIn(**TRUCK)
+    )
+
+    assert matches == ["edge_walk", "map_snap"]
+    assert [e.way_id for e in route.edges] == [5]
+    assert_points(route.geometry, snapped)
+
+
+def route_body(client, router_vehicle=TRUCK, **extra):
+    vehicle_id = client.post("/api/vehicles", json=router_vehicle, headers=as_user("anna")).json()
+    return {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id["id"], **extra}
+
+
+def test_planner_avoids_orange_section_when_detour_is_reasonable(database):
+    router = DetourRouter(detour_km=12.0)
+    client = make_client(database, router)
+
+    body = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()
+
+    assert body["distance_km"] == 12.0
+    assert body["base_distance_km"] == 10.0
+    assert body["analysis"]["level"] == "green"
+    assert body["avoided"]
+    assert router.excluded == [Point(**p) for p in body["avoided"]]
+    # Najkrótsza trasa przez osiedle zostaje pokazana jako alternatywa.
+    assert [(a["distance_km"], a["analysis"]["level"]) for a in body["alternatives"]] == [
+        (10.0, "orange")
+    ]
+
+
+def test_alternatives_skip_duplicates_and_are_sorted_by_difficulty(database):
+    def alternative(km: float, road_class: str) -> Route:
+        edges = [RouteEdge(way_id=1, begin_index=0, end_index=1, road_class=road_class)]
+        return Route(
+            distance_km=km, duration_min=km, geometry=[(16.9, 52.4), (21.0, 52.2)], edges=edges
+        )
+
+    edges = [RouteEdge(way_id=1, begin_index=0, end_index=1, road_class="primary")]
+    same_as_main = Route(
+        distance_km=310.5, duration_min=245.2, geometry=[(16.9, 52.4)], edges=edges
+    )
+    router = FakeRouter(
+        edges=edges,
+        alternates=[
+            same_as_main,
+            alternative(330.0, "residential"),
+            alternative(320.0, "primary"),
+            alternative(420.0, "primary"),  # dużo dłuższa niż główna – pomijana
+        ],
+    )
+    client = make_client(database, router)
+
+    body = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()
+
+    assert [(a["distance_km"], a["analysis"]["level"]) for a in body["alternatives"]] == [
+        (320.0, "green"),
+        (330.0, "orange"),
+    ]
+
+
+def test_planner_keeps_route_when_detour_too_long_or_avoiding_disabled(database):
+    client = make_client(database, DetourRouter(detour_km=50.0))
+    too_long = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()
+    assert (too_long["distance_km"], too_long["analysis"]["level"]) == (10.0, "orange")
+
+    router = DetourRouter(detour_km=12.0)
+    client = make_client(database, router)
+    body = route_body(client, avoid_difficult=False)
+    disabled = client.post("/api/routes", json=body, headers=as_user("anna")).json()
+    assert disabled["distance_km"] == 10.0
+    assert router.excluded is None
+
+
+def test_via_points_are_passed_in_order(database):
+    router = FakeRouter()
+    client = make_client(database, router)
+    via = [{"lat": 52.3, "lon": 18.5}, {"lat": 52.25, "lon": 20.0}]
+
+    client.post("/api/routes", json=route_body(client, via=via), headers=as_user("anna"))
+
+    stops, _ = router.calls[0]
+    assert [(p.lat, p.lon) for p in stops] == [
+        (POZNAN["lat"], POZNAN["lon"]),
+        (52.3, 18.5),
+        (52.25, 20.0),
+        (WARSAW["lat"], WARSAW["lon"]),
+    ]

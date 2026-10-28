@@ -18,12 +18,15 @@ Add-Content .env "TRUCKMAPS_DATABASE_URL=postgresql+psycopg://truckmaps:truckmap
 .venv\Scripts\alembic -c backend\alembic.ini upgrade head
 powershell -ExecutionPolicy Bypass -File infra\download_map.ps1
 docker compose -f infra/docker-compose.yml --profile routing up -d
+.venv\Scripts\pip install -e "backend[pipeline]"
+.venv\Scripts\python data_pipeline\import_restrictions.py infra\data\valhalla\poland-latest.osm.pbf
 ```
 
 - `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
 - Adres bazy: `127.0.0.1`, nie `localhost` – pod `localhost` Windows najpierw próbuje IPv6 i połączenie wisi. Hasło jak w `infra/.env`.
 - `alembic ... upgrade head` tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
 - `download_map.ps1` pobiera mapę Polski (ok. 2 GB), a Valhalla buduje z niej trasy przy pierwszym starcie (ok. godziny).
+- `import_restrictions.py` wczytuje z tej samej mapy ograniczenia dla ciężarówek (wysokość, masa, nacisk osi, szerokość, długość, zakazy) do bazy – ok. 30 s dla Polski. Uruchamiaj po każdym pobraniu nowej mapy.
 
 Na co dzień:
 
@@ -35,7 +38,7 @@ docker compose -f infra/docker-compose.yml --profile routing up -d --wait
 | Adres | Co to jest |
 |---|---|
 | http://localhost:8000/ | strona powitalna z logowaniem (testowa, do czasu aplikacji Flutter) |
-| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa dla ciężarówki |
+| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa w kolorach (zielony / żółty / czerwony migający) z listą ostrzeżeń |
 | http://localhost:8000/docs | dokumentacja API; token do „Authorize” jest na stronie powitalnej po zalogowaniu |
 | http://localhost:8000/api/me | zalogowany użytkownik |
 | http://localhost:8025 | Mailpit – maile wysłane przez Zitadela (kody, potwierdzenia) |

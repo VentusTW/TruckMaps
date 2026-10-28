@@ -7,10 +7,10 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root { --bg:#f6f5f1; --card:#fff; --text:#1f1e1c; --muted:#5f5e5a; --border:#d3d1c7;
-          --accent:#185fa5; --on-accent:#fff; --ok:#3b6d11; --bad:#a32d2d; }
+          --accent:#185fa5; --on-accent:#fff; --ok:#3b6d11; --bad:#a32d2d; --warn:#ba7517; }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#1c1c1a; --card:#2c2c2a; --text:#f1efe8; --muted:#b4b2a9; --border:#444441;
-            --accent:#85b7eb; --on-accent:#042c53; --ok:#97c459; --bad:#f09595; }
+            --accent:#85b7eb; --on-accent:#042c53; --ok:#97c459; --bad:#f09595; --warn:#ef9f27; }
   }
   * { box-sizing:border-box; }
   body { margin:0; height:100vh; display:grid; grid-template-columns:340px 1fr;
@@ -31,6 +31,23 @@
   .muted { color:var(--muted); font-size:13px; margin:0; }
   .result { padding:12px; border-radius:10px; border:1px solid var(--ok); }
   .result strong { font-size:20px; }
+  .result.yellow { border-color:var(--warn); } .result.red { border-color:var(--bad); }
+  .badge { display:inline-block; font-size:12px; padding:2px 10px; border-radius:999px; border:1px solid; margin:6px 0; }
+  .badge.green { color:var(--ok); } .badge.yellow { color:var(--warn); } .badge.red { color:var(--bad); }
+  .warnings { list-style:none; padding:0; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; }
+  .warnings button { text-align:left; font-size:13px; padding:7px 10px; display:flex; gap:8px; }
+  .warnings .dot { width:10px; height:10px; border-radius:50%; flex:none; margin-top:5px; }
+  .dot.green { background:#3b6d11; } .dot.lime { background:#97c459; } .dot.yellow { background:#f5c518; }
+  .dot.orange { background:#f08c00; } .dot.red { background:#d62828; }
+  .dot.blink { animation:blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility:hidden; } }
+  .badge.lime { color:#3b6d11; } .badge.orange { color:#c26f00; } .result.orange { border-color:#f08c00; }
+  .legend { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:var(--muted); }
+  .legend li { display:flex; align-items:center; gap:6px; } .legend .dot { margin:0; }
+  .check { display:flex; gap:8px; align-items:flex-start; font-size:13px; grid-template-columns:none; }
+  .check input { width:auto; margin-top:3px; }
+  .alt-hint { color:#c26f00; }
+  button.active { outline:2px solid var(--accent); }
   .error { padding:10px 12px; border-radius:10px; border:1px solid var(--bad); color:var(--bad); font-size:14px; }
   [hidden] { display:none !important; }
   @media (max-width: 700px) {
@@ -74,10 +91,24 @@
 
   <h2>Trasa</h2>
   <p class="muted" id="hint">Kliknij na mapie punkt startu (A), potem cel (B).</p>
+  <label class="check"><input type="checkbox" id="avoid" checked> Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd</label>
   <div class="row">
     <button type="button" class="primary" id="calc">Wyznacz trasę</button>
-    <button type="button" id="demo">Poznań → Warszawa</button>
+    <button type="button" id="via-mode">+ Punkt pośredni</button>
   </div>
+  <div class="row">
+    <button type="button" id="demo-tarnow">Tarnów → Tuchów</button>
+    <button type="button" id="demo">Poznań → Warszawa</button>
+    <button type="button" id="clear">Wyczyść</button>
+  </div>
+  <p class="muted">Punkty A, B i pośrednie można przeciągać – trasa przeliczy się sama. Dwuklik na drodze dodaje punkt pośredni, prawy przycisk myszy na punkcie pośrednim usuwa go.</p>
+  <ul class="legend">
+    <li><span class="dot green"></span>bez uwag</li>
+    <li><span class="dot lime"></span>rondo</li>
+    <li><span class="dot yellow"></span>trudne miejsce</li>
+    <li><span class="dot orange"></span>bardzo trudne dla tego pojazdu</li>
+    <li><span class="dot red blink"></span>nie przejedzie</li>
+  </ul>
   <div class="result" id="result" hidden></div>
   <div class="error" id="error" hidden></div>
 </aside>
@@ -97,8 +128,11 @@ const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const form = $("vehicle-form");
 let vehicles = [];
-let points = [];
-let markers = [];
+let start = null;    // { lngLat, marker }
+let end = null;
+let via = [];        // punkty pośrednie po kolei
+let viaMode = false;
+let routeShown = false;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -179,65 +213,287 @@ const map = new maplibregl.Map({
   },
 });
 
-function setPoint(lngLat) {
-  if (points.length === 2) { points = []; markers.forEach((m) => m.remove()); markers = []; clearRoute(); }
-  points.push(lngLat);
-  const label = points.length === 1 ? "A" : "B";
+const COLORS = { green: "#3b6d11", lime: "#97c459", yellow: "#f5c518", orange: "#f08c00", red: "#d62828" };
+
+function makeMarker(lngLat, label, color, onMove) {
   const element = document.createElement("div");
   element.textContent = label;
-  element.style.cssText = "width:26px;height:26px;border-radius:50%;display:grid;place-items:center;" +
-    "font:600 13px system-ui;color:#fff;border:2px solid #fff;background:" + (label === "A" ? "#185fa5" : "#a32d2d");
-  markers.push(new maplibregl.Marker({ element }).setLngLat(lngLat).addTo(map));
-  $("hint").textContent = points.length === 1 ? "Teraz kliknij cel (B)." : "Gotowe – wyznacz trasę. Kolejne kliknięcie zaczyna od nowa.";
+  element.style.cssText = "width:26px;height:26px;border-radius:50%;display:grid;place-items:center;cursor:grab;" +
+    "font:600 13px system-ui;color:#fff;border:2px solid #fff;background:" + color;
+  const marker = new maplibregl.Marker({ element, draggable: true }).setLngLat(lngLat).addTo(map);
+  marker.on("dragend", () => { onMove(marker.getLngLat()); recalculate(); });
+  // Klik na punkcie nie może dodawać nowego punktu na mapie pod spodem.
+  element.addEventListener("click", (event) => event.stopPropagation());
+  element.addEventListener("dblclick", (event) => event.stopPropagation());
+  return marker;
+}
+
+function setStart(lngLat) {
+  start?.marker.remove();
+  start = { lngLat, marker: null };
+  start.marker = makeMarker(lngLat, "A", "#185fa5", (p) => { start.lngLat = p; });
+}
+
+function setEnd(lngLat) {
+  end?.marker.remove();
+  end = { lngLat, marker: null };
+  end.marker = makeMarker(lngLat, "B", "#a32d2d", (p) => { end.lngLat = p; });
+}
+
+function distance(a, b) {
+  const x = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
+  return Math.hypot(x, b.lat - a.lat);
+}
+
+function addVia(lngLat) {
+  // Wstawia punkt tam, gdzie najmniej wydłuża łamaną A → pośrednie → B.
+  const stops = [start.lngLat, ...via.map((v) => v.lngLat), end.lngLat];
+  let bestIndex = 0, bestCost = Infinity;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const cost = distance(stops[i], lngLat) + distance(lngLat, stops[i + 1]) - distance(stops[i], stops[i + 1]);
+    if (cost < bestCost) { bestCost = cost; bestIndex = i; }
+  }
+  const point = { lngLat, marker: null };
+  point.marker = makeMarker(lngLat, "", "#5f5e5a", (p) => { point.lngLat = p; });
+  // Prawy przycisk myszy (albo dwuklik) usuwa punkt pośredni.
+  const remove = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    point.marker.remove();
+    via = via.filter((v) => v !== point);
+    renumberVia();
+    recalculate();
+  };
+  point.marker.getElement().addEventListener("contextmenu", remove);
+  point.marker.getElement().addEventListener("dblclick", remove);
+  point.marker.getElement().title = "Prawy przycisk myszy – usuń punkt";
+  via.splice(bestIndex, 0, point);
+  renumberVia();
+}
+
+function renumberVia() {
+  via.forEach((v, i) => { v.marker.getElement().textContent = String(i + 1); });
+}
+
+function setViaMode(on) {
+  viaMode = on;
+  $("via-mode").classList.toggle("active", on);
+  $("hint").textContent = on ? "Kliknij na mapie miejsce, przez które ma prowadzić trasa." : hintText();
+}
+
+function hintText() {
+  if (!start) return "Kliknij na mapie punkt startu (A), potem cel (B).";
+  if (!end) return "Teraz kliknij cel (B).";
+  return "Gotowe. Przeciągnij punkty albo kliknij dwukrotnie na drogę, żeby dodać punkt pośredni.";
+}
+
+function clearAll() {
+  [start, end, ...via].forEach((p) => p?.marker.remove());
+  start = end = null;
+  via = [];
+  routeShown = false;
+  setViaMode(false);
+  clearRoute();
 }
 
 function clearRoute() {
-  if (map.getSource("route")) map.getSource("route").setData({ type: "FeatureCollection", features: [] });
+  for (const source of ["route", "alternatives"]) {
+    map.getSource(source)?.setData({ type: "FeatureCollection", features: [] });
+  }
+  currentRoute = null;
   $("result").hidden = true;
 }
 
-map.on("click", (event) => setPoint(event.lngLat));
+map.on("click", (event) => {
+  if (viaMode && start && end) {
+    addVia(event.lngLat);
+    setViaMode(false);
+    recalculate();
+  } else if (!start) {
+    setStart(event.lngLat);
+  } else if (!end) {
+    setEnd(event.lngLat);
+  }
+  $("hint").textContent = hintText();
+});
+
+// Dwuklik na drodze dodaje punkt pośredni (zamiast przybliżania mapy), gdy A i B już są.
+map.on("dblclick", (event) => {
+  if (!start || !end) return;
+  event.preventDefault();
+  addVia(event.lngLat);
+  setViaMode(false);
+  recalculate();
+});
+
+const LEVEL_COLOR = ["match", ["get", "level"],
+  "red", COLORS.red, "orange", COLORS.orange, "yellow", COLORS.yellow,
+  "lime", COLORS.lime, "green", COLORS.green, "#888780"];
+
 map.on("load", () => {
-  map.addSource("route", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({ id: "route-casing", type: "line", source: "route",
-                 paint: { "line-color": "#ffffff", "line-width": 9 }, layout: { "line-cap": "round", "line-join": "round" } });
-  map.addLayer({ id: "route", type: "line", source: "route",
-                 paint: { "line-color": "#3b6d11", "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
-});
+  const empty = { type: "FeatureCollection", features: [] };
+  const lineLayout = { "line-cap": "round", "line-join": "round" };
+  // Alternatywy pod trasą główną, półprzezroczyste; kliknięcie wybiera alternatywę.
+  map.addSource("alternatives", { type: "geojson", data: empty });
+  map.addLayer({ id: "alt-casing", type: "line", source: "alternatives", layout: lineLayout,
+                 paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.5 } });
+  map.addLayer({ id: "alt-route", type: "line", source: "alternatives", layout: lineLayout,
+                 paint: { "line-width": 6, "line-opacity": 0.45, "line-color": LEVEL_COLOR } });
+  map.on("click", "alt-route", (event) => chooseAlternative(event.features[0].properties.alt));
+  map.on("mouseenter", "alt-route", () => { map.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", "alt-route", () => { map.getCanvas().style.cursor = ""; });
 
-$("demo").addEventListener("click", () => {
-  points = []; markers.forEach((m) => m.remove()); markers = []; clearRoute();
-  setPoint({ lng: 16.9252, lat: 52.4064 });
-  setPoint({ lng: 21.0122, lat: 52.2297 });
+  map.addSource("route", { type: "geojson", data: empty });
+  map.addLayer({ id: "route-casing", type: "line", source: "route", layout: lineLayout,
+                 paint: { "line-color": "#ffffff", "line-width": 9 } });
+  map.addLayer({ id: "route", type: "line", source: "route", layout: lineLayout,
+                 paint: { "line-width": 5, "line-color": LEVEL_COLOR } });
+  // Odcinki nieprzejezdne migają, żeby nie dało się ich przeoczyć.
+  map.addLayer({ id: "route-red", type: "line", source: "route", layout: lineLayout,
+                 filter: ["==", ["get", "level"], "red"], paint: { "line-color": "#ffffff", "line-width": 5 } });
+  setInterval(() => {
+    blinkOn = !blinkOn;
+    map.setPaintProperty("route-red", "line-opacity", blinkOn ? 0.85 : 0);
+  }, 500);
+});
+let blinkOn = false;
+
+function routeFeatures(route) {
+  const line = (from, to, level) => ({
+    type: "Feature", properties: { level },
+    geometry: { type: "LineString", coordinates: route.geometry.slice(from, to + 1) },
+  });
+  if (!route.analysis) return [line(0, route.geometry.length - 1, "unknown")];
+  return route.analysis.segments.map((s) => line(s.start_index, s.end_index, s.level));
+}
+
+const LEVEL_TEXT = {
+  green: "Bez problemów dla tego pojazdu",
+  lime: "Bez problemów (ronda na trasie)",
+  yellow: "Uwaga: trudne miejsca na trasie",
+  orange: "Bardzo trudne miejsca dla tego pojazdu",
+  red: "Trasa nieprzejezdna dla tego pojazdu",
+};
+
+function analysisHtml(route) {
+  const analysis = route.analysis;
+  if (!analysis) return '<p class="muted">Nie udało się ocenić trasy (brak danych o odcinkach).</p>';
+  const items = analysis.warnings.map((w, i) =>
+    `<li><button type="button" data-warning="${i}"><span class="dot ${w.level}"></span>` +
+    `<span>km ${w.km.toLocaleString("pl-PL")} – ${escapeHtml(w.message)}</span></button></li>`).join("");
+  const detour = route.avoided.length
+    ? `<p class="muted">Ominięto trudne miejsca: +${(route.distance_km - route.base_distance_km).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} km ` +
+      `względem najkrótszej trasy (${route.base_distance_km.toLocaleString("pl-PL")} km).</p>`
+    : "";
+  return `<span class="badge ${analysis.level}">${LEVEL_TEXT[analysis.level]}</span>` + detour +
+    (items ? `<ul class="warnings">${items}</ul>` : "");
+}
+
+function demo(a, b) {
+  clearAll();
+  setStart(a);
+  setEnd(b);
+  $("hint").textContent = hintText();
   calculate();
-});
+}
+$("demo").addEventListener("click", () => demo({ lng: 16.9252, lat: 52.4064 }, { lng: 21.0122, lat: 52.2297 }));
+$("demo-tarnow").addEventListener("click", () => demo({ lng: 20.9898, lat: 50.0072 }, { lng: 21.0537, lat: 49.8952 }));
 $("calc").addEventListener("click", calculate);
+$("clear").addEventListener("click", clearAll);
+$("avoid").addEventListener("change", recalculate);
+$("via-mode").addEventListener("click", () => {
+  if (!start || !end) return showError("Najpierw zaznacz start (A) i cel (B).");
+  setViaMode(!viaMode);
+});
 
-async function calculate() {
+function recalculate() {
+  if (routeShown) calculate({ keepView: true });
+}
+
+const point = (lngLat) => ({ lat: lngLat.lat, lon: lngLat.lng });
+
+async function calculate(options = {}) {
   showError("");
   const vehicleId = $("vehicle-select").value;
   if (!vehicleId) return showError("Najpierw zapisz pojazd.");
-  if (points.length < 2) return showError("Zaznacz na mapie start (A) i cel (B).");
+  if (!start || !end) return showError("Zaznacz na mapie start (A) i cel (B).");
   $("calc").disabled = true;
   try {
     const route = await api("/api/routes", { method: "POST", body: JSON.stringify({
-      origin: { lat: points[0].lat, lon: points[0].lng },
-      destination: { lat: points[1].lat, lon: points[1].lng },
+      origin: point(start.lngLat),
+      destination: point(end.lngLat),
+      via: via.map((v) => point(v.lngLat)),
       vehicle_id: vehicleId,
+      avoid_difficult: $("avoid").checked,
     }) });
-    map.getSource("route").setData({ type: "Feature", geometry: { type: "LineString", coordinates: route.geometry } });
-    const bounds = route.geometry.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(route.geometry[0], route.geometry[0]));
-    map.fitBounds(bounds, { padding: 60 });
-    const hours = Math.floor(route.duration_min / 60), minutes = Math.round(route.duration_min % 60);
-    $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${hours} h ${minutes} min` +
-      `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.weight_t} t). ` +
-      `Kolory ryzyka (żółty, czerwony) dojdą w kolejnym etapie.</p>`;
-    $("result").hidden = false;
+    routeShown = true;
+    showRoute(route, options);
   } catch (e) {
     showError(e.message);
   } finally {
     $("calc").disabled = false;
   }
+}
+
+let currentRoute = null;
+
+function showRoute(route, options = {}) {
+  currentRoute = route;
+  map.getSource("route").setData({ type: "FeatureCollection", features: routeFeatures(route) });
+  map.getSource("alternatives").setData({
+    type: "FeatureCollection",
+    features: route.alternatives.flatMap((alt, i) => routeFeatures(alt).map((f) => ({ ...f, properties: { ...f.properties, alt: i } }))),
+  });
+  if (!options.keepView) {
+    const all = [route, ...route.alternatives].flatMap((r) => r.geometry);
+    const bounds = all.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(all[0], all[0]));
+    map.fitBounds(bounds, { padding: 60 });
+  }
+  $("result").className = `result ${route.analysis?.level ?? ""}`;
+  $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${duration(route)}` +
+    `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t)</p>` +
+    analysisHtml(route) + alternativesHtml(route);
+  $("result").querySelectorAll("[data-warning]").forEach((button) => button.addEventListener("click", () => {
+    const w = route.analysis.warnings[Number(button.dataset.warning)];
+    map.flyTo({ center: [w.lon, w.lat], zoom: 17 });
+  }));
+  $("result").querySelectorAll("[data-alt]").forEach((button) =>
+    button.addEventListener("click", () => chooseAlternative(Number(button.dataset.alt))));
+  $("result").hidden = false;
+}
+
+function duration(route) {
+  return `${Math.floor(route.duration_min / 60)} h ${Math.round(route.duration_min % 60)} min`;
+}
+
+function alternativesHtml(route) {
+  if (!route.alternatives.length) return "";
+  const difficult = ["orange", "red"].includes(route.analysis?.level);
+  const items = route.alternatives.map((alt, i) => {
+    const level = alt.analysis?.level ?? "unknown";
+    const count = alt.analysis?.warnings.filter((w) => ["orange", "red"].includes(w.level)).length ?? 0;
+    const delta = alt.distance_km - route.distance_km;
+    return `<li><button type="button" data-alt="${i}"><span class="dot ${level}"></span><span>` +
+      `${alt.distance_km.toLocaleString("pl-PL")} km (${delta >= 0 ? "+" : ""}${delta.toLocaleString("pl-PL", { maximumFractionDigits: 1 })}) · ${duration(alt)}` +
+      ` · ${count ? `${count} bardzo trudnych miejsc` : LEVEL_TEXT[level] ?? "bez oceny"}</span></button></li>`;
+  }).join("");
+  return `<h2 style="margin-top:12px">Trasy alternatywne</h2>` +
+    (difficult ? '<p class="muted alt-hint">Na wybranej trasie są bardzo trudne miejsca – porównaj alternatywy (półprzezroczyste na mapie).</p>'
+               : '<p class="muted">Półprzezroczyste na mapie – kliknij, żeby wybrać.</p>') +
+    `<ul class="warnings">${items}</ul>`;
+}
+
+function chooseAlternative(index) {
+  // Wybrana alternatywa staje się trasą główną, a dotychczasowa główna – alternatywą.
+  const route = currentRoute;
+  const chosen = route.alternatives[index];
+  const previous = { distance_km: route.distance_km, duration_min: route.duration_min, geometry: route.geometry, analysis: route.analysis };
+  showRoute({
+    ...route,
+    ...chosen,
+    avoided: [],
+    alternatives: [previous, ...route.alternatives.filter((_, i) => i !== index)],
+  }, { keepView: true });
 }
 
 loadVehicles().catch((e) => showError(e.message));

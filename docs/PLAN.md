@@ -211,8 +211,12 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Import OSM Polski → Valhalla (infra/download_map.ps1)
 - [ ] Kraje sąsiednie (DE, CZ, SK, LT), aktualizacja co tydzień
 - [x] API trasy z parametrami pojazdu (/api/routes) + planer na mapie (/planer)
-- [ ] Baza ograniczeń w PostGIS
-- [ ] Ocena segmentów: krzywizna zakrętów vs promień skrętu, zwężenia, zapas wysokości → zielony/żółty/czerwony
+- [x] Baza ograniczeń (import z OSM: wysokość, masa, nacisk osi, szerokość, długość, zakazy dla ciężarówek; ok. 160 tys. dla PL)
+- [x] Ocena segmentów: krzywizna zakrętów vs długość pojazdu, wąskie drogi, zapas wysokości/szerokości/długości, masa i naciski, zakazy → zielony/żółty/czerwony z ostrzeżeniami; czerwony miga w planerze
+- [x] Pięć poziomów: czerwony (nie przejedzie), pomarańczowy (osiedlówki dla pojazdów > 12 m, zapas < 10 cm, zakręt < 0,6 × długość), żółty, jasnozielony (ronda), zielony
+- [x] Planowanie po zielonych drogach: pomarańczowe i czerwone miejsca (poza okolicą startu, celu i punktów pośrednich) są wykluczane i trasa liczona ponownie, max 3 razy; objazd do 1,25 × długość + 3 km. Sprawdzone na Tarnów (ul. Tuchowska) → Tuchów: zestaw omija Aleję Tarnowskich / Tuwima / Ostrogskich (+1,9 km)
+- [x] Ręczna zmiana trasy: punkty pośrednie, przeciąganie A / B / punktów pośrednich, przełącznik „Omijaj trudne drogi”
+- [ ] Dostroić progi oceny na trasach testowych z kierowcami (zakręty, wąskie drogi, punkty przy trasie)
 - [ ] Generowanie korytarza danych dla telefonu
 - [x] **Moduł testowy „hello”** udowadniający, że system modułów działa
 

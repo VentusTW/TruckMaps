@@ -1,4 +1,4 @@
-"""Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``)."""
+"""Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``) z omijaniem trudnych miejsc."""
 
 from typing import Annotated, Protocol
 
@@ -7,12 +7,40 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from truckmaps.core import restrictions
 from truckmaps.core.db import get_session
+from truckmaps.core.restrictions import distance_m
+from truckmaps.core.route_analysis import Analysis, Level, RouteEdge, RouteWarning, analyze
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
 from truckmaps.sdk import Principal
 
-# Kod Valhalli: "No path could be found for input".
-VALHALLA_NO_ROUTE = 442
+# Kody Valhalli: 442 – "No path could be found", 171 – "No suitable edges near location".
+VALHALLA_NO_ROUTE = {442, 171}
+EDGE_ATTRIBUTES = [
+    "edge.way_id",
+    "edge.begin_shape_index",
+    "edge.end_shape_index",
+    "edge.road_class",
+    "edge.use",
+    "edge.lane_count",
+    "edge.roundabout",
+    "edge.names",
+]
+
+# Omijanie trudnych miejsc: ile razy przeliczać trasę i jak długi objazd jest rozsądny.
+AVOID_ROUNDS = 3
+MAX_DETOUR_FACTOR = 1.25
+MAX_DETOUR_EXTRA_KM = 3.0
+# Miejsc przy starcie, celu i punktach pośrednich nie omijamy – tam trzeba dojechać.
+KEEP_NEAR_STOPS_M = 400.0
+AVOID_LEVELS = {Level.ORANGE.label, Level.RED.label}
+# Ile tras alternatywnych pokazać i kiedy dwie trasy uznać za tę samą.
+MAX_ALTERNATIVES = 2
+SAME_ROUTE_KM = 0.3
+SAME_ROUTE_MIN = 1.0
+# Alternatywa dużo dłuższa od trasy głównej nie jest realnym wyborem.
+MAX_ALTERNATIVE_FACTOR = 1.2
+MAX_ALTERNATIVE_EXTRA_KM = 5.0
 
 
 class Point(BaseModel):
@@ -23,17 +51,40 @@ class Point(BaseModel):
 class RouteRequest(BaseModel):
     origin: Point
     destination: Point
+    via: list[Point] = Field(default=[], max_length=20, description="Punkty pośrednie, po kolei")
     vehicle_id: str
+    avoid_difficult: bool = Field(
+        default=True, description="Omijaj miejsca pomarańczowe i czerwone, jeśli jest objazd"
+    )
 
 
 class Route(BaseModel):
     distance_km: float
     duration_min: float
     geometry: list[tuple[float, float]] = Field(description="Punkty trasy jako [lon, lat]")
+    edges: list[RouteEdge] | None = Field(default=None, exclude=True)
+    """Odcinki z identyfikatorami dróg OSM; ``None``, gdy Valhalla ich nie zwróciła."""
+    alternates: list["Route"] = Field(default=[], exclude=True)
+    """Alternatywy silnika tras (tylko dla trasy bez punktów pośrednich)."""
+
+
+class AlternativeRoute(BaseModel):
+    distance_km: float
+    duration_min: float
+    geometry: list[tuple[float, float]]
+    analysis: Analysis | None
 
 
 class RouteResponse(Route):
     vehicle: VehicleOut
+    analysis: Analysis | None = Field(
+        description="Ocena trasy dla pojazdu; brak, gdy nie udało się pobrać odcinków"
+    )
+    avoided: list[Point] = Field(default=[], description="Miejsca ominięte przy planowaniu")
+    base_distance_km: float = Field(description="Długość trasy przed omijaniem trudnych miejsc")
+    alternatives: list[AlternativeRoute] = Field(
+        default=[], description="Do dwóch innych wariantów, od najmniej problematycznego"
+    )
 
 
 class NoRouteFound(Exception):
@@ -45,7 +96,18 @@ class RoutingUnavailable(Exception):
 
 
 class Router(Protocol):
-    def route(self, origin: Point, destination: Point, vehicle: VehicleIn) -> Route: ...
+    def route(
+        self,
+        stops: list[Point],
+        vehicle: VehicleIn,
+        exclude: list[Point] | None = None,
+        alternates: int = 0,
+    ) -> Route:
+        """Trasa przez kolejne punkty (start, pośrednie, cel), bez dróg przy ``exclude``.
+
+        ``alternates`` – ile tras alternatywnych dołączyć w ``Route.alternates``.
+        """
+        ...
 
 
 class ValhallaRouter:
@@ -53,34 +115,126 @@ class ValhallaRouter:
         self._url = url.rstrip("/")
         self._http = http or httpx.Client(timeout=60)
 
-    def route(self, origin: Point, destination: Point, vehicle: VehicleIn) -> Route:
+    def route(
+        self,
+        stops: list[Point],
+        vehicle: VehicleIn,
+        exclude: list[Point] | None = None,
+        alternates: int = 0,
+    ) -> Route:
+        last = len(stops) - 1
+        locations = [
+            # Punkty pośrednie typu "through": bez zatrzymania i zawracania.
+            {"lat": p.lat, "lon": p.lon, "type": "break" if i in (0, last) else "through"}
+            for i, p in enumerate(stops)
+        ]
         request = {
-            "locations": [
-                {"lat": origin.lat, "lon": origin.lon},
-                {"lat": destination.lat, "lon": destination.lon},
-            ],
+            "locations": locations,
             "costing": "truck",
             "costing_options": {"truck": truck_options(vehicle)},
             "units": "kilometers",
             "directions_type": "none",
         }
+        if exclude:
+            request["exclude_locations"] = [{"lat": p.lat, "lon": p.lon} for p in exclude]
+        if alternates and len(stops) == 2:
+            # Valhalla liczy alternatywy tylko dla trasy z dwoma punktami.
+            request["alternates"] = alternates
         try:
             response = self._http.post(f"{self._url}/route", json=request)
         except httpx.HTTPError as exc:
             raise RoutingUnavailable(str(exc)) from exc
         body = response.json() if response.content else {}
-        if response.status_code == 400 and body.get("error_code") == VALHALLA_NO_ROUTE:
+        if response.status_code == 400 and body.get("error_code") in VALHALLA_NO_ROUTE:
             raise NoRouteFound(body.get("error", ""))
         if response.is_error:
             raise RoutingUnavailable(f"Valhalla {response.status_code}: {body.get('error')}")
 
-        trip = body["trip"]
-        geometry = [point for leg in trip["legs"] for point in decode_polyline6(leg["shape"])]
+        route = self._parse_trip(body["trip"], vehicle)
+        route.alternates = [
+            self._parse_trip(alternate["trip"], vehicle) for alternate in body.get("alternates", [])
+        ]
+        return route
+
+    def _parse_trip(self, trip: dict, vehicle: VehicleIn) -> Route:
+        geometry: list[tuple[float, float]] = []
+        edges: list[RouteEdge] | None = []
+        for leg in trip["legs"]:
+            offset = len(geometry)
+            matched = self._edges(leg["shape"], vehicle)
+            if matched is None:
+                geometry += decode_polyline6(leg["shape"])
+                edges = None
+            else:
+                leg_edges, leg_shape = matched
+                geometry += leg_shape
+                if edges is not None:
+                    edges += [
+                        e.model_copy(
+                            update={
+                                "begin_index": e.begin_index + offset,
+                                "end_index": e.end_index + offset,
+                            }
+                        )
+                        for e in leg_edges
+                    ]
         return Route(
             distance_km=round(trip["summary"]["length"], 1),
             duration_min=round(trip["summary"]["time"] / 60, 1),
             geometry=geometry,
+            edges=edges,
         )
+
+    def _edges(
+        self, shape: str, vehicle: VehicleIn
+    ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
+        """Odcinki trasy z identyfikatorami dróg OSM (Valhalla ``trace_attributes``).
+
+        Najpierw dokładne dopasowanie (``edge_walk``) do linii trasy. Gdy trasa przechodzi
+        przez punkt pośredni w środku drogi, Valhalla go nie znajduje (błąd 443) – wtedy
+        dopasowanie do mapy (``map_snap``), które zwraca własną, wyrównaną linię trasy.
+        Indeksy odcinków odnoszą się zawsze do zwróconej linii.
+        """
+        for shape_match in ("edge_walk", "map_snap"):
+            result = self._trace(shape, shape_match, vehicle)
+            if result is not None:
+                return result
+        return None
+
+    def _trace(
+        self, shape: str, shape_match: str, vehicle: VehicleIn
+    ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
+        request = {
+            "encoded_polyline": shape,
+            "shape_match": shape_match,
+            "costing": "truck",
+            "costing_options": {"truck": truck_options(vehicle)},
+            "filters": {"attributes": [*EDGE_ATTRIBUTES, "shape"], "action": "include"},
+        }
+        try:
+            response = self._http.post(f"{self._url}/trace_attributes", json=request)
+            response.raise_for_status()
+            body = response.json()
+            matched_shape = decode_polyline6(body.get("shape") or shape)
+            edges = [
+                RouteEdge(
+                    way_id=edge["way_id"],
+                    begin_index=edge["begin_shape_index"],
+                    end_index=edge["end_shape_index"],
+                    road_class=edge.get("road_class", ""),
+                    use=edge.get("use", ""),
+                    lane_count=edge.get("lane_count"),
+                    roundabout=edge.get("roundabout", False),
+                    names=edge.get("names", []),
+                )
+                for edge in body.get("edges", [])
+                if "way_id" in edge
+            ]
+        except (httpx.HTTPError, ValueError, KeyError):
+            return None
+        if not edges or max(e.end_index for e in edges) >= len(matched_shape):
+            return None
+        return edges, matched_shape
 
 
 def truck_options(vehicle: VehicleIn) -> dict:
@@ -93,6 +247,9 @@ def truck_options(vehicle: VehicleIn) -> dict:
         "axle_load": vehicle.axle_load_t,
         "axle_count": vehicle.axle_count,
         "hazmat": vehicle.hazmat,
+        # Ciężarówka nie powinna szukać skrótów przez strefy zamieszkania i drogi gruntowe.
+        "use_living_streets": 0.0,
+        "use_tracks": 0.0,
     }
 
 
@@ -117,6 +274,121 @@ def decode_polyline6(encoded: str) -> list[tuple[float, float]]:
     return points
 
 
+def plan(
+    router: Router,
+    db: Session,
+    stops: list[Point],
+    vehicle: VehicleIn,
+    avoid_difficult: bool = True,
+) -> tuple[Route, Analysis | None, list[Point], float]:
+    """Trasa z jak najmniejszą liczbą trudnych miejsc (alternatywy – patrz ``alternatives``).
+
+    Po wyznaczeniu trasy miejsca pomarańczowe i czerwone (poza okolicą startu, celu i
+    punktów pośrednich) są wykluczane i trasa jest liczona ponownie. Wygrywa wariant o
+    najniższym wyniku oceny, o ile objazd nie jest nierozsądnie długi.
+    Zwraca: trasę, jej ocenę, ominięte miejsca, długość pierwszej trasy.
+    """
+    first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
+    best, best_analysis, best_excluded = first, assess(db, first, vehicle), []
+    if not avoid_difficult or best_analysis is None:
+        return best, best_analysis, best_excluded, first.distance_km
+
+    excluded: list[Point] = []
+    max_km = first.distance_km * MAX_DETOUR_FACTOR + MAX_DETOUR_EXTRA_KM
+    for _ in range(AVOID_ROUNDS):
+        points = _avoid_points(best, best_analysis.warnings, stops)
+        if not points:
+            break
+        excluded += points
+        try:
+            candidate = router.route(stops, vehicle, exclude=excluded)
+        except NoRouteFound:
+            break
+        analysis = assess(db, candidate, vehicle)
+        if analysis is None or analysis.score >= best_analysis.score:
+            break
+        if candidate.distance_km > max_km:
+            break
+        best, best_analysis, best_excluded = candidate, analysis, list(excluded)
+    return best, best_analysis, best_excluded, first.distance_km
+
+
+def alternatives(
+    db: Session, chosen: Route, candidates: list[Route], vehicle: VehicleIn
+) -> list[AlternativeRoute]:
+    """Do dwóch tras innych niż wybrana, od najmniej problematycznej."""
+    found: list[tuple[float, AlternativeRoute]] = []
+    taken = [chosen]
+    max_km = chosen.distance_km * MAX_ALTERNATIVE_FACTOR + MAX_ALTERNATIVE_EXTRA_KM
+    for candidate in candidates:
+        if candidate.distance_km > max_km or any(_same_route(candidate, o) for o in taken):
+            continue
+        taken.append(candidate)
+        analysis = assess(db, candidate, vehicle)
+        score = analysis.score if analysis else float("inf")
+        found.append(
+            (
+                score,
+                AlternativeRoute(
+                    distance_km=candidate.distance_km,
+                    duration_min=candidate.duration_min,
+                    geometry=candidate.geometry,
+                    analysis=analysis,
+                ),
+            )
+        )
+    found.sort(key=lambda item: (item[0], item[1].duration_min))
+    return [alternative for _, alternative in found[:MAX_ALTERNATIVES]]
+
+
+def _same_route(a: Route, b: Route) -> bool:
+    return (
+        abs(a.distance_km - b.distance_km) < SAME_ROUTE_KM
+        and abs(a.duration_min - b.duration_min) < SAME_ROUTE_MIN
+    )
+
+
+def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
+    if route.edges is None:
+        return None
+    return analyze(
+        route.geometry,
+        route.edges,
+        vehicle,
+        restrictions.for_ways(db, (e.way_id for e in route.edges)),
+        restrictions.nodes_in_bbox(db, route.geometry),
+    )
+
+
+def _avoid_points(route: Route, warnings: list[RouteWarning], stops: list[Point]) -> list[Point]:
+    """Punkty na trudnych odcinkach, które Valhalla ma ominąć (kilka na długi odcinek)."""
+    points = []
+    for warning in warnings:
+        if warning.level not in AVOID_LEVELS:
+            continue
+        span = list(range(warning.index, max(warning.end_index, warning.index + 1)))
+        step = max(len(span) // 4, 1)
+        for i in span[step // 2 :: step][:4]:
+            lon, lat = route.geometry[i]
+            near_stop = any(distance_m(lon, lat, s.lon, s.lat) < KEEP_NEAR_STOPS_M for s in stops)
+            if not near_stop:
+                points.append(Point(lat=lat, lon=lon))
+    return points
+
+
+class _Recording:
+    """Router zapamiętujący wszystkie policzone warianty – kandydaci na trasy alternatywne."""
+
+    def __init__(self, inner: Router, seen: list[Route]) -> None:
+        self._inner = inner
+        self._seen = seen
+
+    def route(self, stops, vehicle, exclude=None, alternates=0) -> Route:
+        route = self._inner.route(stops, vehicle, exclude=exclude, alternates=alternates)
+        self._seen += [route, *route.alternates]
+        return route
+
+
 def build_router(current_user) -> APIRouter:
     router = APIRouter(prefix="/api/routes", tags=["routes"])
 
@@ -128,18 +400,33 @@ def build_router(current_user) -> APIRouter:
         db: Annotated[Session, Depends(get_session)],
     ) -> RouteResponse:
         vehicle = VehicleOut.model_validate(load_owned(db, data.vehicle_id, user))
-        router_: Router = request.app.state.router
+        stops = [data.origin, *data.via, data.destination]
         try:
-            route = router_.route(data.origin, data.destination, vehicle)
+            first_candidates: list[Route] = []
+            route, analysis, avoided, base_km = plan(
+                _Recording(request.app.state.router, first_candidates),
+                db,
+                stops,
+                vehicle,
+                data.avoid_difficult,
+            )
         except NoRouteFound as exc:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Brak trasy, którą ten pojazd może przejechać między tymi punktami.",
+                "Brak trasy, którą ten pojazd może przejechać między tymi punktami "
+                "(albo punkt leży za daleko od drogi).",
             ) from exc
         except RoutingUnavailable as exc:
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer wyznaczania tras jest niedostępny."
             ) from exc
-        return RouteResponse(**route.model_dump(), vehicle=vehicle)
+        return RouteResponse(
+            **route.model_dump(),
+            vehicle=vehicle,
+            analysis=analysis,
+            avoided=avoided,
+            base_distance_km=base_km,
+            alternatives=alternatives(db, route, first_candidates, vehicle),
+        )
 
     return router

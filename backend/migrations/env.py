@@ -5,7 +5,7 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import create_engine
 
-from truckmaps.core import vehicles  # noqa: F401  (rejestruje tabele w Base.metadata)
+from truckmaps.core import restrictions, vehicles  # noqa: F401  (rejestrują tabele w Base.metadata)
 from truckmaps.core.config import load_env_file
 from truckmaps.core.db import Base
 
