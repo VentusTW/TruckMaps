@@ -247,6 +247,13 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 ### Faza 4 – Pierwsze moduły płatne + Europa (miesiące 11–14)
 - [ ] M2 Czas pracy kierowcy: limity 561/2006, rozkład przerw wg preferencji, pauza tygodniowa poza kabiną
 - [ ] Zdarzenia drogowe z krajowych punktów dostępowych (DATEX II) → propozycja przerwy przed korkiem lub wypadkiem
+- [ ] Święta i zakazy ruchu w czasie, według danych państw:
+  - kalendarz świąt per kraj i region (np. święta landów w DE, kantonów w CH), z oficjalnych źródeł i bibliotek świąt
+  - zakazy dla ciężarówek: weekendowe, świąteczne, wakacyjne (np. soboty w lecie w DE, AT, FR), nocne (AT, CH), z progami DMC, wyjątkami (ładunki szybko psujące się, transport kombinowany) i godzinami
+  - ograniczenia czasowe z OSM (`hgv:conditional`, `maxweight:conditional`, `access:conditional`) i z krajowych DATEX II
+  - przy planowaniu liczona godzina wjazdu na każdy odcinek i do każdego kraju: ostrzeżenie „zakaz od sob. 15:00 do niedz. 22:00 w DE”, propozycja zmiany godziny wyjazdu, objazdu lub parkingu przed zakazem
+  - to samo przy ofertach w planerze zleceń (M7) i przy rozkładzie przerw (M2)
+  - podział między rdzeń a moduły do ustalenia; bezpieczeństwo i legalność przejazdu najlepiej za darmo
 - [ ] M3 Parkingi i POI: wyszukiwanie, filtry, propozycje pod przerwę, zgłoszenia „pełny / są miejsca”
 - [ ] M4 Opłaty drogowe i koszty:
   - profil pojazdu: klasa Euro, klasa CO₂ (DE), spalanie l/100 km (pusty/ładowny), AdBlue jako % spalania, własne ceny paliwa (opcjonalnie)
