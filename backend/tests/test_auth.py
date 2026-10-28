@@ -113,6 +113,8 @@ def test_dev_login_full_flow(provider):
     with TestClient(app, follow_redirects=False) as client:
         assert "Zaloguj się e-mailem" in client.get("/").text
 
+        assert client.get("/planer").status_code == 303  # bez logowania wraca na /
+
         login = client.get("/auth/login")
         query = parse_qs(urlparse(login.headers["location"]).query)
         assert query["client_id"] == [CLIENT_ID]
@@ -126,6 +128,11 @@ def test_dev_login_full_flow(provider):
         page = client.get("/").text
         assert "anna@example.test" in page
         assert "Wyloguj" in page
+
+        planner = client.get("/planer")
+        assert planner.status_code == 200
+        assert "Planer trasy" in planner.text
+        assert "__ACCESS_TOKEN__" not in planner.text
 
 
 def test_dev_login_rejects_wrong_state(provider):

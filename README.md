@@ -14,20 +14,28 @@ py -3.12 -m venv .venv
 copy infra\.env.example infra\.env
 docker compose -f infra/docker-compose.yml up -d --wait
 .venv\Scripts\python infra\zitadel\bootstrap.py
+Add-Content .env "TRUCKMAPS_DATABASE_URL=postgresql+psycopg://truckmaps:truckmaps_dev@127.0.0.1:5432/truckmaps"
+.venv\Scripts\alembic -c backend\alembic.ini upgrade head
+powershell -ExecutionPolicy Bypass -File infra\download_map.ps1
+docker compose -f infra/docker-compose.yml --profile routing up -d
 ```
 
-`bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit i zapisuje konfigurację do `.env`.
+- `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
+- Adres bazy: `127.0.0.1`, nie `localhost` – pod `localhost` Windows najpierw próbuje IPv6 i połączenie wisi. Hasło jak w `infra/.env`.
+- `alembic ... upgrade head` tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
+- `download_map.ps1` pobiera mapę Polski (ok. 2 GB), a Valhalla buduje z niej trasy przy pierwszym starcie (ok. godziny).
 
 Na co dzień:
 
 ```powershell
-docker compose -f infra/docker-compose.yml up -d --wait
+docker compose -f infra/docker-compose.yml --profile routing up -d --wait
 .venv\Scripts\python -m truckmaps.core
 ```
 
 | Adres | Co to jest |
 |---|---|
 | http://localhost:8000/ | strona powitalna z logowaniem (testowa, do czasu aplikacji Flutter) |
+| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa dla ciężarówki |
 | http://localhost:8000/docs | dokumentacja API; token do „Authorize” jest na stronie powitalnej po zalogowaniu |
 | http://localhost:8000/api/me | zalogowany użytkownik |
 | http://localhost:8025 | Mailpit – maile wysłane przez Zitadela (kody, potwierdzenia) |
@@ -44,6 +52,15 @@ Konfiguracja przez zmienne środowiskowe (albo plik `.env` w katalogu, z któreg
 | `TRUCKMAPS_LICENSES` | `sub1:hello,tolls;sub2:hello` – licencje przypisane do identyfikatora użytkownika z `/api/me` |
 | `TRUCKMAPS_OIDC_ISSUER`, `TRUCKMAPS_OIDC_CLIENT_ID`, `TRUCKMAPS_OIDC_PROJECT_ID` | logowanie (zapisuje je `bootstrap.py`) |
 | `TRUCKMAPS_DEV_LOGIN` | `true` – testowa strona logowania pod `/` (domyślnie przy `python -m truckmaps.core`) |
+| `TRUCKMAPS_DATABASE_URL` | baza PostgreSQL TruckMaps; bez niej profile pojazdów i trasy zwracają 503 |
+| `TRUCKMAPS_VALHALLA_URL` | serwer tras, domyślnie `http://127.0.0.1:8002` |
+
+Token do testów API bez przeglądarki (konto techniczne w lokalnym Zitadelu):
+
+```powershell
+$token = .venv\Scripts\python infra\zitadel\test_token.py
+curl.exe -s http://127.0.0.1:8000/api/vehicles -H "Authorization: Bearer $token"
+```
 
 ## Plik exe (Windows)
 
@@ -51,7 +68,7 @@ Konfiguracja przez zmienne środowiskowe (albo plik `.env` w katalogu, z któreg
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_exe.ps1
 ```
 
-Wynik: `dist\TruckMaps-Server.exe` (jeden plik, ok. 18 MB, nie wymaga Pythona). Po uruchomieniu otwiera przeglądarkę na `/docs`; opcje: `--port 8080`, `--host 0.0.0.0`, `--no-browser`. Do exe trafiają rdzeń i wszystkie moduły z `backend/modules`. Bez exe to samo daje `.venv\Scripts\python -m truckmaps.core`.
+Wynik: `dist\TruckMaps-Server.exe` (jeden plik, nie wymaga Pythona). Uruchamiaj go z katalogu projektu, żeby wczytał `.env`; wtedy otwiera stronę powitalną z logowaniem, w innym wypadku `/docs`; opcje: `--port 8080`, `--host 0.0.0.0`, `--no-browser`. Do exe trafiają rdzeń i wszystkie moduły z `backend/modules`. Bez exe to samo daje `.venv\Scripts\python -m truckmaps.core`.
 
 ## Sprawdzanie
 
@@ -66,13 +83,9 @@ CI (`.github/workflows/ci.yml`) uruchamia testy osobno dla samego rdzenia, dla r
 
 ## Routing: Valhalla
 
-Valhalla jest w profilu `routing`, bo nie startuje razem z resztą:
+Valhalla jest w profilu `routing` i buduje trasy z plików `*.osm.pbf` w `infra/data/valhalla`. Kontener sam ich nie pobiera, bo w tej sieci nie ufa certyfikatom HTTPS – mapy pobiera `infra\download_map.ps1` (np. `-Regions poland,germany`). Pierwsza budowa kafelków: ok. 1 h dla Polski, ok. 8 GB RAM. Po dodaniu map usuń `infra\data\valhalla\valhalla_tiles*`, żeby przebudować.
 
-```powershell
-docker compose -f infra/docker-compose.yml --profile routing up -d
-```
-
-Pierwszy start Valhalli pobiera mapę Polski i buduje kafelki routingu (ok. 1 h, ok. 8 GB RAM). Test trasy dla ciężarówki 4 m / 40 t:
+Test trasy dla ciężarówki 4 m / 40 t:
 
 ```powershell
 curl.exe -s http://127.0.0.1:8002/route -H "Content-Type: application/json" -d '{\"locations\":[{\"lat\":52.4064,\"lon\":16.9252},{\"lat\":52.2297,\"lon\":21.0122}],\"costing\":\"truck\",\"costing_options\":{\"truck\":{\"height\":4.0,\"weight\":40,\"length\":16.5}}}'

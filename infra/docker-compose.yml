@@ -165,20 +165,24 @@ services:
       - "127.0.0.1:1025:1025"
 
   # --- Routing ----------------------------------------------------------------
-  # Pierwsze uruchomienie pobiera mapę i buduje kafelki routingu.
-  # Polska: ~2 GB do pobrania, ~1 h budowy, potrzeba ok. 8 GB RAM.
+  # Buduje kafelki routingu z plików *.osm.pbf w infra/data/valhalla (pobierz je przez
+  # infra/download_map.ps1 – kontener sam ich nie pobierze, jeśli nie ufa certyfikatom
+  # HTTPS w sieci). Polska: ~2 GB, ~1 h pierwszej budowy, ok. 8 GB RAM.
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest  # przypiąć konkretną wersję po pierwszym udanym starcie
     profiles: ["routing"]
     restart: unless-stopped
     environment:
-      tile_urls: ${VALHALLA_TILE_URLS:-https://download.geofabrik.de/europe/poland-latest.osm.pbf}
+      tile_urls: ${VALHALLA_TILE_URLS:-}
       use_tiles_ignore_pbf: "True"
       build_admins: "True"
       build_time_zones: "True"
       build_elevation: "False"
       serve_tiles: "True"
       force_rebuild: "False"
+      # Plik prędkości z OpenStreetMapSpeeds (gałąź master) wywoływał segfault
+      # w etapie "enhance" Valhalli 3.9.1; bez niego Valhalla używa prędkości wg klas dróg.
+      use_default_speeds_config: "False"
       server_threads: ${VALHALLA_THREADS:-4}
     ports:
       - "127.0.0.1:8002:8002"

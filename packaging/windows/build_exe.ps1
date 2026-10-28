@@ -26,6 +26,9 @@ foreach ($dir in Get-ChildItem (Join-Path $root "backend\modules") -Directory) {
     --specpath (Join-Path $root "build\pyinstaller") `
     --collect-submodules uvicorn `
     --copy-metadata truckmaps-backend `
+    --collect-data truckmaps `
+    --collect-submodules psycopg `
+    --collect-all psycopg_binary `
     @moduleArgs `
     (Join-Path $root "backend\src\truckmaps\core\__main__.py")
 if ($LASTEXITCODE -ne 0) { throw "Budowanie exe nie powiodło się" }

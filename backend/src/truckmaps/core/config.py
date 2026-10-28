@@ -27,6 +27,11 @@ class Settings:
     dev_login_page: bool = False
     """Strona ``/`` z testowym logowaniem w przeglądarce."""
 
+    database_url: str | None = None
+    """Np. ``postgresql+psycopg://truckmaps:...@localhost:5432/truckmaps``; ``None`` – bez bazy."""
+
+    valhalla_url: str = "http://127.0.0.1:8002"
+
     @property
     def oidc_enabled(self) -> bool:
         return bool(self.oidc_issuer and self.oidc_client_id)
@@ -51,6 +56,8 @@ class Settings:
             oidc_project_id=env.get("TRUCKMAPS_OIDC_PROJECT_ID") or None,
             public_url=env.get("TRUCKMAPS_PUBLIC_URL", cls.public_url).rstrip("/"),
             dev_login_page=_flag(env, "TRUCKMAPS_DEV_LOGIN"),
+            database_url=env.get("TRUCKMAPS_DATABASE_URL") or None,
+            valhalla_url=env.get("TRUCKMAPS_VALHALLA_URL", cls.valhalla_url),
         )
 
 

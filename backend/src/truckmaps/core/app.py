@@ -8,9 +8,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from truckmaps.core import api, devlogin
+from truckmaps.core import api, devlogin, routing, vehicles
 from truckmaps.core.auth import AuthService, OidcProvider, TokenVerifier
 from truckmaps.core.config import Settings
+from truckmaps.core.db import Database
 from truckmaps.core.defaults import register_defaults
 from truckmaps.core.events import InProcessEventBus
 from truckmaps.core.extensions import ExtensionRegistry
@@ -25,11 +26,13 @@ def create_app(
     modules: Iterable[Module] | None = None,
     *,
     token_verifier: TokenVerifier | None = None,
+    database: Database | None = None,
+    router: routing.Router | None = None,
 ) -> FastAPI:
     """Tworzy aplikację.
 
     ``modules=None`` ładuje moduły zainstalowane (entry pointy); testy podają
-    listę modułów i weryfikator tokenów wprost.
+    listę modułów, weryfikator tokenów, bazę i router tras wprost.
     """
     settings = settings or Settings.from_env()
     bus = InProcessEventBus()
@@ -70,11 +73,18 @@ def create_app(
         for module in modules:
             manager.load(module)
 
+    if database is None and settings.database_url:
+        database = Database(settings.database_url)
+
     app.state.auth = auth
+    app.state.database = database
     app.state.events = bus
     app.state.extensions = extensions
     app.state.modules = manager
+    app.state.router = router or routing.ValhallaRouter(settings.valhalla_url)
     app.include_router(api.build_router(auth.current_user))
+    app.include_router(vehicles.build_router(auth.current_user))
+    app.include_router(routing.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
         app.include_router(devlogin.build_router(provider, settings.public_url))
     return app

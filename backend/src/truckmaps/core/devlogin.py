@@ -9,6 +9,7 @@ import hashlib
 import html
 import json
 import secrets
+from importlib import resources
 from urllib.parse import urlencode
 
 import httpx
@@ -38,6 +39,15 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
                     response.delete_cookie(name)
             return response
         return HTMLResponse(_page(_logged_in(user, request.cookies[ACCESS_COOKIE])))
+
+    @router.get("/planer")
+    def planner(request: Request) -> Response:
+        if _session_user(request, provider) is None:
+            return RedirectResponse("/", status_code=303)
+        # Strona testowa woła API z nagłówkiem Bearer, więc dostaje token w kodzie strony.
+        token = json.dumps(request.cookies[ACCESS_COOKIE]).replace("</", "<\\/")
+        template = resources.files("truckmaps.core").joinpath("templates/planner.html")
+        return HTMLResponse(template.read_text(encoding="utf-8").replace("__ACCESS_TOKEN__", token))
 
     @router.get("/auth/login")
     def login(register: bool = False) -> Response:
@@ -177,7 +187,8 @@ def _logged_in(user: dict, access_token: str) -> str:
         <dt>E-mail</dt><dd>{html.escape(user["email"])}</dd>
         <dt>Identyfikator</dt><dd><code>{html.escape(user["subject"])}</code></dd>
       </dl>
-      <a class="btn primary" href="/docs">Dokumentacja API</a>
+      <a class="btn primary" href="/planer">Planer trasy</a>
+      <a class="btn" href="/docs">Dokumentacja API</a>
       <a class="btn" href="/auth/logout">Wyloguj</a>
       <details>
         <summary>Token dostępu (do „Authorize” w /docs)</summary>
