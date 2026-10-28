@@ -47,6 +47,10 @@
   .check { display:flex; gap:8px; align-items:flex-start; font-size:13px; grid-template-columns:none; }
   .check input { width:auto; margin-top:3px; }
   .alt-hint { color:#c26f00; }
+  .issue { padding:10px 12px; border-radius:10px; border:1px solid #f08c00; font-size:14px; margin-bottom:8px; }
+  .issue.unreachable { border-color:#d62828; }
+  .issue p { margin:4px 0; }
+  .dot.parking { background:#0c447c; border-radius:3px; }
   button.active { outline:2px solid var(--accent); }
   .error { padding:10px 12px; border-radius:10px; border:1px solid var(--bad); color:var(--bad); font-size:14px; }
   [hidden] { display:none !important; }
@@ -109,6 +113,7 @@
     <li><span class="dot orange"></span>bardzo trudne dla tego pojazdu</li>
     <li><span class="dot red blink"></span>nie przejedzie</li>
   </ul>
+  <div id="issues" hidden></div>
   <div class="result" id="result" hidden></div>
   <div class="error" id="error" hidden></div>
 </aside>
@@ -301,6 +306,7 @@ function clearRoute() {
     map.getSource(source)?.setData({ type: "FeatureCollection", features: [] });
   }
   currentRoute = null;
+  clearIssues();
   $("result").hidden = true;
 }
 
@@ -342,6 +348,11 @@ map.on("load", () => {
   map.on("click", "alt-route", (event) => chooseAlternative(event.features[0].properties.alt));
   map.on("mouseenter", "alt-route", () => { map.getCanvas().style.cursor = "pointer"; });
   map.on("mouseleave", "alt-route", () => { map.getCanvas().style.cursor = ""; });
+
+  // Przerywana linia: kliknięty punkt → najbliższe miejsce dostępne dla pojazdu.
+  map.addSource("issues", { type: "geojson", data: empty });
+  map.addLayer({ id: "issues-line", type: "line", source: "issues",
+                 paint: { "line-color": "#185fa5", "line-width": 2, "line-dasharray": [2, 2] } });
 
   map.addSource("route", { type: "geojson", data: empty });
   map.addLayer({ id: "route-casing", type: "line", source: "route", layout: lineLayout,
@@ -459,7 +470,76 @@ function showRoute(route, options = {}) {
   }));
   $("result").querySelectorAll("[data-alt]").forEach((button) =>
     button.addEventListener("click", () => chooseAlternative(Number(button.dataset.alt))));
+  showIssues(route.stop_issues ?? []);
   $("result").hidden = false;
+}
+
+// --- Punkty niedostępne dla pojazdu i parkingi w pobliżu ---------------------------
+let issueMarkers = [];
+
+function clearIssues() {
+  issueMarkers.forEach((m) => m.remove());
+  issueMarkers = [];
+  map.getSource("issues")?.setData({ type: "FeatureCollection", features: [] });
+  $("issues").hidden = true;
+}
+
+function smallMarker(lngLat, text, color, title, popupHtml) {
+  const element = document.createElement("div");
+  element.textContent = text;
+  element.title = title;
+  element.style.cssText = "min-width:22px;height:22px;padding:0 4px;border-radius:6px;display:grid;place-items:center;" +
+    "font:600 12px system-ui;color:#fff;border:2px solid #fff;cursor:pointer;background:" + color;
+  element.addEventListener("click", (event) => event.stopPropagation());
+  element.addEventListener("dblclick", (event) => event.stopPropagation());
+  const marker = new maplibregl.Marker({ element }).setLngLat(lngLat).addTo(map);
+  if (popupHtml) marker.setPopup(new maplibregl.Popup({ offset: 14 }).setHTML(popupHtml));
+  issueMarkers.push(marker);
+  return marker;
+}
+
+const ROLE_TEXT = { origin: "Start (A)", destination: "Cel (B)", via: "Punkt pośredni" };
+
+function showIssues(issues) {
+  clearIssues();
+  if (!issues.length) return;
+  const lines = [];
+  const items = issues.map((issue, i) => {
+    if (issue.reachable) {
+      lines.push({ type: "Feature", properties: {}, geometry: { type: "LineString",
+        coordinates: [[issue.requested.lon, issue.requested.lat], [issue.reachable.lon, issue.reachable.lat]] } });
+      smallMarker([issue.reachable.lon, issue.reachable.lat], "✓", "#185fa5",
+        "Najbliżej dostępne dla tego pojazdu", "Najbliższe miejsce, do którego dojedzie ten pojazd");
+    }
+    const parkings = issue.parkings.map((p, j) => {
+      const label = escapeHtml(p.name || p.kind_label);
+      const km = (p.distance_m / 1000).toLocaleString("pl-PL", { maximumFractionDigits: 1 });
+      smallMarker([p.lon, p.lat], "P", "#0c447c", `${p.kind_label} – ${km} km`,
+        `<strong>${label}</strong><br>${escapeHtml(p.kind_label)}<br>${km} km od punktu` +
+        (p.hgv_capacity ? `<br>miejsc dla ciężarówek: ${p.hgv_capacity}` : ""));
+      return `<li><button type="button" data-parking="${i}:${j}"><span class="dot parking"></span>` +
+        `<span>${label} · ${km} km${issue.role !== "via" ? " · <u>jedź tutaj</u>" : ""}</span></button></li>`;
+    }).join("");
+    return `<div class="issue ${issue.kind}"><strong>${ROLE_TEXT[issue.role]}${issue.role === "via" ? " nr " + issue.index : ""}</strong>` +
+      `<p>${escapeHtml(issue.message)}</p>` +
+      (parkings ? `<p class="muted">Parkingi dla ciężarówek w pobliżu:</p><ul class="warnings">${parkings}</ul>` : "") +
+      (issue.role !== "via" && !issue.parkings.length && issue.kind === "unreachable"
+        ? '<p class="muted">W promieniu 20 km nie ma oznaczonych parkingów dla ciężarówek.</p>' : "") +
+      `</div>`;
+  }).join("");
+  map.getSource("issues").setData({ type: "FeatureCollection", features: lines });
+  $("issues").innerHTML = items;
+  $("issues").hidden = false;
+  $("issues").querySelectorAll("[data-parking]").forEach((button) => button.addEventListener("click", () => {
+    const [i, j] = button.dataset.parking.split(":").map(Number);
+    const issue = issues[i], parking = issue.parkings[j];
+    const lngLat = { lng: parking.lon, lat: parking.lat };
+    // Parking jako nowy start lub cel – trasa przelicza się od razu.
+    if (issue.role === "destination") setEnd(lngLat);
+    else if (issue.role === "origin") setStart(lngLat);
+    else return map.flyTo({ center: [parking.lon, parking.lat], zoom: 15 });
+    recalculate();
+  }));
 }
 
 function duration(route) {

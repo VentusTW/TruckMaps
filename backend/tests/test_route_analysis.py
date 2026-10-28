@@ -2,6 +2,7 @@ import math
 
 import pytest
 
+from truckmaps.core.parkings import parking_kind
 from truckmaps.core.restrictions import (
     Kind,
     Restriction,
@@ -308,3 +309,18 @@ def test_road_attributes_only_for_minor_roads():
 
     major = restrictions_from_tags({"highway": "primary", "width": "7", "smoothness": "bad"})
     assert major == []
+
+
+@pytest.mark.parametrize(
+    ("tags", "kind"),
+    [
+        ({"amenity": "parking", "hgv": "designated"}, "truck_parking"),
+        ({"amenity": "parking", "capacity:hgv": "12"}, "truck_parking"),
+        ({"amenity": "parking"}, None),
+        ({"highway": "rest_area", "name": "MOP Komorów"}, "rest_area"),
+        ({"highway": "rest_area", "name": "Miejsce Obsługi Rowerzystów"}, None),
+        ({"highway": "services", "access": "private"}, None),
+    ],
+)
+def test_parking_kind(tags, kind):
+    assert parking_kind(tags) == kind

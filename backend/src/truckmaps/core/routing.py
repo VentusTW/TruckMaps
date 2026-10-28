@@ -1,13 +1,13 @@
 """Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``) z omijaniem trudnych miejsc."""
 
-from typing import Annotated, Protocol
+from typing import Annotated, Literal, Protocol
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import restrictions
+from truckmaps.core import parkings, restrictions
 from truckmaps.core.db import get_session
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import Analysis, Level, RouteEdge, RouteWarning, analyze
@@ -41,6 +41,11 @@ SAME_ROUTE_MIN = 1.0
 # Alternatywa dużo dłuższa od trasy głównej nie jest realnym wyborem.
 MAX_ALTERNATIVE_FACTOR = 1.2
 MAX_ALTERNATIVE_EXTRA_KM = 5.0
+# Punkt dalej niż tyle od najbliższej drogi dostępnej dla pojazdu – nie da się do niego dojechać.
+UNREACHABLE_M = 40.0
+# Trudne miejsca tak blisko startu lub celu oznaczają trudny dojazd – podpowiadamy parking.
+DIFFICULT_END_M = 300.0
+PARKING_RADIUS_M = 20000.0
 
 
 class Point(BaseModel):
@@ -75,6 +80,27 @@ class AlternativeRoute(BaseModel):
     analysis: Analysis | None
 
 
+class ParkingOut(BaseModel):
+    name: str | None
+    kind: str
+    kind_label: str
+    lat: float
+    lon: float
+    distance_m: float
+    hgv_capacity: int | None
+
+
+class StopIssue(BaseModel):
+    role: Literal["origin", "via", "destination"]
+    index: int = Field(description="Numer punktu pośredniego (od 1); 0 dla startu i celu")
+    kind: Literal["unreachable", "difficult"]
+    message: str
+    requested: Point
+    reachable: Point | None = Field(description="Najbliższe miejsce dostępne dla pojazdu")
+    distance_m: float | None
+    parkings: list[ParkingOut] = []
+
+
 class RouteResponse(Route):
     vehicle: VehicleOut
     analysis: Analysis | None = Field(
@@ -84,6 +110,9 @@ class RouteResponse(Route):
     base_distance_km: float = Field(description="Długość trasy przed omijaniem trudnych miejsc")
     alternatives: list[AlternativeRoute] = Field(
         default=[], description="Do dwóch innych wariantów, od najmniej problematycznego"
+    )
+    stop_issues: list[StopIssue] = Field(
+        default=[], description="Punkty, do których pojazd nie dojedzie lub dojazd jest trudny"
     )
 
 
@@ -106,6 +135,13 @@ class Router(Protocol):
         """Trasa przez kolejne punkty (start, pośrednie, cel), bez dróg przy ``exclude``.
 
         ``alternates`` – ile tras alternatywnych dołączyć w ``Route.alternates``.
+        """
+        ...
+
+    def locate(self, stops: list[Point], vehicle: VehicleIn) -> list[tuple[Point, float] | None]:
+        """Najbliższe miejsce na drodze dostępnej dla pojazdu i odległość do niego (m).
+
+        ``None`` – w pobliżu nie ma takiej drogi. Pusta lista – sprawdzenie niedostępne.
         """
         ...
 
@@ -155,6 +191,29 @@ class ValhallaRouter:
             self._parse_trip(alternate["trip"], vehicle) for alternate in body.get("alternates", [])
         ]
         return route
+
+    def locate(self, stops: list[Point], vehicle: VehicleIn) -> list[tuple[Point, float] | None]:
+        request = {
+            "locations": [{"lat": p.lat, "lon": p.lon} for p in stops],
+            "costing": "truck",
+            "costing_options": {"truck": truck_options(vehicle)},
+            "verbose": True,
+        }
+        try:
+            response = self._http.post(f"{self._url}/locate", json=request)
+            response.raise_for_status()
+            located = []
+            for location in response.json():
+                edges = location.get("edges") or []
+                if not edges:
+                    located.append(None)
+                    continue
+                nearest = min(edges, key=lambda e: e.get("distance", 0.0))
+                point = Point(lat=nearest["correlated_lat"], lon=nearest["correlated_lon"])
+                located.append((point, float(nearest.get("distance", 0.0))))
+            return located
+        except (httpx.HTTPError, ValueError, KeyError):
+            return []
 
     def _parse_trip(self, trip: dict, vehicle: VehicleIn) -> Route:
         geometry: list[tuple[float, float]] = []
@@ -348,6 +407,108 @@ def _same_route(a: Route, b: Route) -> bool:
     )
 
 
+def check_stops(
+    router: Router, db: Session, stops: list[Point], vehicle: VehicleIn
+) -> list[StopIssue]:
+    """Punkty, do których ten pojazd nie dojedzie – z najbliższym dostępnym miejscem."""
+    located = router.locate(stops, vehicle)
+    if len(located) != len(stops):
+        return []
+    issues = []
+    last = len(stops) - 1
+    for i, (stop, found) in enumerate(zip(stops, located, strict=True)):
+        if found is not None and found[1] <= UNREACHABLE_M:
+            continue
+        role = "origin" if i == 0 else "destination" if i == last else "via"
+        reachable, distance = found if found else (None, None)
+        where = (
+            f" najbliższa droga dostępna dla niego jest {round(distance)} m dalej"
+            if found
+            else (" w pobliżu nie ma drogi dostępnej dla niego")
+        )
+        if role == "via":
+            message = (
+                f"Przez punkt pośredni nr {i} nie da się przejechać tym pojazdem –{where}. "
+                "Przesuń punkt albo usuń go prawym przyciskiem myszy."
+            )
+        else:
+            target = "punktu startu" if role == "origin" else "celu"
+            message = f"Ten pojazd nie dojedzie do {target} –{where}. Zaznaczono je na mapie."
+        issues.append(
+            StopIssue(
+                role=role,
+                index=i if role == "via" else 0,
+                kind="unreachable",
+                message=message,
+                requested=stop,
+                reachable=reachable,
+                distance_m=round(distance, 1) if distance is not None else None,
+                parkings=_parkings(db, stop) if role != "via" else [],
+            )
+        )
+    return issues
+
+
+def difficult_ends(
+    db: Session,
+    route: Route,
+    analysis: Analysis | None,
+    stops: list[Point],
+    already: list[StopIssue],
+) -> list[StopIssue]:
+    """Trudny dojazd tuż przy starcie lub celu (pomarańczowy, czerwony) – podpowiedź parkingu."""
+    if analysis is None:
+        return []
+    total_m = route.distance_km * 1000
+    flagged = {issue.role for issue in already}
+    issues = []
+    for role, stop in (("origin", stops[0]), ("destination", stops[-1])):
+        if role in flagged:
+            continue
+        near_end = [
+            w
+            for w in analysis.warnings
+            if w.level in AVOID_LEVELS
+            and (
+                w.km * 1000 <= DIFFICULT_END_M
+                if role == "origin"
+                else total_m - w.km * 1000 <= DIFFICULT_END_M
+            )
+        ]
+        if not near_end:
+            continue
+        target = "ze startu" if role == "origin" else "do celu"
+        issues.append(
+            StopIssue(
+                role=role,
+                index=0,
+                kind="difficult",
+                message=f"Trudny dojazd {target} dla tego pojazdu: {near_end[0].message}. "
+                "Rozważ parking dla ciężarówek w pobliżu.",
+                requested=stop,
+                reachable=None,
+                distance_m=None,
+                parkings=_parkings(db, stop),
+            )
+        )
+    return issues
+
+
+def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
+    return [
+        ParkingOut(
+            name=parking.name,
+            kind=parking.kind,
+            kind_label=parkings.PARKING_KINDS.get(parking.kind, parking.kind),
+            lat=parking.lat,
+            lon=parking.lon,
+            distance_m=round(distance),
+            hgv_capacity=parking.hgv_capacity,
+        )
+        for parking, distance in parkings.nearest(db, stop.lat, stop.lon, PARKING_RADIUS_M)
+    ]
+
+
 def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
     if route.edges is None:
         return None
@@ -388,6 +549,9 @@ class _Recording:
         self._seen += [route, *route.alternates]
         return route
 
+    def locate(self, stops, vehicle):
+        return self._inner.locate(stops, vehicle)
+
 
 def build_router(current_user) -> APIRouter:
     router = APIRouter(prefix="/api/routes", tags=["routes"])
@@ -401,20 +565,22 @@ def build_router(current_user) -> APIRouter:
     ) -> RouteResponse:
         vehicle = VehicleOut.model_validate(load_owned(db, data.vehicle_id, user))
         stops = [data.origin, *data.via, data.destination]
+        router_: Router = request.app.state.router
+        issues = check_stops(router_, db, stops, vehicle)
         try:
             first_candidates: list[Route] = []
             route, analysis, avoided, base_km = plan(
-                _Recording(request.app.state.router, first_candidates),
+                _Recording(router_, first_candidates),
                 db,
                 stops,
                 vehicle,
                 data.avoid_difficult,
             )
         except NoRouteFound as exc:
+            reasons = " ".join(issue.message for issue in issues)
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Brak trasy, którą ten pojazd może przejechać między tymi punktami "
-                "(albo punkt leży za daleko od drogi).",
+                "Brak trasy, którą ten pojazd może przejechać między tymi punktami. " + reasons,
             ) from exc
         except RoutingUnavailable as exc:
             raise HTTPException(
@@ -427,6 +593,7 @@ def build_router(current_user) -> APIRouter:
             avoided=avoided,
             base_distance_km=base_km,
             alternatives=alternatives(db, route, first_candidates, vehicle),
+            stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
         )
 
     return router

@@ -9,6 +9,7 @@ from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Base, Database
+from truckmaps.core.parkings import TruckParking
 from truckmaps.core.restrictions import Restriction
 from truckmaps.core.route_analysis import RouteEdge
 from truckmaps.core.routing import (
@@ -56,6 +57,9 @@ class FakeRouter:
         self.vehicles: list[VehicleIn] = []
         self.calls: list[tuple[list[Point], list[Point] | None]] = []
 
+    def locate(self, stops, vehicle):
+        return [(p, 0.0) for p in stops]
+
     def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
         if self.error:
             raise self.error
@@ -76,6 +80,9 @@ class DetourRouter:
     def __init__(self, detour_km: float = 12.0) -> None:
         self.detour_km = detour_km
         self.excluded: list[Point] | None = None
+
+    def locate(self, stops, vehicle):
+        return [(p, 0.0) for p in stops]
 
     def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
         a, b = stops[0], stops[-1]
@@ -408,3 +415,116 @@ def test_via_points_are_passed_in_order(database):
         (52.25, 20.0),
         (WARSAW["lat"], WARSAW["lon"]),
     ]
+
+
+class UnreachableRouter(FakeRouter):
+    """Punkty o podanych numerach są daleko od drogi dostępnej dla pojazdu."""
+
+    def __init__(self, far: dict[int, float | None], **kwargs):
+        super().__init__(**kwargs)
+        self.far = far
+
+    def locate(self, stops, vehicle):
+        result = []
+        for i, stop in enumerate(stops):
+            if i not in self.far:
+                result.append((stop, 0.0))
+            elif self.far[i] is None:
+                result.append(None)
+            else:
+                result.append((Point(lat=stop.lat + 0.001, lon=stop.lon), self.far[i]))
+        return result
+
+
+def add_parking(database, lat, lon, name, kind="truck_parking"):
+    with database.session() as db:
+        db.add(
+            TruckParking(
+                osm_type="node",
+                osm_id=1,
+                kind=kind,
+                name=name,
+                lat=lat,
+                lon=lon,
+                hgv_capacity=None,
+                source="osm",
+                source_date="2026-10-27",
+            )
+        )
+        db.commit()
+
+
+def test_unreachable_destination_shows_reachable_point_and_parkings(database):
+    add_parking(database, WARSAW["lat"] + 0.01, WARSAW["lon"], "Parking TIR Wola")
+    add_parking(database, 50.0, 19.0, "Daleko")
+    client = make_client(database, UnreachableRouter(far={1: 120.0}))
+
+    body = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()
+
+    (issue,) = body["stop_issues"]
+    assert (issue["role"], issue["kind"], issue["distance_m"]) == (
+        "destination",
+        "unreachable",
+        120.0,
+    )
+    assert "nie dojedzie do celu" in issue["message"]
+    assert issue["reachable"]["lat"] == pytest.approx(WARSAW["lat"] + 0.001)
+    assert [p["name"] for p in issue["parkings"]] == ["Parking TIR Wola"]
+
+
+def test_unreachable_via_point_gets_message_without_parkings(database):
+    client = make_client(database, UnreachableRouter(far={1: None}))
+    body = route_body(client, via=[{"lat": 52.3, "lon": 18.5}])
+
+    issue = client.post("/api/routes", json=body, headers=as_user("anna")).json()["stop_issues"][0]
+
+    assert (issue["role"], issue["index"]) == ("via", 1)
+    assert "Przez punkt pośredni nr 1 nie da się przejechać" in issue["message"]
+    assert issue["reachable"] is None and issue["parkings"] == []
+
+
+def test_points_close_to_road_are_fine(database):
+    client = make_client(database, UnreachableRouter(far={0: 25.0}))
+
+    body = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()
+
+    assert body["stop_issues"] == []
+
+
+def test_no_route_error_explains_unreachable_point(database):
+    router = UnreachableRouter(far={1: 300.0}, error=NoRouteFound("x"))
+    client = make_client(database, router)
+
+    response = client.post("/api/routes", json=route_body(client), headers=as_user("anna"))
+
+    assert response.status_code == 422
+    assert "nie dojedzie do celu" in response.json()["detail"]
+
+
+def test_difficult_destination_suggests_parking(database):
+    add_parking(database, WARSAW["lat"], WARSAW["lon"] + 0.01, "MOP Wschód", kind="rest_area")
+    edges = [
+        RouteEdge(way_id=1, begin_index=0, end_index=1, road_class="residential", names=["Rynek"])
+    ]
+    router = FakeRouter(edges=edges)
+    router.route = _short_route(router.route)
+    client = make_client(database, router)
+
+    issues = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()[
+        "stop_issues"
+    ]
+
+    roles = {issue["role"]: issue for issue in issues}
+    assert roles["destination"]["kind"] == "difficult"
+    assert "Trudny dojazd do celu" in roles["destination"]["message"]
+    assert roles["destination"]["parkings"][0]["name"] == "MOP Wschód"
+
+
+def _short_route(route):
+    """Krótka trasa (200 m), żeby trudne miejsce było przy samym celu."""
+
+    def wrapper(stops, vehicle, exclude=None, alternates=0):
+        result = route(stops, vehicle, exclude, alternates)
+        return result.model_copy(update={"distance_km": 0.2})
+
+    return wrapper
