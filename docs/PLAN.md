@@ -215,6 +215,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Ocena segmentów: krzywizna zakrętów vs długość pojazdu, wąskie drogi, zapas wysokości/szerokości/długości, masa i naciski, zakazy → zielony/żółty/czerwony z ostrzeżeniami; czerwony miga w planerze
 - [x] Pięć poziomów: czerwony (nie przejedzie), pomarańczowy (osiedlówki dla pojazdów > 12 m, zapas < 10 cm, zakręt < 0,6 × długość), żółty, jasnozielony (ronda), zielony
 - [x] Planowanie po zielonych drogach: pomarańczowe i czerwone miejsca (poza okolicą startu, celu i punktów pośrednich) są wykluczane i trasa liczona ponownie, max 3 razy; objazd do 1,25 × długość + 3 km. Sprawdzone na Tarnów (ul. Tuchowska) → Tuchów: zestaw omija Aleję Tarnowskich / Tuwima / Ostrogskich (+1,9 km)
+- [x] DMC w profilu pojazdu (masa rzeczywista ≤ DMC): ograniczenia DMC z OSM (maxweightrating), zakazy dla ciężarówek tylko przy DMC > 3,5 t; później podstawa myta
 - [x] Punkty niedostępne dla pojazdu (start, cel, pośrednie): najbliższe miejsce na drodze dostępnej dla pojazdu (Valhalla /locate, próg 40 m), komunikat przy punkcie pośrednim; przy starcie i celu – też przy trudnym dojeździe – najbliższe parkingi dla ciężarówek i MOP-y z OSM (do 20 km), „jedź tutaj”
 - [x] Ręczna zmiana trasy: punkty pośrednie, przeciąganie A / B / punktów pośrednich, przełącznik „Omijaj trudne drogi”
 - [ ] Dostroić progi oceny na trasach testowych z kierowcami (zakręty, wąskie drogi, punkty przy trasie)

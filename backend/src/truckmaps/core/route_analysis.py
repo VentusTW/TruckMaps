@@ -33,6 +33,7 @@ PLAUSIBLE = {
     Kind.WIDTH: (1.0, 8.0),
     Kind.LENGTH: (3.0, 60.0),
     Kind.WEIGHT: (1.0, 100.0),
+    Kind.WEIGHT_RATING: (1.0, 100.0),
     Kind.AXLE_LOAD: (1.0, 25.0),
 }
 
@@ -193,17 +194,22 @@ def _road_level(
 
 def _compare(restriction: Restriction, vehicle: VehicleIn) -> tuple[Level, str] | None:
     kind, value = Kind(restriction.kind), restriction.value
+    if kind in (Kind.HGV_NO, Kind.HGV_DESTINATION) and not vehicle.is_hgv:
+        return None  # zakazy dla ciężarówek nie dotyczą pojazdów o DMC do 3,5 t
     if kind is Kind.HGV_NO:
-        return Level.RED, "Zakaz wjazdu ciężarówek"
+        return Level.RED, "Zakaz wjazdu ciężarówek (DMC powyżej 3,5 t)"
     if kind is Kind.HGV_DESTINATION:
         return Level.YELLOW, "Ciężarówki tylko dojazd"
     if value is None or not PLAUSIBLE[kind][0] <= value <= PLAUSIBLE[kind][1]:
         return None
-    if kind in (Kind.WEIGHT, Kind.AXLE_LOAD):
-        actual = vehicle.weight_t if kind is Kind.WEIGHT else vehicle.axle_load_t
-        what = "Ograniczenie masy" if kind is Kind.WEIGHT else "Ograniczenie nacisku osi"
+    if kind in (Kind.WEIGHT, Kind.WEIGHT_RATING, Kind.AXLE_LOAD):
+        actual, what, label = {
+            Kind.WEIGHT: (vehicle.weight_t, "Ograniczenie masy rzeczywistej", "pojazd"),
+            Kind.WEIGHT_RATING: (vehicle.gvw_t, "Ograniczenie DMC", "DMC pojazdu"),
+            Kind.AXLE_LOAD: (vehicle.axle_load_t, "Ograniczenie nacisku osi", "pojazd"),
+        }[kind]
         if value < actual:
-            return Level.RED, f"{what} {_num(value)} t, pojazd {_num(actual)} t"
+            return Level.RED, f"{what} {_num(value)} t, {label} {_num(actual)} t"
         return None
     actual, what = {
         Kind.HEIGHT: (vehicle.height_m, "Ograniczenie wysokości"),
@@ -257,7 +263,7 @@ def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
     """Ograniczenia punktowe (np. bramki wysokości) leżące na linii trasy – tylko ostrzeżenie."""
     grid = _SegmentGrid(points)
     for node in nodes:
-        if node.kind not in (Kind.HEIGHT, Kind.WEIGHT) or node.lat is None:
+        if node.kind not in (Kind.HEIGHT, Kind.WEIGHT, Kind.WEIGHT_RATING) or node.lat is None:
             continue
         index = grid.nearest(node.lon, node.lat, NODE_MATCH_M)
         if index is None:

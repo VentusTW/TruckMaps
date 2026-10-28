@@ -19,6 +19,8 @@ from truckmaps.core.db import Base
 class Kind(StrEnum):
     HEIGHT = "height"
     WEIGHT = "weight"
+    WEIGHT_RATING = "weight_rating"
+    """Ograniczenie dopuszczalnej masy całkowitej (DMC), a nie masy rzeczywistej."""
     AXLE_LOAD = "axle_load"
     WIDTH = "width"
     LENGTH = "length"
@@ -68,6 +70,8 @@ LENGTH_TAGS = {
 WEIGHT_TAGS = {
     "maxweight": Kind.WEIGHT,
     "maxweight:hgv": Kind.WEIGHT,
+    "maxweightrating": Kind.WEIGHT_RATING,
+    "maxweightrating:hgv": Kind.WEIGHT_RATING,
     "maxaxleload": Kind.AXLE_LOAD,
 }
 RESTRICTION_KEYS = (*LENGTH_TAGS, *WEIGHT_TAGS, "hgv", "width", "smoothness")

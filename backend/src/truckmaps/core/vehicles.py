@@ -6,12 +6,15 @@ from enum import StrEnum
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import DateTime, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base, get_session
 from truckmaps.sdk import Principal
+
+# Znaki i zakazy "dla samochodów ciężarowych" dotyczą pojazdów o DMC powyżej 3,5 t.
+HGV_MIN_GVW_T = 3.5
 
 
 class TrailerType(StrEnum):
@@ -39,6 +42,7 @@ class VehicleProfile(Base):
     width_m: Mapped[float]
     length_m: Mapped[float]
     weight_t: Mapped[float]
+    gvw_t: Mapped[float]
     axle_load_t: Mapped[float]
     axle_count: Mapped[int]
     trailer_type: Mapped[str] = mapped_column(String(20))
@@ -56,13 +60,33 @@ class VehicleIn(BaseModel):
     height_m: float = Field(ge=1.5, le=6.0, description="Wysokość całkowita [m]", examples=[4.0])
     width_m: float = Field(ge=1.5, le=4.5, description="Szerokość [m]", examples=[2.55])
     length_m: float = Field(ge=3.0, le=40.0, description="Długość całkowita [m]", examples=[16.5])
-    weight_t: float = Field(ge=3.5, le=150.0, description="Masa rzeczywista [t]", examples=[40])
+    weight_t: float = Field(ge=1.0, le=150.0, description="Masa rzeczywista [t]", examples=[40])
+    gvw_t: float | None = Field(
+        default=None,
+        ge=1.0,
+        le=150.0,
+        description="Dopuszczalna masa całkowita – DMC [t]; brak = równa masie rzeczywistej",
+        examples=[40],
+    )
     axle_load_t: float = Field(
         ge=1.0, le=20.0, description="Największy nacisk osi [t]", examples=[11.5]
     )
     axle_count: int = Field(ge=2, le=20, examples=[5])
     trailer_type: TrailerType = TrailerType.CURTAIN
     hazmat: bool = Field(default=False, description="Przewóz towarów niebezpiecznych (ADR)")
+
+    @model_validator(mode="after")
+    def gvw_not_below_weight(self) -> "VehicleIn":
+        if self.gvw_t is None:
+            self.gvw_t = self.weight_t
+        elif self.weight_t > self.gvw_t:
+            raise ValueError("Masa rzeczywista nie może być większa niż DMC.")
+        return self
+
+    @property
+    def is_hgv(self) -> bool:
+        """Samochód ciężarowy w rozumieniu znaków i OSM (hgv): DMC powyżej 3,5 t."""
+        return (self.gvw_t or self.weight_t) > HGV_MIN_GVW_T
 
 
 class VehicleOut(VehicleIn):

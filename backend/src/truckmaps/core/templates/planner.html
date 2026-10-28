@@ -71,7 +71,8 @@
     <label>Wysokość [m] <input name="height_m" type="number" step="0.05" min="1.5" max="6" required></label>
     <label>Szerokość [m] <input name="width_m" type="number" step="0.05" min="1.5" max="4.5" required></label>
     <label>Długość [m] <input name="length_m" type="number" step="0.1" min="3" max="40" required></label>
-    <label>Masa [t] <input name="weight_t" type="number" step="0.5" min="3.5" max="150" required></label>
+    <label>Masa rzeczywista [t] <input name="weight_t" type="number" step="0.1" min="1" max="150" required></label>
+    <label>DMC [t] <input name="gvw_t" type="number" step="0.1" min="1" max="150" required title="Dopuszczalna masa całkowita – z dowodu rejestracyjnego (pole F.2)"></label>
     <label>Nacisk osi [t] <input name="axle_load_t" type="number" step="0.5" min="1" max="20" required></label>
     <label>Liczba osi <input name="axle_count" type="number" step="1" min="2" max="20" required></label>
     <label>Naczepa
@@ -123,9 +124,9 @@
 <script>
 const TOKEN = __ACCESS_TOKEN__;
 const PRESETS = {
-  truck: { name: "Zestaw 40 t", height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40,
+  truck: { name: "Zestaw 40 t", height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40, gvw_t: 40,
            axle_load_t: 11.5, axle_count: 5, trailer_type: "curtain", hazmat: false },
-  solo: { name: "Solówka 12 t", height_m: 3.5, width_m: 2.55, length_m: 9.5, weight_t: 12,
+  solo: { name: "Solówka 12 t", height_m: 3.5, width_m: 2.55, length_m: 9.5, weight_t: 12, gvw_t: 18,
           axle_load_t: 8, axle_count: 2, trailer_type: "none", hazmat: false },
 };
 const $ = (id) => document.getElementById(id);
@@ -174,7 +175,7 @@ async function loadVehicles(selectId) {
   vehicles = await api("/api/vehicles");
   const select = $("vehicle-select");
   select.innerHTML = vehicles.length
-    ? vehicles.map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name)} –${v.height_m} m, ${v.weight_t} t</option>`).join("")
+    ? vehicles.map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name)} –${v.height_m} m, ${v.weight_t} t / DMC ${v.gvw_t} t</option>`).join("")
     : '<option value="">Brak pojazdów – dodaj pierwszy</option>';
   if (selectId) select.value = selectId;
   fillForm(vehicles.find((v) => v.id === select.value) ?? PRESETS.truck);
@@ -462,7 +463,7 @@ function showRoute(route, options = {}) {
   }
   $("result").className = `result ${route.analysis?.level ?? ""}`;
   $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${duration(route)}` +
-    `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t)</p>` +
+    `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t, DMC ${route.vehicle.gvw_t} t)</p>` +
     analysisHtml(route) + alternativesHtml(route);
   $("result").querySelectorAll("[data-warning]").forEach((button) => button.addEventListener("click", () => {
     const w = route.analysis.warnings[Number(button.dataset.warning)];

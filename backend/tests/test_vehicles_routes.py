@@ -528,3 +528,14 @@ def _short_route(route):
         return result.model_copy(update={"distance_km": 0.2})
 
     return wrapper
+
+
+def test_vehicle_gvw_is_stored_and_validated(database):
+    client = make_client(database)
+
+    saved = client.post("/api/vehicles", json=TRUCK | {"gvw_t": 42}, headers=as_user("anna"))
+    assert saved.json()["gvw_t"] == 42
+    defaulted = client.post("/api/vehicles", json=TRUCK, headers=as_user("anna"))
+    assert defaulted.json()["gvw_t"] == TRUCK["weight_t"]
+    too_low = client.post("/api/vehicles", json=TRUCK | {"gvw_t": 30}, headers=as_user("anna"))
+    assert too_low.status_code == 422

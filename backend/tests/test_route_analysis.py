@@ -108,7 +108,8 @@ def test_clear_route_is_green():
         (Kind.HEIGHT, 4.05, "orange", "zapas tylko 5 cm"),
         (Kind.HEIGHT, 4.1, "yellow", "zapas tylko 10 cm"),
         (Kind.HEIGHT, 4.5, "green", None),
-        (Kind.WEIGHT, 30, "red", "Ograniczenie masy 30 t"),
+        (Kind.WEIGHT, 30, "red", "Ograniczenie masy rzeczywistej 30 t"),
+        (Kind.WEIGHT_RATING, 18, "red", "Ograniczenie DMC 18 t, DMC pojazdu 40 t"),
         (Kind.AXLE_LOAD, 11.5, "green", None),
         (Kind.HEIGHT, 615, "green", None),  # błąd w danych OSM – pomijany
         (Kind.HGV_NO, None, "red", "Zakaz wjazdu"),
@@ -324,3 +325,42 @@ def test_road_attributes_only_for_minor_roads():
 )
 def test_parking_kind(tags, kind):
     assert parking_kind(tags) == kind
+
+
+VAN = VehicleIn(
+    name="Bus",
+    height_m=2.7,
+    width_m=2.0,
+    length_m=6.0,
+    weight_t=3.2,
+    gvw_t=3.5,
+    axle_load_t=2.0,
+    axle_count=2,
+)
+
+
+@pytest.mark.parametrize("kind", [Kind.HGV_NO, Kind.HGV_DESTINATION])
+def test_truck_bans_do_not_apply_up_to_3_5_t_gvw(kind):
+    restriction = way_restriction(kind, None, str(kind))
+
+    assert run(VAN, [restriction]).warnings == []
+    assert run(TRUCK, [restriction]).warnings
+
+
+def test_gvw_and_actual_weight_limits_are_separate():
+    # Pusty zestaw: masa rzeczywista 15 t, DMC 40 t.
+    empty = TRUCK.model_copy(update={"weight_t": 15.0, "gvw_t": 40.0})
+    actual_limit = [way_restriction(Kind.WEIGHT, 20, "maxweight=20")]
+    gvw_limit = [way_restriction(Kind.WEIGHT_RATING, 20, "maxweightrating=20")]
+
+    assert run(empty, actual_limit).level == "green"
+    assert run(empty, gvw_limit).level == "red"
+
+
+def test_gvw_defaults_to_actual_weight_and_cannot_be_lower():
+    assert VehicleIn(**{**TRUCK.model_dump(), "gvw_t": None}).gvw_t == 40
+    with pytest.raises(ValueError, match="nie może być większa niż DMC"):
+        VehicleIn(**{**TRUCK.model_dump(), "gvw_t": 30})
+    assert restrictions_from_tags({"maxweightrating": "18"}) == [
+        (Kind.WEIGHT_RATING, 18.0, "maxweightrating=18")
+    ]
