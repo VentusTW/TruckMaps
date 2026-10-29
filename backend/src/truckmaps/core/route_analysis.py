@@ -13,16 +13,20 @@ ograniczenia z bazy. Funkcje są czyste – bez bazy i sieci – więc łatwo je
 import math
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import IntEnum
 
 from pydantic import BaseModel
 
+from truckmaps.core import conditional, timebans
 from truckmaps.core.restrictions import (
+    CONDITIONAL_TAGS,
     ROAD_CONTEXT,
     Kind,
     Restriction,
     distance_m,
     parse_length,
+    parse_weight,
 )
 from truckmaps.core.vehicles import VehicleIn
 
@@ -153,24 +157,44 @@ def analyze(
     vehicle: VehicleIn,
     way_restrictions: dict[int, list[Restriction]],
     node_restrictions: list[Restriction],
+    departure: datetime | None = None,
 ) -> Analysis:
+    """Ocena trasy dla pojazdu.
+
+    Z ``departure`` (czas ze strefą) ograniczenia warunkowe zależne od czasu (np. zakaz dla
+    ciężarówek 22:00–06:00) są oceniane w godzinie przejazdu odcinka – wtedy czerwone
+    i omijane jak inne miejsca nieprzejezdne.
+    """
     findings: list[_Finding] = []
     cumulative = _cumulative_m(points)
     total = cumulative[-1]
+    begin_s = 0.0
     for edge in edges:
         last = min(edge.end_index, len(cumulative) - 1)
         near_end = (
             cumulative[min(edge.begin_index, last)] < END_ZONE_M
             or cumulative[last] > total - END_ZONE_M
         )
-        findings += _edge_findings(edge, vehicle, way_restrictions.get(edge.way_id, []), near_end)
+        moment = None
+        if departure is not None and edge.end_s is not None:
+            moment = (departure + timedelta(seconds=begin_s)).astimezone(
+                timebans.ZONES.get(edge.country, timebans.HOME_ZONE)
+            )
+            begin_s = edge.end_s
+        findings += _edge_findings(
+            edge, vehicle, way_restrictions.get(edge.way_id, []), near_end, moment
+        )
     findings += _bend_findings(points, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
     return _summarize(points, findings)
 
 
 def _edge_findings(
-    edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restriction], near_end: bool = False
+    edge: RouteEdge,
+    vehicle: VehicleIn,
+    restrictions: list[Restriction],
+    near_end: bool = False,
+    moment: datetime | None = None,
 ):
     span = (edge.begin_index, edge.end_index)
     name = f" ({edge.names[0]})" if edge.names else ""
@@ -178,6 +202,14 @@ def _edge_findings(
     for restriction in restrictions:
         if restriction.kind in ROAD_CONTEXT:
             context[Kind(restriction.kind)] = restriction
+            continue
+        if restriction.kind == Kind.CONDITIONAL:
+            found = conditional_findings(restriction, vehicle)
+            if moment is not None:
+                holiday = timebans.is_holiday(edge.country, moment.date(), edge.state)
+                found += conditional_findings(restriction, vehicle, moment, holiday)
+            for level, message in found:
+                yield _Finding(level, "conditional", message + name, *span, key=restriction.raw)
             continue
         finding = _compare(restriction, vehicle)
         if finding:
@@ -231,6 +263,57 @@ def _road_level(
     if edge.road_class == "unclassified" and length > LONG_VEHICLE_M:
         return Level.YELLOW, "Droga lokalna – możliwe zwężenia"
     return None
+
+
+def conditional_findings(
+    restriction: Restriction, vehicle: VehicleIn, moment=None, holiday: bool = False
+) -> list[tuple[Level, str]]:
+    """Ocena ograniczenia warunkowego (``*:conditional``).
+
+    Bez ``moment``: warunki niezależne od czasu (np. ``no @ weight>7.5``) – jak zwykłe
+    ograniczenie; warunek nieczytelny – żółte „sprawdź znak”. Z ``moment`` (czas lokalny
+    kraju): warunki czasowe obowiązujące w tej chwili – do zakazów ruchu w czasie.
+    """
+    key, _, value = restriction.raw.partition("=")
+    kind = CONDITIONAL_TAGS.get(key)
+    if kind is None:
+        return []
+    conditions = conditional.parse(value)
+    if conditions is None:
+        if moment is not None or not conditional.restrictive(value):
+            return []
+        return [(Level.YELLOW, f"Ograniczenie warunkowe – sprawdź znak ({restriction.raw})")]
+    found = []
+    for condition in conditions:
+        if condition.timed != (moment is not None) or not condition.applies_to(vehicle):
+            continue
+        if moment is not None and not condition.active(moment, holiday):
+            continue
+        result = _conditional_value(key, kind, condition.value, vehicle)
+        if result:
+            level, message = result
+            when = value.partition("@")[2].strip() if condition.timed else ""
+            found.append((level, f"{message} – {when}" if when else message))
+    return found
+
+
+def _conditional_value(key: str, kind: Kind, value: str, vehicle: VehicleIn):
+    if kind is Kind.HGV_NO:
+        every_vehicle = key.startswith(("access", "motor_vehicle"))
+        if not every_vehicle and not vehicle.is_hgv:
+            return None
+        if value in ("no", "private"):
+            what = "Zakaz wjazdu" if every_vehicle else "Zakaz wjazdu ciężarówek"
+            return Level.RED, f"{what} (warunkowy)"
+        if value in ("destination", "delivery"):
+            return Level.YELLOW, "Ciężarówki tylko dojazd (warunkowo)"
+        return None
+    weights = (Kind.WEIGHT, Kind.WEIGHT_RATING, Kind.AXLE_LOAD)
+    number = (parse_weight if kind in weights else parse_length)(value)
+    if number is None:
+        return None
+    raw = f"{key.removesuffix(':conditional')}={value}"
+    return _compare(Restriction(kind=kind.value, value=number, raw=raw), vehicle)
 
 
 def _compare(restriction: Restriction, vehicle: VehicleIn) -> tuple[Level, str] | None:

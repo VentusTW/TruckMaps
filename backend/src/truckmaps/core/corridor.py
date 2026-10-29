@@ -16,13 +16,14 @@ from sqlalchemy.orm import Session
 
 from truckmaps.core.db import get_session
 from truckmaps.core.polyline import decode_polyline6, encode_polyline6
-from truckmaps.core.restrictions import ROAD_CONTEXT, Restriction, distance_m
+from truckmaps.core.restrictions import ROAD_CONTEXT, Kind, Restriction, distance_m
 from truckmaps.core.route_analysis import (
     Level,
     _compare,
     _distance_to_segment,
     _limit_label,
     _SegmentGrid,
+    conditional_findings,
 )
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
 from truckmaps.sdk import Principal
@@ -80,7 +81,12 @@ def build_corridor(
     for restriction in _candidates(db, route, buffer_m):
         if restriction.kind in ROAD_CONTEXT:
             continue
-        finding = _compare(restriction, vehicle)
+        if restriction.kind == Kind.CONDITIONAL:
+            # Stałe warunki (np. zakaz dla pojazdów powyżej 7,5 t); czasowe ocenia planer.
+            found = conditional_findings(restriction, vehicle)
+            finding = max(found, key=lambda f: f[0]) if found else None
+        else:
+            finding = _compare(restriction, vehicle)
         if finding is None:
             continue
         points = (

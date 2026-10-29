@@ -427,6 +427,7 @@ def plan(
     stops: list[Point],
     vehicle: VehicleIn,
     avoid_difficult: bool = True,
+    departure: datetime | None = None,
 ) -> tuple[Route, Analysis | None, list[Point], float, list[RouteWarning]]:
     """Trasa z jak najmniejszą liczbą trudnych miejsc (alternatywy – patrz ``alternatives``).
 
@@ -439,7 +440,7 @@ def plan(
     ostrzeżenia (czego unika objazd).
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
-    best, best_analysis, best_excluded = first, assess(db, first, vehicle), []
+    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure), []
     if best_analysis is None:
         return best, best_analysis, best_excluded, first.distance_km, []
     levels = AVOID_LEVELS if avoid_difficult else {IMPASSABLE}
@@ -456,7 +457,7 @@ def plan(
             candidate = router.route(stops, vehicle, exclude=excluded)
         except NoRouteFound:
             break
-        analysis = assess(db, candidate, vehicle)
+        analysis = assess(db, candidate, vehicle, departure)
         if analysis is None or analysis.score >= best_analysis.score:
             break
         if candidate.distance_km > max_km and not _impassable(best_analysis):
@@ -474,7 +475,11 @@ def plan(
 
 
 def alternatives(
-    db: Session, chosen: Route, candidates: list[Route], vehicle: VehicleIn
+    db: Session,
+    chosen: Route,
+    candidates: list[Route],
+    vehicle: VehicleIn,
+    departure: datetime | None = None,
 ) -> list[AlternativeRoute]:
     """Do dwóch tras innych niż wybrana, od najmniej problematycznej."""
     found: list[tuple[float, AlternativeRoute]] = []
@@ -484,7 +489,7 @@ def alternatives(
         if candidate.distance_km > max_km or any(_same_route(candidate, o) for o in taken):
             continue
         taken.append(candidate)
-        analysis = assess(db, candidate, vehicle)
+        analysis = assess(db, candidate, vehicle, departure)
         if analysis is not None and _impassable(analysis):
             continue  # alternatywa przez miejsce nieprzejezdne nie wchodzi w grę
         score = analysis.score if analysis else float("inf")
@@ -615,7 +620,10 @@ def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
     ]
 
 
-def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
+def assess(
+    db: Session, route: Route, vehicle: VehicleIn, departure: datetime | None = None
+) -> Analysis | None:
+    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu."""
     if route.edges is None:
         return None
     return analyze(
@@ -624,6 +632,7 @@ def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
         vehicle,
         restrictions.for_ways(db, (e.way_id for e in route.edges)),
         restrictions.nodes_in_bbox(db, route.geometry),
+        departure,
     )
 
 
@@ -826,12 +835,14 @@ def build_router(current_user) -> APIRouter:
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
         first_candidates: list[Route] = []
+        departure = data.departure or datetime.now(timebans.HOME_ZONE)
+        if departure.tzinfo is None:
+            departure = departure.replace(tzinfo=timebans.HOME_ZONE)
 
         def plan_for(points: list[Point]):
             first_candidates.clear()
-            return plan(
-                _Recording(router_, first_candidates), db, points, vehicle, data.avoid_difficult
-            )
+            recording = _Recording(router_, first_candidates)
+            return plan(recording, db, points, vehicle, data.avoid_difficult, departure)
 
         try:
             try:
@@ -858,7 +869,12 @@ def build_router(current_user) -> APIRouter:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 "Brak trasy dla tego pojazdu: każdy wariant przechodzi przez miejsce, którego "
-                f"nie przejedzie ({places}). Sprawdź wymiary pojazdu albo wybierz inny cel.",
+                f"nie przejedzie ({places}). "
+                + (
+                    "Zakaz obowiązuje w określonych godzinach – zmień godzinę wyjazdu."
+                    if any(w.kind == "conditional" and " – (" in w.message for w in exc.warnings)
+                    else "Sprawdź wymiary pojazdu albo wybierz inny cel."
+                ),
             ) from exc
         except NoRouteFound as exc:
             # Punkt tuż przy drodze, ale w strefie bez wjazdu dla ciężarówek (np. stare miasto):
@@ -880,9 +896,6 @@ def build_router(current_user) -> APIRouter:
                 status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer wyznaczania tras jest niedostępny."
             ) from exc
         extensions = request.app.state.extensions
-        departure = data.departure or datetime.now(timebans.HOME_ZONE)
-        if departure.tzinfo is None:
-            departure = departure.replace(tzinfo=timebans.HOME_ZONE)
         bans = timebans.check_route(route, vehicle, departure)
         for ban in bans.bans:
             ban.parkings = _parkings(db, Point(lat=ban.lat, lon=ban.lon))[:3]
@@ -899,7 +912,7 @@ def build_router(current_user) -> APIRouter:
             base_distance_km=base_km,
             alternatives=[
                 alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min)})
-                for alt in alternatives(db, route, first_candidates, vehicle)
+                for alt in alternatives(db, route, first_candidates, vehicle, departure)
             ],
             stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
             cost=cost(route.distance_km, route.duration_min),

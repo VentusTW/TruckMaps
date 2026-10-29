@@ -101,7 +101,7 @@ def read_restrictions(path: Path, source_date: str):
                 "osm_id": obj.id,
                 "kind": kind.value,
                 "value": value,
-                "raw": raw[:100],
+                "raw": raw[:255],
                 "lat": points[0][1] if is_node and points else None,
                 "lon": points[0][0] if is_node and points else None,
                 **with_shape,

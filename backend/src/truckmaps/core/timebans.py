@@ -171,6 +171,17 @@ def sk_holidays(year: int) -> dict[date, str]:
     }
 
 
+def is_holiday(country: str, day: date, state: str = "") -> bool:
+    """Święto państwowe (dla ``PH`` w godzinach ograniczeń OSM)."""
+    calendars = {
+        "PL": lambda: pl_holidays(day.year),
+        "DE": lambda: de_holidays(day.year, state),
+        "CZ": lambda: cz_holidays(day.year),
+        "SK": lambda: sk_holidays(day.year),
+    }
+    return country in calendars and day in calendars[country]()
+
+
 @dataclass(frozen=True)
 class Window:
     start: datetime

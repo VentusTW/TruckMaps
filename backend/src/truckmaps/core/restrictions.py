@@ -26,6 +26,8 @@ class Kind(StrEnum):
     LENGTH = "length"
     HGV_NO = "hgv_no"
     HGV_DESTINATION = "hgv_destination"
+    CONDITIONAL = "conditional"
+    """Ograniczenie warunkowe (``*:conditional``) – w ``raw`` cały tag, ocena: ``conditional``."""
     # Cechy dróg lokalnych (nie ograniczenia) – pomagają ocenić, czy zestaw się zmieści.
     HGV_DESIGNATED = "hgv_designated"
     ROAD_WIDTH = "road_width"
@@ -54,7 +56,7 @@ class Restriction(Base):
     kind: Mapped[str] = mapped_column(String(20))
     value: Mapped[float | None] = mapped_column(Float)
     """Metry (wysokość, szerokość, długość) albo tony (masa, nacisk osi)."""
-    raw: Mapped[str] = mapped_column(String(100))
+    raw: Mapped[str] = mapped_column(String(255))
     lat: Mapped[float | None] = mapped_column(Float)
     lon: Mapped[float | None] = mapped_column(Float)
     line: Mapped[str | None] = mapped_column(Text)
@@ -84,7 +86,25 @@ WEIGHT_TAGS = {
     "maxweightrating:hgv": Kind.WEIGHT_RATING,
     "maxaxleload": Kind.AXLE_LOAD,
 }
-RESTRICTION_KEYS = (*LENGTH_TAGS, *WEIGHT_TAGS, "hgv", "width", "smoothness")
+# Ograniczenia warunkowe (np. zakaz w godzinach) istotne dla ciężarówek – tag → rodzaj
+# ograniczenia, którego dotyczy wartość ("no", "destination" albo liczba).
+CONDITIONAL_TAGS = {
+    "hgv:conditional": Kind.HGV_NO,
+    "hgv:forward:conditional": Kind.HGV_NO,
+    "hgv:backward:conditional": Kind.HGV_NO,
+    "goods:conditional": Kind.HGV_NO,
+    "motor_vehicle:conditional": Kind.HGV_NO,
+    "access:conditional": Kind.HGV_NO,
+    "maxweight:conditional": Kind.WEIGHT,
+    "maxweightrating:conditional": Kind.WEIGHT_RATING,
+    "maxaxleload:conditional": Kind.AXLE_LOAD,
+    "maxlength:conditional": Kind.LENGTH,
+    "maxheight:conditional": Kind.HEIGHT,
+}
+
+RESTRICTION_KEYS = (
+    *LENGTH_TAGS, *WEIGHT_TAGS, *CONDITIONAL_TAGS, "hgv", "width", "smoothness",
+)  # fmt: skip
 
 _NUMBER = r"(\d+(?:[.,]\d+)?)"
 _NO_VALUE = {"default", "none", "unsigned", "below_default", "no_sign", "no_indications"}
@@ -139,13 +159,18 @@ def restrictions_from_tags(tags: dict[str, str]) -> list[tuple[Kind, float | Non
         found[Kind.HGV_DESTINATION] = (Kind.HGV_DESTINATION, None, f"hgv={hgv}")
     elif hgv in {"yes", "designated"} and tags.get("highway") in MINOR_HIGHWAYS:
         found[Kind.HGV_DESIGNATED] = (Kind.HGV_DESIGNATED, None, f"hgv={hgv}")
+    conditional = [
+        (Kind.CONDITIONAL, None, f"{key}={tags[key]}"[:255])
+        for key in CONDITIONAL_TAGS
+        if key in tags
+    ]
     if tags.get("highway") in MINOR_HIGHWAYS:
         if "width" in tags and (value := parse_length(tags["width"])):
             found[Kind.ROAD_WIDTH] = (Kind.ROAD_WIDTH, value, f"width={tags['width']}")
         if tags.get("smoothness") in BAD_SMOOTHNESS:
             raw = f"smoothness={tags['smoothness']}"
             found[Kind.BAD_SURFACE] = (Kind.BAD_SURFACE, None, raw)
-    return list(found.values())
+    return list(found.values()) + conditional
 
 
 def for_ways(db: Session, way_ids: Iterable[int]) -> dict[int, list[Restriction]]:
