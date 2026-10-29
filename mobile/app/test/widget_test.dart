@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/main.dart';
 import 'package:truckmaps_app/src/auth.dart';
+import 'package:truckmaps_app/src/planner/planner_screen.dart';
 
 http.Response json(Object body) => http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
@@ -20,6 +21,8 @@ Session session(Map<String, Object> responses) {
 }
 
 void main() {
+  setUp(() => mapTiles = () => const SizedBox());
+
   testWidgets('bez sesji – ekran logowania', (tester) async {
     await tester.pumpWidget(const TruckMapsApp());
 
@@ -27,13 +30,13 @@ void main() {
   });
 
   testWidgets('po zalogowaniu – pojazdy, moduły z dostępem i „Kup moduł”', (tester) async {
-    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(TruckMapsApp(
       session: session({
         '/api/vehicles': [
-          {'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
+          {'id': 'v1', 'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
            'gvw_t': 40, 'axle_load_t': 11.5, 'company_id': null, 'can_edit': true},
         ],
         '/api/me/modules': [
@@ -43,17 +46,21 @@ void main() {
         '/api/m/hello/greeting': {'message': 'Witaj w TruckMaps!', 'core_version': '0.1.0'},
       }),
     ));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Zestaw 40 t'), findsOneWidget);
+    expect(find.text('Wyznacz trasę'), findsOneWidget);  // pierwszy ekran: planer trasy
     expect(find.text('Anna Kowalska'), findsOneWidget);
 
+    await tester.tap(find.text('Pojazdy'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Zestaw 40 t'), findsWidgets);
+
     await tester.tap(find.text('Powitanie'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Witaj w TruckMaps!'), findsOneWidget);
 
     await tester.tap(find.text('Moduły'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Aktywny'), findsOneWidget);
     expect(find.text('Wymaga nowszej wersji aplikacji.'), findsOneWidget);
   });

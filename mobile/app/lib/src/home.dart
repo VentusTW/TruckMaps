@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'auth.dart';
 import 'modules_screen.dart';
+import 'planner/planner_screen.dart';
 import 'vehicles_screen.dart';
 
 /// Ekran główny: menu rdzenia (pojazdy, moduły) i ekrany modułów z dostępem.
@@ -49,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<_Page> get _pages {
     final context = ModuleContext(api: widget.session.api, userName: widget.session.userName);
     return [
+      _Page('Trasa', Icons.route_outlined, (_) => PlannerScreen(api: widget.session.api)),
       _Page('Pojazdy', Icons.local_shipping_outlined, (_) => VehiclesScreen(api: widget.session.api)),
       for (final access in _modules.where((m) => m.usable))
         for (final entry in access.module!.entries(context)) _Page(entry.title, entry.icon, entry.builder),
@@ -88,7 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
-    final body = pages[selected].builder(context);
+    // Ekrany zostają w pamięci: po powrocie do planera trasa i mapa są tam, gdzie były.
+    final body = IndexedStack(index: selected, children: [for (final page in pages) page.builder(context)]);
     return Scaffold(
       appBar: AppBar(title: Text(pages[selected].title)),
       drawer: wide ? null : drawer,

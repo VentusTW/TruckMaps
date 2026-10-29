@@ -240,7 +240,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Gdy trasy nie da się wyznaczyć: okno z wyjaśnieniem, który odcinek blokuje które ograniczenie (np. nacisk osi 10 t na DK73 w Tarnowie), nieaktualna trasa znika z mapy
 - [x] Start albo cel w strefie bez wjazdu dla pojazdu (np. stare miasto za wiaduktem 2 m): trasa od / do najbliższego dozwolonego miejsca (tuż za ostatnim albo przed pierwszym ograniczeniem, do 5 km), z informacją o odległości; przesuwany tylko ten koniec, który przeszkadza
 - [ ] Numery domów tylko na ostatnich kilkuset metrach dojazdu do celu i odjazdu ze startu (pomoc przy nieregularnej numeracji); źródła: OSM `addr:housenumber`, w PL punkty adresowe z rejestru państwowego (GUGiK, dane otwarte)
-- [ ] Planowanie trasy z kolorami ryzyka
+- [x] Planowanie trasy z kolorami ryzyka w aplikacji (ekran „Trasa”): mapa (flutter_map, kafelki OSM – działa też na Windows), start i cel z adresu, GPS albo dotknięcia mapy, punkty pośrednie, pojazd, godzina wyjazdu, omijanie trudnych dróg; trasa w kolorach oceny, znaki ograniczeń i zakazy ⛔ na mapie, lista ostrzeżeń, zakazy ruchu w czasie z przyciskiem wyjazdu bez postoju, koszt, alternatywy; okno z wyjaśnieniem, gdy trasy nie ma
+- [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
 - [ ] Nawigacja: GPS, dopasowanie do drogi, komunikaty głosowe, przeliczanie trasy
 - [ ] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę

@@ -1,5 +1,6 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:module_hello/module_hello.dart';
 
 import 'src/auth.dart';
@@ -34,6 +35,10 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       title: 'TruckMaps',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: const Color(0xFF1B6E3A), useMaterial3: true),
+      // Polski kalendarz i zegar (wybór godziny wyjazdu).
+      locale: const Locale('pl'),
+      supportedLocales: const [Locale('pl'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: session == null
           ? LoginScreen(serverUrl: serverUrl, onLoggedIn: (s) => setState(() => _session = s))
           : HomeScreen(

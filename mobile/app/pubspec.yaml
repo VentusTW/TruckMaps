@@ -9,8 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   http: ^1.2.1
   url_launcher: ^6.2.5
+  # Mapa: kafelki OSM jak w planerze w przeglądarce; działa także na Windows.
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
   core_sdk:
     path: ../packages/core_sdk
   # Pakiety modułów wbudowane w aplikację; dostęp do nich sprawdza serwer.
