@@ -28,6 +28,9 @@ EDGE_ATTRIBUTES = [
     "edge.names",
 ]
 
+# Dopasowanie do mapy (map_snap) Valhalla robi najwyżej dla 200 km – dłuższe odcinki kawałkami.
+TRACE_CHUNK_KM = 150.0
+
 # Omijanie trudnych miejsc: ile razy przeliczać trasę i jak długi objazd jest rozsądny.
 AVOID_ROUNDS = 3
 MAX_DETOUR_FACTOR = 1.25
@@ -272,19 +275,47 @@ class ValhallaRouter:
         Najpierw dokładne dopasowanie (``edge_walk``) do linii trasy. Gdy trasa przechodzi
         przez punkt pośredni w środku drogi, Valhalla go nie znajduje (błąd 443) – wtedy
         dopasowanie do mapy (``map_snap``), które zwraca własną, wyrównaną linię trasy.
-        Indeksy odcinków odnoszą się zawsze do zwróconej linii.
+        ``map_snap`` działa najwyżej dla 200 km, więc dłuższy odcinek jest dopasowywany
+        kawałkami po ok. 150 km. Indeksy odcinków odnoszą się zawsze do zwróconej linii.
         """
+        points = decode_polyline6(shape)
+        result = self._match(points, vehicle)
+        if result is not None:
+            return result
+        edges: list[RouteEdge] = []
+        geometry: list[tuple[float, float]] = []
+        for chunk in _chunks(points, TRACE_CHUNK_KM):
+            part = self._match(chunk, vehicle)
+            if part is None:
+                return None
+            offset = len(geometry)
+            chunk_edges, chunk_shape = part
+            geometry += chunk_shape
+            edges += [
+                e.model_copy(
+                    update={
+                        "begin_index": e.begin_index + offset,
+                        "end_index": e.end_index + offset,
+                    }
+                )
+                for e in chunk_edges
+            ]
+        return edges, geometry
+
+    def _match(
+        self, points: list[tuple[float, float]], vehicle: VehicleIn
+    ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
         for shape_match in ("edge_walk", "map_snap"):
-            result = self._trace(shape, shape_match, vehicle)
+            result = self._trace(points, shape_match, vehicle)
             if result is not None:
                 return result
         return None
 
     def _trace(
-        self, shape: str, shape_match: str, vehicle: VehicleIn
+        self, points: list[tuple[float, float]], shape_match: str, vehicle: VehicleIn
     ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
         request = {
-            "encoded_polyline": shape,
+            "shape": [{"lat": lat, "lon": lon} for lon, lat in points],
             "shape_match": shape_match,
             "costing": "truck",
             "costing_options": {"truck": truck_options(vehicle)},
@@ -294,7 +325,7 @@ class ValhallaRouter:
             response = self._http.post(f"{self._url}/trace_attributes", json=request)
             response.raise_for_status()
             body = response.json()
-            matched_shape = decode_polyline6(body.get("shape") or shape)
+            matched_shape = decode_polyline6(body["shape"]) if body.get("shape") else points
             edges = [
                 RouteEdge(
                     way_id=edge["way_id"],
@@ -314,6 +345,17 @@ class ValhallaRouter:
         if not edges or max(e.end_index for e in edges) >= len(matched_shape):
             return None
         return edges, matched_shape
+
+
+def _chunks(points: list[tuple[float, float]], max_km: float):
+    """Kawałki linii trasy po ok. ``max_km`` (sąsiednie mają wspólny punkt)."""
+    start, length = 0, 0.0
+    for i in range(1, len(points)):
+        length += distance_m(*points[i - 1], *points[i])
+        if length >= max_km * 1000 and i < len(points) - 1:
+            yield points[start : i + 1]
+            start, length = i, 0.0
+    yield points[start:]
 
 
 def truck_options(vehicle: VehicleIn) -> dict:

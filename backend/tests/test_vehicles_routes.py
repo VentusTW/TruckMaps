@@ -607,3 +607,15 @@ def test_no_route_explains_which_leg_and_restriction_blocks_it(database):
     detail = response.json()["detail"]
     assert "Start (A) → Punkt pośredni 1: Ograniczenie nacisku osi 10 t" in detail
     assert "Lwowska" in detail
+
+
+def test_long_leg_is_matched_in_chunks_below_valhalla_limit():
+    from truckmaps.core.routing import _chunks
+
+    # ~333 km na wschód co ok. 1,1 km.
+    points = [(16.0 + i * 0.016, 52.0) for i in range(301)]
+    chunks = list(_chunks(points, 150.0))
+
+    assert len(chunks) == 3
+    assert all(a[-1] == b[0] for a, b in zip(chunks, chunks[1:], strict=False))
+    assert chunks[0][0] == points[0] and chunks[-1][-1] == points[-1]

@@ -68,7 +68,11 @@
   .modal h3 { margin:0 0 8px; font-size:17px; }
   .modal p { margin:0 0 14px; font-size:14px; line-height:1.5; }
   button.link { border:none; padding:0; background:none; color:var(--accent); text-align:left; font-size:13px; flex:none; }
-  .sign { position:relative; }
+  /* Warstwy znaczników: A, B i punkty pośrednie zawsze nad znakami ograniczeń i parkingami.
+     (MapLibre sam ustawia position:absolute – nie nadpisywać, bo znaki uciekną z miejsca.) */
+  .maplibregl-marker.sign { z-index:1; }
+  .maplibregl-marker.issue-marker { z-index:2; }
+  .maplibregl-marker.stop-marker { z-index:3; }
   .badge.lime { color:#3b6d11; } .badge.orange { color:#c26f00; } .result.orange { border-color:#f08c00; }
   .legend { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:var(--muted); }
   .legend li { display:flex; align-items:center; gap:6px; } .legend .dot { margin:0; }
@@ -186,9 +190,8 @@
     <button type="button" id="via-mode">+ Punkt pośredni</button>
   </div>
   <div class="row">
-    <button type="button" id="demo-tarnow">Tarnów → Tuchów</button>
-    <button type="button" id="demo">Poznań → Warszawa</button>
-    <button type="button" id="clear">Wyczyść</button>
+    <select id="test-routes" aria-label="Trasy testowe" style="flex:1"></select>
+    <button type="button" id="clear" style="flex:none">Wyczyść</button>
   </div>
   <p class="muted">Punkty A, B i pośrednie można przeciągać – trasa przeliczy się sama. Dwuklik na drodze dodaje punkt pośredni, prawy przycisk myszy na punkcie pośrednim usuwa go.</p>
   <ul class="legend">
@@ -342,6 +345,7 @@ const COLORS = { green: "#3b6d11", lime: "#97c459", yellow: "#f5c518", orange: "
 
 function makeMarker(lngLat, label, color, onMove) {
   const element = document.createElement("div");
+  element.className = "stop-marker";
   element.textContent = label;
   element.style.cssText = "width:26px;height:26px;border-radius:50%;display:grid;place-items:center;cursor:grab;" +
     "font:600 13px system-ui;color:#fff;border:2px solid #fff;background:" + color;
@@ -685,15 +689,37 @@ function analysisHtml(route) {
     (items ? `<ul class="warnings">${items}</ul>` : "");
 }
 
-function demo(a, b) {
+// Trasy sprawdzane przy rozwoju planera (te same co w infra/testy_danych.json i przypadki szczególne).
+const TEST_ROUTES = [
+  { name: "Tarnów → Tuchów", a: [50.0072, 20.9898], b: [49.8952, 21.0537] },
+  { name: "Poznań → Warszawa", a: [52.4064, 16.9252], b: [52.2297, 21.0122] },
+  { name: "Kraków → Gdańsk", a: [50.0647, 19.9450], b: [54.3520, 18.6466] },
+  { name: "Tarnów → Berlin", a: [50.0121, 20.9858], b: [52.5163, 13.3777] },
+  { name: "Poznań, Stary Rynek → Praga", a: [52.4082892, 16.933598], b: [50.0810618, 14.4246678] },
+  { name: "Kraków → Bratysława", a: [50.0614, 19.9366], b: [48.1486, 17.1077] },
+  { name: "Białystok → Wilno", a: [53.1325, 23.1688], b: [54.6872, 25.2797] },
+  { name: "Drezno (A17) → Brno", a: [50.9930, 13.8070], b: [49.1951, 16.6068] },
+  { name: "Tarnów → Tuchów przez Lwowską (nacisk osi 10 t – zestaw nie przejedzie)",
+    a: [50.0278, 20.9141], b: [49.8952, 21.0537], via: [[50.013152, 21.021389], [50.010850, 21.049223]] },
+  { name: "Poznań → Praga przez punkt pośredni (długi odcinek, ocena kawałkami)",
+    a: [52.4082892, 16.933598], b: [50.0810618, 14.4246678], via: [[51.2, 16.2]] },
+  { name: "Drezno, Stare Miasto → Praga (start w strefie bez wjazdu)", a: [51.0504, 13.7373], b: [50.0755, 14.4378] },
+];
+
+$("test-routes").innerHTML = '<option value="">Trasy testowe…</option>' +
+  TEST_ROUTES.map((r, i) => `<option value="${i}">${escapeHtml(r.name)}</option>`).join("");
+$("test-routes").addEventListener("change", (event) => {
+  const route = TEST_ROUTES[Number(event.target.value)];
+  event.target.value = "";
+  if (!route) return;
+  const lngLat = ([lat, lng]) => ({ lat, lng });
   clearAll();
-  setStart(a);
-  setEnd(b);
+  setStart(lngLat(route.a));
+  setEnd(lngLat(route.b));
+  for (const point of route.via ?? []) addVia(lngLat(point));
   $("hint").textContent = hintText();
   calculate();
-}
-$("demo").addEventListener("click", () => demo({ lng: 16.9252, lat: 52.4064 }, { lng: 21.0122, lat: 52.2297 }));
-$("demo-tarnow").addEventListener("click", () => demo({ lng: 20.9898, lat: 50.0072 }, { lng: 21.0537, lat: 49.8952 }));
+});
 $("calc").addEventListener("click", calculate);
 $("clear").addEventListener("click", clearAll);
 $("avoid").addEventListener("change", recalculate);
@@ -825,6 +851,7 @@ function clearIssues() {
 
 function smallMarker(lngLat, text, color, title, popupHtml) {
   const element = document.createElement("div");
+  element.className = "issue-marker";
   element.textContent = text;
   element.title = title;
   element.style.cssText = "min-width:22px;height:22px;padding:0 4px;border-radius:6px;display:grid;place-items:center;" +
