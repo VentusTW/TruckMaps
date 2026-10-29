@@ -72,6 +72,12 @@
      (MapLibre sam ustawia position:absolute – nie nadpisywać, bo znaki uciekną z miejsca.) */
   .maplibregl-marker.sign { z-index:1; }
   .maplibregl-marker.issue-marker { z-index:2; }
+  .maplibregl-marker.route-label { z-index:2; }
+  /* Etykieta w połowie trasy: długość, czas, szacunkowy koszt. */
+  .route-label { background:#fff; color:#1f1e1c; border-radius:8px; padding:3px 8px; font:600 12px/1.3 system-ui;
+                 white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.4); border:2px solid #185fa5; cursor:default; }
+  .route-label.alt { opacity:.8; border-color:#8a8986; font-weight:500; cursor:pointer; }
+  .route-label.alt:hover { opacity:1; }
   .maplibregl-marker.stop-marker { z-index:3; }
   .badge.lime { color:#3b6d11; } .badge.orange { color:#c26f00; } .result.orange { border-color:#f08c00; }
   .legend { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:var(--muted); }
@@ -593,6 +599,7 @@ function clearRoute() {
   currentRoute = null;
   clearIssues();
   clearSigns();
+  clearRouteLabels();
   $("result").hidden = true;
 }
 
@@ -802,6 +809,7 @@ function showRoute(route, options = {}) {
   $("result").querySelectorAll("[data-alt]").forEach((button) =>
     button.addEventListener("click", () => chooseAlternative(Number(button.dataset.alt))));
   showSigns(route);
+  showRouteLabels(route);
   showIssues(route.stop_issues ?? []);
   $("result").hidden = false;
 }
@@ -829,6 +837,50 @@ function signMarker(warning, avoided) {
     .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(`<strong>${escapeHtml(warning.message)}</strong><br>${note}`))
     .addTo(map);
   signMarkers.push(marker);
+}
+
+// --- Etykiety tras: długość / czas / koszt w połowie trasy -----------------------------
+let routeLabels = [];
+
+function clearRouteLabels() {
+  routeLabels.forEach((m) => m.remove());
+  routeLabels = [];
+}
+
+function midpoint(geometry) {
+  // Punkt w połowie długości linii trasy (nie w połowie listy punktów).
+  const lengths = [0];
+  for (let i = 1; i < geometry.length; i++) {
+    const [a, b] = [geometry[i - 1], geometry[i]];
+    lengths.push(lengths[i - 1] + distance({ lng: a[0], lat: a[1] }, { lng: b[0], lat: b[1] }));
+  }
+  const half = lengths[lengths.length - 1] / 2;
+  const i = Math.max(lengths.findIndex((l) => l >= half), 0);
+  return geometry[i];
+}
+
+function routeLabelText(r) {
+  const km = r.distance_km.toLocaleString("pl-PL", { maximumFractionDigits: 0 });
+  return `${km} km · ${duration(r)}${r.cost ? ` · ≈ ${EUR(r.cost.eur)}` : ""}`;
+}
+
+function showRouteLabels(route) {
+  clearRouteLabels();
+  const add = (r, alt, index) => {
+    if (!r.geometry?.length) return;
+    const element = document.createElement("div");
+    element.className = `route-label${alt ? " alt" : ""}`;
+    element.textContent = routeLabelText(r);
+    element.title = alt ? "Trasa alternatywna – kliknij, żeby wybrać" : "Wybrana trasa (koszt szacunkowy)";
+    element.addEventListener("dblclick", (event) => event.stopPropagation());
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (alt) chooseAlternative(index);
+    });
+    routeLabels.push(new maplibregl.Marker({ element }).setLngLat(midpoint(r.geometry)).addTo(map));
+  };
+  route.alternatives.forEach((r, i) => add(r, true, i));
+  add(route, false);
 }
 
 function showSigns(route) {
