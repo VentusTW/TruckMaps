@@ -161,8 +161,9 @@
       </select>
     </label>
     <label>ADR <input name="hazmat" type="checkbox" style="width:auto;justify-self:start"></label>
-    <label>Koszt €/km <input name="cost_eur_per_km" type="number" step="0.01" min="0" max="20" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
-    <label>Koszt €/h jazdy <input name="cost_eur_per_hour" type="number" step="0.5" min="0" max="500" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
+    <label>Waluta stawek <select name="cost_currency"></select></label>
+    <label>Koszt za km <input name="cost_per_km" type="number" step="0.01" min="0" max="100000" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
+    <label>Koszt za h jazdy <input name="cost_per_hour" type="number" step="0.5" min="0" max="10000000" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
     <div class="row" style="margin-top:8px">
       <button type="submit" class="primary" id="save">Zapisz pojazd</button>
       <button type="button" id="new">Nowy</button>
@@ -176,6 +177,8 @@
   </div>
 
   <h2>Trasa</h2>
+  <label>Waluta kosztów <select id="currency" title="Zapisywana w ustawieniach konta"></select></label>
+  <p class="muted" id="rates-day"></p>
   <div class="search">
     <label class="addr"><span class="pin a">A</span><input id="from" placeholder="Skąd – adres, miejscowość, firma" autocomplete="off"></label>
     <ul class="suggestions" id="from-list" hidden></ul>
@@ -276,6 +279,8 @@ function fillForm(vehicle) {
     if (element.type === "checkbox") element.checked = Boolean(vehicle?.[element.name]);
     else element.value = vehicle?.[element.name] ?? "";
   }
+  // Nowy pojazd: stawki w walucie wybranej przez użytkownika, firmy albo w euro.
+  if (!form.elements.cost_currency.value) form.elements.cost_currency.value = defaultCurrency(vehicle?.company_id);
   showCompanyRates();
   // Kierowca firmy jeździ jej pojazdami, ale ich nie zmienia.
   const readOnly = vehicle?.can_edit === false;
@@ -296,9 +301,9 @@ function readForm() {
 
 function showCompanyRates() {
   const company = companies.find((c) => c.id === form.elements.company_id.value);
-  for (const field of ["cost_eur_per_km", "cost_eur_per_hour"]) {
+  for (const field of ["cost_per_km", "cost_per_hour"]) {
     const rate = company?.[field];
-    form.elements[field].placeholder = rate != null ? `firmy: ${rate}` : "brak";
+    form.elements[field].placeholder = rate != null ? `firmy: ${money(rate, company.cost_currency, 2)}` : "brak";
   }
 }
 
@@ -1027,7 +1032,7 @@ function midpoint(geometry) {
 
 function routeLabelText(r) {
   const km = r.distance_km.toLocaleString("pl-PL", { maximumFractionDigits: 0 });
-  return `${km} km · ${duration(r)}${r.cost ? ` · ≈ ${EUR(r.cost.eur)}` : ""}`;
+  return `${km} km · ${duration(r)}${r.cost ? ` · ≈ ${money(r.cost.amount, r.cost.currency)}` : ""}`;
 }
 
 function showRouteLabels(route) {
@@ -1126,16 +1131,23 @@ function showIssues(issues) {
   }));
 }
 
-const EUR = (value) => value.toLocaleString("pl-PL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const money = (value, currency, digits = 0) => value.toLocaleString("pl-PL",
+  { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: digits });
+const plDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString("pl-PL");
 const COST_SOURCE = { vehicle: "stawki pojazdu", company: "stawki firmy", mixed: "stawki pojazdu i firmy" };
 
 function costHtml(route) {
   if (!route.cost) {
-    return '<p class="muted">Koszt: podaj stawkę €/km w pojeździe albo w firmie, żeby zobaczyć szacunek.</p>';
+    return '<p class="muted">Koszt: podaj stawkę za km w pojeździe albo w firmie, żeby zobaczyć szacunek ' +
+      '(przy stawkach w różnych walutach potrzebny jest też kurs EBC).</p>';
   }
   const c = route.cost;
-  return `<p class="cost">≈ ${EUR(c.eur)} <span class="muted">szacunkowo</span></p>` +
-    `<p class="muted">${c.eur_per_km.toLocaleString("pl-PL")} €/km${c.eur_per_hour ? ` + ${c.eur_per_hour.toLocaleString("pl-PL")} €/h jazdy` : ""}, ${COST_SOURCE[c.source]}. ` +
+  const converted = c.exchange_day
+    ? ` Stawki w ${c.rates_currencies.join(" i ")} przeliczone po kursie EBC z ${plDate(c.exchange_day)}.` : "";
+  const other = currencyChoice && currencyChoice !== c.currency
+    ? ` Brak kursu ${currencyChoice} – koszt w walucie stawek.` : "";
+  return `<p class="cost">≈ ${money(c.amount, c.currency)} <span class="muted">szacunkowo</span></p>` +
+    `<p class="muted">${money(c.per_km, c.currency, 2)}/km${c.per_hour ? ` + ${money(c.per_hour, c.currency, 2)}/h jazdy` : ""}, ${COST_SOURCE[c.source]}.${converted}${other} ` +
     `Bez paliwa i myta liczonych osobno – to tylko twoje stawki.</p>`;
 }
 
@@ -1152,7 +1164,7 @@ function alternativesHtml(route) {
     const delta = alt.distance_km - route.distance_km;
     return `<li><button type="button" data-alt="${i}"><span class="dot ${level}"></span><span>` +
       `${alt.distance_km.toLocaleString("pl-PL")} km (${delta >= 0 ? "+" : ""}${delta.toLocaleString("pl-PL", { maximumFractionDigits: 1 })}) · ${duration(alt)}` +
-      (alt.cost ? ` · ≈ ${EUR(alt.cost.eur)}` : "") +
+      (alt.cost ? ` · ≈ ${money(alt.cost.amount, alt.cost.currency)}` : "") +
       ` · ${count ? `${count} bardzo trudnych miejsc` : LEVEL_TEXT[level] ?? "bez oceny"}</span></button></li>`;
   }).join("");
   return `<h2 style="margin-top:12px">Trasy alternatywne</h2>` +
@@ -1225,10 +1237,11 @@ async function openCompany(id) {
     <h3>${escapeHtml(company.name)}${company.tax_id ? `, NIP ${escapeHtml(company.tax_id)}` : ""} – jesteś: ${ROLES[company.role]}</h3>
     <ul class="members">${members}</ul>
     ${owner ? `
-      <h3>Domyślne stawki pojazdów firmy (szacunek kosztu trasy)</h3>
+      <h3>Waluta firmy i domyślne stawki pojazdów (szacunek kosztu trasy)</h3>
       <form id="company-rates" class="row">
-        <input name="cost_eur_per_km" type="number" step="0.01" min="0" max="20" placeholder="€/km" aria-label="Koszt €/km" value="${company.cost_eur_per_km ?? ""}">
-        <input name="cost_eur_per_hour" type="number" step="0.5" min="0" max="500" placeholder="€/h jazdy" aria-label="Koszt €/h jazdy" value="${company.cost_eur_per_hour ?? ""}">
+        <select name="cost_currency" aria-label="Waluta firmy" style="width:auto">${currencyOptions(company.cost_currency)}</select>
+        <input name="cost_per_km" type="number" step="0.01" min="0" max="100000" placeholder="za km" aria-label="Koszt za km" value="${company.cost_per_km ?? ""}">
+        <input name="cost_per_hour" type="number" step="0.5" min="0" max="10000000" placeholder="za h jazdy" aria-label="Koszt za godzinę jazdy" value="${company.cost_per_hour ?? ""}">
         <button type="submit" class="small">Zapisz</button>
       </form>` : ""}
     <h3>Bazy firmy (wpisz „baza” w polu adresu)</h3>
@@ -1262,8 +1275,8 @@ async function openCompany(id) {
     event.preventDefault();
     const rate = (name) => event.target.elements[name].value === "" ? null : Number(event.target.elements[name].value);
     companyAction(() => api(`/api/companies/${id}`, { method: "PUT", body: JSON.stringify({
-      name: company.name, tax_id: company.tax_id,
-      cost_eur_per_km: rate("cost_eur_per_km"), cost_eur_per_hour: rate("cost_eur_per_hour") }) }));
+      name: company.name, tax_id: company.tax_id, cost_currency: event.target.elements.cost_currency.value,
+      cost_per_km: rate("cost_per_km"), cost_per_hour: rate("cost_per_hour") }) }));
   });
   $("delete-company")?.addEventListener("click", () => {
     if (confirm(`Usunąć firmę ${company.name}? Pojazdy firmy wrócą do osób, które je dodały.`))
@@ -1346,7 +1359,41 @@ if (invitedCode) {
   $("company-panel").open = true;
 }
 
-loadCompanies()
+// Waluty: lista, kurs EBC i waluta kosztów wybrana w ustawieniach konta.
+let currencies = [];
+let currencyChoice = null;
+
+function currencyOptions(selected) {
+  return currencies.map((c) =>
+    `<option value="${c.code}"${c.code === selected ? " selected" : ""}>${c.code} – ${escapeHtml(c.name)}</option>`).join("");
+}
+
+function defaultCurrency(companyId) {
+  return currencyChoice || companies.find((c) => c.id === companyId)?.cost_currency || "EUR";
+}
+
+async function loadCurrencies() {
+  const [list, settings] = await Promise.all([api("/api/currencies"), api("/api/me/settings")]);
+  currencies = list.currencies;
+  currencyChoice = settings.currency;
+  $("currency").innerHTML = '<option value="">jak firma pojazdu / stawki</option>' + currencyOptions(currencyChoice);
+  form.elements.cost_currency.innerHTML = currencyOptions();
+  $("rates-day").textContent = list.rates_day
+    ? `Kursy walut: EBC z ${plDate(list.rates_day)}.` : "Brak kursów EBC – koszty tylko w walucie stawek.";
+}
+
+$("currency").addEventListener("change", async (event) => {
+  try {
+    showError("");
+    currencyChoice = (await api("/api/me/settings", { method: "PUT",
+      body: JSON.stringify({ currency: event.target.value || null }) })).currency;
+    recalculate();
+  } catch (e) { showError(e.message); }
+});
+
+loadCurrencies()
+  .catch((e) => showError(e.message))
+  .then(() => loadCompanies())
   .catch((e) => showError(e.message))
   .finally(() => loadVehicles().catch((e) => showError(e.message)));
 </script>

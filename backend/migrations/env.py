@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 
 from truckmaps.core import (  # noqa: F401  (rejestrują tabele w Base.metadata)
     companies,
+    currency,
     parkings,
     restrictions,
     vehicles,

@@ -52,9 +52,11 @@ class Company(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_id)
     name: Mapped[str] = mapped_column(String(200))
     tax_id: Mapped[str | None] = mapped_column(String(30))
-    cost_eur_per_km: Mapped[float | None]
+    cost_per_km: Mapped[float | None]
     """Stawki domyślne dla pojazdów firmy, które nie mają własnych."""
-    cost_eur_per_hour: Mapped[float | None]
+    cost_per_hour: Mapped[float | None]
+    cost_currency: Mapped[str] = mapped_column(String(3), default="EUR")
+    """Waluta firmy: jej stawek i domyślna waluta kosztów dla członków."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

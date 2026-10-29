@@ -114,7 +114,7 @@ def test_extension_default_and_priority():
     def provide(impl, priority):
         return lambda ctx: ctx.extensions.provide(COST_PROVIDER, impl, priority=priority)
 
-    profile = CostProfile(eur_per_km=1.0)
+    profile = CostProfile(per_km=1.0)
 
     core_only = create_app(Settings(), modules=[])
     assert core_only.state.extensions.get(COST_PROVIDER).estimate(100, 0, profile) == 100

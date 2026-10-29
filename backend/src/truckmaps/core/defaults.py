@@ -8,7 +8,7 @@ class FlatCostProvider:
     """Koszt = km × stawka za km + godziny × stawka za godzinę."""
 
     def estimate(self, distance_km: float, duration_h: float, profile: CostProfile) -> float:
-        return distance_km * profile.eur_per_km + duration_h * profile.eur_per_hour
+        return distance_km * profile.per_km + duration_h * profile.per_hour
 
 
 def register_defaults(registry: ExtensionRegistry) -> None:

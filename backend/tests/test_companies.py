@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.companies import CompanyInvite
 from truckmaps.core.config import Settings
+from truckmaps.core.currency import store_rates
 from truckmaps.core.routing import Route
 from truckmaps.sdk import Principal
 
@@ -241,28 +242,75 @@ def test_route_cost_uses_vehicle_rates_then_company_rates(client):
     # Bez stawek nie zgadujemy kosztu.
     assert route_cost(client, vehicle["id"]) is None
 
-    rates = {"name": "Trans-Miś", "cost_eur_per_km": 1.0, "cost_eur_per_hour": 30}
+    rates = {"name": "Trans-Miś", "cost_per_km": 1.0, "cost_per_hour": 30}
     client.put(f"/api/companies/{company_id}", json=rates, headers=as_user("olek"))
     cost = route_cost(client, vehicle["id"], who="jan")
     # 310 km × 1,0 € + 245 min = 4,083 h × 30 €
-    assert (cost["eur"], cost["source"], cost["estimated"]) == (432.5, "company", True)
-    assert cost["provider"] == "core"
+    assert (cost["amount"], cost["currency"], cost["source"]) == (432.5, "EUR", "company")
+    assert (cost["provider"], cost["estimated"], cost["exchange_day"]) == ("core", True, None)
 
-    own_km_rate = {**TRUCK, "company_id": company_id, "cost_eur_per_km": 1.2}
+    own_km_rate = {**TRUCK, "company_id": company_id, "cost_per_km": 1.2}
     client.put(f"/api/vehicles/{vehicle['id']}", json=own_km_rate, headers=as_user("olek"))
     cost = route_cost(client, vehicle["id"])
-    assert (cost["eur"], cost["eur_per_km"], cost["source"]) == (494.5, 1.2, "mixed")
+    assert (cost["amount"], cost["per_km"], cost["source"]) == (494.5, 1.2, "mixed")
 
 
 def test_private_vehicle_rates_and_validation(client):
-    private = {**TRUCK, "cost_eur_per_km": 0.9}
+    private = {**TRUCK, "cost_per_km": 0.9}
     vehicle = client.post("/api/vehicles", json=private, headers=as_user("ola")).json()
 
     cost = route_cost(client, vehicle["id"], who="ola")
-    assert (cost["eur"], cost["eur_per_hour"], cost["source"]) == (279.0, 0.0, "vehicle")
+    assert (cost["amount"], cost["per_hour"], cost["source"]) == (279.0, 0.0, "vehicle")
 
-    negative = {**TRUCK, "cost_eur_per_km": -1}
+    negative = {**TRUCK, "cost_per_km": -1}
     assert client.post("/api/vehicles", json=negative, headers=as_user("ola")).status_code == 422
+    unknown = {**TRUCK, "cost_per_km": 1, "cost_currency": "XYZ"}
+    assert client.post("/api/vehicles", json=unknown, headers=as_user("ola")).status_code == 422
+
+
+def add_rates(database, day="2026-10-28", **per_eur):
+    with database.session() as db:
+        store_rates(db, date.fromisoformat(day), per_eur)
+
+
+def test_route_cost_in_chosen_currency_with_ecb_rate(client, database):
+    company_id = new_company(client)
+    vehicle = client.post(
+        "/api/vehicles",
+        json={**TRUCK, "company_id": company_id, "cost_per_km": 4.0, "cost_currency": "PLN"},
+        headers=as_user("olek"),
+    ).json()
+    hourly = {"name": "Trans-Miś", "cost_per_hour": 30, "cost_currency": "EUR"}
+    client.put(f"/api/companies/{company_id}", json=hourly, headers=as_user("olek"))
+
+    # Stawki w PLN i EUR, a kursu jeszcze nie ma – kosztu nie zgadujemy.
+    assert route_cost(client, vehicle["id"]) is None
+
+    add_rates(database, PLN=4.0, CZK=25.0)
+    # Bez wyboru użytkownika: waluta firmy (EUR). 310 km × 4 zł = 310 € + 4,083 h × 30 €.
+    cost = route_cost(client, vehicle["id"])
+    assert (cost["amount"], cost["currency"], cost["per_km"]) == (432.5, "EUR", 1.0)
+    assert (cost["rates_currencies"], cost["exchange_day"]) == (["EUR", "PLN"], "2026-10-28")
+
+    settings = client.put("/api/me/settings", json={"currency": "czk"}, headers=as_user("olek"))
+    assert settings.json() == {"currency": "CZK"}
+    cost = route_cost(client, vehicle["id"])
+    assert (cost["amount"], cost["currency"]) == (10812.5, "CZK")
+    assert client.get("/api/me/settings", headers=as_user("olek")).json() == {"currency": "CZK"}
+
+    currencies = client.get("/api/currencies", headers=as_user("olek")).json()
+    assert currencies["rates_day"] == "2026-10-28"
+    assert currencies["per_eur"] == {"PLN": 4.0, "CZK": 25.0}
+    assert currencies["currencies"][0] == {"code": "PLN", "name": "złoty polski"}
+
+
+def test_cost_stays_in_rates_currency_without_exchange_rate(client):
+    private = {**TRUCK, "cost_per_km": 4.0, "cost_currency": "PLN"}
+    vehicle = client.post("/api/vehicles", json=private, headers=as_user("ola")).json()
+    client.put("/api/me/settings", json={"currency": "EUR"}, headers=as_user("ola"))
+
+    cost = route_cost(client, vehicle["id"], who="ola")
+    assert (cost["amount"], cost["currency"], cost["exchange_day"]) == (1240.0, "PLN", None)
 
 
 def test_company_bases_are_shared_with_members_and_managed_by_dispatchers(client):

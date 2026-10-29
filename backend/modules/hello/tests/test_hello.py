@@ -36,7 +36,7 @@ def test_cost_uses_core_default_provider():
     with TestClient(app) as client:
         body = client.get("/api/m/hello/cost", params={"distance_km": 250}).json()
 
-    assert body == {"eur": 250.0}
+    assert body == {"amount": 250.0, "currency": "EUR"}
 
 
 def test_requires_login_and_license():

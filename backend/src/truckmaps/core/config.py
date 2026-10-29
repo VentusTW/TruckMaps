@@ -3,6 +3,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -33,6 +35,9 @@ class Settings:
     valhalla_url: str = "http://127.0.0.1:8002"
     photon_url: str = "http://127.0.0.1:2322"
 
+    exchange_rates_url: str | None = None
+    """Kursy walut EBC (``currency.ECB_URL``); ``None`` – bez pobierania (testy)."""
+
     @property
     def oidc_enabled(self) -> bool:
         return bool(self.oidc_issuer and self.oidc_client_id)
@@ -60,6 +65,8 @@ class Settings:
             database_url=env.get("TRUCKMAPS_DATABASE_URL") or None,
             valhalla_url=env.get("TRUCKMAPS_VALHALLA_URL", cls.valhalla_url),
             photon_url=env.get("TRUCKMAPS_PHOTON_URL", cls.photon_url),
+            # Pusta wartość wyłącza pobieranie kursów (np. serwer bez dostępu do internetu).
+            exchange_rates_url=env.get("TRUCKMAPS_EXCHANGE_RATES_URL", ECB_URL) or None,
         )
 
 

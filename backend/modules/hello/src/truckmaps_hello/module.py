@@ -30,7 +30,9 @@ class HelloModule(Module):
         @router.get("/cost")
         def cost(distance_km: float, duration_h: float = 0.0) -> dict:
             provider = ctx.extensions.get(COST_PROVIDER)
-            return {"eur": provider.estimate(distance_km, duration_h, CostProfile())}
+            profile = CostProfile()
+            amount = provider.estimate(distance_km, duration_h, profile)
+            return {"amount": amount, "currency": profile.currency}
 
         @router.get("/whoami")
         def whoami(user: Annotated[Principal, Depends(ctx.auth.current_user)]) -> dict:

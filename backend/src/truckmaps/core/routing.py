@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from truckmaps.core import costs, parkings, restrictions
 from truckmaps.core.companies import Company
+from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
 from truckmaps.core.polyline import decode_polyline6
 from truckmaps.core.restrictions import distance_m
@@ -793,7 +794,8 @@ def build_router(current_user) -> APIRouter:
         profile = load_owned(db, data.vehicle_id, user)
         vehicle = VehicleOut.model_validate(profile)
         company = db.get(Company, profile.company_id) if profile.company_id else None
-        rates = costs.rates_for(profile, company)
+        shown = costs.display_currency(user_currency(db, user), profile, company)
+        rates = costs.rates_for(profile, company, latest_rates(db), shown)
         stops = [data.origin, *data.via, data.destination]
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
