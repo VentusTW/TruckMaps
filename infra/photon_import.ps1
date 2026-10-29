@@ -1,42 +1,64 @@
-# Przygotowuje wyszukiwarke adresow Photon dla Polski (darmowa, dane OSM).
+# Przygotowuje wyszukiwarke adresow Photon (darmowa, dane OSM) dla wybranych krajow.
 # Uruchomienie z katalogu glownego repozytorium:
 #   powershell -ExecutionPolicy Bypass -File infra\photon_import.ps1
-# Kroki: pobranie Photon i danych (przez Windows – kontenery nie ufaja certyfikatom
-# w tej sieci), rozpakowanie .zst w Pythonie, import do bazy Photon w kontenerze.
-# Po imporcie: docker compose -f infra/docker-compose.yml --profile search up -d photon
+#   powershell -ExecutionPolicy Bypass -File infra\photon_import.ps1 -Countries pl,de,cz,sk,lt,at
+# Zrzut obejmuje cala Europe (nie dla kazdego kraju jest osobny), a do bazy trafiaja
+# tylko kraje z -Countries. Kolejny kraj = ponowny import, bez ponownego pobierania.
+# Kroki:
+#   1. pobranie Photon i zrzutu (przez Windows - kontenery nie ufaja certyfikatom w tej sieci)
+#   2. wybor krajow w Pythonie (minuty zamiast godzin w Photon)
+#   3. import w kontenerze do wolumenu truckmaps-photon-import (szybki dysk Linuksa);
+#      dzialajaca wyszukiwarka korzysta w tym czasie ze starej bazy
+#   4. kopia do wolumenu truckmaps-photon-data, z ktorego czyta wyszukiwarka (ok. 2 min przerwy)
 
 param(
     [string]$Release = "261025",
-    [string]$PhotonVersion = "1.3.0"
+    [string]$PhotonVersion = "1.3.0",
+    [string]$Countries = "pl,de,cz,sk,lt"
 )
 
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 $target = Join-Path $PSScriptRoot "data\photon"
 $python = Join-Path $root ".venv\Scripts\python.exe"
-$dump = "photon-dump-poland-release-$Release.jsonl.zst"
-$baseUrl = "https://download1.graphhopper.com/public/europe/poland"
+$compose = Join-Path $PSScriptRoot "docker-compose.yml"
+$dump = "photon-dump-europe-release-$Release.jsonl.zst"
+$selected = "photon-$($Countries -replace ',', '-').jsonl.zst"
+$baseUrl = "https://download1.graphhopper.com/public/europe"
+$started = Get-Date
 New-Item -ItemType Directory -Force $target | Out-Null
 
 if (-not (Test-Path "$target\photon.jar")) {
     curl.exe -sSL --fail -o "$target\photon.jar" "https://github.com/komoot/photon/releases/download/$PhotonVersion/photon-$PhotonVersion.jar"
 }
-if (-not (Test-Path "$target\$dump")) {
-    Write-Host "Pobieranie $dump"
-    curl.exe -sSL --fail -o "$target\$dump" "$baseUrl/$dump"
-    $expected = (curl.exe -sSL --fail "$baseUrl/$dump.md5").Split(" ")[0]
-    if ((Get-FileHash "$target\$dump" -Algorithm MD5).Hash.ToLower() -ne $expected) { throw "Niezgodna suma MD5" }
+if (-not (Test-Path "$target\$dump.ok")) {
+    # Zwykle pobrane wczesniej poza sesja: dist\pobieraj.exe photon (tworzy znacznik .ok).
+    Write-Host "1/4 Pobieranie $dump (ok. 13 GB)"
+    & $python -u "$root\tools\pobieraj\pobieraj.py" photon --wydanie $Release
+    if ($LASTEXITCODE -ne 0) { throw "Nie udalo sie pobrac $dump" }
 }
 
-Write-Host "Rozpakowywanie..."
+Write-Host "2/4 Wybor krajow: $Countries"
 & $python -m pip install --quiet zstandard
-& $python -c "import sys, zstandard; zstandard.ZstdDecompressor().copy_stream(open(sys.argv[1], 'rb'), open(sys.argv[2], 'wb'), write_size=1 << 24)" "$target\$dump" "$target\dump.jsonl"
-if ($LASTEXITCODE -ne 0) { throw "Rozpakowanie nie powiodlo sie" }
+& $python -u "$PSScriptRoot\photon_filter.py" "$target\$dump" "$target\$selected" $Countries
+if ($LASTEXITCODE -ne 0) { throw "Wybor krajow nie powiodl sie" }
 
-Write-Host "Import do Photon (kilkanascie minut)..."
-if (Test-Path "$target\data") { Remove-Item -Recurse -Force "$target\data" }
-docker run --rm -v "${target}:/photon" eclipse-temurin:21-jre `
-    java -Xmx8g -jar /photon/photon.jar import -import-file /photon/dump.jsonl -data-dir /photon/data -languages pl,en,de
+Write-Host "3/4 Import do Photon"
+docker build -q -t truckmaps-photon "$PSScriptRoot\photon" | Out-Null
+docker volume create truckmaps-photon-import | Out-Null
+$import = "rm -rf /import/* && zstd -dc /photon/$selected" +
+    " | java -Xmx8g -jar /photon/photon.jar import -import-file - -data-dir /import -languages pl,en,de"
+docker run --rm -v "${target}:/photon" -v truckmaps-photon-import:/import truckmaps-photon sh -c $import
 if ($LASTEXITCODE -ne 0) { throw "Import Photon nie powiodl sie" }
-Remove-Item "$target\dump.jsonl"
-Write-Host "Gotowe: $target\data"
+Remove-Item "$target\$selected"
+
+# Baza dzialajacej wyszukiwarki jest w wolumenie truckmaps-photon-data (docker-compose.yml).
+Write-Host "4/4 Podmiana bazy wyszukiwarki (ok. 2 min przerwy)"
+docker volume create truckmaps-photon-data | Out-Null
+docker compose -f $compose --profile search stop photon
+docker run --rm -v truckmaps-photon-import:/import -v truckmaps-photon-data:/photon-data truckmaps-photon `
+    sh -c "rm -rf /photon-data/* && cp -a /import/. /photon-data/"
+if ($LASTEXITCODE -ne 0) { throw "Kopiowanie bazy nie powiodlo sie - nowa baza zostaje w wolumenie truckmaps-photon-import" }
+docker compose -f $compose --profile search up -d photon
+docker volume rm truckmaps-photon-import | Out-Null
+Write-Host ("Gotowe po {0:N0} min: {1}" -f ((Get-Date) - $started).TotalMinutes, $Countries)

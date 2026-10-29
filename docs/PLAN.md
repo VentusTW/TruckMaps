@@ -207,9 +207,13 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] `truckmaps.sdk`: klasa `Module`, `CoreContext`, punkty rozszerzeń, schematy zdarzeń
 - [x] Ładowanie modułów (entry points) + automatyczne sprawdzanie licencji na routerach modułów
 - [x] Konta i logowanie (Zitadel, e-mail z kodem), profile pojazdów
-- [ ] Firmy i floty (organizacje Zitadela), profile kosztów
-- [x] Import OSM Polski → Valhalla (infra/download_map.ps1)
-- [ ] Kraje sąsiednie (DE, CZ, SK, LT), aktualizacja co tydzień
+- [x] Firmy i floty: firma z rolami (właściciel, dyspozytor, kierowca), jednorazowe kody zaproszeń ważne 7 dni (link /planer?zaproszenie=KOD), pojazdy firmy widoczne dla wszystkich członków, zmieniane przez właściciela i dyspozytorów; po usunięciu firmy pojazdy wracają do osób, które je dodały. Przynależność we własnej bazie, nie w organizacjach Zitadela: kierowca z własnym kontem dołącza bez przenoszenia konta i może należeć do kilku firm
+- [x] Profile kosztów: stawki €/km i €/h jazdy w pojeździe, domyślne w firmie (brakującą stawkę pojazdu bierze z firmy); przy trasie i alternatywach „≈ koszt, szacunkowo” liczony przez gniazdo `COST_PROVIDER` (moduł M4 podmieni je na paliwo i myto per kraj); bez stawek koszt nie jest zgadywany
+- [ ] Zmiana waluty: waluta konta / firmy (PLN, EUR, CZK, HUF, RON…), stawki wpisywane w swojej walucie, koszty i oferty pokazywane w wybranej walucie; przeliczanie po kursach EBC (darmowe, codziennie) z datą kursu, kwoty w obcej walucie (myto, paliwo za granicą) z przeliczeniem obok; wewnętrznie kwota + kod waluty, nie same euro
+- [x] Import OSM Polski → Valhalla
+- [x] Kraje sąsiednie (DE, CZ, SK, LT): mapy łączone narzędziem osmium (najnowsza wersja obiektów przy granicach), dane tras budowane etapami z ponawianiem w wolumenie Dockera i podmieniane bez przerwy w działaniu; ograniczenia (1,4 mln) i parkingi (9,9 tys.) dla 5 krajów; wyszukiwarka: zrzut Photon dla Europy, wybór krajów w Pythonie (9 min zamiast godzin w Photon)
+- [x] `pobieraj.exe`: pobieranie dużych danych poza sesją (wznawianie, ponawianie, kilka połączeń naraz, MD5, pomijanie niezmienionych plików, `infra/data/pobrane.json`)
+- [ ] Aktualizacja co tydzień: harmonogram Windows (pobieraj → build_routing → importy → photon_import)
 - [x] API trasy z parametrami pojazdu (/api/routes) + planer na mapie (/planer)
 - [x] Baza ograniczeń (import z OSM: wysokość, masa, nacisk osi, szerokość, długość, zakazy dla ciężarówek; ok. 160 tys. dla PL)
 - [x] Ocena segmentów: krzywizna zakrętów vs długość pojazdu, wąskie drogi, zapas wysokości/szerokości/długości, masa i naciski, zakazy → zielony/żółty/czerwony z ostrzeżeniami; czerwony miga w planerze
@@ -234,6 +238,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza
 - [ ] Zgłoszenia od kierowców
 - [ ] Punkty dostawy: wyświetlanie przy celu, zgłaszanie bramy/rampy/godzin przyjęć jednym dotknięciem, cel trasy przy rampie
+- [ ] Ekrany konta osobno od planera (dziś wszystko jest w jednym panelu strony testowej): przy rejestracji wybór „mam firmę” (założenie firmy) albo „dołączam kodem”; ustawienia konta, firmy, członków, pojazdów i kosztów w osobnych ekranach
 - [ ] Zgody na lokalizację, polityka prywatności, regulamin (z prawnikiem)
 
 **Gotowe, gdy:** testerzy przejadą realne trasy, a alarm zadziała na znanym niskim wiadukcie.

@@ -62,6 +62,18 @@
   .dot.parking { background:#0c447c; border-radius:3px; }
   button.active { outline:2px solid var(--accent); }
   .error { padding:10px 12px; border-radius:10px; border:1px solid var(--bad); color:var(--bad); font-size:14px; }
+  details.company { border:1px solid var(--border); border-radius:10px; padding:8px 12px; }
+  details.company summary { cursor:pointer; font-weight:600; font-size:14px; }
+  details.company h3 { font-size:13px; margin:10px 0 4px; color:var(--muted); }
+  .members { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }
+  .members li { display:flex; align-items:center; gap:6px; }
+  .members li span { flex:1; }
+  .members select { width:auto; padding:2px 4px; font-size:12px; }
+  .small { flex:none; padding:3px 8px; font-size:12px; border-radius:8px; }
+  .code { font:600 18px ui-monospace, monospace; letter-spacing:2px; flex:1; }
+  .invite-box { border:1px dashed var(--accent); border-radius:8px; padding:8px; font-size:13px; margin-top:6px; }
+  .stack { display:flex; flex-direction:column; gap:6px; }
+  .cost { font-size:15px; margin:4px 0 0; }
   [hidden] { display:none !important; }
   @media (max-width: 700px) {
     body { grid-template-columns:1fr; grid-template-rows:auto 60vh; height:auto; }
@@ -73,10 +85,28 @@
 <aside>
   <h1>Planer trasy <a href="/">← Konto</a></h1>
 
+  <details class="company" id="company-panel">
+    <summary id="company-summary">Firma i flota</summary>
+    <div id="company-list" class="row" style="flex-wrap:wrap;margin-top:6px"></div>
+    <div id="company-details"></div>
+    <h3>Dołącz do firmy</h3>
+    <div class="row">
+      <input id="join-code" placeholder="Kod zaproszenia, np. K7MP-2QXR" maxlength="20" autocomplete="off">
+      <button type="button" id="join" class="small">Dołącz</button>
+    </div>
+    <h3>Załóż firmę</h3>
+    <form id="company-form" class="stack">
+      <input name="name" placeholder="Nazwa firmy" required minlength="2" maxlength="200">
+      <input name="tax_id" placeholder="NIP (opcjonalnie)" maxlength="30">
+      <button type="submit">Załóż firmę</button>
+    </form>
+  </details>
+
   <h2>Pojazd</h2>
   <select id="vehicle-select" aria-label="Wybierz pojazd"></select>
   <form id="vehicle-form">
     <label>Nazwa <input name="name" required maxlength="100" style="grid-column:2"></label>
+    <label>Należy do <select name="company_id" id="vehicle-owner"><option value="">mnie (prywatny)</option></select></label>
     <label>Wysokość [m] <input name="height_m" type="number" step="0.05" min="1.5" max="6" required></label>
     <label>Szerokość [m] <input name="width_m" type="number" step="0.05" min="1.5" max="4.5" required></label>
     <label>Długość [m] <input name="length_m" type="number" step="0.1" min="3" max="40" required></label>
@@ -93,10 +123,13 @@
       </select>
     </label>
     <label>ADR <input name="hazmat" type="checkbox" style="width:auto;justify-self:start"></label>
+    <label>Koszt €/km <input name="cost_eur_per_km" type="number" step="0.01" min="0" max="20" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
+    <label>Koszt €/h jazdy <input name="cost_eur_per_hour" type="number" step="0.5" min="0" max="500" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
     <div class="row" style="margin-top:8px">
       <button type="submit" class="primary" id="save">Zapisz pojazd</button>
       <button type="button" id="new">Nowy</button>
     </div>
+    <p class="muted" id="read-only" hidden>Pojazd firmy – zmieniają go właściciel i dyspozytorzy. Możesz nim wyznaczać trasy.</p>
   </form>
   <div class="row">
     <button type="button" data-preset="truck">+ Zestaw 40 t</button>
@@ -141,6 +174,7 @@
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 const TOKEN = __ACCESS_TOKEN__;
+const USER_NAME = __USER_NAME__;
 const PRESETS = {
   truck: { name: "Zestaw 40 t", height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40, gvw_t: 40,
            axle_load_t: 11.5, axle_count: 5, trailer_type: "curtain", hazmat: false },
@@ -172,11 +206,24 @@ async function api(path, options = {}) {
 function showError(message) { $("error").textContent = message; $("error").hidden = !message; }
 
 function fillForm(vehicle) {
+  const owner = $("vehicle-owner");
+  owner.querySelector("[data-temp]")?.remove();
+  if (vehicle?.company_id && ![...owner.options].some((o) => o.value === vehicle.company_id)) {
+    // Kierowca nie dodaje pojazdów firmy, więc jej nie ma na liście – pokazujemy ją tylko do odczytu.
+    const company = companies.find((c) => c.id === vehicle.company_id);
+    owner.insertAdjacentHTML("beforeend",
+      `<option value="${escapeHtml(vehicle.company_id)}" data-temp>${escapeHtml(company?.name ?? "firma")}</option>`);
+  }
   for (const element of form.elements) {
     if (!element.name) continue;
     if (element.type === "checkbox") element.checked = Boolean(vehicle?.[element.name]);
     else element.value = vehicle?.[element.name] ?? "";
   }
+  showCompanyRates();
+  // Kierowca firmy jeździ jej pojazdami, ale ich nie zmienia.
+  const readOnly = vehicle?.can_edit === false;
+  $("save").disabled = readOnly;
+  $("read-only").hidden = !readOnly;
 }
 
 function readForm() {
@@ -184,16 +231,29 @@ function readForm() {
   for (const element of form.elements) {
     if (!element.name) continue;
     data[element.name] = element.type === "checkbox" ? element.checked
-      : element.type === "number" ? Number(element.value) : element.value;
+      : element.type === "number" ? (element.value === "" ? null : Number(element.value)) : element.value;
   }
+  data.company_id = data.company_id || null;
   return data;
+}
+
+function showCompanyRates() {
+  const company = companies.find((c) => c.id === form.elements.company_id.value);
+  for (const field of ["cost_eur_per_km", "cost_eur_per_hour"]) {
+    const rate = company?.[field];
+    form.elements[field].placeholder = rate != null ? `firmy: ${rate}` : "brak";
+  }
 }
 
 async function loadVehicles(selectId) {
   vehicles = await api("/api/vehicles");
   const select = $("vehicle-select");
   select.innerHTML = vehicles.length
-    ? vehicles.map((v) => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name)} –${v.height_m} m, ${v.weight_t} t / DMC ${v.gvw_t} t</option>`).join("")
+    ? vehicles.map((v) => {
+        const company = companies.find((c) => c.id === v.company_id);
+        const prefix = company ? `${company.name}: ` : "";
+        return `<option value="${escapeHtml(v.id)}">${escapeHtml(prefix + v.name)} –${v.height_m} m, ${v.weight_t} t / DMC ${v.gvw_t} t</option>`;
+      }).join("")
     : '<option value="">Brak pojazdów – dodaj pierwszy</option>';
   if (selectId) select.value = selectId;
   fillForm(vehicles.find((v) => v.id === select.value) ?? PRESETS.truck);
@@ -211,6 +271,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   try { showError(""); await saveVehicle(readForm()); } catch (e) { showError(e.message); }
 });
+$("vehicle-owner").addEventListener("change", showCompanyRates);
 $("new").addEventListener("click", () => { $("vehicle-select").value = ""; fillForm(PRESETS.truck); });
 $("vehicle-select").addEventListener("change", (event) =>
   fillForm(vehicles.find((v) => v.id === event.target.value)));
@@ -573,6 +634,7 @@ function showRoute(route, options = {}) {
   }
   $("result").className = `result ${route.analysis?.level ?? ""}`;
   $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${duration(route)}` +
+    costHtml(route) +
     `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t, DMC ${route.vehicle.gvw_t} t)</p>` +
     analysisHtml(route) + alternativesHtml(route);
   $("result").querySelectorAll("[data-warning]").forEach((button) => button.addEventListener("click", () => {
@@ -653,6 +715,19 @@ function showIssues(issues) {
   }));
 }
 
+const EUR = (value) => value.toLocaleString("pl-PL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const COST_SOURCE = { vehicle: "stawki pojazdu", company: "stawki firmy", mixed: "stawki pojazdu i firmy" };
+
+function costHtml(route) {
+  if (!route.cost) {
+    return '<p class="muted">Koszt: podaj stawkę €/km w pojeździe albo w firmie, żeby zobaczyć szacunek.</p>';
+  }
+  const c = route.cost;
+  return `<p class="cost">≈ ${EUR(c.eur)} <span class="muted">szacunkowo</span></p>` +
+    `<p class="muted">${c.eur_per_km.toLocaleString("pl-PL")} €/km${c.eur_per_hour ? ` + ${c.eur_per_hour.toLocaleString("pl-PL")} €/h jazdy` : ""}, ${COST_SOURCE[c.source]}. ` +
+    `Bez paliwa i myta liczonych osobno – to tylko twoje stawki.</p>`;
+}
+
 function duration(route) {
   return `${Math.floor(route.duration_min / 60)} h ${Math.round(route.duration_min % 60)} min`;
 }
@@ -666,6 +741,7 @@ function alternativesHtml(route) {
     const delta = alt.distance_km - route.distance_km;
     return `<li><button type="button" data-alt="${i}"><span class="dot ${level}"></span><span>` +
       `${alt.distance_km.toLocaleString("pl-PL")} km (${delta >= 0 ? "+" : ""}${delta.toLocaleString("pl-PL", { maximumFractionDigits: 1 })}) · ${duration(alt)}` +
+      (alt.cost ? ` · ≈ ${EUR(alt.cost.eur)}` : "") +
       ` · ${count ? `${count} bardzo trudnych miejsc` : LEVEL_TEXT[level] ?? "bez oceny"}</span></button></li>`;
   }).join("");
   return `<h2 style="margin-top:12px">Trasy alternatywne</h2>` +
@@ -678,7 +754,7 @@ function chooseAlternative(index) {
   // Wybrana alternatywa staje się trasą główną, a dotychczasowa główna – alternatywą.
   const route = currentRoute;
   const chosen = route.alternatives[index];
-  const previous = { distance_km: route.distance_km, duration_min: route.duration_min, geometry: route.geometry, analysis: route.analysis };
+  const previous = { distance_km: route.distance_km, duration_min: route.duration_min, geometry: route.geometry, analysis: route.analysis, cost: route.cost };
   showRoute({
     ...route,
     ...chosen,
@@ -687,7 +763,153 @@ function chooseAlternative(index) {
   }, { keepView: true });
 }
 
-loadVehicles().catch((e) => showError(e.message));
+// --- Firma i flota ------------------------------------------------------------------
+const ROLES = { owner: "właściciel", dispatcher: "dyspozytor", driver: "kierowca" };
+let companies = [];
+let openCompanyId = null;
+
+async function loadCompanies() {
+  companies = await api("/api/companies");
+  $("company-summary").textContent = companies.length
+    ? `Firma i flota: ${companies.map((c) => c.name).join(", ")}`
+    : "Firma i flota";
+  if (!companies.some((c) => c.id === openCompanyId)) openCompanyId = companies[0]?.id ?? null;
+  $("company-list").innerHTML = companies.length > 1
+    ? companies.map((c) => `<button type="button" class="small${c.id === openCompanyId ? " active" : ""}" data-company="${escapeHtml(c.id)}">${escapeHtml(c.name)}</button>`).join("")
+    : "";
+  $("company-list").querySelectorAll("[data-company]").forEach((b) =>
+    b.addEventListener("click", () => companyAction(() => { openCompanyId = b.dataset.company; })));
+  // Lista „Należy do” w formularzu pojazdu: firmy, w których wolno dodawać pojazdy.
+  $("vehicle-owner").innerHTML = '<option value="">mnie (prywatny)</option>' + companies
+    .filter((c) => c.role !== "driver")
+    .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
+  await openCompany(openCompanyId);
+}
+
+async function openCompany(id) {
+  const box = $("company-details");
+  if (!id) {
+    box.innerHTML = '<p class="muted">Nie należysz do żadnej firmy. Załóż firmę albo dołącz kodem od przewoźnika.</p>';
+    return;
+  }
+  const company = await api(`/api/companies/${id}`);
+  const owner = company.role === "owner";
+  const manager = owner || company.role === "dispatcher";
+  const roleOptions = (selected) => Object.entries(ROLES).map(([value, label]) =>
+    `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join("");
+  const members = company.members.map((m) => {
+    const role = owner && !m.is_me
+      ? `<select data-role="${escapeHtml(m.id)}" aria-label="Rola">${roleOptions(m.role)}</select>`
+      : `<em>${ROLES[m.role]}</em>`;
+    const remove = m.is_me
+      ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" data-me>Opuść</button>`
+      : owner ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" title="Usuń z firmy">✕</button>` : "";
+    return `<li><span>${escapeHtml(m.display_name)}${m.is_me ? " (ty)" : ""}</span>${role}${remove}</li>`;
+  }).join("");
+  const roleChoice = owner
+    ? `<select id="invite-role" style="width:auto" aria-label="Rola zapraszanej osoby">${roleOptions("driver")}</select>`
+    : '<input type="hidden" id="invite-role" value="driver">';
+  box.innerHTML = `
+    <h3>${escapeHtml(company.name)}${company.tax_id ? `, NIP ${escapeHtml(company.tax_id)}` : ""} – jesteś: ${ROLES[company.role]}</h3>
+    <ul class="members">${members}</ul>
+    ${owner ? `
+      <h3>Domyślne stawki pojazdów firmy (szacunek kosztu trasy)</h3>
+      <form id="company-rates" class="row">
+        <input name="cost_eur_per_km" type="number" step="0.01" min="0" max="20" placeholder="€/km" aria-label="Koszt €/km" value="${company.cost_eur_per_km ?? ""}">
+        <input name="cost_eur_per_hour" type="number" step="0.5" min="0" max="500" placeholder="€/h jazdy" aria-label="Koszt €/h jazdy" value="${company.cost_eur_per_hour ?? ""}">
+        <button type="submit" class="small">Zapisz</button>
+      </form>` : ""}
+    ${manager ? `
+      <h3>Zaproś do firmy</h3>
+      <div class="row">${roleChoice}<input id="invite-note" placeholder="Dla kogo (opcjonalnie)" maxlength="200"></div>
+      <button type="button" id="invite" style="margin-top:6px;width:100%">Utwórz kod zaproszenia</button>
+      <div id="invites"></div>` : ""}
+    ${owner ? '<button type="button" class="small" id="delete-company" style="margin-top:8px">Usuń firmę</button>' : ""}`;
+
+  box.querySelectorAll("[data-role]").forEach((select) => select.addEventListener("change", () =>
+    companyAction(() => api(`/api/companies/${id}/members/${select.dataset.role}`,
+      { method: "PUT", body: JSON.stringify({ role: select.value }) }))));
+  box.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
+    const question = button.hasAttribute("data-me") ? `Opuścić firmę ${company.name}?` : "Usunąć tę osobę z firmy?";
+    if (confirm(question)) companyAction(() => api(`/api/companies/${id}/members/${button.dataset.remove}`, { method: "DELETE" }));
+  }));
+  $("company-rates")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const rate = (name) => event.target.elements[name].value === "" ? null : Number(event.target.elements[name].value);
+    companyAction(() => api(`/api/companies/${id}`, { method: "PUT", body: JSON.stringify({
+      name: company.name, tax_id: company.tax_id,
+      cost_eur_per_km: rate("cost_eur_per_km"), cost_eur_per_hour: rate("cost_eur_per_hour") }) }));
+  });
+  $("delete-company")?.addEventListener("click", () => {
+    if (confirm(`Usunąć firmę ${company.name}? Pojazdy firmy wrócą do osób, które je dodały.`))
+      companyAction(() => api(`/api/companies/${id}`, { method: "DELETE" }));
+  });
+  $("invite")?.addEventListener("click", () => companyAction(() =>
+    api(`/api/companies/${id}/invites`, { method: "POST",
+      body: JSON.stringify({ role: $("invite-role").value, note: $("invite-note").value }) })));
+  if (manager) await loadInvites(id);
+}
+
+async function loadInvites(id) {
+  const invites = await api(`/api/companies/${id}/invites`);
+  $("invites").innerHTML = invites.map((i) => {
+    const code = `${i.code.slice(0, 4)}-${i.code.slice(4)}`;
+    const link = `${location.origin}/planer?zaproszenie=${i.code}`;
+    const until = new Date(i.expires_at).toLocaleDateString("pl-PL");
+    return `<div class="invite-box">
+      <div class="row" style="align-items:center"><span class="code">${code}</span>
+        <button type="button" class="small" data-copy="${escapeHtml(link)}">Kopiuj link</button>
+        <button type="button" class="small" data-cancel="${i.code}" title="Anuluj zaproszenie">✕</button></div>
+      ${ROLES[i.role]}${i.note ? ` – ${escapeHtml(i.note)}` : ""}, ważny do ${until}, jednorazowy
+    </div>`;
+  }).join("");
+  $("invites").querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(b.dataset.copy);
+    b.textContent = "Skopiowano";
+  }));
+  $("invites").querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () =>
+    companyAction(() => api(`/api/companies/${id}/invites/${b.dataset.cancel}`, { method: "DELETE" }))));
+}
+
+async function companyAction(action) {
+  try {
+    showError("");
+    await action();
+    await loadCompanies();
+    await loadVehicles($("vehicle-select").value);
+  } catch (e) { showError(e.message); }
+}
+
+$("company-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target));
+  companyAction(async () => {
+    const created = await api("/api/companies", { method: "POST",
+      body: JSON.stringify({ name: data.name, tax_id: data.tax_id || null, display_name: USER_NAME || null }) });
+    openCompanyId = created.id;
+    event.target.reset();
+  });
+});
+
+$("join").addEventListener("click", () => companyAction(async () => {
+  const code = $("join-code").value.trim();
+  if (!code) throw new Error("Wpisz kod zaproszenia.");
+  const joined = await api(`/api/invites/${encodeURIComponent(code)}/accept`, { method: "POST",
+    body: JSON.stringify({ display_name: USER_NAME || null }) });
+  openCompanyId = joined.id;
+  $("join-code").value = "";
+}));
+
+// Link z zaproszeniem (/planer?zaproszenie=KOD): kod czeka w polu, dołącza się przyciskiem.
+const invitedCode = new URLSearchParams(location.search).get("zaproszenie");
+if (invitedCode) {
+  $("join-code").value = invitedCode;
+  $("company-panel").open = true;
+}
+
+loadCompanies()
+  .catch((e) => showError(e.message))
+  .finally(() => loadVehicles().catch((e) => showError(e.message)));
 </script>
 </body>
 </html>

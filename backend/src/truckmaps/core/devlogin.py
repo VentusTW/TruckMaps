@@ -42,12 +42,15 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
 
     @router.get("/planer")
     def planner(request: Request) -> Response:
-        if _session_user(request, provider) is None:
+        user = _session_user(request, provider)
+        if user is None:
             return RedirectResponse("/", status_code=303)
         # Strona testowa woła API z nagłówkiem Bearer, więc dostaje token w kodzie strony.
-        token = json.dumps(request.cookies[ACCESS_COOKIE]).replace("</", "<\\/")
+        token = _js(request.cookies[ACCESS_COOKIE])
         template = resources.files("truckmaps.core").joinpath("templates/planner.html")
-        return HTMLResponse(template.read_text(encoding="utf-8").replace("__ACCESS_TOKEN__", token))
+        page = template.read_text(encoding="utf-8").replace("__ACCESS_TOKEN__", token)
+        # Nazwa widoczna dla innych członków firmy (token dostępu nie zawiera nazwiska).
+        return HTMLResponse(page.replace("__USER_NAME__", _js(user["name"] or user["email"])))
 
     @router.get("/auth/login")
     def login(register: bool = False) -> Response:
@@ -129,6 +132,11 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         return response
 
     return router
+
+
+def _js(value: str) -> str:
+    """Wartość jako literał JavaScript, bezpieczny wewnątrz <script>."""
+    return json.dumps(value).replace("</", "<\\/")
 
 
 def encode_flow(flow: dict[str, str]) -> str:

@@ -16,18 +16,20 @@ docker compose -f infra/docker-compose.yml up -d --wait
 .venv\Scripts\python infra\zitadel\bootstrap.py
 Add-Content .env "TRUCKMAPS_DATABASE_URL=postgresql+psycopg://truckmaps:truckmaps_dev@127.0.0.1:5432/truckmaps"
 .venv\Scripts\alembic -c backend\alembic.ini upgrade head
-powershell -ExecutionPolicy Bypass -File infra\download_map.ps1
-docker compose -f infra/docker-compose.yml --profile routing up -d
+powershell -ExecutionPolicy Bypass -File packaging\windows\build_pobieraj.ps1
+dist\pobieraj.exe mapy
+powershell -ExecutionPolicy Bypass -File infra\build_routing.ps1
 .venv\Scripts\pip install -e "backend[pipeline]"
-.venv\Scripts\python data_pipeline\import_restrictions.py infra\data\valhalla\poland-latest.osm.pbf
-.venv\Scripts\python data_pipeline\import_parkings.py infra\data\valhalla\poland-latest.osm.pbf
+.venv\Scripts\python data_pipeline\import_restrictions.py infra\data\valhalla\region.osm.pbf
+.venv\Scripts\python data_pipeline\import_parkings.py infra\data\valhalla\region.osm.pbf
 ```
 
 - `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
 - Adres bazy: `127.0.0.1`, nie `localhost` – pod `localhost` Windows najpierw próbuje IPv6 i połączenie wisi. Hasło jak w `infra/.env`.
 - `alembic ... upgrade head` tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
-- `download_map.ps1` pobiera mapę Polski (ok. 2 GB), a Valhalla buduje z niej trasy przy pierwszym starcie (ok. godziny).
-- `import_restrictions.py` wczytuje z tej samej mapy ograniczenia dla ciężarówek (wysokość, masa, nacisk osi, szerokość, długość, zakazy) do bazy – ok. 30 s dla Polski. Uruchamiaj po każdym pobraniu nowej mapy.
+- `pobieraj.exe mapy` pobiera mapy Polski, Niemiec, Czech, Słowacji i Litwy (ok. 8 GB) do `infra/data/osm` – patrz „Pobieranie dużych danych” niżej.
+- `build_routing.ps1` łączy je w jedną mapę `infra/data/valhalla/region.osm.pbf` (przy granicach mapy krajów nachodzą na siebie) i buduje z niej dane tras Valhalli. Dotychczasowe dane działają aż do podmiany na końcu, więc można go uruchamiać przy działającym planerze.
+- `import_restrictions.py` wczytuje z połączonej mapy ograniczenia dla ciężarówek (wysokość, masa, nacisk osi, szerokość, długość, zakazy) i drogi w strefach przemysłowych. Uruchamiaj po każdej nowej mapie.
 - `import_parkings.py` wczytuje parkingi dla ciężarówek i MOP-y (ok. 2 min). Planer podpowiada je, gdy do startu lub celu nie da się dojechać albo dojazd jest trudny.
 
 Na co dzień:
@@ -40,7 +42,7 @@ docker compose -f infra/docker-compose.yml --profile routing up -d --wait
 | Adres | Co to jest |
 |---|---|
 | http://localhost:8000/ | strona powitalna z logowaniem (testowa, do czasu aplikacji Flutter) |
-| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa w kolorach (zielony / żółty / czerwony migający) z listą ostrzeżeń |
+| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa w kolorach (zielony / żółty / czerwony migający) z listą ostrzeżeń; panel „Firma i flota” (członkowie, role, kody zaproszeń, pojazdy firmy, domyślne stawki kosztów); szacunkowy koszt trasy ze stawek €/km i €/h |
 | http://localhost:8000/docs | dokumentacja API; token do „Authorize” jest na stronie powitalnej po zalogowaniu |
 | http://localhost:8000/api/me | zalogowany użytkownik |
 | http://localhost:8025 | Mailpit – maile wysłane przez Zitadela (kody, potwierdzenia) |
@@ -89,18 +91,41 @@ CI (`.github/workflows/ci.yml`) uruchamia testy osobno dla samego rdzenia, dla r
 
 ## Wyszukiwarka adresów: Photon
 
-Pola „Skąd / Dokąd” w planerze korzystają z Photon (darmowa wyszukiwarka na danych OSM). Jednorazowo trzeba pobrać i zaimportować dane dla Polski (ok. 850 MB, import kilkanaście minut):
+Pola „Skąd / Dokąd” w planerze korzystają z Photon (darmowa wyszukiwarka na danych OSM). Jednorazowo trzeba pobrać zrzut dla Europy (ok. 13 GB – nie dla każdego kraju jest osobny) i zaimportować z niego wybrane kraje (`-Countries`, domyślnie `pl,de,cz,sk,lt`):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File infra\photon_import.ps1
 docker compose -f infra/docker-compose.yml --profile search up -d photon
 ```
 
-Dane są publikowane co tydzień (parametr `-Release`, np. `261025`). Bez Photon planer działa, tylko punkty trzeba klikać na mapie.
+Zrzut najlepiej pobrać wcześniej przez `dist\pobieraj.exe photon`. Skrypt wybiera kraje w Pythonie (ok. 10 min), importuje je do Photon w wolumenie Dockera (ok. 40 min dla 5 krajów, 45 mln obiektów), a bazę podmienia dopiero na końcu (ok. 2 min przerwy), więc wyszukiwarka działa w trakcie. Baza (14 GB) jest w wolumenie `truckmaps-photon-data`, nie w katalogu Windows – stamtąd pierwsze zapytania trwały do 20 s, z wolumenu 30–300 ms. Dodanie kraju to ponowny import bez pobierania. Dane są publikowane co tydzień (parametr `-Release`, np. `261025`). Bez Photon planer działa, tylko punkty trzeba klikać na mapie.
 
 ## Routing: Valhalla
 
-Valhalla jest w profilu `routing` i buduje trasy z plików `*.osm.pbf` w `infra/data/valhalla`. Kontener sam ich nie pobiera, bo w tej sieci nie ufa certyfikatom HTTPS – mapy pobiera `infra\download_map.ps1` (np. `-Regions poland,germany`). Pierwsza budowa kafelków: ok. 1 h dla Polski, ok. 8 GB RAM. Po dodaniu map usuń `infra\data\valhalla\valhalla_tiles*`, żeby przebudować.
+Valhalla jest w profilu `routing` i korzysta z danych tras w `infra/data/valhalla`. Kontener sam nie pobiera map, bo w tej sieci nie ufa certyfikatom HTTPS – mapy pobiera `dist\pobieraj.exe mapy`, a łączy i buduje `infra\build_routing.ps1`:
+
+- łączenie narzędziem `osmium` (kontener `infra/osmium`); Geofabrik publikuje kraje z różnych dni, więc przy granicach zostaje najnowsza wersja każdego obiektu,
+- budowa w wolumenie Dockera `truckmaps-valhalla-build` etapami (`infra/valhalla_build.sh`): przy dużej mapie Valhalla losowo pada w kodzie LuaJIT, więc powtarzany jest tylko etap, który padł; po nieudanej budowie wolumen zostaje i wystarczy uruchomić skrypt ponownie,
+- na końcu podmiana katalogów – planer działa na starych danych do tej chwili. 5 krajów: ok. 1,5 h, 25 GB w wolumenie w trakcie.
+
+## Pobieranie dużych danych: pobieraj.exe
+
+Mapy i zrzut wyszukiwarki mają kilkanaście GB. `pobieraj.exe` pobiera je w zwykłym oknie konsoli, niezależnie od innych programów – można go zostawić na noc:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build_pobieraj.ps1   # raz: buduje dist\pobieraj.exe
+dist\pobieraj.exe                  # mapy (pl de cz sk lt) i zrzut wyszukiwarki
+dist\pobieraj.exe mapy pl de at    # wybrane kraje (kody: pl, de, cz, sk, lt, at, hu, ...)
+dist\pobieraj.exe photon           # najnowszy zrzut Photon dla Europy (~13 GB)
+dist\pobieraj.exe url ADRES --do KATALOG
+dist\pobieraj.exe stan             # co jest pobrane i z której wersji serwera
+```
+
+- Przerwane pobieranie (zerwane połączenie, zamknięte okno, restart) wznawia się od miejsca przerwania – wystarczy uruchomić ponownie.
+- Serwer zrzutów Photon zwalnia pojedyncze połączenie (~0,3 MB/s), więc pobieranie idzie 8 połączeniami naraz (`--polaczenia`); Geofabrik – jednym, z ponowieniami.
+- Każdy plik jest sprawdzany (MD5, a gdy serwer go nie publikuje – rozmiar). Pliki, których serwer nie zmienił, są pomijane, więc ponowne uruchomienie pobiera tylko nowe wydania.
+- Wynik: `infra/data/pobrane.json` (plik, wersja serwera, data, sposób sprawdzenia) i dziennik `infra/data/pobieraj.log`.
+- Pobiera przez `curl.exe` z Windows (w tej sieci Python i kontenery nie ufają certyfikatom). Bez exe: `.venv\Scripts\python tools\pobieraj\pobieraj.py ...`.
 
 Test trasy dla ciężarówki 4 m / 40 t:
 

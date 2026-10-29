@@ -3,12 +3,10 @@ import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
 
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
-from truckmaps.core.db import Base, Database
 from truckmaps.core.parkings import TruckParking
 from truckmaps.core.restrictions import Restriction
 from truckmaps.core.route_analysis import RouteEdge
@@ -105,17 +103,6 @@ def as_user(subject: str) -> dict:
     return {"Authorization": f"Bearer user-{subject}"}
 
 
-@pytest.fixture
-def database() -> Database:
-    database = Database(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(database.engine)
-    return database
-
-
 def make_client(database, router=None) -> TestClient:
     app = create_app(
         Settings(),
@@ -210,7 +197,11 @@ def test_route_errors(database, error, status):
     vehicle_id = client.post("/api/vehicles", json=TRUCK, headers=as_user("anna")).json()["id"]
     body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id}
 
-    assert client.post("/api/routes", json=body, headers=as_user("anna")).status_code == status
+    response = client.post("/api/routes", json=body, headers=as_user("anna"))
+    assert response.status_code == status
+    if status == 422:
+        # Punkty przy drodze, ale bez dojazdu – i tak trzeba powiedzieć, co zrobić.
+        assert "Przesuń punkt na pobliską drogę główną" in response.json()["detail"]
 
 
 def test_without_database_vehicles_are_unavailable():

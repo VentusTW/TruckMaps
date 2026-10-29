@@ -61,3 +61,14 @@ jobs:
           pip install -e "backend[dev]"
           for module in backend/modules/*/; do pip install -e "$module"; done
       - run: pytest backend/tests backend/modules/*/tests
+
+  # Program pobieraj (tools/pobieraj) – sama biblioteka standardowa.
+  test-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: pytest tools/pobieraj --rootdir tools/pobieraj

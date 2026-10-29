@@ -165,9 +165,9 @@ services:
       - "127.0.0.1:1025:1025"
 
   # --- Routing ----------------------------------------------------------------
-  # Buduje kafelki routingu z plików *.osm.pbf w infra/data/valhalla (pobierz je przez
-  # infra/download_map.ps1 – kontener sam ich nie pobierze, jeśli nie ufa certyfikatom
-  # HTTPS w sieci). Polska: ~2 GB, ~1 h pierwszej budowy, ok. 8 GB RAM.
+  # Serwuje gotowe dane tras z infra/data/valhalla. Buduje je infra/build_routing.ps1
+  # z map pobranych przez dist/pobieraj.exe (kontener sam ich nie pobierze – w tej sieci
+  # nie ufa certyfikatom HTTPS). 5 krajów: ok. 1,5 h budowy.
   valhalla:
     image: ghcr.io/valhalla/valhalla-scripted:latest  # przypiąć konkretną wersję po pierwszym udanym starcie
     profiles: ["routing"]
@@ -196,11 +196,14 @@ services:
     image: eclipse-temurin:21-jre
     profiles: ["search"]
     restart: unless-stopped
-    command: java -Xmx4g -jar /photon/photon.jar serve -data-dir /photon/data -listen-ip 0.0.0.0
+    command: java -Xmx4g -jar /photon/photon.jar serve -data-dir /photon-data -listen-ip 0.0.0.0
     ports:
       - "127.0.0.1:2322:2322"
     volumes:
       - ./data/photon:/photon
+      # Baza w wolumenie Dockera, nie w katalogu Windows: przy 14 GB (5 krajów) odczyt
+      # przez granicę Windows/WSL dawał do 20 s na pierwsze zapytanie.
+      - photon-data:/photon-data
 
 networks:
   default:
@@ -208,3 +211,5 @@ networks:
 
 volumes:
   postgres-data:
+  photon-data:
+    name: truckmaps-photon-data

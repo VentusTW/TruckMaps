@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from truckmaps.core import api, devlogin, geocoding, routing, vehicles
+from truckmaps.core import api, companies, devlogin, geocoding, routing, vehicles
 from truckmaps.core.auth import AuthService, OidcProvider, TokenVerifier
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Database
@@ -85,6 +85,7 @@ def create_app(
     app.state.router = router or routing.ValhallaRouter(settings.valhalla_url)
     app.state.geocoder = geocoder or geocoding.PhotonGeocoder(settings.photon_url)
     app.include_router(api.build_router(auth.current_user))
+    app.include_router(companies.build_router(auth.current_user))
     app.include_router(vehicles.build_router(auth.current_user))
     app.include_router(routing.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))

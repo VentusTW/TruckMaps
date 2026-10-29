@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import parkings, restrictions
+from truckmaps.core import costs, parkings, restrictions
+from truckmaps.core.companies import Company
 from truckmaps.core.db import get_session
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import Analysis, Level, RouteEdge, RouteWarning, analyze
@@ -78,6 +79,7 @@ class AlternativeRoute(BaseModel):
     duration_min: float
     geometry: list[tuple[float, float]]
     analysis: Analysis | None
+    cost: costs.RouteCost | None = None
 
 
 class ParkingOut(BaseModel):
@@ -113,6 +115,9 @@ class RouteResponse(Route):
     )
     stop_issues: list[StopIssue] = Field(
         default=[], description="Punkty, do których pojazd nie dojedzie lub dojazd jest trudny"
+    )
+    cost: costs.RouteCost | None = Field(
+        default=None, description="Szacunkowy koszt; brak, gdy pojazd ani firma nie mają stawek"
     )
 
 
@@ -563,7 +568,10 @@ def build_router(current_user) -> APIRouter:
         user: Annotated[Principal, Depends(current_user)],
         db: Annotated[Session, Depends(get_session)],
     ) -> RouteResponse:
-        vehicle = VehicleOut.model_validate(load_owned(db, data.vehicle_id, user))
+        profile = load_owned(db, data.vehicle_id, user)
+        vehicle = VehicleOut.model_validate(profile)
+        company = db.get(Company, profile.company_id) if profile.company_id else None
+        rates = costs.rates_for(profile, company)
         stops = [data.origin, *data.via, data.destination]
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
@@ -577,7 +585,13 @@ def build_router(current_user) -> APIRouter:
                 data.avoid_difficult,
             )
         except NoRouteFound as exc:
-            reasons = " ".join(issue.message for issue in issues)
+            # Punkt tuż przy drodze, ale w strefie bez wjazdu dla ciężarówek (np. stare miasto):
+            # sprawdzenie punktów go nie wychwyci, bo droga jest blisko.
+            reasons = " ".join(issue.message for issue in issues) or (
+                "Najpewniej start, cel albo punkt pośredni leży w strefie, do której ten pojazd "
+                "nie wjedzie (np. stare miasto z zakazem dla ciężarówek). Przesuń punkt na "
+                "pobliską drogę główną."
+            )
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 "Brak trasy, którą ten pojazd może przejechać między tymi punktami. " + reasons,
@@ -586,14 +600,23 @@ def build_router(current_user) -> APIRouter:
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer wyznaczania tras jest niedostępny."
             ) from exc
+        extensions = request.app.state.extensions
+
+        def cost(distance_km: float, duration_min: float) -> costs.RouteCost | None:
+            return costs.estimate(extensions, rates, distance_km, duration_min)
+
         return RouteResponse(
             **route.model_dump(),
             vehicle=vehicle,
             analysis=analysis,
             avoided=avoided,
             base_distance_km=base_km,
-            alternatives=alternatives(db, route, first_candidates, vehicle),
+            alternatives=[
+                alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min)})
+                for alt in alternatives(db, route, first_candidates, vehicle)
+            ],
             stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
+            cost=cost(route.distance_km, route.duration_min),
         )
 
     return router
