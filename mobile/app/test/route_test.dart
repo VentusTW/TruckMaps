@@ -1,4 +1,6 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:truckmaps_app/src/l10n.dart';
 import 'package:truckmaps_app/src/planner/place_field.dart';
 import 'package:truckmaps_app/src/planner/route.dart';
 
@@ -33,7 +35,8 @@ void main() {
 
     final route = result.route;
     expect(route.coloredParts.map((p) => (p.$1.length, p.$2)), [(2, 'green'), (3, 'orange')]);
-    expect(route.summary, '125 km · 1 h 35 min · ≈ 433 zł');
+    expect(route.summary(lookupAppLocalizations(const Locale('pl'))), '125 km · 1 h 35 min · ≈ 433 zł');
+    expect(route.summary(lookupAppLocalizations(const Locale('en'))), '125 km · 1 h 35 min · ≈ 433 PLN');
     expect(route.warnings.single.km, 12.3);
     expect(result.alternatives.single.coloredParts.single.$2, 'unknown');
     expect(result.timeBans.single.level, 'ban');

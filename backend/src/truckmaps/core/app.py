@@ -16,6 +16,7 @@ from truckmaps.core import (
     currency,
     devlogin,
     geocoding,
+    i18n,
     routing,
     vehicles,
 )
@@ -62,6 +63,8 @@ def create_app(
     app = FastAPI(title="TruckMaps", version=CORE_VERSION, lifespan=lifespan)
     # Trasy i korytarze danych to duże odpowiedzi JSON – kompresja zmniejsza je kilkukrotnie.
     app.add_middleware(GZipMiddleware, minimum_size=2000)
+    # Język tekstów dla użytkownika z nagłówka Accept-Language (bez niego – polski).
+    app.add_middleware(i18n.LanguageMiddleware)
 
     provider = None
     if settings.oidc_enabled:

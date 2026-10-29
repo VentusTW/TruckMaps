@@ -9,6 +9,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 
 ORGANIZATION_CLAIM = "urn:zitadel:iam:user:resourceowner:id"
@@ -93,14 +94,14 @@ class AuthService:
                 raise _unauthorized("Nieprawidłowy lub wygasły token.") from exc
             except jwt.PyJWKClientConnectionError as exc:
                 raise HTTPException(
-                    status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer logowania jest niedostępny."
+                    status.HTTP_503_SERVICE_UNAVAILABLE, t("error.login_server_unavailable")
                 ) from exc
 
         def current_user(
             user: Annotated[Principal | None, Depends(optional_user)],
         ) -> Principal:
             if user is None:
-                raise _unauthorized("Wymagane logowanie.")
+                raise _unauthorized(t("error.login_required"))
             return user
 
         self.optional_user: Callable[..., Principal | None] = optional_user

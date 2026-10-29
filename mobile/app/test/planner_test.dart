@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/src/planner/planner_screen.dart';
+import 'localized.dart';
 
 http.Response json(Object? body, [int status = 200]) =>
     http.Response.bytes(utf8.encode(jsonEncode(body)), status);
@@ -32,7 +33,7 @@ Future<void> pumpPlanner(WidgetTester tester, Future<http.Response> Function(htt
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final api = CoreApi(baseUrl: 'http://serwer.test', token: 't', client: MockClient(handler));
-  await tester.pumpWidget(MaterialApp(home: Scaffold(body: PlannerScreen(api: api))));
+  await tester.pumpWidget(localized(Scaffold(body: PlannerScreen(api: api))));
   await tester.pump(const Duration(milliseconds: 100));
 }
 

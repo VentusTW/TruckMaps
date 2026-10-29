@@ -12,6 +12,7 @@ from truckmaps.core import costs, parkings, restrictions, timebans
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
+from truckmaps.core.i18n import num, t
 from truckmaps.core.polyline import decode_polyline6
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import (
@@ -530,18 +531,12 @@ def check_stops(
         role = "origin" if i == 0 else "destination" if i == last else "via"
         reachable, distance = found if found else (None, None)
         where = (
-            f" najbliższa droga dostępna dla niego jest {round(distance)} m dalej"
-            if found
-            else (" w pobliżu nie ma drogi dostępnej dla niego")
+            t("stop.nearest_road", distance=round(distance)) if found else t("stop.no_road_nearby")
         )
         if role == "via":
-            message = (
-                f"Przez punkt pośredni nr {i} nie da się przejechać tym pojazdem –{where}. "
-                "Przesuń punkt albo usuń go prawym przyciskiem myszy."
-            )
+            message = t("stop.via_unreachable", number=i, where=where)
         else:
-            target = "punktu startu" if role == "origin" else "celu"
-            message = f"Ten pojazd nie dojedzie do {target} –{where}. Zaznaczono je na mapie."
+            message = t(f"stop.{role}_unreachable", where=where)
         issues.append(
             StopIssue(
                 role=role,
@@ -579,7 +574,7 @@ def difficult_ends(
         near_end = [
             w
             for w in analysis.warnings
-            if (w.level in AVOID_LEVELS or w.message.startswith(END_STREET))
+            if (w.level in AVOID_LEVELS or w.message.startswith(t(END_STREET)))
             and (
                 w.km * 1000 <= DIFFICULT_END_M
                 if role == "origin"
@@ -588,14 +583,12 @@ def difficult_ends(
         ]
         if not near_end:
             continue
-        target = "ze startu" if role == "origin" else "do celu"
         issues.append(
             StopIssue(
                 role=role,
                 index=0,
                 kind="difficult",
-                message=f"Trudny dojazd {target} dla tego pojazdu: {near_end[0].message}. "
-                "Rozważ parking dla ciężarówek w pobliżu.",
+                message=t(f"stop.{role}_difficult", reason=near_end[0].message),
                 requested=stop,
                 reachable=None,
                 distance_m=None,
@@ -610,7 +603,7 @@ def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
         ParkingOut(
             name=parking.name,
             kind=parking.kind,
-            kind_label=parkings.PARKING_KINDS.get(parking.kind, parking.kind),
+            kind_label=parkings.kind_label(parking.kind),
             lat=parking.lat,
             lon=parking.lon,
             distance_m=round(distance),
@@ -717,16 +710,7 @@ def _moved_issue(
 ) -> StopIssue:
     why = "; ".join(dict.fromkeys(w.message for w in reasons))
     distance = round(by_road_m / 10) * 10
-    if role == "origin":
-        message = (
-            f"Start leży w miejscu, z którego ten pojazd nie wyjedzie ({why}). Trasa zaczyna "
-            f"się w najbliższym dozwolonym miejscu – ok. {distance} m drogą od startu."
-        )
-    else:
-        message = (
-            f"Cel leży w miejscu, do którego ten pojazd nie wjedzie ({why}). Trasa kończy się "
-            f"w najbliższym dozwolonym miejscu – ok. {distance} m drogą przed celem."
-        )
+    message = t(f"stop.{role}_moved", why=why, distance=distance)
     return StopIssue(
         role=role,
         index=0,
@@ -748,9 +732,9 @@ def diagnose_no_route(
     ograniczeń wymiarów i masy, a ta trasa – oceniana dla prawdziwego pojazdu.
     """
     labels = [
-        "Start (A)",
-        *[f"Punkt pośredni {i}" for i in range(1, len(stops) - 1)],
-        "Cel (B)",
+        t("stop.origin_label"),
+        *[t("stop.via_label", number=i) for i in range(1, len(stops) - 1)],
+        t("stop.destination_label"),
     ]
     any_vehicle = vehicle.model_copy(update=_ANY_VEHICLE)
     reasons = []
@@ -770,7 +754,7 @@ def diagnose_no_route(
         if blocked:
             reasons.append(f"{name}: {'; '.join(blocked[:3])}.")
         else:
-            reasons.append(f"{name}: droga zamknięta dla tego pojazdu (zakaz albo ograniczenie).")
+            reasons.append(f"{name}: {t('route.closed_for_vehicle')}")
     return reasons
 
 
@@ -863,17 +847,14 @@ def build_router(current_user) -> APIRouter:
                     raise first_error from None
             route, analysis, avoided, base_km, avoided_warnings = result
         except ImpassableRoute as exc:
-            places = "; ".join(
-                f"km {w.km:.1f}: {w.message}".replace(".", ",", 1) for w in exc.warnings
-            )
+            places = "; ".join(f"km {num(w.km, 1, trim=False)}: {w.message}" for w in exc.warnings)
+            timed = any(w.kind == "conditional" and " – (" in w.message for w in exc.warnings)
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Brak trasy dla tego pojazdu: każdy wariant przechodzi przez miejsce, którego "
-                f"nie przejedzie ({places}). "
-                + (
-                    "Zakaz obowiązuje w określonych godzinach – zmień godzinę wyjazdu."
-                    if any(w.kind == "conditional" and " – (" in w.message for w in exc.warnings)
-                    else "Sprawdź wymiary pojazdu albo wybierz inny cel."
+                t(
+                    "route.impassable",
+                    places=places,
+                    hint=t("route.hint_change_departure" if timed else "route.hint_check_vehicle"),
                 ),
             ) from exc
         except NoRouteFound as exc:
@@ -881,19 +862,14 @@ def build_router(current_user) -> APIRouter:
             # sprawdzenie punktów go nie wychwyci, bo droga jest blisko.
             reasons = " ".join(issue.message for issue in issues)
             if not reasons and (found := diagnose_no_route(router_, db, stops, vehicle)):
-                reasons = " ".join(found) + " Przesuń punkt na drogę dostępną dla tego pojazdu."
-            reasons = reasons or (
-                "Najpewniej start, cel albo punkt pośredni leży w strefie, do której ten pojazd "
-                "nie wjedzie (np. stare miasto z zakazem dla ciężarówek). Przesuń punkt na "
-                "pobliską drogę główną."
-            )
+                reasons = " ".join(found) + " " + t("route.move_point")
+            reasons = reasons or t("route.probably_restricted_zone")
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "Brak trasy, którą ten pojazd może przejechać między tymi punktami. " + reasons,
+                status.HTTP_422_UNPROCESSABLE_ENTITY, t("route.no_route", reasons=reasons)
             ) from exc
         except RoutingUnavailable as exc:
             raise HTTPException(
-                status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer wyznaczania tras jest niedostępny."
+                status.HTTP_503_SERVICE_UNAVAILABLE, t("error.routing_unavailable")
             ) from exc
         extensions = request.app.state.extensions
         bans = timebans.check_route(route, vehicle, departure)

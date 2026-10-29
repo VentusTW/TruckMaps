@@ -18,6 +18,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
+from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 
 INVITE_VALID_DAYS = 7
@@ -196,9 +197,9 @@ def require_member(
     """Członek firmy z jedną z ``roles``; obcy dostaje 404, za niska rola – 403."""
     member = membership(db, company_id, user)
     if member is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono firmy.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.company_not_found"))
     if roles is not None and Role(member.role) not in roles:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Twoja rola w firmie na to nie pozwala.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.role_forbidden"))
     return member
 
 
@@ -318,9 +319,7 @@ def build_router(current_user) -> APIRouter:
     def create_invite(company_id: str, data: InviteIn, user: User, db: Db) -> InviteOut:
         me = require_member(db, company_id, user, MANAGES_VEHICLES)
         if me.role != Role.OWNER and data.role != Role.DRIVER:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "Dyspozytor może zapraszać tylko kierowców."
-            )
+            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.dispatcher_invites_drivers"))
         code = _new_code()
         while db.get(CompanyInvite, code) is not None:
             code = _new_code()
@@ -343,7 +342,7 @@ def build_router(current_user) -> APIRouter:
         require_member(db, company_id, user, MANAGES_VEHICLES)
         invite = db.get(CompanyInvite, _normalize_code(code))
         if invite is None or invite.company_id != company_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono zaproszenia.")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.invite_not_found"))
         db.delete(invite)
         db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -353,12 +352,10 @@ def build_router(current_user) -> APIRouter:
         """Dołączenie do firmy kodem zaproszenia (kod jest jednorazowy)."""
         invite = db.get(CompanyInvite, _normalize_code(code))
         if invite is None or _aware(invite.expires_at) <= _now():
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND, "Kod zaproszenia jest nieprawidłowy albo wygasł."
-            )
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.invite_code_invalid"))
         company = db.get(Company, invite.company_id)
         if membership(db, company.id, user) is not None:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Już należysz do tej firmy.")
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.already_member"))
         me = CompanyMember(
             company_id=company.id,
             subject=user.subject,
@@ -377,7 +374,7 @@ def build_router(current_user) -> APIRouter:
         me = require_member(db, company_id, user, {Role.OWNER})
         member = _member(db, company_id, member_id)
         if member.role == Role.OWNER and data.role != Role.OWNER and _owners(db, company_id) == 1:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Firma musi mieć właściciela.")
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.company_needs_owner"))
         member.role = data.role
         db.commit()
         return details(db, db.get(Company, company_id), me)
@@ -390,11 +387,11 @@ def build_router(current_user) -> APIRouter:
         me = require_member(db, company_id, user)
         member = _member(db, company_id, member_id)
         if member.id != me.id and me.role != Role.OWNER:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Twoja rola w firmie na to nie pozwala.")
+            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.role_forbidden"))
         if member.role == Role.OWNER and _owners(db, company_id) == 1:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                "Firma musi mieć właściciela: przekaż rolę komuś innemu albo usuń firmę.",
+                t("error.owner_cannot_leave"),
             )
         db.delete(member)
         db.commit()
@@ -446,7 +443,7 @@ def build_router(current_user) -> APIRouter:
 def _base(db: Session, company_id: str, base_id: str) -> CompanyBase:
     base = db.get(CompanyBase, base_id)
     if base is None or base.company_id != company_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono bazy.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.base_not_found"))
     return base
 
 
@@ -458,5 +455,5 @@ def _fields(company: Company) -> dict:
 def _member(db: Session, company_id: str, member_id: str) -> CompanyMember:
     member = db.get(CompanyMember, member_id)
     if member is None or member.company_id != company_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono członka firmy.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.member_not_found"))
     return member

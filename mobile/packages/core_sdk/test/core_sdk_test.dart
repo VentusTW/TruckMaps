@@ -13,10 +13,10 @@ class _Module extends TruckMapsModule {
   final String id;
 
   @override
-  String get name => 'Moduł $id';
+  String name(Locale locale) => pick(locale, {'pl': 'Moduł $id', 'en': 'Module $id'});
 
   @override
-  String get description => 'opis';
+  String description(Locale locale) => 'opis';
 
   @override
   List<ModuleEntry> entries(ModuleContext context) => const [];
@@ -35,7 +35,9 @@ void main() {
 
     expect(access.map((a) => a.id), ['hello', 'parking']);
     expect(access[0].usable, isTrue);
-    expect(access[0].name, 'Moduł hello');
+    expect(access[0].name(const Locale('pl')), 'Moduł hello');
+    expect(access[0].name(const Locale('en', 'GB')), 'Module hello');
+    expect(access[0].name(const Locale('de')), 'Moduł hello');
     expect(access[1].usable, isFalse);
     expect(access[1].needsAppUpdate, isTrue);
   });

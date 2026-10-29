@@ -10,15 +10,18 @@ class HelloModule extends TruckMapsModule {
   String get id => 'hello';
 
   @override
-  String get name => 'Hello (moduł testowy)';
+  String name(Locale locale) => pick(locale, {'pl': 'Hello (moduł testowy)', 'en': 'Hello (test module)'});
 
   @override
-  String get description => 'Wzór modułu: powitanie z serwera i koszt trasy z gniazda kosztów.';
+  String description(Locale locale) => pick(locale, {
+        'pl': 'Wzór modułu: powitanie z serwera i koszt trasy z gniazda kosztów.',
+        'en': 'Sample module: a greeting from the server and a route cost from the cost extension point.',
+      });
 
   @override
   List<ModuleEntry> entries(ModuleContext context) => [
         ModuleEntry(
-          title: 'Powitanie',
+          title: pick(context.locale, {'pl': 'Powitanie', 'en': 'Greeting'}),
           icon: Icons.waving_hand_outlined,
           builder: (_) => GreetingScreen(api: context.api),
         ),
@@ -42,7 +45,7 @@ class GreetingScreen extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text('${greeting['message']}', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 8),
-            Text('Rdzeń ${greeting['core_version']}'),
+            Text('${pick(Localizations.localeOf(context), {'pl': 'Rdzeń', 'en': 'Core'})} ${greeting['core_version']}'),
           ]),
         );
       },

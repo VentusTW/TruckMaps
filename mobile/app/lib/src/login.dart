@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth.dart';
+import 'l10n.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.serverUrl, required this.login, required this.onLoggedIn});
@@ -24,17 +25,30 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      widget.onLoggedIn(await widget.login.login());
+      final l = context.l;
+      widget.onLoggedIn(await widget.login.login(donePage: l.loginBrowserDone, failedPage: l.loginFailed));
+    } on LoginFailure catch (failure) {
+      if (mounted) setState(() => _error = _describe(failure));
     } catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      if (mounted) setState(() => _error = context.l.loginFailedWithReason('$error'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  String _describe(LoginFailure failure) {
+    final l = context.l;
+    return switch (failure.problem) {
+      LoginProblem.browser => l.loginBrowserFailed,
+      LoginProblem.timeout => l.loginTimeout,
+      LoginProblem.failed => failure.detail == null ? l.loginFailed : l.loginFailedWithReason(failure.detail!),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
@@ -46,24 +60,24 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 12),
               Text('TruckMaps', textAlign: TextAlign.center, style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
-              const Text('Trasa dopasowana do twojej ciężarówki.', textAlign: TextAlign.center),
+              Text(l.loginTagline, textAlign: TextAlign.center),
               const SizedBox(height: 32),
               if (kIsWeb)
-                const Text('Logowanie w wersji przeglądarkowej będzie później – użyj aplikacji na komputer albo telefon.')
+                Text(l.loginWebLater)
               else
                 FilledButton.icon(
                   onPressed: _busy ? null : _login,
                   icon: _busy
                       ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.login),
-                  label: Text(_busy ? 'Dokończ logowanie w przeglądarce…' : 'Zaloguj się e-mailem'),
+                  label: Text(_busy ? l.loginPending : l.loginWithEmail),
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 16),
                 Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
               ],
               const SizedBox(height: 24),
-              Text('Serwer: ${widget.serverUrl}', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+              Text(l.loginServer(widget.serverUrl), textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
             ]),
           ),
         ),

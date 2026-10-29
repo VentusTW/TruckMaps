@@ -2,6 +2,7 @@ import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
 import 'auth.dart';
+import 'l10n.dart';
 import 'modules_screen.dart';
 import 'planner/planner_screen.dart';
 import 'vehicles_screen.dart';
@@ -43,18 +44,23 @@ class _HomeScreenState extends State<HomeScreen> {
       final server = list.map((m) => ServerModule.fromJson(m as Map<String, dynamic>)).toList();
       setState(() => _modules = widget.registry.resolve(server));
     } catch (error) {
-      setState(() => _error = 'Nie udało się pobrać modułów: $error');
+      if (mounted) setState(() => _error = context.l.modulesLoadFailed('$error'));
     }
   }
 
   List<_Page> get _pages {
-    final context = ModuleContext(api: widget.session.api, userName: widget.session.userName);
+    final l = context.l;
+    final module = ModuleContext(
+      api: widget.session.api,
+      userName: widget.session.userName,
+      locale: Localizations.localeOf(context),
+    );
     return [
-      _Page('Trasa', Icons.route_outlined, (_) => PlannerScreen(api: widget.session.api)),
-      _Page('Pojazdy', Icons.local_shipping_outlined, (_) => VehiclesScreen(api: widget.session.api)),
+      _Page(l.menuRoute, Icons.route_outlined, (_) => PlannerScreen(api: widget.session.api)),
+      _Page(l.menuVehicles, Icons.local_shipping_outlined, (_) => VehiclesScreen(api: widget.session.api)),
       for (final access in _modules.where((m) => m.usable))
-        for (final entry in access.module!.entries(context)) _Page(entry.title, entry.icon, entry.builder),
-      _Page('Moduły', Icons.extension_outlined, (_) => ModulesScreen(modules: _modules, error: _error)),
+        for (final entry in access.module!.entries(module)) _Page(entry.title, entry.icon, entry.builder),
+      _Page(l.menuModules, Icons.extension_outlined, (_) => ModulesScreen(modules: _modules, error: _error)),
     ];
   }
 
@@ -85,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 28),
           leading: const Icon(Icons.logout),
-          title: const Text('Wyloguj'),
+          title: Text(context.l.logout),
           onTap: widget.onLogout,
         ),
       ],

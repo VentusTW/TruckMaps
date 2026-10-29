@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 import 'module.dart';
 
 /// Moduł z serwera (`GET /api/me/modules`).
@@ -25,7 +27,7 @@ class ModuleAccess {
   final ServerModule server;
 
   String get id => server.id;
-  String get name => module?.name ?? server.name;
+  String name(Locale locale) => module?.name(locale) ?? server.name;
 
   /// Moduł z dostępem i z pakietem w tej wersji aplikacji – można go otworzyć.
   bool get usable => server.granted && module != null;

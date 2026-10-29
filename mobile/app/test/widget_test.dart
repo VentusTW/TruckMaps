@@ -23,7 +23,8 @@ void main() {
   setUp(() => mapTiles = () => const SizedBox());
 
   testWidgets('bez zapisanej sesji – ekran logowania', (tester) async {
-    await tester.pumpWidget(TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore())));
+    await tester.pumpWidget(
+        TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore()), locale: const Locale('pl')));
     await tester.pumpAndSettle();
 
     expect(find.text('Zaloguj się e-mailem'), findsOneWidget);
@@ -34,6 +35,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(TruckMapsApp(
+      locale: const Locale('pl'),
       session: session({
         '/api/vehicles': [
           {'id': 'v1', 'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
@@ -63,6 +65,35 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Aktywny'), findsOneWidget);
     expect(find.text('Wymaga nowszej wersji aplikacji.'), findsOneWidget);
+  });
+
+  testWidgets('po angielsku – ekrany i odpowiedzi serwera w języku aplikacji', (tester) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final languages = <String?>{};
+    final client = MockClient((request) async {
+      languages.add(request.headers['Accept-Language']);
+      return json(request.url.path == '/api/vehicles' ? [] : {});
+    });
+    await tester.pumpWidget(TruckMapsApp(
+      locale: const Locale('en'),
+      session: Session(api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client), userName: 'Anna'),
+    ));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('Plan route'), findsOneWidget);
+    await tester.tap(find.text('Vehicles'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('No vehicles. Add a vehicle in the route planner.'), findsOneWidget);
+    expect(languages, {'en'});
+  });
+
+  test('język systemu bez tłumaczenia → polski', () {
+    const supported = [Locale('en'), Locale('pl')];
+    expect(resolveLocale(const Locale('en', 'GB'), supported), const Locale('en'));
+    expect(resolveLocale(const Locale('fr'), supported), const Locale('pl'));
+    expect(resolveLocale(null, supported), const Locale('pl'));
   });
 }
 

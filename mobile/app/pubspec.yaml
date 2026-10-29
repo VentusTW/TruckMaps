@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  # Daty, liczby i waluty według języka (wersję wyznacza flutter_localizations).
+  intl: any
   http: ^1.2.1
   url_launcher: ^6.2.5
   # Sesja (token odświeżania) w magazynie systemu: Menedżer poświadczeń / Keystore / Keychain.
@@ -34,5 +36,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Teksty w wielu językach z lib/l10n (l10n.yaml).
+  generate: true
   assets:
     - assets/alarm.wav

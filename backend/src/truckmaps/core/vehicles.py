@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 from truckmaps.core.companies import MANAGES_VEHICLES, company_ids
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
+from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 
 # Znaki i zakazy "dla samochodów ciężarowych" dotyczą pojazdów o DMC powyżej 3,5 t.
@@ -93,7 +94,7 @@ class VehicleIn(BaseModel):
         if self.gvw_t is None:
             self.gvw_t = self.weight_t
         elif self.weight_t > self.gvw_t:
-            raise ValueError("Masa rzeczywista nie może być większa niż DMC.")
+            raise ValueError(t("error.weight_above_gvw"))
         return self
 
     @property
@@ -178,11 +179,9 @@ def _check_target(company_id: str | None, roles: dict) -> None:
     if company_id is None:
         return
     if company_id not in roles:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono firmy.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.company_not_found"))
     if roles[company_id] not in MANAGES_VEHICLES:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Pojazdy firmy dodają właściciel i dyspozytorzy."
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.vehicles_add_forbidden"))
 
 
 def vehicle_out(vehicle: VehicleProfile, roles: dict, user: Principal) -> VehicleOut:
@@ -204,9 +203,7 @@ def load_owned(
         or (vehicle.company_id is None and vehicle.owner_subject == user.subject)
     )
     if not visible:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono pojazdu.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.vehicle_not_found"))
     if edit and not _can_edit(vehicle, roles, user):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Pojazdy firmy zmieniają właściciel i dyspozytorzy."
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.vehicles_edit_forbidden"))
     return vehicle

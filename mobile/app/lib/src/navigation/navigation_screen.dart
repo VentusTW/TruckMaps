@@ -8,6 +8,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../l10n.dart';
 import '../planner/planner_screen.dart' show mapTiles;
 import '../planner/route.dart';
 import 'corridor.dart';
@@ -18,17 +19,19 @@ abstract class PositionSource {
   Future<void> dispose();
 }
 
+enum GpsProblem { disabled, denied }
+
 class GpsPositions implements PositionSource {
   final _controller = StreamController<LatLng>.broadcast();
   StreamSubscription<Position>? _subscription;
 
-  /// Prosi o zgodę na lokalizację; `null` – brak zgody albo wyłączony GPS.
-  Future<String?> start() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return 'Lokalizacja jest wyłączona.';
+  /// Prosi o zgodę na lokalizację; `null` – GPS działa.
+  Future<GpsProblem?> start() async {
+    if (!await Geolocator.isLocationServiceEnabled()) return GpsProblem.disabled;
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-      return 'Brak zgody na lokalizację – nawigacja działa w symulacji.';
+      return GpsProblem.denied;
     }
     _subscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.bestForNavigation, distanceFilter: 5),
@@ -169,7 +172,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     final problem = await gps.start();
     if (!mounted) return;
     if (problem != null) {
-      setState(() => _notice = problem);
+      setState(() => _notice = problem == GpsProblem.disabled ? context.l.gpsDisabled : context.l.gpsDenied);
       await gps.dispose();
       return;
     }
@@ -203,7 +206,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
       });
     } catch (error) {
       // Bez korytarza nie ma alarmu – kierowca musi o tym wiedzieć.
-      setState(() => _corridorError = 'Brak danych o drogach wokół trasy: $error');
+      if (mounted) setState(() => _corridorError = context.l.corridorFailed('$error'));
     }
   }
 
@@ -262,11 +265,11 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
         _via = remaining;
         _offRoute = 0;
         _lastAlongM = 0;
-        _notice = 'Trasa przeliczona od twojej pozycji.';
+        _notice = context.l.rerouted;
       });
       await _loadCorridor();
     } catch (error) {
-      setState(() => _notice = 'Poza trasą – wróć na trasę (nie udało się przeliczyć: $error).');
+      if (mounted) setState(() => _notice = context.l.rerouteFailed('$error'));
     } finally {
       if (mounted) setState(() => _recalculating = false);
     }
@@ -285,10 +288,11 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     final check = _check;
     final alarm = check?.alarm;
+    final l = context.l;
     return Scaffold(
-      appBar: AppBar(title: const Text('Nawigacja'), actions: [
+      appBar: AppBar(title: Text(l.navigationTitle), actions: [
         IconButton(
-          tooltip: _follow ? 'Mapa podąża za pojazdem' : 'Wróć do pojazdu',
+          tooltip: _follow ? l.followingVehicle : l.backToVehicle,
           icon: Icon(_follow ? Icons.gps_fixed : Icons.gps_not_fixed),
           onPressed: () {
             setState(() => _follow = true);
@@ -332,7 +336,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
                   ),
                 ),
             ]),
-            const SimpleAttributionWidget(source: Text('© współtwórcy OpenStreetMap')),
+            SimpleAttributionWidget(source: Text(l.mapAttribution)),
           ],
         ),
         Positioned(left: 12, right: 12, top: 12, child: _StatusBanner(
@@ -357,15 +361,15 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
                     padding: const EdgeInsets.all(24),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 96),
-                      const Text('STOP – ta droga jest nieprzejezdna',
+                      Text(l.alarmTitle,
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+                          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 12),
                       Text(alarm.message,
                           textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20)),
                       const SizedBox(height: 12),
-                      const Text('Zatrzymaj się bezpiecznie i zawróć na trasę.',
-                          textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 16)),
+                      Text(l.alarmHint,
+                          textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
                     ]),
                   ),
                 ),
@@ -377,19 +381,20 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   }
 
   Widget _simulationControls() {
+    final l = context.l;
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Tooltip(message: 'Symulacja: dotknij mapy, żeby ustawić pozycję', child: Icon(Icons.science_outlined, size: 18)),
+          Tooltip(message: l.simulationHint, child: const Icon(Icons.science_outlined, size: 18)),
           const SizedBox(width: 8),
           for (final speed in [60.0, 600.0])
             TextButton(
               onPressed: () => setState(() => _simulation.drive(_route.points, fromM: _lastAlongM, speedKmh: speed)),
-              child: Text(speed < 100 ? 'Jedź 60 km/h' : 'Szybko ×10'),
+              child: Text(speed < 100 ? l.simulationDrive : l.simulationFast),
             ),
           if (_simulation.driving)
-            TextButton(onPressed: () => setState(_simulation.stopDriving), child: const Text('Stop')),
+            TextButton(onPressed: () => setState(_simulation.stopDriving), child: Text(l.simulationStop)),
         ]),
       ),
     );
@@ -415,14 +420,15 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final check = this.check;
     final corridor = this.corridor;
+    final l = context.l;
     final (color, text) = switch ((check, corridor)) {
       _ when corridorError != null => (Colors.orange.shade800, corridorError!),
-      (_, null) => (Colors.grey.shade700, 'Pobieram dane o drogach wokół trasy…'),
-      (null, _) => (const Color(0xFF185FA5), 'Czekam na pozycję (GPS albo dotknij mapy).'),
+      (_, null) => (Colors.grey.shade700, l.loadingCorridor),
+      (null, _) => (const Color(0xFF185FA5), l.waitingForPosition),
       (final c?, final k?) when c.onRoute =>
-        (const Color(0xFF3B6D11), 'Na trasie – zostało ${((k.lengthM - (c.alongM ?? 0)) / 1000).toStringAsFixed(1).replaceAll('.', ',')} km'),
+        (const Color(0xFF3B6D11), l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
       (final c?, _) when c.alarm != null => (const Color(0xFFD62828), c.alarm!.message),
-      _ => (Colors.orange.shade800, recalculating ? 'Poza trasą – przeliczam trasę…' : 'Poza trasą'),
+      _ => (Colors.orange.shade800, recalculating ? l.offRouteRecalculating : l.offRoute),
     };
     return Card(
       color: color,

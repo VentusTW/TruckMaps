@@ -45,6 +45,10 @@ class CoreApi {
         _client = client ?? http.Client();
 
   final String baseUrl;
+
+  /// Język użytkownika (np. "pl", "en") – serwer odpowiada w nim (`Accept-Language`).
+  String? language;
+
   final TokenSource _tokens;
   final http.Client _client;
 
@@ -62,6 +66,7 @@ class CoreApi {
     Future<http.Response> attempt() async => request({
           'Authorization': 'Bearer ${await _tokens.token()}',
           'Content-Type': 'application/json',
+          if (language != null) 'Accept-Language': language!,
         });
     var response = await attempt();
     // Token wygasł po drodze (np. komputer był uśpiony) – jedno odświeżenie i ponowienie.
@@ -84,6 +89,6 @@ class CoreApi {
     if (detail is List && detail.isNotEmpty && detail.first is Map) {
       return '${detail.first['msg']}';
     }
-    return 'Błąd serwera ($status).';
+    return 'HTTP $status';
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/src/planner/place_field.dart';
+import 'localized.dart';
 
 void main() {
   testWidgets('po wybraniu podpowiedzi pole nie szuka ponownie', (tester) async {
@@ -17,8 +18,8 @@ void main() {
     });
     final controller = TextEditingController();
     Place? selected;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
+    await tester.pumpWidget(localized(
+      Scaffold(
         body: PlaceField(
           api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
           label: 'Skąd',

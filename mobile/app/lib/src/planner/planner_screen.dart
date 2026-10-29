@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../l10n.dart';
 import '../navigation/navigation_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
@@ -101,8 +102,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   Future<void> _calculate() async {
     final vehicleId = _vehicleId, start = _start, end = _end;
-    if (vehicleId == null) return setState(() => _error = 'Najpierw dodaj pojazd.');
-    if (start == null || end == null) return setState(() => _error = 'Wybierz start (A) i cel (B).');
+    if (vehicleId == null) return setState(() => _error = context.l.addVehicleFirst);
+    if (start == null || end == null) return setState(() => _error = context.l.chooseStartAndEnd);
     setState(() {
       _busy = true;
       _error = null;
@@ -129,9 +130,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Nie da się wyznaczyć trasy'),
+            title: Text(context.l.routeFailedTitle),
             content: Text(error.message),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l.ok))],
           ),
         );
       }
@@ -246,7 +247,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               _calculate();
             }),
         ]),
-        const SimpleAttributionWidget(source: Text('© współtwórcy OpenStreetMap')),
+        SimpleAttributionWidget(source: Text(context.l.mapAttribution)),
       ],
     );
   }
@@ -258,7 +259,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         child: GestureDetector(
           onTap: onTap,
           child: Tooltip(
-            message: onTap == null ? label : 'Punkt pośredni $label – dotknij, żeby usunąć',
+            message: onTap == null ? label : context.l.viaTapToRemove(label),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: color,
@@ -301,12 +302,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   Widget _buildPanel({ScrollController? scroll}) {
     final theme = Theme.of(context);
+    final l = context.l;
     final result = _result;
     final shown = _shown;
     return ListView(controller: scroll, padding: const EdgeInsets.all(16), children: [
       DropdownButtonFormField<String>(
         value: _vehicleId,
-        decoration: const InputDecoration(labelText: 'Pojazd', isDense: true, border: OutlineInputBorder()),
+        decoration: InputDecoration(labelText: l.vehicle, isDense: true, border: const OutlineInputBorder()),
         items: [
           for (final v in _vehicles)
             DropdownMenuItem(value: v['id'] as String, child: Text('${v['name']}', overflow: TextOverflow.ellipsis)),
@@ -319,7 +321,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       const SizedBox(height: 12),
       PlaceField(
         api: widget.api,
-        label: 'Skąd – adres, miejscowość, GPS',
+        label: l.fromLabel,
         icon: Icons.trip_origin,
         controller: _from,
         near: _start?.point,
@@ -331,7 +333,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       const SizedBox(height: 8),
       PlaceField(
         api: widget.api,
-        label: 'Dokąd – adres, miejscowość, GPS',
+        label: l.toLabel,
         icon: Icons.place_outlined,
         controller: _to,
         near: _start?.point,
@@ -347,7 +349,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           title: Text(via.label, maxLines: 2, overflow: TextOverflow.ellipsis),
           trailing: IconButton(
             icon: const Icon(Icons.close),
-            tooltip: 'Usuń punkt pośredni',
+            tooltip: l.removeVia,
             onPressed: () {
               setState(() => _via.removeAt(i));
               _calculate();
@@ -359,10 +361,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
         OutlinedButton.icon(
           onPressed: _pickDeparture,
           icon: const Icon(Icons.schedule),
-          label: Text(_departure == null ? 'Wyjazd: teraz' : 'Wyjazd: ${_when(_departure!)}'),
+          label: Text(_departure == null ? l.departureNow : l.departureAt(l.when(_departure!))),
         ),
         FilterChip(
-          label: const Text('+ punkt pośredni na mapie'),
+          label: Text(l.addViaOnMap),
           selected: _viaMode,
           onSelected: _start == null || _end == null ? null : (on) => setState(() => _viaMode = on),
         ),
@@ -375,23 +377,22 @@ class _PlannerScreenState extends State<PlannerScreen> {
           setState(() => _avoid = on ?? true);
           if (_result != null) _calculate();
         },
-        title: const Text('Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd'),
+        title: Text(l.avoidDifficult),
       ),
       Row(children: [
         Expanded(
           child: FilledButton(
             onPressed: _busy ? null : _calculate,
-            child: Text(_busy ? 'Liczę trasę…' : 'Wyznacz trasę'),
+            child: Text(_busy ? l.calculating : l.calculateRoute),
           ),
         ),
         const SizedBox(width: 8),
-        TextButton(onPressed: _clear, child: const Text('Wyczyść')),
+        TextButton(onPressed: _clear, child: Text(l.clear)),
       ]),
       if (_start == null || _end == null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: Text('Wpisz adresy albo dotknij mapy: najpierw start (A), potem cel (B).',
-              style: theme.textTheme.bodySmall),
+          child: Text(l.plannerHint, style: theme.textTheme.bodySmall),
         ),
       if (_error != null)
         Padding(
@@ -404,9 +405,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   List<Widget> _resultWidgets(RouteResult result, PlannedRoute shown) {
     final theme = Theme.of(context);
+    final l = context.l;
     return [
       const Divider(height: 32),
-      Text(shown.summary, style: theme.textTheme.titleMedium),
+      Text(shown.summary(l), style: theme.textTheme.titleMedium),
       const SizedBox(height: 8),
       FilledButton.icon(
         onPressed: _end == null || _vehicleId == null
@@ -424,25 +426,27 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                 )),
         icon: const Icon(Icons.navigation_outlined),
-        label: const Text('Jedź – nawigacja z alarmem'),
+        label: Text(l.navigateWithAlarm),
       ),
-      if (shown.cost != null) Text('koszt szacunkowo', style: theme.textTheme.bodySmall),
+      if (shown.cost != null) Text(l.costEstimate, style: theme.textTheme.bodySmall),
       const SizedBox(height: 8),
       Chip(
         avatar: CircleAvatar(backgroundColor: levelColor(shown.level), radius: 8),
-        label: Text(levelTexts[shown.level] ?? 'Bez oceny'),
+        label: Text(l.level(shown.level)),
       ),
       for (final issue in result.issues)
         Padding(padding: const EdgeInsets.only(top: 6), child: Text(issue, style: theme.textTheme.bodySmall)),
       if (result.timeBans.isNotEmpty || result.arrival != null) ...[
         const SizedBox(height: 12),
-        Text('Zakazy ruchu w czasie', style: theme.textTheme.titleSmall),
+        Text(l.timeBansTitle, style: theme.textTheme.titleSmall),
         for (final ban in result.timeBans)
           _placeTile(ban, leading: const Text('⛔', style: TextStyle(fontSize: 18))),
         if (result.arrival != null)
-          Text('Przyjazd ok. ${_when(result.arrival!)}'
-              '${result.waitMin > 0 ? ', w tym postój ${result.waitMin ~/ 60} h ${result.waitMin % 60} min' : ''}'
-              ' (czas jazdy bez przerw kierowcy).', style: theme.textTheme.bodySmall),
+          Text(
+              result.waitMin > 0
+                  ? l.arrivalWithWait(l.when(result.arrival!), result.waitMin ~/ 60, result.waitMin % 60)
+                  : l.arrival(l.when(result.arrival!)),
+              style: theme.textTheme.bodySmall),
         if (result.freeDeparture != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -451,19 +455,19 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 setState(() => _departure = result.freeDeparture);
                 _calculate();
               },
-              child: Text('Wyjedź ${_when(result.freeDeparture!)} – bez postoju'),
+              child: Text(l.departWithoutWaiting(l.when(result.freeDeparture!))),
             ),
           ),
       ],
       if (shown.warnings.isNotEmpty) ...[
         const SizedBox(height: 12),
-        Text('Na trasie', style: theme.textTheme.titleSmall),
+        Text(l.onRouteTitle, style: theme.textTheme.titleSmall),
         for (final w in shown.warnings)
           _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: levelColor(w.level))),
       ],
       if (result.alternatives.isNotEmpty) ...[
         const SizedBox(height: 12),
-        Text('Trasy', style: theme.textTheme.titleSmall),
+        Text(l.routesTitle, style: theme.textTheme.titleSmall),
         _routeChoice(result.route, null),
         for (final (i, alt) in result.alternatives.indexed) _routeChoice(alt, i),
       ],
@@ -474,7 +478,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         dense: true,
         contentPadding: EdgeInsets.zero,
         leading: SizedBox(width: 24, child: Center(child: leading)),
-        title: Text('km ${place.km.toStringAsFixed(1).replaceAll('.', ',')} – ${place.message}'),
+        title: Text(context.l.placeAtKm(context.l.km(place.km), place.message)),
         onTap: () => _map.move(place.point, 15),
       );
 
@@ -488,12 +492,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
           _fit(route.points);
         },
         secondary: CircleAvatar(radius: 6, backgroundColor: levelColor(route.level)),
-        title: Text(index == null ? 'Proponowana: ${route.summary}' : 'Alternatywa ${index + 1}: ${route.summary}'),
+        title: Text(index == null
+            ? context.l.routeProposed(route.summary(context.l))
+            : context.l.routeAlternative(index + 1, route.summary(context.l))),
       );
 }
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-const _weekdays = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
-
-String _when(DateTime d) => '${_weekdays[d.weekday - 1]} ${_two(d.day)}.${_two(d.month)} ${_two(d.hour)}:${_two(d.minute)}';

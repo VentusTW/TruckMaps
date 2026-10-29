@@ -4,6 +4,7 @@ Moduły importują wyłącznie z tego pakietu. Wszystko w ``truckmaps.core`` jes
 wewnętrzne – pilnuje tego import-linter (plik ``.importlinter``).
 """
 
+from truckmaps.sdk import i18n
 from truckmaps.sdk.auth import Auth, Principal
 from truckmaps.sdk.context import ApiRegistry, CoreContext, EventBus, Extensions
 from truckmaps.sdk.events import CoreReady, Event
@@ -24,4 +25,5 @@ __all__ = [
     "Extensions",
     "Module",
     "Principal",
+    "i18n",
 ]

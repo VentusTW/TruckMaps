@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
+from truckmaps.core.i18n import Msg, t
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.vehicles import VehicleIn
 
@@ -35,7 +36,6 @@ ZONES = {
     "LT": ZoneInfo("Europe/Vilnius"),
 }
 HOME_ZONE = ZONES["PL"]
-COUNTRY_NAMES = {"PL": "w Polsce", "DE": "w Niemczech", "CZ": "w Czechach", "SK": "na Słowacji"}
 # Autostrady, drogi ekspresowe i drogi krajowe I klasy (CZ, SK).
 MAIN_ROADS = frozenset({"motorway", "trunk", "primary"})
 # Ferienreiseverordnung § 1: drogi z sobotnim zakazem w wakacje (tylko wymienione odcinki).
@@ -45,7 +45,6 @@ DE_SUMMER_ROADS = frozenset(
         "A92", "A93", "A99", "A113", "A115", "A831", "A980", "A995", "B31", "B96",
     }
 )  # fmt: skip
-WEEKDAYS = ("pon.", "wt.", "śr.", "czw.", "pt.", "sob.", "niedz.")
 
 
 def easter(year: int) -> date:
@@ -186,8 +185,8 @@ def is_holiday(country: str, day: date, state: str = "") -> bool:
 class Window:
     start: datetime
     end: datetime
-    title: str
-    """Np. "niedziele i święta (Allerheiligen)"."""
+    title: Msg
+    """Np. święto (Allerheiligen) – tłumaczone przy wyświetleniu (okna są w pamięci podręcznej)."""
     roads: frozenset[str] | None = None
     """Klasy dróg objętych zakazem; ``None`` – wszystkie drogi."""
     refs: frozenset[str] | None = None
@@ -223,46 +222,49 @@ def windows(country: str, day: date, state: str = "") -> tuple[Window, ...]:
     if country == "PL":
         holidays = pl_holidays(day.year)
         if day in holidays:
-            found.append(Window(at(8), at(22), f"święto ({holidays[day]})"))
+            found.append(Window(at(8), at(22), Msg.of("ban.holiday", name=holidays[day])))
         tomorrow = holidays.get(day + timedelta(days=1))
         if tomorrow and tomorrow not in PL_EVE_EXCLUDED and day not in holidays:
-            found.append(Window(at(18), at(22), f"dzień przed świętem ({tomorrow})"))
+            found.append(Window(at(18), at(22), Msg.of("ban.holiday_eve", name=tomorrow)))
         first, last = pl_summer(day.year)
         if first <= day <= last:
-            hours = {4: (18, 22, "piątek"), 5: (8, 14, "sobota"), 6: (8, 22, "niedziela")}
+            hours = {4: (18, 22, "friday"), 5: (8, 14, "saturday"), 6: (8, 22, "sunday")}
             if day.weekday() in hours and day not in holidays:
                 start, end, name = hours[day.weekday()]
-                found.append(Window(at(start), at(end), f"wakacje – {name}"))
+                found.append(Window(at(start), at(end), Msg.of(f"ban.summer_{name}")))
     elif country == "DE":
         holiday = de_holidays(day.year, state).get(day)
         if sunday or holiday:
-            title = f"święto ({holiday})" if holiday else "niedziela"
-            found.append(Window(at(0), at(22), title))
+            found.append(Window(at(0), at(22), _holiday_or_sunday(holiday)))
         if day.weekday() == 5 and (7, 1) <= (day.month, day.day) <= (8, 31):
-            found.append(
-                Window(at(7), at(20), "soboty w wakacje (wybrane drogi)", refs=DE_SUMMER_ROADS,
-                       verified=False)
-            )  # fmt: skip
+            title = Msg.of("ban.summer_saturdays_some_roads")
+            found.append(Window(at(7), at(20), title, refs=DE_SUMMER_ROADS, verified=False))
     elif country == "CZ":
         holiday = cz_holidays(day.year).get(day)
         if sunday or holiday:
-            title = f"svátek ({holiday})" if holiday else "niedziela"
-            found.append(Window(at(13), at(22), title, roads=MAIN_ROADS))
+            found.append(Window(at(13), at(22), _holiday_or_sunday(holiday), roads=MAIN_ROADS))
         if (7, 1) <= (day.month, day.day) <= (8, 31) and not holiday:
             if day.weekday() == 4:
-                found.append(Window(at(17), at(21), "wakacje – piątek", roads=MAIN_ROADS))
+                found.append(Window(at(17), at(21), Msg.of("ban.summer_friday"), roads=MAIN_ROADS))
             elif day.weekday() == 5:
-                found.append(Window(at(7), at(13), "wakacje – sobota", roads=MAIN_ROADS))
+                found.append(Window(at(7), at(13), Msg.of("ban.summer_saturday"), roads=MAIN_ROADS))
     elif country == "SK":
         holiday = sk_holidays(day.year).get(day)
         if sunday or holiday:
-            title = f"sviatok ({holiday})" if holiday else "niedziela"
-            found.append(Window(at(0), at(22), title, roads=MAIN_ROADS, verified=False))
+            found.append(
+                Window(at(0), at(22), _holiday_or_sunday(holiday), roads=MAIN_ROADS, verified=False)
+            )
         if day.weekday() == 5 and (7, 1) <= (day.month, day.day) <= (8, 31) and not holiday:
             found.append(
-                Window(at(7), at(19), "wakacje – sobota", roads=MAIN_ROADS, verified=False)
+                Window(
+                    at(7), at(19), Msg.of("ban.summer_saturday"), roads=MAIN_ROADS, verified=False
+                )
             )
     return tuple(found)
+
+
+def _holiday_or_sunday(holiday: str | None) -> Msg:
+    return Msg.of("ban.holiday", name=holiday) if holiday else Msg.of("ban.sunday")
 
 
 def _ref(name: str) -> str:
@@ -299,7 +301,13 @@ class TimeBan(BaseModel):
 
 def _fmt(moment: datetime, zone: ZoneInfo) -> str:
     local = moment.astimezone(zone)
-    return f"{WEEKDAYS[local.weekday()]} {local:%d.%m} {local:%H:%M}"
+    return t(
+        "time.moment",
+        weekday=t(f"weekday.short_{local.weekday()}"),
+        day=f"{local:%d}",
+        month=f"{local:%m}",
+        time=f"{local:%H:%M}",
+    )
 
 
 class TimeBanCheck(BaseModel):
@@ -397,23 +405,27 @@ def _simulate(route, vehicle: VehicleIn, departure: datetime, quick: bool = Fals
         index = min(edge.begin_index, len(route.geometry) - 1)
         lon, lat = route.geometry[index]
         then = (
-            f" Postój do {_fmt(hit.end, zone)}."
+            t("ban.wait_until", time=_fmt(hit.end, zone))
             if hit.verified
-            else " Sprawdź, czy dotyczy tego odcinka."
+            else t("ban.check_segment")
         )
         where = (
-            "Wyjazd w czasie zakazu."
+            t("ban.departure_during_ban")
             if enter <= departure + timedelta(minutes=1)
-            else f"Pojazd będzie tu ok. {_fmt(enter, zone)}."
+            else t("ban.vehicle_here_at", time=_fmt(enter, zone))
         )
         found.append(
             TimeBan(
                 country=edge.country,
-                title=hit.title,
-                message=(
-                    f"Zakaz ruchu ciężarówek {COUNTRY_NAMES[edge.country]}: {hit.title}, "
-                    f"{_fmt(hit.start, zone)}–{hit.end.astimezone(zone):%H:%M}. "
-                    f"{where}{then}"
+                title=t(hit.title),
+                message=t(
+                    "ban.message",
+                    country=t(f"ban.in_country_{edge.country}"),
+                    title=hit.title,
+                    start=_fmt(hit.start, zone),
+                    end=f"{hit.end.astimezone(zone):%H:%M}",
+                    where=where,
+                    then=then,
                 ),
                 starts_at=hit.start,
                 ends_at=hit.end,

@@ -1,0 +1,7 @@
+# Tłumaczenia aplikacji: lib/l10n/app_<język>.arb (polski jest wzorcem z opisami tekstów).
+# Nowy język = nowy plik .arb z tymi samymi kluczami; kod generuje `flutter gen-l10n` / `flutter run`.
+arb-dir: lib/l10n
+template-arb-file: app_pl.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false

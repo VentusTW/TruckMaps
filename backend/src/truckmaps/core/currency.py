@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.config import ECB_URL
 from truckmaps.core.db import Base, Database, get_session
+from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 
 log = logging.getLogger(__name__)
@@ -32,27 +33,15 @@ FETCH_TIMEOUT_S = 20
 
 # Waluty do wyboru (kolejność listy w aplikacji): kraje, w których jeżdżą nasi kierowcy,
 # i najczęstsze waluty rozliczeń. Wszystkie są w kursach EBC.
-CURRENCIES = {
-    "PLN": "złoty polski",
-    "EUR": "euro",
-    "CZK": "korona czeska",
-    "HUF": "forint węgierski",
-    "RON": "lej rumuński",
-    "DKK": "korona duńska",
-    "SEK": "korona szwedzka",
-    "NOK": "korona norweska",
-    "CHF": "frank szwajcarski",
-    "GBP": "funt brytyjski",
-    "TRY": "lira turecka",
-    "USD": "dolar amerykański",
-}
+CURRENCIES = ("PLN", "EUR", "CZK", "HUF", "RON", "DKK", "SEK", "NOK", "CHF", "GBP", "TRY", "USD")
+"""Nazwy walut: teksty ``currency.<kod>``."""
 BASE = "EUR"
 
 
 def _known(code: str) -> str:
     code = code.strip().upper()
     if code not in CURRENCIES:
-        raise ValueError(f"Nieobsługiwana waluta: {code}. Dostępne: {', '.join(CURRENCIES)}.")
+        raise ValueError(t("error.unsupported_currency", code=code, codes=", ".join(CURRENCIES)))
     return code
 
 
@@ -189,7 +178,7 @@ def build_router(current_user) -> APIRouter:
     def currencies(user: User, db: Db) -> CurrenciesOut:
         rates = latest_rates(db)
         return CurrenciesOut(
-            currencies=[CurrencyOut(code=c, name=n) for c, n in CURRENCIES.items()],
+            currencies=[CurrencyOut(code=c, name=t(f"currency.{c}")) for c in CURRENCIES],
             rates_day=rates.day,
             per_eur={c: r for c, r in rates.per_eur.items() if c in CURRENCIES},
         )

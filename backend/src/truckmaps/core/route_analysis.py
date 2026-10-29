@@ -19,6 +19,7 @@ from enum import IntEnum
 from pydantic import BaseModel
 
 from truckmaps.core import conditional, timebans
+from truckmaps.core.i18n import num, t
 from truckmaps.core.restrictions import (
     CONDITIONAL_TAGS,
     ROAD_CONTEXT,
@@ -60,7 +61,8 @@ WIDE_LANES = 2
 # Dojazd do startu i celu: kierowca i tak musi tamtędy przejechać, więc ulica osiedlowa jest
 # tu tylko żółta. Strefa zamieszkania (living_street) zostaje pomarańczowa.
 END_ZONE_M = 1000.0
-END_STREET = "Dojazd ulicą osiedlową / dojazdową – trudny dla zestawu"
+END_STREET = "route.end_street"
+"""Klucz tekstu: dojazd do startu / celu ulicą osiedlową (planer podpowiada wtedy parking)."""
 BEND_SPACING_M = 10.0
 NODE_MATCH_M = 4.0
 
@@ -228,9 +230,11 @@ def _edge_findings(
         level, message = road
         yield _Finding(level, "narrow", message + name, *span, key=("narrow", level))
     if Kind.BAD_SURFACE in context:
-        yield _Finding(Level.YELLOW, "surface", f"Zła nawierzchnia{name}", *span, key="surface")
+        yield _Finding(Level.YELLOW, "surface", t("route.bad_surface") + name, *span, key="surface")
     if edge.roundabout:
-        yield _Finding(Level.LIME, "roundabout", f"Rondo{name}", *span, key="roundabout")
+        yield _Finding(
+            Level.LIME, "roundabout", t("route.roundabout") + name, *span, key="roundabout"
+        )
 
 
 def _road_level(
@@ -251,17 +255,17 @@ def _road_level(
     if edge.use in NARROW_USES or edge.road_class in MINOR_CLASSES:
         if Kind.INDUSTRIAL_AREA in context and (width is None or width >= NARROW_ROAD_M):
             if length > MEDIUM_VEHICLE_M:
-                return Level.YELLOW, "Droga dojazdowa w strefie przemysłowej"
+                return Level.YELLOW, t("route.industrial_road")
             return None
         if length > LONG_VEHICLE_M and near_end and edge.use != "living_street":
-            return Level.YELLOW, END_STREET
+            return Level.YELLOW, t(END_STREET)
         if length > LONG_VEHICLE_M:
-            return Level.ORANGE, "Ulica osiedlowa / dojazdowa – bardzo trudna dla zestawu"
+            return Level.ORANGE, t("route.minor_street_long")
         if length > MEDIUM_VEHICLE_M or edge.use in NARROW_USES:
-            return Level.YELLOW, "Wąska ulica osiedlowa / dojazdowa"
+            return Level.YELLOW, t("route.minor_street_narrow")
         return None
     if edge.road_class == "unclassified" and length > LONG_VEHICLE_M:
-        return Level.YELLOW, "Droga lokalna – możliwe zwężenia"
+        return Level.YELLOW, t("route.local_road")
     return None
 
 
@@ -282,7 +286,7 @@ def conditional_findings(
     if conditions is None:
         if moment is not None or not conditional.restrictive(value):
             return []
-        return [(Level.YELLOW, f"Ograniczenie warunkowe – sprawdź znak ({restriction.raw})")]
+        return [(Level.YELLOW, t("route.conditional_check_sign", raw=restriction.raw))]
     found = []
     for condition in conditions:
         if condition.timed != (moment is not None) or not condition.applies_to(vehicle):
@@ -303,10 +307,10 @@ def _conditional_value(key: str, kind: Kind, value: str, vehicle: VehicleIn):
         if not every_vehicle and not vehicle.is_hgv:
             return None
         if value in ("no", "private"):
-            what = "Zakaz wjazdu" if every_vehicle else "Zakaz wjazdu ciężarówek"
-            return Level.RED, f"{what} (warunkowy)"
+            key = "route.no_entry_conditional" if every_vehicle else "route.no_hgv_conditional"
+            return Level.RED, t(key)
         if value in ("destination", "delivery"):
-            return Level.YELLOW, "Ciężarówki tylko dojazd (warunkowo)"
+            return Level.YELLOW, t("route.hgv_destination_conditional")
         return None
     weights = (Kind.WEIGHT, Kind.WEIGHT_RATING, Kind.AXLE_LOAD)
     number = (parse_weight if kind in weights else parse_length)(value)
@@ -321,44 +325,44 @@ def _compare(restriction: Restriction, vehicle: VehicleIn) -> tuple[Level, str] 
     if kind in (Kind.HGV_NO, Kind.HGV_DESTINATION) and not vehicle.is_hgv:
         return None  # zakazy dla ciężarówek nie dotyczą pojazdów o DMC do 3,5 t
     if kind is Kind.HGV_NO:
-        return Level.RED, "Zakaz wjazdu ciężarówek (DMC powyżej 3,5 t)"
+        return Level.RED, t("route.no_hgv")
     if kind is Kind.HGV_DESTINATION:
-        return Level.YELLOW, "Ciężarówki tylko dojazd"
+        return Level.YELLOW, t("route.hgv_destination")
     if value is None or not PLAUSIBLE[kind][0] <= value <= PLAUSIBLE[kind][1]:
         return None
     if kind in (Kind.WEIGHT, Kind.WEIGHT_RATING, Kind.AXLE_LOAD):
-        actual, what, label = {
-            Kind.WEIGHT: (vehicle.weight_t, "Ograniczenie masy rzeczywistej", "pojazd"),
-            Kind.WEIGHT_RATING: (vehicle.gvw_t, "Ograniczenie DMC", "DMC pojazdu"),
-            Kind.AXLE_LOAD: (vehicle.axle_load_t, "Ograniczenie nacisku osi", "pojazd"),
+        actual, key = {
+            Kind.WEIGHT: (vehicle.weight_t, "route.weight_limit"),
+            Kind.WEIGHT_RATING: (vehicle.gvw_t, "route.gvw_limit"),
+            Kind.AXLE_LOAD: (vehicle.axle_load_t, "route.axle_load_limit"),
         }[kind]
         if value < actual:
-            return Level.RED, f"{what} {_num(value)} t, {label} {_num(actual)} t"
+            return Level.RED, t(key, limit=num(value), actual=num(actual))
         return None
     actual, what = {
-        Kind.HEIGHT: (vehicle.height_m, "Ograniczenie wysokości"),
-        Kind.WIDTH: (vehicle.width_m, "Ograniczenie szerokości"),
-        Kind.LENGTH: (vehicle.length_m, "Ograniczenie długości"),
+        Kind.HEIGHT: (vehicle.height_m, t("route.height_limit")),
+        Kind.WIDTH: (vehicle.width_m, t("route.width_limit")),
+        Kind.LENGTH: (vehicle.length_m, t("route.length_limit")),
     }[kind]
     # Znak: wartość dopuszczalna – pojazd 4,0 m pod znakiem 4,0 m jedzie (znak stawia się
     # z zapasem względem prześwitu), wyższy nie może wjechać, nawet jeśli by się zmieścił.
     measured = ":physical" in restriction.raw
     sign = _sign_value(restriction.raw) if measured else value
     if sign is not None and actual > sign:
-        return Level.RED, f"{what} {_num(sign)} m (znak), pojazd {_num(actual)} m"
+        return Level.RED, t("route.size_sign", what=what, limit=num(sign), actual=num(actual))
     if not measured:
         return None
     # Do milimetra: 4,1 − 4,0 w liczbach zmiennoprzecinkowych to 0,0999…, nie 0,1.
     spare = round(value - actual, 3)
     if spare < 0:
-        return Level.RED, f"{what} {_num(value)} m (pomiar), pojazd {_num(actual)} m"
+        return Level.RED, t("route.size_measured", what=what, limit=num(value), actual=num(actual))
     if sign is not None:
         return None  # znak dopuszcza pojazd, a pomiar go mieści
     # Sam pomiar bez znaku: mały zapas = bardzo trudne miejsce, więc planer szuka objazdu.
     if spare < MEASURED_MARGIN_M[kind]:
         return (
             Level.ORANGE,
-            f"{what} {_num(value)} m (pomiar, bez znaku) – zapas tylko {round(spare * 100)} cm",
+            t("route.size_small_margin", what=what, limit=num(value), spare=round(spare * 100)),
         )
     return None
 
@@ -367,11 +371,11 @@ def _limit_label(restriction: Restriction) -> str | None:
     """Wartość do znaku na mapie, np. "4,05 m", "30 t"."""
     kind, value = Kind(restriction.kind), restriction.value
     if kind is Kind.HGV_NO:
-        return "zakaz"
+        return t("route.limit_no_entry")
     if value is None:
         return None
     unit = "m" if kind in (Kind.HEIGHT, Kind.WIDTH, Kind.LENGTH) else "t"
-    return f"{_num(value)} {unit}"
+    return f"{num(value)} {unit}"
 
 
 def _sign_value(raw: str) -> float | None:
@@ -405,7 +409,7 @@ def _bend_findings(points, edges: list[RouteEdge], vehicle: VehicleIn):
             yield _Finding(
                 Level.ORANGE if orange else Level.YELLOW,
                 "bend",
-                f"{'Bardzo ostry' if orange else 'Ostry'} zakręt – promień ok. {round(radius)} m",
+                t("route.bend_very_sharp" if orange else "route.bend_sharp", radius=round(radius)),
                 before,
                 after,
                 key="bend",
@@ -428,7 +432,7 @@ def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
             yield _Finding(
                 Level.YELLOW,
                 node.kind,
-                f"{message} – punkt przy trasie, sprawdź",
+                t("route.point_near_route", message=message),
                 index,
                 index + 1,
                 limit=_limit_label(node),
@@ -487,10 +491,6 @@ def _summarize(points, findings: list[_Finding]) -> Analysis:
     return Analysis(
         level=overall.label, score=round(score, 1), segments=segments, warnings=warnings
     )
-
-
-def _num(value: float) -> str:
-    return f"{value:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
 def _cumulative_m(points) -> list[float]:

@@ -176,26 +176,27 @@ class BrowserLogin {
 
   Session _session(SessionTokens tokens) => Session.fromTokens(serverUrl, tokens, client: _client);
 
-  Future<Session> login() async {
+  /// Logowanie w przeglądarce; [donePage] i [failedPage] – tekst strony po powrocie z logowania.
+  Future<Session> login({required String donePage, required String failedPage}) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     try {
       final callback = 'http://127.0.0.1:${server.port}/callback';
       final url = Uri.parse('$serverUrl/auth/login').replace(queryParameters: {'app': callback});
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw const HttpException('Nie udało się otworzyć przeglądarki.');
+        throw const LoginFailure(LoginProblem.browser);
       }
       final request = await server
           .firstWhere((r) => r.uri.path == '/callback')
-          .timeout(timeout, onTimeout: () => throw TimeoutException('Logowanie trwało zbyt długo.'));
+          .timeout(timeout, onTimeout: () => throw const LoginFailure(LoginProblem.timeout));
       final code = request.uri.queryParameters['code'];
       request.response
         ..headers.contentType = ContentType.html
         ..write('<!doctype html><meta charset="utf-8"><title>TruckMaps</title>'
             '<p style="font:16px system-ui;margin:40px">'
-            '${code == null ? 'Logowanie nie powiodło się.' : 'Zalogowano. Możesz wrócić do aplikacji TruckMaps.'}</p>');
+            '${htmlEscape.convert(code == null ? failedPage : donePage)}</p>');
       await request.response.close();
       if (code == null) {
-        throw HttpException(request.uri.queryParameters['error'] ?? 'Logowanie przerwane.');
+        throw LoginFailure(LoginProblem.failed, request.uri.queryParameters['error']);
       }
       return exchange(code);
     } finally {
@@ -212,7 +213,7 @@ class BrowserLogin {
     );
     final body = jsonDecode(utf8.decode(response.bodyBytes));
     if (response.statusCode != 200) {
-      throw HttpException(body is Map ? '${body['detail']}' : 'Logowanie nie powiodło się.');
+      throw LoginFailure(LoginProblem.failed, body is Map ? '${body['detail']}' : null);
     }
     final tokens = Tokens.fromServer(body as Map<String, dynamic>);
     await _store.save(tokens);
@@ -220,4 +221,19 @@ class BrowserLogin {
   }
 
   Future<void> logout() => _store.clear();
+}
+
+enum LoginProblem { browser, timeout, failed }
+
+/// Nieudane logowanie; tekst dla użytkownika dobiera ekran logowania (w jego języku).
+class LoginFailure implements Exception {
+  const LoginFailure(this.problem, [this.detail]);
+
+  final LoginProblem problem;
+
+  /// Powód z serwera logowania, jeśli jest.
+  final String? detail;
+
+  @override
+  String toString() => detail ?? problem.name;
 }

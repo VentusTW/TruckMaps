@@ -1,6 +1,8 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
+
 /// Lista modułów: aktywne, do kupienia i wymagające nowszej wersji aplikacji.
 class ModulesScreen extends StatelessWidget {
   const ModulesScreen({super.key, required this.modules, this.error});
@@ -10,26 +12,27 @@ class ModulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l;
     if (error != null) return Center(child: Text(error!));
-    if (modules.isEmpty) return const Center(child: Text('Na serwerze nie ma jeszcze modułów.'));
+    if (modules.isEmpty) return Center(child: Text(l.modulesEmpty));
     return ListView(padding: const EdgeInsets.all(12), children: [
       for (final access in modules)
         Card(
           child: ListTile(
             leading: Icon(access.usable ? Icons.check_circle_outline : Icons.lock_outline),
-            title: Text(access.name),
+            title: Text(access.name(Localizations.localeOf(context))),
             subtitle: Text(access.needsAppUpdate
-                ? 'Wymaga nowszej wersji aplikacji.'
+                ? l.moduleNeedsUpdate
                 : access.usable
-                    ? 'Aktywny'
-                    : 'Nieaktywny – kup moduł, żeby z niego korzystać.'),
+                    ? l.moduleActive
+                    : l.moduleInactive),
             trailing: access.usable || access.needsAppUpdate
                 ? null
                 : FilledButton.tonal(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(builder: (_) => BuyModuleScreen(access: access)),
                     ),
-                    child: const Text('Kup moduł'),
+                    child: Text(l.buyModule),
                   ),
           ),
         ),
@@ -47,20 +50,22 @@ class BuyModuleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l;
+    final locale = Localizations.localeOf(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Kup moduł')),
+      appBar: AppBar(title: Text(l.buyModule)),
       body: ListView(padding: const EdgeInsets.all(24), children: [
-        Text(access.name, style: theme.textTheme.headlineSmall),
+        Text(access.name(locale), style: theme.textTheme.headlineSmall),
         const SizedBox(height: 8),
-        Text(access.module?.description ?? ''),
+        Text(access.module?.description(locale) ?? ''),
         if (access.server.version != null) ...[
           const SizedBox(height: 4),
-          Text('Wersja ${access.server.version}', style: theme.textTheme.bodySmall),
+          Text(l.moduleVersion('${access.server.version}'), style: theme.textTheme.bodySmall),
         ],
         const SizedBox(height: 24),
-        const FilledButton(onPressed: null, child: Text('Kup w sklepie – wkrótce')),
+        FilledButton(onPressed: null, child: Text(l.buyInStoreSoon)),
         const SizedBox(height: 12),
-        const Text('Moduł z firmowej licencji? Właściciel firmy przydzieli go w panelu floty.'),
+        Text(l.moduleFromCompanyLicense),
       ]),
     );
   }

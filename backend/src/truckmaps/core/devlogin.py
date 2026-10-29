@@ -26,6 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 from truckmaps.core.auth import InvalidToken, OidcProvider
+from truckmaps.core.i18n import t
 
 FLOW_COOKIE = "tm_flow"
 ACCESS_COOKIE = "tm_access"
@@ -178,7 +179,7 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         """Token dla aplikacji w zamian za jednorazowy kod z przekierowania na loopback."""
         found = app_codes.pop(data.code, None)
         if found is None or found[0] < time.monotonic():
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kod logowania wygasł albo jest zły.")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t("error.login_code_invalid"))
         return found[1]
 
     @router.post("/auth/app/refresh")
@@ -194,13 +195,13 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         )
         if response.is_error:
             raise HTTPException(
-                status.HTTP_401_UNAUTHORIZED, "Sesja wygasła – zaloguj się ponownie."
+                status.HTTP_401_UNAUTHORIZED, t("error.session_expired_login_again")
             )
         tokens = response.json()
         try:
             provider.verify(tokens["access_token"])
         except (KeyError, InvalidToken):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesja wygasła.") from None
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, t("error.session_expired")) from None
         try:
             claims = provider.decode(tokens["id_token"], audience=provider.client_id)
         except (KeyError, InvalidToken):

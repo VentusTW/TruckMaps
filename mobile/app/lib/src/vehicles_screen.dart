@@ -1,6 +1,8 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
+
 /// Profile pojazdów konta (prywatne i firmowe) – wymiary, według których liczona jest trasa.
 class VehiclesScreen extends StatefulWidget {
   const VehiclesScreen({super.key, required this.api});
@@ -25,7 +27,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               Text('${snapshot.error}'),
               TextButton(
                 onPressed: () => setState(() => _vehicles = widget.api.get('/api/vehicles')),
-                child: const Text('Spróbuj ponownie'),
+                child: Text(context.l.retry),
               ),
             ]),
           );
@@ -33,7 +35,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final vehicles = (snapshot.data as List<dynamic>).cast<Map<String, dynamic>>();
         if (vehicles.isEmpty) {
-          return const Center(child: Text('Brak pojazdów. Dodaj pojazd w planerze trasy.'));
+          return Center(child: Text(context.l.vehiclesEmpty));
         }
         return ListView.separated(
           padding: const EdgeInsets.all(12),
@@ -51,20 +53,22 @@ class _VehicleCard extends StatelessWidget {
 
   final Map<String, dynamic> vehicle;
 
-  String _num(Object? value) => '$value'.replaceAll('.', ',');
-
   @override
   Widget build(BuildContext context) {
     final v = vehicle;
+    final l = context.l;
+    String n(Object? value) => value is num ? l.number(value) : '–';
     final company = v['company_id'] != null;
     return Card(
       child: ListTile(
         leading: Icon(company ? Icons.business_outlined : Icons.person_outline),
         title: Text('${v['name']}'),
-        subtitle: Text('wys. ${_num(v['height_m'])} m · szer. ${_num(v['width_m'])} m · '
-            'dł. ${_num(v['length_m'])} m · ${_num(v['weight_t'])} t (DMC ${_num(v['gvw_t'])} t) · '
-            'nacisk osi ${_num(v['axle_load_t'])} t${v['hazmat'] == true ? ' · ADR' : ''}'),
-        trailing: v['can_edit'] == false ? const Tooltip(message: 'Pojazd firmy – tylko do odczytu', child: Icon(Icons.lock_outline)) : null,
+        subtitle: Text(l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']), n(v['weight_t']),
+                n(v['gvw_t']), n(v['axle_load_t'])) +
+            (v['hazmat'] == true ? ' · ADR' : '')),
+        trailing: v['can_edit'] == false
+            ? Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline))
+            : null,
       ),
     );
   }

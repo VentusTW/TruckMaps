@@ -21,6 +21,20 @@ Sesja (token odświeżania) zostaje w magazynie systemu – Menedżer poświadcz
 Keystore (Android), Keychain (iOS) – więc po ponownym uruchomieniu aplikacja nie pyta
 o logowanie; token dostępu odświeża się sam (`POST /auth/app/refresh`).
 
+## Języki
+
+Aplikacja jest wielojęzyczna: teksty są w `app/lib/l10n/app_<język>.arb` (polski
+`app_pl.arb` jest wzorcem z opisami), kod tłumaczeń generuje się sam przy `flutter run`
+i `flutter test` (albo `flutter gen-l10n`). Aplikacja bierze język systemu; języka bez
+tłumaczenia – polski. Ten sam język idzie do serwera (`Accept-Language`), więc ostrzeżenia
+na trasie, zakazy i błędy też są w nim.
+
+Nowy język: skopiuj `app_pl.arb` jako `app_<kod>.arb`, przetłumacz wartości (bez kluczy
+i `{parametrów}`), a na serwerze to samo z `backend/src/truckmaps/core/locales/pl.json`.
+Teksty w kodzie zawsze przez `context.l.<klucz>`; liczby, daty i kwoty przez
+`l.number`, `l.km`, `l.when`, `l.money` (separator dziesiętny i nazwy dni według języka).
+Moduły: `name(locale)`, `description(locale)` i `pick(locale, {...})` z `core_sdk`.
+
 ## Telefon z Androidem (USB)
 
 Telefon w trybie debugowania USB, serwer i Zitadel na komputerze. `adb reverse` sprawia,

@@ -1,10 +1,10 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:module_hello/module_hello.dart';
 
 import 'src/auth.dart';
 import 'src/home.dart';
+import 'src/l10n.dart';
 import 'src/login.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
@@ -15,12 +15,23 @@ final modules = ModuleRegistry([HelloModule()]);
 
 void main() => runApp(const TruckMapsApp());
 
+/// Pierwszy pasujący język systemu (po kodzie języka); bez dopasowania – polski.
+Locale resolveLocale(Locale? device, Iterable<Locale> supported) {
+  for (final locale in supported) {
+    if (locale.languageCode == device?.languageCode) return locale;
+  }
+  return const Locale('pl');
+}
+
 class TruckMapsApp extends StatefulWidget {
-  const TruckMapsApp({super.key, this.session, this.login});
+  const TruckMapsApp({super.key, this.session, this.login, this.locale});
 
   /// Sesja podana z góry (testy); zwykle przywrócona z poprzedniego uruchomienia albo z logowania.
   final Session? session;
   final BrowserLogin? login;
+
+  /// Język wybrany z góry (testy); zwykle język systemu.
+  final Locale? locale;
 
   @override
   State<TruckMapsApp> createState() => _TruckMapsAppState();
@@ -63,10 +74,16 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       title: 'TruckMaps',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: const Color(0xFF1B6E3A), useMaterial3: true),
-      // Polski kalendarz i zegar (wybór godziny wyjazdu).
-      locale: const Locale('pl'),
-      supportedLocales: const [Locale('pl'), Locale('en')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      // Język telefonu / systemu, jeśli aplikacja go ma; inaczej polski.
+      locale: widget.locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localeResolutionCallback: resolveLocale,
+      // Serwer odpowiada w języku aplikacji (ostrzeżenia na trasie, błędy, zakazy).
+      builder: (context, child) {
+        session?.api.language = Localizations.localeOf(context).languageCode;
+        return child!;
+      },
       home: _restoring
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : session == null

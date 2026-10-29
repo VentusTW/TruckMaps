@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from truckmaps.core import timebans
+from truckmaps.core.i18n import t
 from truckmaps.core.route_analysis import RouteEdge
 from truckmaps.core.routing import Route
 from truckmaps.core.timebans import (
@@ -53,7 +54,7 @@ def test_polish_summer_holidays(year, expected):
 
 
 def titles(country, day, state=""):
-    return [(w.title, w.start.hour, w.end.hour) for w in windows(country, day, state)]
+    return [(t(w.title), w.start.hour, w.end.hour) for w in windows(country, day, state)]
 
 
 def test_polish_bans():
@@ -81,7 +82,7 @@ def test_czech_and_slovak_bans_only_on_main_roads():
     assert titles("CZ", date(2026, 10, 25)) == [("niedziela", 13, 22)]
     assert titles("CZ", date(2026, 7, 3)) == [("wakacje – piątek", 17, 21)]
     assert windows("CZ", date(2026, 10, 25))[0].roads == timebans.MAIN_ROADS
-    assert titles("SK", date(2026, 8, 29)) == [("sviatok (Výročie SNP)", 0, 22)]
+    assert titles("SK", date(2026, 8, 29)) == [("święto (Výročie SNP)", 0, 22)]
     assert titles("LT", date(2026, 10, 25)) == []
 
 

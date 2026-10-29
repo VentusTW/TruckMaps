@@ -4,15 +4,17 @@ from sqlalchemy import BigInteger, Float, Index, Integer, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base
+from truckmaps.core.i18n import t
 from truckmaps.core.restrictions import distance_m
 
 SAME_PLACE_M = 100.0
 
-PARKING_KINDS = {
-    "truck_parking": "Parking dla ciężarówek",
-    "rest_area": "MOP (miejsce obsługi podróżnych)",
-    "services": "MOP ze stacją i obsługą",
-}
+PARKING_KINDS = ("truck_parking", "rest_area", "services")
+
+
+def kind_label(kind: str) -> str:
+    """Nazwa rodzaju parkingu w języku zapytania (tekst ``parking.<rodzaj>``)."""
+    return t(f"parking.{kind}") if kind in PARKING_KINDS else kind
 
 
 class TruckParking(Base):

@@ -15,6 +15,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from truckmaps.core.db import get_session
+from truckmaps.core.i18n import t
 from truckmaps.core.polyline import decode_polyline6, encode_polyline6
 from truckmaps.core.restrictions import ROAD_CONTEXT, Kind, Restriction, distance_m
 from truckmaps.core.route_analysis import (
@@ -202,9 +203,11 @@ def build_router(current_user) -> APIRouter:
         try:
             route = decode_polyline6(data.route)
         except (IndexError, ValueError) as exc:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Zła linia trasy.") from exc
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, t("error.bad_route_line")
+            ) from exc
         if len(route) < 2:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Trasa musi mieć 2 punkty.")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, t("error.route_too_short"))
         return build_corridor(db, route, vehicle, data.buffer_m)
 
     @router.post("/position")

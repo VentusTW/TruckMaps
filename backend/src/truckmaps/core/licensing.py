@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 
+from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 
 
@@ -37,12 +38,12 @@ class StaticLicensing:
             if user is None:
                 raise HTTPException(
                     status.HTTP_401_UNAUTHORIZED,
-                    "Wymagane logowanie.",
+                    t("error.login_required"),
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             raise HTTPException(
                 status.HTTP_402_PAYMENT_REQUIRED,
-                detail=f"Moduł '{module_id}' nie jest aktywny dla tego konta.",
+                detail=t("error.module_not_active", module=module_id),
             )
 
         return require_license

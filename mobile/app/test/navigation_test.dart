@@ -12,6 +12,7 @@ import 'package:truckmaps_app/src/planner/planner_screen.dart';
 import 'package:truckmaps_app/src/planner/route.dart';
 
 import 'corridor_test.dart' show routeLine, sideRoad;
+import 'localized.dart';
 
 class FakePositions implements PositionSource {
   final controller = StreamController<LatLng>.broadcast();
@@ -58,8 +59,8 @@ void main() {
       });
     });
     final positions = FakePositions();
-    await tester.pumpWidget(MaterialApp(
-      home: NavigationScreen(
+    await tester.pumpWidget(localized(
+      NavigationScreen(
         api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
         request: NavigationRequest(vehicleId: 'v1', route: route, destination: const LatLng(50, 21.02)),
         source: positions,

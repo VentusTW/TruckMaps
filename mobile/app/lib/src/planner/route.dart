@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../l10n.dart';
+
 /// Kolory oceny jak w planerze w przeglądarce (zielony → czerwony).
 const levelColors = {
   'green': Color(0xFF3B6D11),
@@ -10,14 +12,6 @@ const levelColors = {
   'red': Color(0xFFD62828),
 };
 const unknownColor = Color(0xFF888780);
-
-const levelTexts = {
-  'green': 'Bez problemów dla tego pojazdu',
-  'lime': 'Bez problemów (ronda na trasie)',
-  'yellow': 'Uwaga: trudne miejsca na trasie',
-  'orange': 'Bardzo trudne miejsca dla tego pojazdu',
-  'red': 'Trasa nieprzejezdna dla tego pojazdu',
-};
 
 Color levelColor(String? level) => levelColors[level] ?? unknownColor;
 
@@ -65,8 +59,6 @@ class Cost {
 
   static Cost? fromJson(dynamic json) =>
       json == null ? null : Cost(_d(json['amount']), json['currency'] as String);
-
-  String get label => '≈ ${amount.round()} ${currency == 'PLN' ? 'zł' : currency == 'EUR' ? '€' : currency}';
 }
 
 /// Trasa (wybrana albo alternatywa) z oceną dla pojazdu.
@@ -117,9 +109,10 @@ class PlannedRoute {
     ];
   }
 
-  String get summary {
+  String summary(AppLocalizations l) {
     final hours = durationMin ~/ 60, minutes = (durationMin % 60).round();
-    return '${distanceKm.round()} km · $hours h $minutes min${cost == null ? '' : ' · ${cost!.label}'}';
+    final text = l.routeSummary(distanceKm.round(), hours, minutes);
+    return cost == null ? text : '$text · ${l.money(cost!.amount, cost!.currency)}';
   }
 }
 

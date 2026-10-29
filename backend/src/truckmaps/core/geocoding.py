@@ -6,6 +6,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
+from truckmaps.core.i18n import language, t
 from truckmaps.sdk import Principal
 
 
@@ -41,7 +42,7 @@ class PhotonGeocoder:
         self, query: str, limit: int = 5, near: tuple[float, float] | None = None
     ) -> list[Place]:
         # Ulica w OSM bywa podzielona na wiele odcinków – pobieramy więcej i usuwamy powtórzenia.
-        params: dict[str, object] = {"q": query, "limit": limit * 3, "lang": "pl"}
+        params: dict[str, object] = {"q": query, "limit": limit * 3, "lang": language()}
         if near:
             params["lat"], params["lon"] = near
         unique: dict[str, Place] = {}
@@ -50,7 +51,7 @@ class PhotonGeocoder:
         return list(unique.values())[:limit]
 
     def reverse(self, lat: float, lon: float) -> Place | None:
-        places = self._places(self._get("/reverse", {"lat": lat, "lon": lon, "lang": "pl"}))
+        places = self._places(self._get("/reverse", {"lat": lat, "lon": lon, "lang": language()}))
         return places[0] if places else None
 
     def _get(self, path: str, params: dict) -> dict:
@@ -124,5 +125,5 @@ def _call(action):
         return action()
     except GeocodingUnavailable as exc:
         raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "Wyszukiwarka adresów jest niedostępna."
+            status.HTTP_503_SERVICE_UNAVAILABLE, t("error.geocoding_unavailable")
         ) from exc
