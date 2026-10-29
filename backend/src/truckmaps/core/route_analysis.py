@@ -421,7 +421,9 @@ class _SegmentGrid:
 
     CELL = 0.001
 
-    def __init__(self, points) -> None:
+    def __init__(self, points, cell: float = CELL) -> None:
+        """``cell`` w stopniach; szukanie obejmuje sąsiednie komórki, więc ``max_m`` < komórki."""
+        self.cell = cell
         self.points = points
         self.cells: dict[tuple[int, int], list[int]] = defaultdict(list)
         for i, ((lon1, lat1), (lon2, lat2)) in enumerate(zip(points, points[1:], strict=False)):
@@ -430,7 +432,7 @@ class _SegmentGrid:
                     self.cells[(cx, cy)].append(i)
 
     def _c(self, value: float) -> int:
-        return math.floor(value / self.CELL)
+        return math.floor(value / self.cell)
 
     def nearest(self, lon: float, lat: float, max_m: float) -> int | None:
         best, best_index = max_m, None

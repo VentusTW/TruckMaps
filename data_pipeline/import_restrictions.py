@@ -21,9 +21,11 @@ from sqlalchemy import delete, insert
 
 from truckmaps.core.config import load_env_file
 from truckmaps.core.db import Database
+from truckmaps.core.polyline import encode_polyline6
 from truckmaps.core.restrictions import (
     MINOR_HIGHWAYS,
     RESTRICTION_KEYS,
+    ROAD_CONTEXT,
     Kind,
     Restriction,
     restrictions_from_tags,
@@ -73,24 +75,55 @@ def main() -> None:
 
 
 def read_restrictions(path: Path, source_date: str):
-    objects = osmium.FileProcessor(str(path), osmium.osm.NODE | osmium.osm.WAY).with_filter(
-        osmium.filter.KeyFilter(*RESTRICTION_KEYS)
+    # Położenia węzłów – przebieg dróg trafia do korytarza danych dla telefonu.
+    objects = (
+        osmium.FileProcessor(str(path), osmium.osm.NODE | osmium.osm.WAY)
+        .with_locations()
+        .with_filter(osmium.filter.KeyFilter(*RESTRICTION_KEYS))
     )
     for obj in objects:
         tags = {tag.k: tag.v for tag in obj.tags}
         is_node = obj.is_node()
-        for kind, value, raw in restrictions_from_tags(tags):
+        found = restrictions_from_tags(tags)
+        if not found:
+            continue
+        # Kopia danych od razu: obiekt pyosmium jest ważny tylko w tej iteracji.
+        if is_node:
+            points = [(obj.location.lon, obj.location.lat)]
+        else:
+            points = [(n.lon, n.lat) for n in obj.nodes if n.location.valid()]
+        shape = _shape(points, is_node)
+        for kind, value, raw in found:
+            # Kontekst drogi (szerokość, strefa) nie potrzebuje przebiegu – oszczędność miejsca.
+            with_shape = shape if kind not in ROAD_CONTEXT else _NO_SHAPE
             yield {
                 "osm_type": "node" if is_node else "way",
                 "osm_id": obj.id,
                 "kind": kind.value,
                 "value": value,
                 "raw": raw[:100],
-                "lat": obj.location.lat if is_node else None,
-                "lon": obj.location.lon if is_node else None,
+                "lat": points[0][1] if is_node and points else None,
+                "lon": points[0][0] if is_node and points else None,
+                **with_shape,
                 "source": SOURCE,
                 "source_date": source_date,
             }
+
+
+_NO_SHAPE = {"line": None, "min_lat": None, "min_lon": None, "max_lat": None, "max_lon": None}
+
+
+def _shape(points: list[tuple[float, float]], is_node: bool) -> dict:
+    if not points:
+        return _NO_SHAPE
+    lons, lats = [p[0] for p in points], [p[1] for p in points]
+    return {
+        "line": None if is_node else encode_polyline6(points),
+        "min_lat": min(lats),
+        "min_lon": min(lons),
+        "max_lat": max(lats),
+        "max_lon": max(lons),
+    }
 
 
 def read_industrial_roads(path: Path, source_date: str):

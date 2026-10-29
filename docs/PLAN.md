@@ -224,7 +224,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Ręczna zmiana trasy: punkty pośrednie, przeciąganie A / B / punktów pośrednich, przełącznik „Omijaj trudne drogi”
 - [x] Znaki i pomiary: wartość ze znaku jest dopuszczalna (4,0 m pod znakiem 4,0 m jedzie); sam zmierzony prześwit bez znaku z zapasem < 20 cm (szerokość < 30 cm) – pomarańczowy i omijany; ograniczenia na trasie i ominięte miejsca jako znaki z wartością na mapie
 - [ ] Dostroić progi oceny na trasach testowych z kierowcami (zakręty, wąskie drogi, punkty przy trasie)
-- [ ] Generowanie korytarza danych dla telefonu
+- [x] Korytarz danych dla telefonu (`POST /api/corridor`): ograniczenia w pasie 500 m wokół trasy ocenione dla pojazdu, przebiegi dróg jako polilinie 1e-6, odpowiedź kompresowana; sprawdzanie pozycji bez sieci (`check_position`: na trasie – spokój, poza trasą na drodze czerwonej – alarm), ta sama logika w JS w planerze („Symulacja jazdy”) jako wzór dla aplikacji
 - [x] **Moduł testowy „hello”** udowadniający, że system modułów działa
 
 **Gotowe, gdy:** API zwraca kolorowaną trasę Poznań → Berlin dla zestawu 40 t / 4 m, a testy przechodzą w macierzy „rdzeń” / „rdzeń + hello”.

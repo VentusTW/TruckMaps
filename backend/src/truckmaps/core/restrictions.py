@@ -10,7 +10,7 @@ import re
 from collections.abc import Iterable
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Float, Index, String, select
+from sqlalchemy import BigInteger, Float, Index, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base
@@ -43,7 +43,10 @@ BAD_SMOOTHNESS = {"bad", "very_bad", "horrible", "very_horrible", "impassable"}
 
 class Restriction(Base):
     __tablename__ = "road_restrictions"
-    __table_args__ = (Index("ix_road_restrictions_osm", "osm_type", "osm_id"),)
+    __table_args__ = (
+        Index("ix_road_restrictions_osm", "osm_type", "osm_id"),
+        Index("ix_road_restrictions_bbox", "min_lat", "min_lon"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     osm_type: Mapped[str] = mapped_column(String(4))
@@ -54,6 +57,13 @@ class Restriction(Base):
     raw: Mapped[str] = mapped_column(String(100))
     lat: Mapped[float | None] = mapped_column(Float)
     lon: Mapped[float | None] = mapped_column(Float)
+    line: Mapped[str | None] = mapped_column(Text)
+    """Przebieg drogi (polilinia 1e-6) – do korytarza danych dla telefonu."""
+    min_lat: Mapped[float | None] = mapped_column(Float)
+    min_lon: Mapped[float | None] = mapped_column(Float)
+    max_lat: Mapped[float | None] = mapped_column(Float)
+    max_lon: Mapped[float | None] = mapped_column(Float)
+    """Prostokąt otaczający drogę albo punkt – szybkie wyszukiwanie wzdłuż trasy."""
     source: Mapped[str] = mapped_column(String(30))
     source_date: Mapped[str] = mapped_column(String(20))
 

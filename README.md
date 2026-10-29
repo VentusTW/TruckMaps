@@ -42,7 +42,7 @@ docker compose -f infra/docker-compose.yml --profile routing up -d --wait
 | Adres | Co to jest |
 |---|---|
 | http://localhost:8000/ | strona powitalna z logowaniem (testowa, do czasu aplikacji Flutter) |
-| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa w kolorach (zielony / żółty / czerwony migający) z listą ostrzeżeń; panel „Firma i flota” (członkowie, role, kody zaproszeń, pojazdy firmy, domyślne stawki kosztów); szacunkowy koszt trasy ze stawek €/km i €/h; adresy, punkty pośrednie i współrzędne GPS (np. `50.0131, 21.0214`) w polach Skąd / Dokąd / Punkt pośredni, bazy firmy po wpisaniu „baza”; znaki ograniczeń na mapie, okno z wyjaśnieniem, gdy trasy nie da się wyznaczyć |
+| http://localhost:8000/planer | planer trasy: profil pojazdu, punkty A i B klikane na mapie, trasa w kolorach (zielony / żółty / czerwony migający) z listą ostrzeżeń; panel „Firma i flota” (członkowie, role, kody zaproszeń, pojazdy firmy, domyślne stawki kosztów); szacunkowy koszt trasy ze stawek €/km i €/h; adresy, punkty pośrednie i współrzędne GPS (np. `50.0131, 21.0214`) w polach Skąd / Dokąd / Punkt pośredni, bazy firmy po wpisaniu „baza”; znaki ograniczeń na mapie, okno z wyjaśnieniem, gdy trasy nie da się wyznaczyć; „Korytarz dla telefonu” i „Symulacja jazdy” (alarm bez zasięgu) |
 | http://localhost:8000/docs | dokumentacja API; token do „Authorize” jest na stronie powitalnej po zalogowaniu |
 | http://localhost:8000/api/me | zalogowany użytkownik |
 | http://localhost:8025 | Mailpit – maile wysłane przez Zitadela (kody, potwierdzenia) |

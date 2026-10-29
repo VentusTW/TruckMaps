@@ -7,8 +7,9 @@ from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 
-from truckmaps.core import api, companies, devlogin, geocoding, routing, vehicles
+from truckmaps.core import api, companies, corridor, devlogin, geocoding, routing, vehicles
 from truckmaps.core.auth import AuthService, OidcProvider, TokenVerifier
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Database
@@ -44,6 +45,8 @@ def create_app(
         yield
 
     app = FastAPI(title="TruckMaps", version=CORE_VERSION, lifespan=lifespan)
+    # Trasy i korytarze danych to duże odpowiedzi JSON – kompresja zmniejsza je kilkukrotnie.
+    app.add_middleware(GZipMiddleware, minimum_size=2000)
 
     provider = None
     if settings.oidc_enabled:
@@ -88,6 +91,7 @@ def create_app(
     app.include_router(companies.build_router(auth.current_user))
     app.include_router(vehicles.build_router(auth.current_user))
     app.include_router(routing.build_router(auth.current_user))
+    app.include_router(corridor.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
         app.include_router(devlogin.build_router(provider, settings.public_url))

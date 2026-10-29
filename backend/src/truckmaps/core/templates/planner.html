@@ -209,6 +209,11 @@
   </ul>
   <div id="issues" hidden></div>
   <div class="result" id="result" hidden></div>
+  <div class="row" id="corridor-tools" hidden>
+    <button type="button" id="corridor">Korytarz dla telefonu</button>
+    <button type="button" id="simulate" title="Kliknij na mapie miejsce – sprawdzenie jak w telefonie bez zasięgu">Symulacja jazdy</button>
+  </div>
+  <p class="muted" id="corridor-info" hidden></p>
   <div class="error" id="error" hidden></div>
 </aside>
 <div id="map"></div>
@@ -600,10 +605,13 @@ function clearRoute() {
   clearIssues();
   clearSigns();
   clearRouteLabels();
+  clearCorridor();
+  $("corridor-tools").hidden = true;
   $("result").hidden = true;
 }
 
 map.on("click", (event) => {
+  if (simulating) return simulatePosition(event.lngLat);
   if (viaMode && start && end) {
     addVia(event.lngLat);
     setViaMode(false);
@@ -646,6 +654,15 @@ map.on("load", () => {
   map.addSource("issues", { type: "geojson", data: empty });
   map.addLayer({ id: "issues-line", type: "line", source: "issues",
                  paint: { "line-color": "#185fa5", "line-width": 2, "line-dasharray": [2, 2] } });
+
+  // Korytarz dla telefonu: ograniczenia wokół trasy ocenione dla pojazdu (przerywane).
+  map.addSource("corridor", { type: "geojson", data: empty });
+  map.addLayer({ id: "corridor-lines", type: "line", source: "corridor", layout: lineLayout,
+                 filter: ["==", ["geometry-type"], "LineString"],
+                 paint: { "line-width": 4, "line-dasharray": [1.5, 1], "line-color": LEVEL_COLOR } });
+  map.addLayer({ id: "corridor-points", type: "circle", source: "corridor",
+                 filter: ["==", ["geometry-type"], "Point"],
+                 paint: { "circle-radius": 6, "circle-color": LEVEL_COLOR, "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
 
   map.addSource("route", { type: "geojson", data: empty });
   map.addLayer({ id: "route-casing", type: "line", source: "route", layout: lineLayout,
@@ -810,6 +827,8 @@ function showRoute(route, options = {}) {
     button.addEventListener("click", () => chooseAlternative(Number(button.dataset.alt))));
   showSigns(route);
   showRouteLabels(route);
+  clearCorridor();
+  $("corridor-tools").hidden = false;
   showIssues(route.stop_issues ?? []);
   $("result").hidden = false;
 }
@@ -838,6 +857,149 @@ function signMarker(warning, avoided) {
     .addTo(map);
   signMarkers.push(marker);
 }
+
+// --- Korytarz danych dla telefonu i symulacja alarmu --------------------------------------
+// To samo sprawdzenie pozycji co w telefonie bez zasięgu (truckmaps.core.corridor.check_position):
+// na trasie – spokój; poza trasą, na drodze czerwonej dla pojazdu – alarm.
+const OFF_ROUTE_M = 40, ON_ROAD_M = 15;
+const LEVEL_NAME = { red: "nieprzejezdnych", orange: "bardzo trudnych", yellow: "trudnych" };
+let corridor = null;
+let simulating = false;
+let simulationPopup = null;
+
+function encodePolyline6(points) {
+  let out = "", lastLat = 0, lastLon = 0;
+  for (const [lon, lat] of points) {
+    const latI = Math.round(lat * 1e6), lonI = Math.round(lon * 1e6);
+    for (let delta of [latI - lastLat, lonI - lastLon]) {
+      let value = delta < 0 ? ~(delta << 1) : delta << 1;
+      while (value >= 0x20) { out += String.fromCharCode((0x20 | (value & 0x1f)) + 63); value >>>= 5; }
+      out += String.fromCharCode(value + 63);
+    }
+    [lastLat, lastLon] = [latI, lonI];
+  }
+  return out;
+}
+
+function decodePolyline6(text) {
+  const points = [];
+  let index = 0, lat = 0, lon = 0;
+  while (index < text.length) {
+    const deltas = [];
+    for (let k = 0; k < 2; k++) {
+      let shift = 0, result = 0, byte;
+      do { byte = text.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+      deltas.push(result & 1 ? ~(result >> 1) : result >> 1);
+    }
+    lat += deltas[0]; lon += deltas[1];
+    points.push([lon / 1e6, lat / 1e6]);
+  }
+  return points;
+}
+
+function metersBetween([lon1, lat1], [lon2, lat2]) {
+  const x = (lon2 - lon1) * Math.PI / 180 * Math.cos((lat1 + lat2) / 2 * Math.PI / 180);
+  return Math.hypot(x, (lat2 - lat1) * Math.PI / 180) * 6371000;
+}
+
+function distanceToLine(point, line) {
+  if (line.length === 1) return metersBetween(point, line[0]);
+  let best = Infinity;
+  const scale = Math.cos(point[1] * Math.PI / 180);
+  for (let i = 0; i < line.length - 1; i++) {
+    const [a, b] = [line[i], line[i + 1]];
+    const [px, py] = [(point[0] - a[0]) * scale, point[1] - a[1]];
+    const [dx, dy] = [(b[0] - a[0]) * scale, b[1] - a[1]];
+    const len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / len2)) : 0;
+    best = Math.min(best, metersBetween(point, [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]));
+  }
+  return best;
+}
+
+function checkPosition(c, lngLat) {
+  const point = [lngLat.lng, lngLat.lat];
+  if (distanceToLine(point, c.routeLine) <= OFF_ROUTE_M) return { onRoute: true, alarm: null };
+  let alarm = null, best = ON_ROAD_M;
+  for (const item of c.items) {
+    if (item.level !== "red") continue;
+    const distance = distanceToLine(point, item.points);
+    if (distance <= best) { best = distance; alarm = item; }
+  }
+  return { onRoute: false, alarm };
+}
+
+function clearCorridor() {
+  corridor = null;
+  map.getSource("corridor")?.setData({ type: "FeatureCollection", features: [] });
+  $("corridor-info").hidden = true;
+  setSimulating(false);
+}
+
+async function loadCorridor() {
+  if (!currentRoute) return;
+  $("corridor").disabled = true;
+  try {
+    const started = performance.now();
+    const response = await fetch("/api/corridor", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicle_id: $("vehicle-select").value, route: encodePolyline6(currentRoute.geometry) }),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(JSON.parse(text).detail ?? "Nie udało się pobrać korytarza.");
+    const data = JSON.parse(text);
+    corridor = {
+      ...data,
+      routeLine: decodePolyline6(data.route),
+      items: data.items.map((item) => ({ ...item, points: decodePolyline6(item.line) })),
+    };
+    map.getSource("corridor")?.setData({
+      type: "FeatureCollection",
+      features: corridor.items.map((item) => ({
+        type: "Feature",
+        properties: { level: item.level },
+        geometry: item.points.length === 1
+          ? { type: "Point", coordinates: item.points[0] }
+          : { type: "LineString", coordinates: item.points },
+      })),
+    });
+    const counts = ["red", "orange", "yellow"].map((level) =>
+      `${corridor.items.filter((i) => i.level === level).length} ${LEVEL_NAME[level]}`).join(", ");
+    $("corridor-info").textContent = `Korytarz ${corridor.buffer_m} m wokół trasy: ${corridor.items.length} ograniczeń (${counts}), ` +
+      `${(text.length / 1024).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} kB przed kompresją, ` +
+      `${Math.round(performance.now() - started)} ms. Przerywane linie – to, co dostaje telefon.`;
+    $("corridor-info").hidden = false;
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    $("corridor").disabled = false;
+  }
+}
+
+function setSimulating(on) {
+  simulating = on;
+  $("simulate").classList.toggle("active", on);
+  simulationPopup?.remove();
+  if (on) $("hint").textContent = "Symulacja: kliknij na mapie pozycję ciężarówki – sprawdzenie jak w telefonie bez zasięgu.";
+  else $("hint").textContent = hintText();
+}
+
+async function simulatePosition(lngLat) {
+  if (!corridor) await loadCorridor();
+  if (!corridor) return;
+  const result = checkPosition(corridor, lngLat);
+  const html = result.onRoute
+    ? "<strong>Na trasie</strong> – bez alarmu."
+    : result.alarm
+      ? `<strong style="color:#d62828">ALARM: ${escapeHtml(result.alarm.message)}</strong><br>Zawróć – ten pojazd tu nie przejedzie.`
+      : "<strong>Poza trasą</strong> – droga bez ograniczeń dla tego pojazdu (przeliczenie trasy).";
+  simulationPopup?.remove();
+  simulationPopup = new maplibregl.Popup({ closeOnClick: false }).setLngLat(lngLat).setHTML(html).addTo(map);
+}
+
+$("corridor").addEventListener("click", loadCorridor);
+$("simulate").addEventListener("click", () => setSimulating(!simulating));
 
 // --- Etykiety tras: długość / czas / koszt w połowie trasy -----------------------------
 let routeLabels = [];
