@@ -41,6 +41,19 @@
   .dot.orange { background:#f08c00; } .dot.red { background:#d62828; }
   .dot.blink { animation:blink 1s steps(2, start) infinite; }
   @keyframes blink { to { visibility:hidden; } }
+  /* Znak ograniczenia na mapie (jak znak drogowy: białe koło z kolorową obwódką). */
+  .sign { width:38px; height:38px; border-radius:50%; background:#fff; border:5px solid #d62828; box-sizing:border-box;
+          display:grid; place-items:center; font:700 11px/1 system-ui; color:#1f1e1c; cursor:pointer;
+          box-shadow:0 1px 4px rgba(0,0,0,.45); text-align:center; }
+  .sign.orange { border-color:#f08c00; } .sign.yellow { border-color:#f5c518; }
+  .sign.red { animation:pulse 1s steps(2, start) infinite; }
+  .sign.avoided { opacity:.9; border-style:dashed; }
+  .sign.avoided::after { content:"ominięto"; position:absolute; top:38px; font:600 10px system-ui; color:#fff;
+                         background:#5f5e5a; padding:1px 4px; border-radius:4px; white-space:nowrap; }
+  @keyframes pulse { to { border-color:#fff; } }
+  .avoided-list { margin:4px 0 0; padding-left:18px; font-size:13px; }
+  button.link { border:none; padding:0; background:none; color:var(--accent); text-align:left; font-size:13px; flex:none; }
+  .sign { position:relative; }
   .badge.lime { color:#3b6d11; } .badge.orange { color:#c26f00; } .result.orange { border-color:#f08c00; }
   .legend { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:var(--muted); }
   .legend li { display:flex; align-items:center; gap:6px; } .legend .dot { margin:0; }
@@ -477,6 +490,7 @@ function clearRoute() {
   }
   currentRoute = null;
   clearIssues();
+  clearSigns();
   $("result").hidden = true;
 }
 
@@ -562,9 +576,12 @@ function analysisHtml(route) {
   const items = analysis.warnings.map((w, i) =>
     `<li><button type="button" data-warning="${i}"><span class="dot ${w.level}"></span>` +
     `<span>km ${w.km.toLocaleString("pl-PL")} – ${escapeHtml(w.message)}</span></button></li>`).join("");
+  const avoidedItems = (route.avoided_warnings ?? []).map((w, i) =>
+    `<li><button type="button" class="link" data-avoided="${i}">${escapeHtml(w.message)}</button></li>`).join("");
   const detour = route.avoided.length
     ? `<p class="muted">Ominięto trudne miejsca: +${(route.distance_km - route.base_distance_km).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} km ` +
-      `względem najkrótszej trasy (${route.base_distance_km.toLocaleString("pl-PL")} km).</p>`
+      `względem najkrótszej trasy (${route.base_distance_km.toLocaleString("pl-PL")} km).</p>` +
+      (avoidedItems ? `<ul class="avoided-list">${avoidedItems}</ul>` : "")
     : "";
   return `<span class="badge ${analysis.level}">${LEVEL_TEXT[analysis.level]}</span>` + detour +
     (items ? `<ul class="warnings">${items}</ul>` : "");
@@ -641,10 +658,48 @@ function showRoute(route, options = {}) {
     const w = route.analysis.warnings[Number(button.dataset.warning)];
     map.flyTo({ center: [w.lon, w.lat], zoom: 17 });
   }));
+  $("result").querySelectorAll("[data-avoided]").forEach((button) => button.addEventListener("click", () => {
+    const w = route.avoided_warnings[Number(button.dataset.avoided)];
+    map.flyTo({ center: [w.lon, w.lat], zoom: 16 });
+  }));
   $("result").querySelectorAll("[data-alt]").forEach((button) =>
     button.addEventListener("click", () => chooseAlternative(Number(button.dataset.alt))));
+  showSigns(route);
   showIssues(route.stop_issues ?? []);
   $("result").hidden = false;
+}
+
+// --- Znaki ograniczeń na mapie -----------------------------------------------------
+// Ograniczenia wymiarów i masy (z wartością, np. "4,05 m") oraz bardzo trudne miejsca na
+// trasie, a także miejsca ominięte przez objazd – żeby było widać, czego trasa unika.
+let signMarkers = [];
+
+function clearSigns() {
+  signMarkers.forEach((m) => m.remove());
+  signMarkers = [];
+}
+
+function signMarker(warning, avoided) {
+  const element = document.createElement("div");
+  element.className = `sign ${warning.level}${avoided ? " avoided" : ""}`;
+  element.textContent = warning.limit ?? "!";
+  element.title = warning.message;
+  element.addEventListener("click", (event) => event.stopPropagation());
+  element.addEventListener("dblclick", (event) => event.stopPropagation());
+  const note = avoided ? "Ominięte – trasa jedzie objazdem." : `km ${warning.km.toLocaleString("pl-PL")} trasy.`;
+  const marker = new maplibregl.Marker({ element })
+    .setLngLat([warning.lon, warning.lat])
+    .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(`<strong>${escapeHtml(warning.message)}</strong><br>${note}`))
+    .addTo(map);
+  signMarkers.push(marker);
+}
+
+function showSigns(route) {
+  clearSigns();
+  for (const w of route.analysis?.warnings ?? []) {
+    if (w.limit || ["orange", "red"].includes(w.level)) signMarker(w, false);
+  }
+  for (const w of route.avoided_warnings ?? []) signMarker(w, true);
 }
 
 // --- Punkty niedostępne dla pojazdu i parkingi w pobliżu ---------------------------

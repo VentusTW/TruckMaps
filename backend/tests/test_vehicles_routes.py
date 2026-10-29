@@ -180,13 +180,48 @@ def test_route_analysis_uses_restrictions_from_database(database):
     vehicle_id = client.post("/api/vehicles", json=TRUCK, headers=as_user("anna")).json()["id"]
     body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id}
 
-    analysis = client.post("/api/routes", json=body, headers=as_user("anna")).json()["analysis"]
+    response = client.post("/api/routes", json=body, headers=as_user("anna"))
 
-    assert analysis["level"] == "red"
-    assert analysis["segments"] == [{"start_index": 0, "end_index": 1, "level": "red"}]
-    assert analysis["warnings"][0]["message"] == (
-        "Ograniczenie wysokości 3,8 m, pojazd 4 m (Mostowa)"
-    )
+    # Jedyna trasa przechodzi pod wiaduktem, pod którym zestaw nie przejedzie – zamiast trasy
+    # wyjaśnienie, gdzie i dlaczego.
+    assert response.status_code == 422
+    assert "Ograniczenie wysokości 3,8 m (znak), pojazd 4 m (Mostowa)" in response.json()["detail"]
+
+
+def add_low_bridge(database, way_id: int) -> None:
+    with database.session() as db:
+        db.add(
+            Restriction(
+                osm_type="way",
+                osm_id=way_id,
+                kind="height",
+                value=3.8,
+                raw="maxheight=3.8",
+                source="osm",
+                source_date="2026-10-27",
+            )
+        )
+        db.commit()
+
+
+@pytest.mark.parametrize("avoid_difficult", [True, False])
+def test_impassable_road_is_always_avoided_whatever_the_detour(database, avoid_difficult):
+    add_low_bridge(database, way_id=2)  # odcinek przez osiedle w DetourRouter
+    router = DetourRouter(detour_km=50.0)  # objazd dużo dłuższy niż zwykły limit
+    client = make_client(database, router)
+
+    body = client.post(
+        "/api/routes",
+        json=route_body(client, avoid_difficult=avoid_difficult),
+        headers=as_user("anna"),
+    ).json()
+
+    assert body["distance_km"] == 50.0
+    assert body["analysis"]["level"] == "green"
+    # Przy włączonym omijaniu ominięta jest też ulica osiedlowa na tym odcinku.
+    assert "3,8 m" in [w["limit"] for w in body["avoided_warnings"]]
+    # Wariant przez wiadukt nie jest proponowany nawet jako alternatywa.
+    assert all(a["analysis"]["level"] != "red" for a in body["alternatives"])
 
 
 @pytest.mark.parametrize(
@@ -343,6 +378,9 @@ def test_planner_avoids_orange_section_when_detour_is_reasonable(database):
     assert body["analysis"]["level"] == "green"
     assert body["avoided"]
     assert router.excluded == [Point(**p) for p in body["avoided"]]
+    # Co ominięto – do pokazania na mapie obok objazdu.
+    assert [w["level"] for w in body["avoided_warnings"]] == ["orange"]
+    assert "osiedlowa" in body["avoided_warnings"][0]["message"]
     # Najkrótsza trasa przez osiedle zostaje pokazana jako alternatywa.
     assert [(a["distance_km"], a["analysis"]["level"]) for a in body["alternatives"]] == [
         (10.0, "orange")

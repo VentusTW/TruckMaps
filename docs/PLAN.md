@@ -222,6 +222,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] DMC w profilu pojazdu (masa rzeczywista ≤ DMC): ograniczenia DMC z OSM (maxweightrating), zakazy dla ciężarówek tylko przy DMC > 3,5 t; później podstawa myta
 - [x] Punkty niedostępne dla pojazdu (start, cel, pośrednie): najbliższe miejsce na drodze dostępnej dla pojazdu (Valhalla /locate, próg 40 m), komunikat przy punkcie pośrednim; przy starcie i celu – też przy trudnym dojeździe – najbliższe parkingi dla ciężarówek i MOP-y z OSM (do 20 km), „jedź tutaj”
 - [x] Ręczna zmiana trasy: punkty pośrednie, przeciąganie A / B / punktów pośrednich, przełącznik „Omijaj trudne drogi”
+- [x] Znaki i pomiary: wartość ze znaku jest dopuszczalna (4,0 m pod znakiem 4,0 m jedzie); sam zmierzony prześwit bez znaku z zapasem < 20 cm (szerokość < 30 cm) – pomarańczowy i omijany; ograniczenia na trasie i ominięte miejsca jako znaki z wartością na mapie
 - [ ] Dostroić progi oceny na trasach testowych z kierowcami (zakręty, wąskie drogi, punkty przy trasie)
 - [ ] Generowanie korytarza danych dla telefonu
 - [x] **Moduł testowy „hello”** udowadniający, że system modułów działa
@@ -236,6 +237,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Planowanie trasy z kolorami ryzyka
 - [ ] Nawigacja: GPS, dopasowanie do drogi, komunikaty głosowe, przeliczanie trasy
 - [ ] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza
+  - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
 - [ ] Zgłoszenia od kierowców
 - [ ] Punkty dostawy: wyświetlanie przy celu, zgłaszanie bramy/rampy/godzin przyjęć jednym dotknięciem, cel trasy przy rampie
 - [ ] Ekrany konta osobno od planera (dziś wszystko jest w jednym panelu strony testowej): przy rejestracji wybór „mam firmę” (założenie firmy) albo „dołączam kodem”; ustawienia konta, firmy, członków, pojazdów i kosztów w osobnych ekranach

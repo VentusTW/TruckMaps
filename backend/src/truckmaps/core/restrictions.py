@@ -113,7 +113,12 @@ def restrictions_from_tags(tags: dict[str, str]) -> list[tuple[Kind, float | Non
     found: dict[Kind, tuple[Kind, float | None, str]] = {}
     for key, kind in LENGTH_TAGS.items():
         if key in tags and kind not in found and (value := parse_length(tags[key])):
-            found[kind] = (kind, value, f"{key}={tags[key]}")
+            raw = f"{key}={tags[key]}"
+            sign = key.removesuffix(":physical")
+            if sign != key and sign in tags:
+                # Pomiar i znak razem: ocena potrzebuje obu (znak dopuszcza, pomiar ostrzega).
+                raw += f";{sign}={tags[sign]}"
+            found[kind] = (kind, value, raw)
     for key, kind in WEIGHT_TAGS.items():
         if key in tags and kind not in found and (value := parse_weight(tags[key])):
             found[kind] = (kind, value, f"{key}={tags[key]}")

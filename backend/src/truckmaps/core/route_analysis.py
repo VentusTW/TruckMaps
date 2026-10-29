@@ -17,14 +17,20 @@ from enum import IntEnum
 
 from pydantic import BaseModel
 
-from truckmaps.core.restrictions import ROAD_CONTEXT, Kind, Restriction, distance_m
+from truckmaps.core.restrictions import (
+    ROAD_CONTEXT,
+    Kind,
+    Restriction,
+    distance_m,
+    parse_length,
+)
 from truckmaps.core.vehicles import VehicleIn
 
-# Zapas (pomarańczowy poniżej pierwszej wartości, żółty poniżej drugiej).
-MARGINS_M = {
-    Kind.HEIGHT: (0.10, 0.20),
-    Kind.WIDTH: (0.15, 0.30),
-    Kind.LENGTH: (0.0, 0.50),
+# Zapas do zmierzonego prześwitu (maxheight:physical, maxwidth:physical) bez znaku – poniżej
+# tej wartości miejsce jest pomarańczowe i omijane. Wartość ze znaku jest dopuszczalna bez zapasu.
+MEASURED_MARGIN_M = {
+    Kind.HEIGHT: 0.20,
+    Kind.WIDTH: 0.30,
 }
 
 # Wartości spoza tych zakresów to prawie na pewno błędy w danych (np. 615 m wysokości).
@@ -105,6 +111,8 @@ class RouteWarning(BaseModel):
     lon: float
     lat: float
     km: float
+    limit: str | None = None
+    """Wartość ograniczenia do znaku na mapie, np. "4,05 m", "30 t", "zakaz"."""
 
 
 class Analysis(BaseModel):
@@ -125,6 +133,7 @@ class _Finding:
     """Ten sam klucz w sąsiednich odcinkach → jedno ostrzeżenie (np. długi wiadukt)."""
     value: float | None = None
     """Przy scalaniu zostaje komunikat z najmniejszą wartością (np. najciaśniejszy łuk)."""
+    limit: str | None = None
 
 
 def analyze(
@@ -153,7 +162,14 @@ def _edge_findings(edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restr
         finding = _compare(restriction, vehicle)
         if finding:
             level, message = finding
-            yield _Finding(level, restriction.kind, message + name, *span, key=restriction.raw)
+            yield _Finding(
+                level,
+                restriction.kind,
+                message + name,
+                *span,
+                key=restriction.raw,
+                limit=_limit_label(restriction),
+            )
 
     road = _road_level(edge, vehicle, context)
     if road:
@@ -216,16 +232,46 @@ def _compare(restriction: Restriction, vehicle: VehicleIn) -> tuple[Level, str] 
         Kind.WIDTH: (vehicle.width_m, "Ograniczenie szerokości"),
         Kind.LENGTH: (vehicle.length_m, "Ograniczenie długości"),
     }[kind]
-    orange_margin, yellow_margin = MARGINS_M[kind]
+    # Znak: wartość dopuszczalna – pojazd 4,0 m pod znakiem 4,0 m jedzie (znak stawia się
+    # z zapasem względem prześwitu), wyższy nie może wjechać, nawet jeśli by się zmieścił.
+    measured = ":physical" in restriction.raw
+    sign = _sign_value(restriction.raw) if measured else value
+    if sign is not None and actual > sign:
+        return Level.RED, f"{what} {_num(sign)} m (znak), pojazd {_num(actual)} m"
+    if not measured:
+        return None
     # Do milimetra: 4,1 − 4,0 w liczbach zmiennoprzecinkowych to 0,0999…, nie 0,1.
     spare = round(value - actual, 3)
     if spare < 0:
-        return Level.RED, f"{what} {_num(value)} m, pojazd {_num(actual)} m"
-    message = f"{what} {_num(value)} m – zapas tylko {round(spare * 100)} cm"
-    if spare < orange_margin:
-        return Level.ORANGE, message
-    if spare < yellow_margin:
-        return Level.YELLOW, message
+        return Level.RED, f"{what} {_num(value)} m (pomiar), pojazd {_num(actual)} m"
+    if sign is not None:
+        return None  # znak dopuszcza pojazd, a pomiar go mieści
+    # Sam pomiar bez znaku: mały zapas = bardzo trudne miejsce, więc planer szuka objazdu.
+    if spare < MEASURED_MARGIN_M[kind]:
+        return (
+            Level.ORANGE,
+            f"{what} {_num(value)} m (pomiar, bez znaku) – zapas tylko {round(spare * 100)} cm",
+        )
+    return None
+
+
+def _limit_label(restriction: Restriction) -> str | None:
+    """Wartość do znaku na mapie, np. "4,05 m", "30 t"."""
+    kind, value = Kind(restriction.kind), restriction.value
+    if kind is Kind.HGV_NO:
+        return "zakaz"
+    if value is None:
+        return None
+    unit = "m" if kind in (Kind.HEIGHT, Kind.WIDTH, Kind.LENGTH) else "t"
+    return f"{_num(value)} {unit}"
+
+
+def _sign_value(raw: str) -> float | None:
+    """Wartość ze znaku zapisana obok pomiaru, np. "maxheight:physical=4.15;maxheight=4"."""
+    for part in raw.split(";"):
+        key, _, value = part.partition("=")
+        if key.startswith("max") and ":physical" not in key:
+            return parse_length(value)
     return None
 
 
@@ -272,7 +318,12 @@ def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
         if finding:
             _, message = finding
             yield _Finding(
-                Level.YELLOW, node.kind, f"{message} – punkt przy trasie, sprawdź", index, index + 1
+                Level.YELLOW,
+                node.kind,
+                f"{message} – punkt przy trasie, sprawdź",
+                index,
+                index + 1,
+                limit=_limit_label(node),
             )
 
 
@@ -319,6 +370,7 @@ def _summarize(points, findings: list[_Finding]) -> Analysis:
             lon=lon,
             lat=lat,
             km=round(cumulative[start] / 1000, 1),
+            limit=finding.limit,
         )
         warnings.append(warning)
         open_groups[group] = (finding, warning)

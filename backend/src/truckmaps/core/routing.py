@@ -35,6 +35,9 @@ MAX_DETOUR_EXTRA_KM = 3.0
 # Miejsc przy starcie, celu i punktach pośrednich nie omijamy – tam trzeba dojechać.
 KEEP_NEAR_STOPS_M = 400.0
 AVOID_LEVELS = {Level.ORANGE.label, Level.RED.label}
+# Miejsc, których pojazd nie przejedzie, trasa nie może zawierać – omijane zawsze, bez limitu
+# objazdu i także przy wyłączonym omijaniu trudnych dróg.
+IMPASSABLE = Level.RED.label
 # Ile tras alternatywnych pokazać i kiedy dwie trasy uznać za tę samą.
 MAX_ALTERNATIVES = 2
 SAME_ROUTE_KM = 0.3
@@ -109,6 +112,10 @@ class RouteResponse(Route):
         description="Ocena trasy dla pojazdu; brak, gdy nie udało się pobrać odcinków"
     )
     avoided: list[Point] = Field(default=[], description="Miejsca ominięte przy planowaniu")
+    avoided_warnings: list[RouteWarning] = Field(
+        default=[],
+        description="Trudne miejsca, które planer ominął (do pokazania na mapie obok objazdu)",
+    )
     base_distance_km: float = Field(description="Długość trasy przed omijaniem trudnych miejsc")
     alternatives: list[AlternativeRoute] = Field(
         default=[], description="Do dwóch innych wariantów, od najmniej problematycznego"
@@ -123,6 +130,14 @@ class RouteResponse(Route):
 
 class NoRouteFound(Exception):
     pass
+
+
+class ImpassableRoute(NoRouteFound):
+    """Każdy znaleziony wariant przechodzi przez miejsce, którego pojazd nie przejedzie."""
+
+    def __init__(self, warnings: list[RouteWarning]) -> None:
+        super().__init__(", ".join(w.message for w in warnings))
+        self.warnings = warnings
 
 
 class RoutingUnavailable(Exception):
@@ -344,23 +359,28 @@ def plan(
     stops: list[Point],
     vehicle: VehicleIn,
     avoid_difficult: bool = True,
-) -> tuple[Route, Analysis | None, list[Point], float]:
+) -> tuple[Route, Analysis | None, list[Point], float, list[RouteWarning]]:
     """Trasa z jak najmniejszą liczbą trudnych miejsc (alternatywy – patrz ``alternatives``).
 
     Po wyznaczeniu trasy miejsca pomarańczowe i czerwone (poza okolicą startu, celu i
     punktów pośrednich) są wykluczane i trasa jest liczona ponownie. Wygrywa wariant o
-    najniższym wyniku oceny, o ile objazd nie jest nierozsądnie długi.
-    Zwraca: trasę, jej ocenę, ominięte miejsca, długość pierwszej trasy.
+    najniższym wyniku oceny, o ile objazd nie jest nierozsądnie długi. Miejsca czerwone
+    (pojazd nie przejedzie) są omijane zawsze i bez limitu objazdu; gdy się nie da –
+    ``ImpassableRoute`` zamiast trasy.
+    Zwraca: trasę, jej ocenę, ominięte miejsca, długość pierwszej trasy i ominięte
+    ostrzeżenia (czego unika objazd).
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
     best, best_analysis, best_excluded = first, assess(db, first, vehicle), []
-    if not avoid_difficult or best_analysis is None:
-        return best, best_analysis, best_excluded, first.distance_km
+    if best_analysis is None:
+        return best, best_analysis, best_excluded, first.distance_km, []
+    levels = AVOID_LEVELS if avoid_difficult else {IMPASSABLE}
+    difficult: list[RouteWarning] = []
 
     excluded: list[Point] = []
     max_km = first.distance_km * MAX_DETOUR_FACTOR + MAX_DETOUR_EXTRA_KM
     for _ in range(AVOID_ROUNDS):
-        points = _avoid_points(best, best_analysis.warnings, stops)
+        points = _avoid_points(best, best_analysis.warnings, stops, levels)
         if not points:
             break
         excluded += points
@@ -371,10 +391,18 @@ def plan(
         analysis = assess(db, candidate, vehicle)
         if analysis is None or analysis.score >= best_analysis.score:
             break
-        if candidate.distance_km > max_km:
+        if candidate.distance_km > max_km and not _impassable(best_analysis):
             break
+        difficult += [w for w in best_analysis.warnings if w.level in levels]
         best, best_analysis, best_excluded = candidate, analysis, list(excluded)
-    return best, best_analysis, best_excluded, first.distance_km
+    if blocked := _impassable(best_analysis):
+        raise ImpassableRoute(blocked)
+    # Ominięte = trudne miejsca z wcześniejszych wariantów, których nie ma na wybranej trasie.
+    remaining = {(w.kind, w.message) for w in best_analysis.warnings}
+    avoided_warnings = list(
+        {(w.kind, w.message): w for w in difficult if (w.kind, w.message) not in remaining}.values()
+    )
+    return best, best_analysis, best_excluded, first.distance_km, avoided_warnings
 
 
 def alternatives(
@@ -389,6 +417,8 @@ def alternatives(
             continue
         taken.append(candidate)
         analysis = assess(db, candidate, vehicle)
+        if analysis is not None and _impassable(analysis):
+            continue  # alternatywa przez miejsce nieprzejezdne nie wchodzi w grę
         score = analysis.score if analysis else float("inf")
         found.append(
             (
@@ -526,20 +556,30 @@ def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
     )
 
 
-def _avoid_points(route: Route, warnings: list[RouteWarning], stops: list[Point]) -> list[Point]:
-    """Punkty na trudnych odcinkach, które Valhalla ma ominąć (kilka na długi odcinek)."""
+def _avoid_points(
+    route: Route, warnings: list[RouteWarning], stops: list[Point], levels: set[str]
+) -> list[Point]:
+    """Punkty na trudnych odcinkach, które Valhalla ma ominąć (kilka na długi odcinek).
+
+    Trudne miejsca przy starcie, celu i punktach pośrednich zostają (tam trzeba dojechać),
+    nieprzejezdne – nie.
+    """
     points = []
     for warning in warnings:
-        if warning.level not in AVOID_LEVELS:
+        if warning.level not in levels:
             continue
         span = list(range(warning.index, max(warning.end_index, warning.index + 1)))
         step = max(len(span) // 4, 1)
         for i in span[step // 2 :: step][:4]:
             lon, lat = route.geometry[i]
             near_stop = any(distance_m(lon, lat, s.lon, s.lat) < KEEP_NEAR_STOPS_M for s in stops)
-            if not near_stop:
+            if warning.level == IMPASSABLE or not near_stop:
                 points.append(Point(lat=lat, lon=lon))
     return points
+
+
+def _impassable(analysis: Analysis) -> list[RouteWarning]:
+    return [w for w in analysis.warnings if w.level == IMPASSABLE]
 
 
 class _Recording:
@@ -577,13 +617,22 @@ def build_router(current_user) -> APIRouter:
         issues = check_stops(router_, db, stops, vehicle)
         try:
             first_candidates: list[Route] = []
-            route, analysis, avoided, base_km = plan(
+            route, analysis, avoided, base_km, avoided_warnings = plan(
                 _Recording(router_, first_candidates),
                 db,
                 stops,
                 vehicle,
                 data.avoid_difficult,
             )
+        except ImpassableRoute as exc:
+            places = "; ".join(
+                f"km {w.km:.1f}: {w.message}".replace(".", ",", 1) for w in exc.warnings
+            )
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Brak trasy dla tego pojazdu: każdy wariant przechodzi przez miejsce, którego "
+                f"nie przejedzie ({places}). Sprawdź wymiary pojazdu albo wybierz inny cel.",
+            ) from exc
         except NoRouteFound as exc:
             # Punkt tuż przy drodze, ale w strefie bez wjazdu dla ciężarówek (np. stare miasto):
             # sprawdzenie punktów go nie wychwyci, bo droga jest blisko.
@@ -610,6 +659,7 @@ def build_router(current_user) -> APIRouter:
             vehicle=vehicle,
             analysis=analysis,
             avoided=avoided,
+            avoided_warnings=avoided_warnings,
             base_distance_km=base_km,
             alternatives=[
                 alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min)})
