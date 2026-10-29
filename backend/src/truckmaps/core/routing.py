@@ -190,8 +190,7 @@ class ValhallaRouter:
         ]
         request = {
             "locations": locations,
-            "costing": "truck",
-            "costing_options": {"truck": truck_options(vehicle)},
+            **costing(vehicle),
             "units": "kilometers",
             "directions_type": "none",
         }
@@ -219,8 +218,7 @@ class ValhallaRouter:
     def locate(self, stops: list[Point], vehicle: VehicleIn) -> list[tuple[Point, float] | None]:
         request = {
             "locations": [{"lat": p.lat, "lon": p.lon} for p in stops],
-            "costing": "truck",
-            "costing_options": {"truck": truck_options(vehicle)},
+            **costing(vehicle),
             "verbose": True,
         }
         try:
@@ -318,8 +316,7 @@ class ValhallaRouter:
         request = {
             "shape": [{"lat": lat, "lon": lon} for lon, lat in points],
             "shape_match": shape_match,
-            "costing": "truck",
-            "costing_options": {"truck": truck_options(vehicle)},
+            **costing(vehicle),
             "filters": {"attributes": [*EDGE_ATTRIBUTES, "shape"], "action": "include"},
         }
         try:
@@ -357,6 +354,20 @@ def _chunks(points: list[tuple[float, float]], max_km: float):
             yield points[start : i + 1]
             start, length = i, 0.0
     yield points[start:]
+
+
+def costing(vehicle: VehicleIn) -> dict:
+    """Profil Valhalli dla pojazdu: ciężarówka powyżej 3,5 t DMC, do 3,5 t – samochód.
+
+    Bus czy dostawczak do 3,5 t nie jest ciężarówką: nie obejmują go zakazy dla ciężarówek
+    (hgv=no) ani drogi tylko dla nich. Valhalla dla samochodu uwzględnia wysokość
+    i szerokość; masę i długość sprawdza ocena trasy (``route_analysis``) i omija miejsca
+    nieprzejezdne jak dla ciężarówki.
+    """
+    if vehicle.is_hgv:
+        return {"costing": "truck", "costing_options": {"truck": truck_options(vehicle)}}
+    van = {"height": vehicle.height_m, "width": vehicle.width_m, "use_tracks": 0.0}
+    return {"costing": "auto", "costing_options": {"auto": van}}
 
 
 def truck_options(vehicle: VehicleIn) -> dict:

@@ -172,6 +172,7 @@
   <div class="row">
     <button type="button" data-preset="truck">+ Zestaw 40 t</button>
     <button type="button" data-preset="solo">+ Solówka 12 t</button>
+    <button type="button" data-preset="van" title="DMC do 3,5 t: zakazy dla ciężarówek nie obowiązują">+ Bus 3,5 t</button>
   </div>
 
   <h2>Trasa</h2>
@@ -232,6 +233,8 @@ const USER_NAME = __USER_NAME__;
 const PRESETS = {
   truck: { name: "Zestaw 40 t", height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40, gvw_t: 40,
            axle_load_t: 11.5, axle_count: 5, trailer_type: "curtain", hazmat: false },
+  van: { name: "Bus 3,5 t", height_m: 2.7, width_m: 2.1, length_m: 6.0, weight_t: 3.2, gvw_t: 3.5,
+         axle_load_t: 2.0, axle_count: 2, trailer_type: "none", hazmat: false },
   solo: { name: "Solówka 12 t", height_m: 3.5, width_m: 2.55, length_m: 9.5, weight_t: 12, gvw_t: 18,
           axle_load_t: 8, axle_count: 2, trailer_type: "none", hazmat: false },
 };

@@ -619,3 +619,60 @@ def test_long_leg_is_matched_in_chunks_below_valhalla_limit():
     assert len(chunks) == 3
     assert all(a[-1] == b[0] for a, b in zip(chunks, chunks[1:], strict=False))
     assert chunks[0][0] == points[0] and chunks[-1][-1] == points[-1]
+
+
+VAN = {
+    "name": "Bus 3,5 t",
+    "height_m": 2.7,
+    "width_m": 2.1,
+    "length_m": 6.0,
+    "weight_t": 3.2,
+    "gvw_t": 3.5,
+    "axle_load_t": 2.0,
+    "axle_count": 2,
+    "trailer_type": "none",
+}
+
+
+def test_van_up_to_3_5_t_is_routed_as_a_car_not_a_truck():
+    sent = {}
+    shape = encode_polyline6([(16.9252, 52.4064), (21.0122, 52.2297)])
+
+    def valhalla(request: httpx.Request) -> httpx.Response:
+        sent.update(json.loads(request.content))
+        trip = {"summary": {"length": 300.0, "time": 12000}, "legs": [{"shape": shape}]}
+        return httpx.Response(200, json={"trip": trip})
+
+    router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
+    router.route([Point(**POZNAN), Point(**WARSAW)], VehicleIn(**VAN))
+
+    # Zakazy dla ciężarówek busa nie dotyczą, ale wysokość i szerokość – tak.
+    assert sent["costing"] == "auto"
+    assert sent["costing_options"]["auto"] == {"height": 2.7, "width": 2.1, "use_tracks": 0.0}
+
+
+def test_van_ignores_hgv_ban_but_not_weight_limit(database):
+    edges = [RouteEdge(way_id=9, begin_index=0, end_index=1, names=["Rynek"])]
+    with database.session() as db:
+        for kind, value, raw in [("hgv_no", None, "hgv=no"), ("weight", 3.0, "maxweight=3")]:
+            db.add(
+                Restriction(
+                    osm_type="way",
+                    osm_id=9,
+                    kind=kind,
+                    value=value,
+                    raw=raw,
+                    source="osm",
+                    source_date="2026-10-29",
+                )  # fmt: skip
+            )
+        db.commit()
+    client = make_client(database, FakeRouter(edges=edges))
+
+    response = client.post("/api/routes", json=route_body(client, VAN), headers=as_user("anna"))
+
+    # Zakaz dla ciężarówek pominięty, a ograniczenie masy 3 t (bus 3,2 t) – nieprzejezdne.
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "Ograniczenie masy rzeczywistej 3 t" in detail
+    assert "Zakaz wjazdu ciężarówek" not in detail
