@@ -138,6 +138,19 @@ def test_vehicle_crud_is_scoped_to_owner(database):
     assert client.get("/api/vehicles", headers=as_user("anna")).json() == []
 
 
+def test_vehicle_plate_is_normalized(database):
+    client = make_client(database)
+
+    created = client.post(
+        "/api/vehicles", json=TRUCK | {"plate": " kta  12345 "}, headers=as_user("anna")
+    ).json()
+    assert created["plate"] == "KTA 12345"
+    cleared = client.put(
+        f"/api/vehicles/{created['id']}", json=TRUCK | {"plate": "  "}, headers=as_user("anna")
+    )
+    assert cleared.json()["plate"] is None
+
+
 def test_vehicle_requires_login_and_valid_dimensions(database):
     client = make_client(database)
 

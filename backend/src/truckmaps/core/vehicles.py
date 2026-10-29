@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import DateTime, ForeignKey, String, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -49,6 +49,7 @@ class VehicleProfile(Base):
         ForeignKey("companies.id", ondelete="SET NULL"), index=True
     )
     name: Mapped[str] = mapped_column(String(100))
+    plate: Mapped[str | None] = mapped_column(String(15))
     height_m: Mapped[float]
     width_m: Mapped[float]
     length_m: Mapped[float]
@@ -107,6 +108,15 @@ class VehicleData(VehicleIn, CostRates):
     company_id: str | None = Field(
         default=None, description="Firma, do której należy pojazd; brak = pojazd prywatny"
     )
+    plate: str | None = Field(
+        default=None, max_length=15, description="Tablica rejestracyjna", examples=["KTA 12345"]
+    )
+
+    @field_validator("plate")
+    @classmethod
+    def _plate(cls, value: str | None) -> str | None:
+        """Wielkie litery i pojedyncze spacje, jak na tablicy; pusta = brak."""
+        return " ".join((value or "").upper().split()) or None
 
 
 class VehicleOut(VehicleData):

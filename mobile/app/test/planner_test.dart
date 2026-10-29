@@ -47,6 +47,7 @@ Future<void> tapMapTwice(WidgetTester tester) async {
 
 void main() {
   setUp(() => mapTiles = () => const SizedBox());
+  dragTests();
 
   testWidgets('dwa dotknięcia mapy: start i cel → trasa z oceną', (tester) async {
     Map<String, dynamic>? sent;
@@ -90,5 +91,35 @@ void main() {
 
     expect(find.text('Nie da się wyznaczyć trasy'), findsOneWidget);
     expect(find.text('Brak trasy dla tego pojazdu: nacisk osi 10 t.'), findsOneWidget);
+  });
+}
+
+void dragTests() {
+  testWidgets('przeciągnięcie punktu A przesuwa start i liczy trasę od nowa', (tester) async {
+    final origins = <Map>[];
+    await pumpPlanner(tester, (request) async {
+      switch (request.url.path) {
+        case '/api/vehicles':
+          return json([{'id': 'v1', 'name': 'Zestaw 40 t'}]);
+        case '/api/geocode/reverse':
+          return json({'label': 'Punkt ${request.url.queryParameters['lon']}', 'lat': 50.0, 'lon': 21.0});
+        case '/api/routes':
+          final body = jsonDecode(request.body) as Map;
+          origins.add(body['origin'] as Map);
+          // Trasa przez wybrane punkty – po dopasowaniu widoku A i B zostają na ekranie.
+          final ends = [for (final p in [body['origin'], body['destination']]) [p['lon'], p['lat']]];
+          return json({...route, 'geometry': ends, 'analysis': null});
+      }
+      return json(null, 404);
+    });
+    await tapMapTwice(tester);
+    expect(origins, hasLength(1));
+
+    await tester.drag(find.text('A'), const Offset(-120, 0));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(origins, hasLength(2));
+    expect((origins.last['lon'] as num) < (origins.first['lon'] as num), isTrue);
   });
 }

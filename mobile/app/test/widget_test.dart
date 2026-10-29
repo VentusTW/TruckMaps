@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Plan route'), findsOneWidget);
     await tester.tap(find.text('Vehicles'));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('No vehicles. Add a vehicle in the route planner.'), findsOneWidget);
+    expect(find.text('No vehicles. Add the first one with “Add vehicle”.'), findsOneWidget);
     expect(languages, {'en'});
   });
 

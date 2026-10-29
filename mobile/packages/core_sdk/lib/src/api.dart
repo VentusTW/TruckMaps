@@ -62,6 +62,8 @@ class CoreApi {
   Future<dynamic> put(String path, Object? body) =>
       _send((headers) => _client.put(uri(path), headers: headers, body: jsonEncode(body)));
 
+  Future<dynamic> delete(String path) => _send((headers) => _client.delete(uri(path), headers: headers));
+
   Future<dynamic> _send(Future<http.Response> Function(Map<String, String> headers) request) async {
     Future<http.Response> attempt() async => request({
           'Authorization': 'Bearer ${await _tokens.token()}',

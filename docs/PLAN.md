@@ -238,6 +238,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] kolejne języki (DE, CZ, SK, LT, RO, UA…) – tłumacz dostaje tylko pliki .arb i .json; nazwy modułów z serwera i strona testowa planera (`planner.html`) wciąż po polsku
 - [ ] Logowanie w wersji web i produkcyjne przekierowanie `truckmaps://auth/callback` (AppAuth) z Zitadelem pod https
 - [x] Mapa MapLibre, profil pojazdu
+- [x] Pojazdy w aplikacji: dodawanie, zmiana i usuwanie (wymiary, masy, osie, naczepa, ADR, stawki z przeliczaniem przy zmianie waluty, pojazd prywatny albo firmy), tablica rejestracyjna; przycisk „+” przy wyborze pojazdu w planerze; punkty A, B i pośrednie przeciągane na mapie (trasa liczona od nowa)
 - [x] Wyszukiwanie adresów (Photon, dane OSM co tydzień): pola Skąd / Dokąd z podpowiedziami, adres klikniętego punktu
 - [x] Punkty pośrednie z adresu albo GPS, współrzędne GPS w każdym polu adresu; bazy firmy (nazwa + adres, zarządzają właściciel i dyspozytorzy) podpowiadane po wpisaniu „baza” lub nazwy bazy
 - [x] Gdy trasy nie da się wyznaczyć: okno z wyjaśnieniem, który odcinek blokuje które ograniczenie (np. nacisk osi 10 t na DK73 w Tarnowie), nieaktualna trasa znika z mapy

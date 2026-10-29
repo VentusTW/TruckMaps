@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,6 +9,7 @@ import '../l10n.dart';
 import '../navigation/corridor.dart' show distanceM;
 import '../navigation/navigation_screen.dart';
 import '../reports/report_sheet.dart';
+import '../vehicles/vehicle_form.dart';
 import 'place_field.dart';
 import 'route.dart';
 
@@ -20,9 +23,12 @@ Widget Function() mapTiles = () => TileLayer(
 /// pojazd, godzina wyjazdu; trasa w kolorach ryzyka z ostrzeżeniami, zakazami ruchu
 /// w czasie, kosztem i alternatywami – to samo API co planer w przeglądarce.
 class PlannerScreen extends StatefulWidget {
-  const PlannerScreen({super.key, required this.api});
+  const PlannerScreen({super.key, required this.api, this.vehiclesChanged});
 
   final CoreApi api;
+
+  /// Zmiana listy pojazdów na innym ekranie – planer pobiera ją ponownie.
+  final Listenable? vehiclesChanged;
 
   @override
   State<PlannerScreen> createState() => _PlannerScreenState();
@@ -48,14 +54,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
   /// Zgłoszenia zrobione na tym ekranie (widoczne na mapie od razu, bez przeliczania trasy).
   final List<DriverReport> _myReports = [];
 
+  /// Przeciągany punkt trasy (A, B albo pośredni) – mapa w tym czasie się nie przesuwa.
+  _Drag? _drag;
+  final _mapKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _loadVehicles();
+    widget.vehiclesChanged?.addListener(_loadVehicles);
   }
 
   @override
   void dispose() {
+    widget.vehiclesChanged?.removeListener(_loadVehicles);
     _from.dispose();
     _to.dispose();
     super.dispose();
@@ -64,9 +76,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
   Future<void> _loadVehicles() async {
     try {
       final list = (await widget.api.get('/api/vehicles') as List<dynamic>).cast<Map<String, dynamic>>();
+      if (!mounted) return;
       setState(() {
         _vehicles = list;
-        _vehicleId = list.isEmpty ? null : list.first['id'] as String;
+        // Wybrany pojazd zostaje, jeśli nadal jest na liście (np. po zmianie wymiarów).
+        if (!list.any((v) => v['id'] == _vehicleId)) {
+          _vehicleId = list.isEmpty ? null : list.first['id'] as String;
+        }
       });
     } catch (error) {
       setState(() => _error = '$error');
@@ -102,8 +118,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   Map<String, double> _json(Place place) => {'lat': place.point.latitude, 'lon': place.point.longitude};
 
-  String _isoLocal(DateTime d) =>
-      '${d.year}-${_two(d.month)}-${_two(d.day)}T${_two(d.hour)}:${_two(d.minute)}';
+  String _isoLocal(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}T${_two(d.hour)}:${_two(d.minute)}';
 
   Future<void> _calculate() async {
     final vehicleId = _vehicleId, start = _start, end = _end;
@@ -217,12 +232,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (i != _alternative) alt,
     ];
     return FlutterMap(
+      key: _mapKey,
       mapController: _map,
       options: MapOptions(
         initialCenter: const LatLng(52.1, 19.1),
         initialZoom: 6,
+        interactionOptions: InteractionOptions(
+          flags: _drag == null
+              ? InteractiveFlag.all
+              : InteractiveFlag.all & ~InteractiveFlag.drag & ~InteractiveFlag.flingAnimation,
+        ),
         onTap: (_, point) => _onMapTap(point),
-        onLongPress: (_, point) => _report(point),
+        onLongPress: (_, point) {
+          if (_drag == null) _report(point);
+        },
       ),
       children: [
         mapTiles(),
@@ -248,10 +271,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (result != null)
             for (final report in [...result.destinationPoints, ...result.driverReports]) _reportMarker(report),
           for (final report in _myReports) _reportMarker(report),
-          if (_start != null) _stopMarker(_start!.point, 'A', const Color(0xFF185FA5)),
-          if (_end != null) _stopMarker(_end!.point, 'B', const Color(0xFFA32D2D)),
+          if (_start != null) _stopMarker(_start!.point, 'A', const Color(0xFF185FA5), stop: -1),
+          if (_end != null) _stopMarker(_end!.point, 'B', const Color(0xFFA32D2D), stop: -2),
           for (final (i, via) in _via.indexed)
-            _stopMarker(via.point, '${i + 1}', const Color(0xFF5F5E5A), onTap: () {
+            _stopMarker(via.point, '${i + 1}', const Color(0xFF5F5E5A), stop: i, onTap: () {
               setState(() => _via.removeAt(i));
               _calculate();
             }),
@@ -261,28 +284,79 @@ class _PlannerScreenState extends State<PlannerScreen> {
     );
   }
 
-  Marker _stopMarker(LatLng point, String label, Color color, {VoidCallback? onTap}) => Marker(
-        point: point,
+  /// Punkt trasy: [stop] -1 – start, -2 – cel, od 0 – punkt pośredni. Przeciągnięcie
+  /// przesuwa punkt i liczy trasę od nowa; dotknięcie punktu pośredniego go usuwa.
+  Marker _stopMarker(LatLng point, String label, Color color, {required int stop, VoidCallback? onTap}) => Marker(
+        point: _drag?.stop == stop ? _drag!.point ?? point : point,
         width: 30,
         height: 30,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Tooltip(
-            message: onTap == null ? label : context.l.viaTapToRemove(label),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: const [BoxShadow(blurRadius: 3, color: Colors.black38)],
-              ),
-              child: Center(
-                child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        child: Listener(
+          onPointerDown: (event) => setState(() => _drag = _Drag(stop, event.position)),
+          onPointerMove: (event) {
+            final drag = _drag;
+            if (drag == null || drag.stop != stop) return;
+            if ((event.position - drag.downAt).distance > 6) drag.moved = true;
+            if (drag.moved) setState(() => drag.point = _toLatLng(event.position));
+          },
+          onPointerUp: (_) => _endDrag(),
+          onPointerCancel: (_) => setState(() => _drag = null),
+          child: GestureDetector(
+            onTap: onTap ?? () {},
+            child: Tooltip(
+              message: onTap == null ? context.l.stopDragHint(label) : context.l.viaTapToRemove(label),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [BoxShadow(blurRadius: 3, color: Colors.black38)],
+                ),
+                child: Center(
+                  child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
               ),
             ),
           ),
         ),
       );
+
+  LatLng _toLatLng(Offset global) {
+    final box = _mapKey.currentContext!.findRenderObject()! as RenderBox;
+    final local = box.globalToLocal(global);
+    return _map.camera.pointToLatLng(math.Point(local.dx, local.dy));
+  }
+
+  /// Puszczony punkt: adres nowego miejsca i trasa od nowa.
+  Future<void> _endDrag() async {
+    final drag = _drag;
+    setState(() => _drag = null);
+    final point = drag?.point;
+    if (drag == null || !drag.moved || point == null) return;
+    final label = await _describe(point);
+    if (!mounted) return;
+    setState(() {
+      if (drag.stop == -1) {
+        _start = Place(label, point);
+        _from.text = label;
+      } else if (drag.stop == -2) {
+        _end = Place(label, point);
+        _to.text = label;
+      } else if (drag.stop < _via.length) {
+        _via[drag.stop] = Place(label, point);
+      }
+    });
+    if (_start != null && _end != null) _calculate();
+  }
+
+  Future<void> _addVehicle() async {
+    final saved = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute(builder: (_) => VehicleFormScreen(api: widget.api)),
+    );
+    if (saved is Map && mounted) {
+      await _loadVehicles();
+      setState(() => _vehicleId = saved['id'] as String);
+    }
+  }
 
   Marker _reportMarker(DriverReport report) {
     final delivery = deliveryKinds.contains(report.kind);
@@ -397,18 +471,27 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final result = _result;
     final shown = _shown;
     return ListView(controller: scroll, padding: const EdgeInsets.all(16), children: [
-      DropdownButtonFormField<String>(
-        value: _vehicleId,
-        decoration: InputDecoration(labelText: l.vehicle, isDense: true, border: const OutlineInputBorder()),
-        items: [
-          for (final v in _vehicles)
-            DropdownMenuItem(value: v['id'] as String, child: Text('${v['name']}', overflow: TextOverflow.ellipsis)),
-        ],
-        onChanged: (id) {
-          setState(() => _vehicleId = id);
-          if (_result != null) _calculate();
-        },
-      ),
+      Row(children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _vehicleId,
+            decoration: InputDecoration(labelText: l.vehicle, isDense: true, border: const OutlineInputBorder()),
+            items: [
+              for (final v in _vehicles)
+                DropdownMenuItem(
+                  value: v['id'] as String,
+                  child: Text(v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (id) {
+              setState(() => _vehicleId = id);
+              if (_result != null) _calculate();
+            },
+          ),
+        ),
+        IconButton(tooltip: l.vehicleAdd, icon: const Icon(Icons.add), onPressed: _addVehicle),
+      ]),
       const SizedBox(height: 12),
       PlaceField(
         api: widget.api,
@@ -534,8 +617,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       if (result.timeBans.isNotEmpty || result.arrival != null) ...[
         const SizedBox(height: 12),
         Text(l.timeBansTitle, style: theme.textTheme.titleSmall),
-        for (final ban in result.timeBans)
-          _placeTile(ban, leading: const Text('⛔', style: TextStyle(fontSize: 18))),
+        for (final ban in result.timeBans) _placeTile(ban, leading: const Text('⛔', style: TextStyle(fontSize: 18))),
         if (result.arrival != null)
           Text(
               result.waitMin > 0
@@ -605,3 +687,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
+class _Drag {
+  _Drag(this.stop, this.downAt);
+
+  final int stop;
+  final Offset downAt;
+  bool moved = false;
+  LatLng? point;
+}

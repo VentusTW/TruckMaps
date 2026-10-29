@@ -32,6 +32,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _error;
   int _selected = 0;
 
+  /// Zmiana pojazdów na ekranie „Pojazdy” → planer odświeża listę.
+  final _vehiclesChanged = ValueNotifier(0);
+
+  @override
+  void dispose() {
+    _vehiclesChanged.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -56,8 +65,15 @@ class _HomeScreenState extends State<HomeScreen> {
       locale: Localizations.localeOf(context),
     );
     return [
-      _Page(l.menuRoute, Icons.route_outlined, (_) => PlannerScreen(api: widget.session.api)),
-      _Page(l.menuVehicles, Icons.local_shipping_outlined, (_) => VehiclesScreen(api: widget.session.api)),
+      _Page(l.menuRoute, Icons.route_outlined,
+          (_) => PlannerScreen(api: widget.session.api, vehiclesChanged: _vehiclesChanged)),
+      _Page(
+          l.menuVehicles,
+          Icons.local_shipping_outlined,
+          (_) => VehiclesScreen(
+                api: widget.session.api,
+                onChanged: () => _vehiclesChanged.value++,
+              )),
       for (final access in _modules.where((m) => m.usable))
         for (final entry in access.module!.entries(module)) _Page(entry.title, entry.icon, entry.builder),
       _Page(l.menuModules, Icons.extension_outlined, (_) => ModulesScreen(modules: _modules, error: _error)),
