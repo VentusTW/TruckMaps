@@ -46,10 +46,13 @@ class PlaceField extends StatefulWidget {
 class _PlaceFieldState extends State<PlaceField> {
   final _focus = FocusNode();
   Timer? _debounce;
+  /// Ostatnio pokazane podpowiedzi – po wybraniu jednej pole dostaje jej tekst.
+  List<Place> _shown = const [];
 
   Future<List<Place>> _search(String text) async {
     if (parseCoords(text) case final coords?) return [coords];
-    if (text.trim().length < 2) return const [];
+    // Tekst wybranej podpowiedzi (albo adres klikniętego punktu) – nie szukamy go ponownie.
+    if (text.trim().length < 2 || _shown.any((p) => p.label == text)) return const [];
     final completer = Completer<List<Place>>();
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () async {
@@ -61,10 +64,11 @@ class _PlaceFieldState extends State<PlaceField> {
           if (near != null) 'lon': '${near.longitude}',
         }).query;
         final found = await widget.api.get('/api/geocode?$query') as List<dynamic>;
-        completer.complete([
+        _shown = [
           for (final p in found.cast<Map<String, dynamic>>())
             Place(p['label'] as String, LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())),
-        ]);
+        ];
+        completer.complete(_shown);
       } catch (_) {
         completer.complete(const []);
       }
