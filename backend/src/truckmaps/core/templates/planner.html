@@ -162,8 +162,8 @@
     </label>
     <label>ADR <input name="hazmat" type="checkbox" style="width:auto;justify-self:start"></label>
     <label>Waluta stawek <select name="cost_currency"></select></label>
-    <label>Koszt za km <input name="cost_per_km" type="number" step="0.01" min="0" max="100000" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
-    <label>Koszt za h jazdy <input name="cost_per_hour" type="number" step="0.5" min="0" max="10000000" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
+    <label>Koszt za km <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
+    <label>Koszt za h jazdy <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
     <div class="row" style="margin-top:8px">
       <button type="submit" class="primary" id="save">Zapisz pojazd</button>
       <button type="button" id="new">Nowy</button>
@@ -281,6 +281,7 @@ function fillForm(vehicle) {
   }
   // Nowy pojazd: stawki w walucie wybranej przez użytkownika, firmy albo w euro.
   if (!form.elements.cost_currency.value) form.elements.cost_currency.value = defaultCurrency(vehicle?.company_id);
+  form.elements.cost_currency.dataset.previous = form.elements.cost_currency.value;
   showCompanyRates();
   // Kierowca firmy jeździ jej pojazdami, ale ich nie zmienia.
   const readOnly = vehicle?.can_edit === false;
@@ -1240,8 +1241,8 @@ async function openCompany(id) {
       <h3>Waluta firmy i domyślne stawki pojazdów (szacunek kosztu trasy)</h3>
       <form id="company-rates" class="row">
         <select name="cost_currency" aria-label="Waluta firmy" style="width:auto">${currencyOptions(company.cost_currency)}</select>
-        <input name="cost_per_km" type="number" step="0.01" min="0" max="100000" placeholder="za km" aria-label="Koszt za km" value="${company.cost_per_km ?? ""}">
-        <input name="cost_per_hour" type="number" step="0.5" min="0" max="10000000" placeholder="za h jazdy" aria-label="Koszt za godzinę jazdy" value="${company.cost_per_hour ?? ""}">
+        <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="za km" aria-label="Koszt za km" value="${company.cost_per_km ?? ""}">
+        <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="za h jazdy" aria-label="Koszt za godzinę jazdy" value="${company.cost_per_hour ?? ""}">
         <button type="submit" class="small">Zapisz</button>
       </form>` : ""}
     <h3>Bazy firmy (wpisz „baza” w polu adresu)</h3>
@@ -1271,6 +1272,7 @@ async function openCompany(id) {
     const question = button.hasAttribute("data-me") ? `Opuścić firmę ${company.name}?` : "Usunąć tę osobę z firmy?";
     if (confirm(question)) companyAction(() => api(`/api/companies/${id}/members/${button.dataset.remove}`, { method: "DELETE" }));
   }));
+  if ($("company-rates")) watchRateCurrency($("company-rates"));
   $("company-rates")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const rate = (name) => event.target.elements[name].value === "" ? null : Number(event.target.elements[name].value);
@@ -1362,6 +1364,35 @@ if (invitedCode) {
 // Waluty: lista, kurs EBC i waluta kosztów wybrana w ustawieniach konta.
 let currencies = [];
 let currencyChoice = null;
+let perEur = {};
+
+// Zmiana waluty stawek: wpisane stawki od razu przeliczone po kursie EBC (zapis – przyciskiem).
+function convertRates(formElement, from, to) {
+  const rateFrom = from === "EUR" ? 1 : perEur[from];
+  const rateTo = to === "EUR" ? 1 : perEur[to];
+  const fields = ["cost_per_km", "cost_per_hour"].map((name) => formElement.elements[name])
+    .filter((input) => input.value !== "");
+  if (!fields.length || from === to) return;
+  if (!rateFrom || !rateTo) {
+    showError(`Brak kursu EBC dla ${!rateFrom ? from : to} – stawki nie zostały przeliczone, sprawdź je.`);
+    return;
+  }
+  for (const input of fields) {
+    const value = Number(input.value) / rateFrom * rateTo;
+    input.value = Number(value.toFixed(value >= 100 ? 0 : 2));
+  }
+  showError("");
+}
+
+function watchRateCurrency(formElement) {
+  const select = formElement.elements.cost_currency;
+  select.dataset.previous = select.value;
+  select.addEventListener("focus", () => { select.dataset.previous = select.value; });
+  select.addEventListener("change", () => {
+    convertRates(formElement, select.dataset.previous, select.value);
+    select.dataset.previous = select.value;
+  });
+}
 
 function currencyOptions(selected) {
   return currencies.map((c) =>
@@ -1376,11 +1407,14 @@ async function loadCurrencies() {
   const [list, settings] = await Promise.all([api("/api/currencies"), api("/api/me/settings")]);
   currencies = list.currencies;
   currencyChoice = settings.currency;
+  perEur = list.per_eur;
   $("currency").innerHTML = '<option value="">jak firma pojazdu / stawki</option>' + currencyOptions(currencyChoice);
   form.elements.cost_currency.innerHTML = currencyOptions();
   $("rates-day").textContent = list.rates_day
     ? `Kursy walut: EBC z ${plDate(list.rates_day)}.` : "Brak kursów EBC – koszty tylko w walucie stawek.";
 }
+
+watchRateCurrency(form);
 
 $("currency").addEventListener("change", async (event) => {
   try {
