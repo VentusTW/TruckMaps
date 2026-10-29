@@ -108,6 +108,23 @@ Valhalla jest w profilu `routing` i korzysta z danych tras w `infra/data/valhall
 - budowa w wolumenie Dockera `truckmaps-valhalla-build` etapami (`infra/valhalla_build.sh`): przy dużej mapie Valhalla losowo pada w kodzie LuaJIT, więc powtarzany jest tylko etap, który padł; po nieudanej budowie wolumen zostaje i wystarczy uruchomić skrypt ponownie,
 - na końcu podmiana katalogów – planer działa na starych danych do tej chwili. 5 krajów: ok. 1,5 h, 25 GB w wolumenie w trakcie.
 
+## Cotygodniowa aktualizacja danych
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra\update_data.ps1             # teraz (-Force: przebuduj bez nowych danych)
+powershell -ExecutionPolicy Bypass -File infra\schedule_update.ps1         # co tydzień, niedziela 03:00 (-Remove: wyłącz)
+powershell -ExecutionPolicy Bypass -File infra\rollback.ps1 wszystko       # powrót do poprzednich danych
+```
+
+`update_data.ps1` po kolei:
+
+1. pobiera tylko to, co się zmieniło (`pobieraj`: pliki zmian map, nowy zrzut wyszukiwarki),
+2. przy nowych mapach buduje dane tras i **sprawdza je przed podmianą**: nowe dane na chwilę na porcie 8003, trasy testowe z `infra/testy_danych.json` muszą istnieć, a ich długość nie może się zmienić o więcej niż 15% względem obecnych (np. zgubiony most albo przejście graniczne). Złe dane nie wchodzą,
+3. wczytuje ograniczenia i parkingi, wcześniej kopiując obecne do schematu `kopia`; przy błędzie albo spadku liczby wpisów o ponad 10% przywraca kopię,
+4. przy nowym zrzucie importuje wyszukiwarkę i sprawdza zapytania testowe (nowa baza na porcie 2323) przed podmianą.
+
+Poprzednie dane zostają do następnej aktualizacji (`infra/data/valhalla-previous`, schemat `kopia`, wolumen `truckmaps-photon-previous`), więc `rollback.ps1 trasy|ograniczenia|wyszukiwarka|wszystko` wraca do nich, a ponowne uruchomienie – z powrotem do nowszych. Trasy testowe sprawdza też ręcznie `.venv\Scripts\python tools\dane\sprawdz.py trasy --nowe http://127.0.0.1:8002`. Wynik ostatniej aktualizacji: `infra/data/aktualizacja.json`, dziennik: `infra/data/aktualizacja.log`.
+
 ## Pobieranie dużych danych: pobieraj.exe
 
 Mapy i zrzut wyszukiwarki mają kilkanaście GB. `pobieraj.exe` pobiera je w zwykłym oknie konsoli, niezależnie od innych programów – można go zostawić na noc:
@@ -123,7 +140,8 @@ dist\pobieraj.exe stan             # co jest pobrane i z której wersji serwera
 
 - Przerwane pobieranie (zerwane połączenie, zamknięte okno, restart) wznawia się od miejsca przerwania – wystarczy uruchomić ponownie.
 - Serwer zrzutów Photon zwalnia pojedyncze połączenie (~0,3 MB/s), więc pobieranie idzie 8 połączeniami naraz (`--polaczenia`); Geofabrik – jednym, z ponowieniami.
-- Każdy plik jest sprawdzany (MD5, a gdy serwer go nie publikuje – rozmiar). Pliki, których serwer nie zmienił, są pomijane, więc ponowne uruchomienie pobiera tylko nowe wydania.
+- **Mapy aktualizują się plikami zmian:** gdy mapa kraju jest już na dysku, `pobieraj` czyta z jej nagłówka numer ostatniej zmiany, pobiera tylko brakujące dzienne pliki zmian z Geofabrik (kilka MB na dzień zamiast całej mapy, np. 4,6 GB dla Niemiec) i nakłada je narzędziem `osmium` (kontener `infra/osmium`, potrzebny Docker). Całą mapę pobiera tylko przy pierwszym razie, po przerwie dłuższej niż 60 dni albo bez Dockera.
+- Każdy plik jest sprawdzany (MD5, a gdy serwer go nie publikuje – rozmiar; mapa po nałożeniu zmian – numer zmiany w nagłówku). Pliki, których serwer nie zmienił, są pomijane.
 - Wynik: `infra/data/pobrane.json` (plik, wersja serwera, data, sposób sprawdzenia) i dziennik `infra/data/pobieraj.log`.
 - Pobiera przez `curl.exe` z Windows (w tej sieci Python i kontenery nie ufają certyfikatom). Bez exe: `.venv\Scripts\python tools\pobieraj\pobieraj.py ...`.
 

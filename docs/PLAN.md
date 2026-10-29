@@ -213,7 +213,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Import OSM Polski → Valhalla
 - [x] Kraje sąsiednie (DE, CZ, SK, LT): mapy łączone narzędziem osmium (najnowsza wersja obiektów przy granicach), dane tras budowane etapami z ponawianiem w wolumenie Dockera i podmieniane bez przerwy w działaniu; ograniczenia (1,4 mln) i parkingi (9,9 tys.) dla 5 krajów; wyszukiwarka: zrzut Photon dla Europy, wybór krajów w Pythonie (9 min zamiast godzin w Photon)
 - [x] `pobieraj.exe`: pobieranie dużych danych poza sesją (wznawianie, ponawianie, kilka połączeń naraz, MD5, pomijanie niezmienionych plików, `infra/data/pobrane.json`)
-- [ ] Aktualizacja co tydzień: harmonogram Windows (pobieraj → build_routing → importy → photon_import)
+- [x] Aktualizacja co tydzień (`infra/update_data.ps1`, harmonogram Windows): mapy przez dzienne pliki zmian (MB zamiast GB), kontrola tras i wyszukiwarki testowej przed podmianą, kopia poprzednich danych i powrót jednym poleceniem (`infra/rollback.ps1`)
 - [x] API trasy z parametrami pojazdu (/api/routes) + planer na mapie (/planer)
 - [x] Baza ograniczeń (import z OSM: wysokość, masa, nacisk osi, szerokość, długość, zakazy dla ciężarówek; ok. 160 tys. dla PL)
 - [x] Ocena segmentów: krzywizna zakrętów vs długość pojazdu, wąskie drogi, zapas wysokości/szerokości/długości, masa i naciski, zakazy → zielony/żółty/czerwony z ostrzeżeniami; czerwony miga w planerze
@@ -239,6 +239,12 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Zgłoszenia od kierowców
 - [ ] Punkty dostawy: wyświetlanie przy celu, zgłaszanie bramy/rampy/godzin przyjęć jednym dotknięciem, cel trasy przy rampie
 - [ ] Ekrany konta osobno od planera (dziś wszystko jest w jednym panelu strony testowej): przy rejestracji wybór „mam firmę” (założenie firmy) albo „dołączam kodem”; ustawienia konta, firmy, członków, pojazdów i kosztów w osobnych ekranach
+- [ ] Aktualizacje z możliwością powrotu:
+  - po zalogowaniu aplikacja sprawdza wersje: aplikacji, modułów i danych (mapy offline, korytarz, baza ograniczeń); gdy są nowsze – pyta, czy pobrać (z rozmiarem i listą zmian), domyślnie przez Wi-Fi; nigdy w trakcie jazdy
+  - poprzednia działająca wersja zostaje na urządzeniu (aplikacja: kanał z poprzednim wydaniem, dane: poprzedni pakiet obok nowego); nowa staje się „dobra” dopiero po udanym uruchomieniu i pierwszej trasie
+  - „Wróć do poprzedniej wersji” w ustawieniach oraz samoczynny powrót, gdy nowa wersja nie startuje albo kilka razy z rzędu ulega awarii; zgłoszenie błędu z numerem wersji
+  - serwer: wydania stopniowo (najpierw część użytkowników), możliwość wstrzymania wydania i wskazania poprzedniego jako aktualnego; API zgodne wstecz z co najmniej jedną poprzednią wersją aplikacji
+  - dane serwera (trasy, wyszukiwarka) – podmiana tylko po sprawdzeniu nowych danych (zestaw tras testowych), poprzednie dane trzymane do następnej aktualizacji, by wrócić jednym poleceniem
 - [ ] Zgody na lokalizację, polityka prywatności, regulamin (z prawnikiem)
 
 **Gotowe, gdy:** testerzy przejadą realne trasy, a alarm zadziała na znanym niskim wiadukcie.

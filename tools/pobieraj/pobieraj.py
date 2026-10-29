@@ -28,6 +28,7 @@ import re
 import subprocess
 import sys
 import time
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -50,6 +51,8 @@ GEOFABRIK_NAMES = {
     "ua": "ukraine",
 }  # fmt: skip
 RETRIES = 30
+# Ile dziennych plików zmian nakładać; przy dłuższej przerwie szybciej pobrać całą mapę.
+MAX_CHANGE_FILES = 60
 RETRY_DELAY_S = 15
 REPORT_EVERY_S = 10
 
@@ -115,6 +118,67 @@ def latest_photon_release(listing: str) -> str:
     if not releases:
         raise RuntimeError("Nie znaleziono zrzutu Photon na serwerze")
     return max(releases)
+
+
+# --- Pliki zmian OSM (aktualizacja map bez pobierania całości) ---------------------------------
+
+
+def proto_fields(data: bytes):
+    """Pola wiadomości protobuf: (numer, wartość) – tyle, ile trzeba do nagłówka pliku PBF."""
+    pos = 0
+
+    def varint() -> int:
+        nonlocal pos
+        result = shift = 0
+        while True:
+            byte = data[pos]
+            pos += 1
+            result |= (byte & 0x7F) << shift
+            if byte < 0x80:
+                return result
+            shift += 7
+
+    while pos < len(data):
+        key = varint()
+        number, wire = key >> 3, key & 7
+        if wire == 0:
+            yield number, varint()
+        elif wire == 2:
+            size = varint()
+            yield number, data[pos : pos + size]
+            pos += size
+        elif wire in (1, 5):
+            size = 8 if wire == 1 else 4
+            yield number, data[pos : pos + size]
+            pos += size
+        else:
+            raise ValueError(f"Nieobsługiwany typ pola protobuf: {wire}")
+
+
+def pbf_replication(path: Path) -> tuple[int, str] | None:
+    """Numer ostatniej zmiany i adres plików zmian z nagłówka mapy .osm.pbf (Geofabrik)."""
+    with path.open("rb") as source:
+        size = int.from_bytes(source.read(4), "big")
+        blob_header = dict(proto_fields(source.read(size)))
+        blob = dict(proto_fields(source.read(blob_header[3])))
+    header = dict(proto_fields(blob[1] if 1 in blob else zlib.decompress(blob[3])))
+    if 33 not in header or 34 not in header:
+        return None
+    return header[33], header[34].decode()
+
+
+def change_path(sequence: int) -> str:
+    """4953 -> "000/004/953" (układ katalogów plików zmian OSM)."""
+    digits = f"{sequence:09d}"
+    return f"{digits[:3]}/{digits[3:6]}/{digits[6:]}"
+
+
+def parse_state(text: str) -> tuple[int, str]:
+    """Numer i czas z state.txt (dwukropki w czasie są poprzedzone ukośnikiem)."""
+    values = dict(
+        line.split("=", 1) for line in text.splitlines() if "=" in line and not line.startswith("#")
+    )
+    return int(values["sequenceNumber"]), values["timestamp"].replace("\\", "")
 
 
 # --- Pobieranie ------------------------------------------------------------------------------
@@ -293,18 +357,114 @@ class Downloader:
         )
         self.manifest[key] = asdict(entry)
         version.unlink()
+        self.save_manifest()
+        self.log(f"  OK ({remote.size / 2**20:,.0f} MB, sprawdzono: {check})")
+        return True
+
+    def save_manifest(self) -> None:
         self.manifest_path.write_text(
             json.dumps(self.manifest, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        self.log(f"  OK ({remote.size / 2**20:,.0f} MB, sprawdzono: {check})")
-        return True
 
     def maps(self, countries: list[str]) -> None:
         for code in countries:
             name = GEOFABRIK_NAMES.get(code.lower(), code.lower())
-            # Geofabrik prosi o umiar – jedno połączenie, ponowienia przy zerwaniu.
             file = f"{name}-latest.osm.pbf"
-            self.fetch(f"{GEOFABRIK}/{file}", self.data / "osm" / file, connections=1)
+            target = self.data / "osm" / file
+            if target.exists() and self.update_with_changes(target):
+                continue
+            # Geofabrik prosi o umiar – jedno połączenie, ponowienia przy zerwaniu.
+            self.fetch(f"{GEOFABRIK}/{file}", target, connections=1)
+
+    def update_with_changes(self, target: Path) -> bool:
+        """Dociąga tylko dzienne pliki zmian (kilka MB) i nakłada je na mapę z dysku.
+
+        Zwraca False, gdy trzeba pobrać całą mapę: brak numeru zmiany w pliku, za dużo
+        brakujących zmian albo brak Dockera (zmiany nakłada osmium w kontenerze).
+        """
+        try:
+            local = pbf_replication(target)
+        except (OSError, ValueError, KeyError, IndexError, zlib.error):
+            local = None
+        if local is None:
+            return False
+        sequence, base_url = local
+        remote, timestamp = parse_state(curl_text(f"{base_url}/state.txt"))
+        self.log(target.name)
+        if remote == sequence:
+            self.log(f"  aktualna (zmiana {sequence}) – pomijam")
+            return True
+        if not 0 < remote - sequence <= MAX_CHANGE_FILES or not self.osmium_ready():
+            return False
+
+        folder = target.with_name(f"zmiany-{target.name.split('-latest')[0]}")
+        folder.mkdir(exist_ok=True)
+        numbers = range(sequence + 1, remote + 1)
+        self.log(f"  pobieranie {len(numbers)} plików zmian ({sequence + 1}–{remote})")
+        for number in numbers:
+            change = folder / f"{number}.osc.gz"
+            if not change.exists():
+                part = folder / f"{number}.czesc"
+                subprocess.run(
+                    [CURL, "-sSL", "--fail", "--retry", "5", "--retry-all-errors",
+                     "-o", str(part), f"{base_url}/{change_path(number)}.osc.gz"],
+                    check=True,
+                )  # fmt: skip
+                part.replace(change)
+
+        self.log("  nakładanie zmian (osmium)...")
+        # osmium rozpoznaje format po końcówce nazwy, więc ".osm.pbf" musi zostać na końcu.
+        updated = target.with_name(target.name.replace(".osm.pbf", ".nowy.osm.pbf"))
+        subprocess.run(
+            ["docker", "run", "--rm", "-v", f"{target.parent.resolve()}:/osm", "truckmaps-osmium",
+             "apply-changes", f"/osm/{target.name}",
+             *[f"/osm/{folder.name}/{n}.osc.gz" for n in numbers],
+             "-o", f"/osm/{updated.name}", "--overwrite",
+             f"--output-header=osmosis_replication_sequence_number={remote}",
+             f"--output-header=osmosis_replication_timestamp={timestamp}",
+             f"--output-header=osmosis_replication_base_url={base_url}"],
+            check=True,
+        )  # fmt: skip
+        if pbf_replication(updated) != (remote, base_url):
+            updated.unlink()
+            raise RuntimeError(f"{updated.name}: zły nagłówek po nałożeniu zmian")
+        updated.replace(target)
+        for change in folder.glob("*.osc.gz"):
+            change.unlink()
+        key = target.relative_to(self.root).as_posix()
+        self.manifest[key] = asdict(
+            Entry(
+                url=f"{base_url}/state.txt",
+                path=key,
+                size=target.stat().st_size,
+                last_modified=timestamp,
+                check=f"zmiany {sequence}→{remote}",
+                finished=f"{datetime.now():%Y-%m-%d %H:%M}",
+            )
+        )
+        self.save_manifest()
+        self.log(f"  OK – zmiana {remote} z {timestamp} ({target.stat().st_size / 2**20:,.0f} MB)")
+        return True
+
+    def osmium_ready(self) -> bool:
+        """Obraz z osmium (infra/osmium) – budowany przy pierwszym użyciu."""
+        try:
+            image = ["docker", "image", "inspect", "truckmaps-osmium"]
+            if subprocess.run(image, capture_output=True).returncode == 0:
+                return True
+            self.log("  budowa obrazu osmium (raz)...")
+            build = [
+                "docker",
+                "build",
+                "-q",
+                "-t",
+                "truckmaps-osmium",
+                str(self.root / "infra" / "osmium"),
+            ]
+            return subprocess.run(build, capture_output=True).returncode == 0
+        except OSError:
+            self.log("  brak Dockera – pobieram całą mapę")
+            return False
 
     def photon(self, release: str) -> None:
         if release == "latest":

@@ -1,0 +1,23 @@
+{
+  "_opis": "Kontrola nowych danych przed podmianą (tools/dane/sprawdz.py). Trasy liczone dla zestawu 40 t / 4 m / 16,5 m. Nowe dane wchodzą tylko, gdy każda trasa istnieje, a jej długość różni się od obecnej najwyżej o tolerancję. Dopisuj trasy, które dobrze znasz.",
+  "tolerancja_dlugosci": 0.15,
+  "pojazd": { "height": 4.0, "width": 2.55, "length": 16.5, "weight": 40, "axle_load": 11.5, "axle_count": 5 },
+  "trasy": [
+    { "nazwa": "Tarnów → Tuchów", "z": [50.0012, 20.9886], "do": [49.8952, 21.0537] },
+    { "nazwa": "Poznań → Warszawa", "z": [52.4064, 16.9252], "do": [52.2297, 21.0122] },
+    { "nazwa": "Kraków → Gdańsk", "z": [50.0647, 19.9450], "do": [54.3520, 18.6466] },
+    { "nazwa": "Tarnów → Berlin", "z": [50.0121, 20.9858], "do": [52.5163, 13.3777] },
+    { "nazwa": "Poznań → Praga", "z": [52.4064, 16.9252], "do": [50.0755, 14.4378] },
+    { "nazwa": "Kraków → Bratysława", "z": [50.0614, 19.9366], "do": [48.1486, 17.1077] },
+    { "nazwa": "Białystok → Wilno", "z": [53.1325, 23.1688], "do": [54.6872, 25.2797] },
+    { "nazwa": "Drezno (A17) → Brno", "z": [50.9930, 13.8070], "do": [49.1951, 16.6068] }
+  ],
+  "wyszukiwanie": [
+    { "zapytanie": "Rynek Tuchów", "kraj": "PL" },
+    { "zapytanie": "Chemiczna Tarnów", "kraj": "PL" },
+    { "zapytanie": "Brandenburger Tor Berlin", "kraj": "DE" },
+    { "zapytanie": "Václavské náměstí Praha", "kraj": "CZ" },
+    { "zapytanie": "Bratislavský hrad", "kraj": "SK" },
+    { "zapytanie": "Gedimino prospektas Vilnius", "kraj": "LT" }
+  ]
+}

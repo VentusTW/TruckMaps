@@ -93,3 +93,51 @@ def test_fetch_skips_unchanged_file_and_records_new_one(tmp_path: Path, monkeypa
     with pytest.raises(RuntimeError, match="Niepełny"):
         downloader.fetch("https://x/slovakia-latest.osm.pbf", target)
     assert len(calls) == 2
+
+
+def _varint(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        out.append(byte | (0x80 if value else 0))
+        if not value:
+            return bytes(out)
+
+
+def _field(number: int, value: int | bytes) -> bytes:
+    if isinstance(value, int):
+        return _varint(number << 3) + _varint(value)
+    return _varint(number << 3 | 2) + _varint(len(value)) + value
+
+
+def write_pbf_header(path: Path, compressed: bool, sequence: int, url: str) -> None:
+    """Pierwszy blok pliku .osm.pbf (OSMHeader) z numerem zmiany, jak w mapach Geofabrik."""
+    import zlib
+
+    header = _field(4, b"OsmSchema-V0.6") + _field(32, 1793260000) + _field(33, sequence)
+    header += _field(34, url.encode())
+    blob = (
+        _field(2, len(header)) + _field(3, zlib.compress(header))
+        if compressed
+        else _field(1, header)
+    )
+    blob_header = _field(1, b"OSMHeader") + _field(3, len(blob))
+    path.write_bytes(len(blob_header).to_bytes(4, "big") + blob_header + blob + b"dalsze bloki")
+
+
+@pytest.mark.parametrize("compressed", [True, False])
+def test_pbf_replication_reads_sequence_from_header(tmp_path: Path, compressed):
+    url = "https://download.geofabrik.de/europe/poland-updates"
+    path = tmp_path / "poland-latest.osm.pbf"
+    write_pbf_header(path, compressed, 4952, url)
+
+    assert pobieraj.pbf_replication(path) == (4952, url)
+
+
+def test_change_files_layout_and_state():
+    assert pobieraj.change_path(4953) == "000/004/953"
+    assert pobieraj.change_path(1234567) == "001/234/567"
+    state = "# original OSM minutely replication sequence number 7348838\n"
+    state += "timestamp=2026-10-28T21\\:21\\:02Z\nsequenceNumber=4952\n"
+    assert pobieraj.parse_state(state) == (4952, "2026-10-28T21:21:02Z")
