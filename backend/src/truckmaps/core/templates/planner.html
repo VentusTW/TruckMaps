@@ -730,7 +730,8 @@ const TEST_ROUTES = [
     a: [50.0278, 20.9141], b: [49.8952, 21.0537], via: [[50.013152, 21.021389], [50.010850, 21.049223]] },
   { name: "Poznań → Praga przez punkt pośredni (długi odcinek, ocena kawałkami)",
     a: [52.4082892, 16.933598], b: [50.0810618, 14.4246678], via: [[51.2, 16.2]] },
-  { name: "Drezno, Stare Miasto → Praga (start w strefie bez wjazdu)", a: [51.0504, 13.7373], b: [50.0755, 14.4378] },
+  { name: "Drezno, Stare Miasto → Praga (start przesunięty poza strefę bez wjazdu)", a: [51.0504, 13.7373], b: [50.0755, 14.4378] },
+  { name: "Praga → Drezno, Stare Miasto (cel przesunięty przed strefę bez wjazdu)", a: [50.0755, 14.4378], b: [51.0504, 13.7373] },
 ];
 
 $("test-routes").innerHTML = '<option value="">Trasy testowe…</option>' +

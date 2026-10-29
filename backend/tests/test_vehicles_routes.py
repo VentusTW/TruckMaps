@@ -676,3 +676,90 @@ def test_van_ignores_hgv_ban_but_not_weight_limit(database):
     detail = response.json()["detail"]
     assert "Ograniczenie masy rzeczywistej 3 t" in detail
     assert "Zakaz wjazdu ciężarówek" not in detail
+
+
+class ZoneRouter(FakeRouter):
+    """Start albo cel w strefie z wiaduktem 2 m (way 7) – ciężarówka z niej nie wyjedzie.
+
+    Pojazd bez ograniczeń jedzie całą linią przez strefę; ciężarówka tylko z miejsca poza nią.
+    """
+
+    LINE = [(20.0 + i * 0.001, 50.0) for i in range(101)]  # ok. 7 km na wschód
+
+    def __init__(self, zone_at_end: bool = False) -> None:
+        super().__init__()
+        self.zone_at_end = zone_at_end
+        self.zone = range(96, 101) if zone_at_end else range(0, 5)
+
+    def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
+        def index_of(point):
+            return min(range(101), key=lambda i: abs(self.LINE[i][0] - point.lon))
+
+        a, b = index_of(stops[0]), index_of(stops[-1])
+        if vehicle.height_m > 2.0 and (a in self.zone or b in self.zone):
+            raise NoRouteFound("No path could be found for input")
+        edges = []
+        if a in self.zone or b in self.zone:
+            zone_edge = (0, 4) if not self.zone_at_end else (b - a - 4, b - a)
+            edges.append(RouteEdge(way_id=7, begin_index=zone_edge[0], end_index=zone_edge[1]))
+        edges.append(RouteEdge(way_id=8, begin_index=0, end_index=b - a, road_class="primary"))
+        return Route(
+            distance_km=round((b - a) * 0.0715, 1),
+            duration_min=10,
+            geometry=self.LINE[a : b + 1],
+            edges=edges,
+        )
+
+
+def add_zone_bridge(database):
+    with database.session() as db:
+        db.add(
+            Restriction(
+                osm_type="way",
+                osm_id=7,
+                kind="height",
+                value=2.0,
+                raw="maxheight=2",
+                source="osm",
+                source_date="2026-10-29",
+            )  # fmt: skip
+        )
+        db.commit()
+
+
+def test_blocked_start_moves_to_nearest_allowed_place(database):
+    add_zone_bridge(database)
+    client = make_client(database, ZoneRouter())
+    body = {
+        **route_body(client),
+        "origin": {"lat": 50.0, "lon": 20.0},
+        "destination": {"lat": 50.0, "lon": 20.1},
+    }
+
+    response = client.post("/api/routes", json=body, headers=as_user("anna"))
+
+    assert response.status_code == 200
+    (issue,) = [i for i in response.json()["stop_issues"] if i["kind"] == "moved"]
+    assert issue["role"] == "origin"
+    assert issue["requested"]["lon"] == 20.0
+    assert 20.004 <= issue["reachable"]["lon"] <= 20.006  # tuż za wiaduktem
+    assert "Ograniczenie wysokości 2 m" in issue["message"]
+    assert response.json()["geometry"][0][0] == issue["reachable"]["lon"]
+
+
+def test_blocked_destination_moves_to_nearest_allowed_place(database):
+    add_zone_bridge(database)
+    client = make_client(database, ZoneRouter(zone_at_end=True))
+    body = {
+        **route_body(client),
+        "origin": {"lat": 50.0, "lon": 20.0},
+        "destination": {"lat": 50.0, "lon": 20.1},
+    }
+
+    response = client.post("/api/routes", json=body, headers=as_user("anna"))
+
+    assert response.status_code == 200
+    (issue,) = [i for i in response.json()["stop_issues"] if i["kind"] == "moved"]
+    assert issue["role"] == "destination"
+    assert 20.094 <= issue["reachable"]["lon"] <= 20.096  # tuż przed wiaduktem
+    assert "przed celem" in issue["message"]

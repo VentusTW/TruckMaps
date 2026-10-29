@@ -102,7 +102,8 @@ class ParkingOut(BaseModel):
 class StopIssue(BaseModel):
     role: Literal["origin", "via", "destination"]
     index: int = Field(description="Numer punktu pośredniego (od 1); 0 dla startu i celu")
-    kind: Literal["unreachable", "difficult"]
+    kind: Literal["unreachable", "difficult", "moved"]
+    """moved: punkt w strefie bez wjazdu – trasa zaczyna się / kończy w najbliższym dozwolonym."""
     message: str
     requested: Point
     reachable: Point | None = Field(description="Najbliższe miejsce dostępne dla pojazdu")
@@ -596,6 +597,102 @@ _ANY_VEHICLE = {
 }  # fmt: skip
 
 
+# Jak daleko od startu / celu szukać miejsca, od którego pojazd już może jechać.
+MOVE_SEARCH_KM = 5.0
+# Odstęp od ostatniego ograniczenia – nowy punkt nie może leżeć na samej granicy strefy.
+MOVE_MARGIN_M = 30.0
+
+
+def relocate_ends(
+    router: Router, db: Session, stops: list[Point], vehicle: VehicleIn
+) -> list[tuple[list[Point], list[StopIssue]]]:
+    """Start albo cel w strefie, do której pojazd nie wjedzie: najbliższe dozwolone miejsce.
+
+    Trasa liczona dla pojazdu bez ograniczeń pokazuje, którędy wyjechać ze strefy (albo do
+    niej wjechać); oceniona dla prawdziwego pojazdu wskazuje miejsca nieprzejezdne. Nowy
+    start to punkt tuż za ostatnim takim miejscem w pierwszych ``MOVE_SEARCH_KM``, nowy cel –
+    tuż przed pierwszym w ostatnich.
+
+    Zwraca warianty od najmniejszej zmiany: sam start, sam cel, oba – trasa pojazdu bez
+    ograniczeń mogła wybrać drogę zamkniętą dla ciężarówki tylko przy jednym końcu, a drugi
+    jest osiągalny inną drogą. Każdy wariant trzeba sprawdzić prawdziwym pojazdem.
+    """
+    any_vehicle = vehicle.model_copy(update=_ANY_VEHICLE)
+    try:
+        open_route = router.route(stops, any_vehicle)
+    except (NoRouteFound, RoutingUnavailable):
+        return []
+    analysis = assess(db, open_route, vehicle)
+    blocked = _impassable(analysis) if analysis else []
+    if not blocked:
+        return []
+    geometry = open_route.geometry
+    along = [0.0]
+    for a, b in zip(geometry, geometry[1:], strict=False):
+        along.append(along[-1] + distance_m(*a, *b))
+    total, limit = along[-1], MOVE_SEARCH_KM * 1000
+    first, last = 0, len(geometry) - 1
+    start_move = end_move = None
+
+    near_start = [w for w in blocked if along[w.index] <= limit]
+    if near_start:
+        reach = along[max(w.end_index for w in near_start)] + MOVE_MARGIN_M
+        first = next((i for i, d in enumerate(along) if d >= reach), last)
+        point = Point(lon=geometry[first][0], lat=geometry[first][1])
+        start_move = (point, _moved_issue(db, "origin", stops[0], point, along[first], near_start))
+    near_end = [w for w in blocked if along[w.end_index] >= total - limit and w not in near_start]
+    if near_end:
+        reach = along[min(w.index for w in near_end)] - MOVE_MARGIN_M
+        last = max((i for i, d in enumerate(along) if d <= reach), default=0)
+        point = Point(lon=geometry[last][0], lat=geometry[last][1])
+        end_move = (
+            point,
+            _moved_issue(db, "destination", stops[-1], point, total - along[last], near_end),
+        )
+
+    options = []
+    if start_move:
+        options.append(([start_move[0], *stops[1:]], [start_move[1]]))
+    if end_move:
+        options.append(([*stops[:-1], end_move[0]], [end_move[1]]))
+    # Nowy start za nowym celem = cała trasa w strefie bez wjazdu – tego wariantu nie ma.
+    if start_move and end_move and first < last:
+        options.append(([start_move[0], *stops[1:-1], end_move[0]], [start_move[1], end_move[1]]))
+    return options
+
+
+def _moved_issue(
+    db: Session,
+    role: Literal["origin", "destination"],
+    requested: Point,
+    reachable: Point,
+    by_road_m: float,
+    reasons: list[RouteWarning],
+) -> StopIssue:
+    why = "; ".join(dict.fromkeys(w.message for w in reasons))
+    distance = round(by_road_m / 10) * 10
+    if role == "origin":
+        message = (
+            f"Start leży w miejscu, z którego ten pojazd nie wyjedzie ({why}). Trasa zaczyna "
+            f"się w najbliższym dozwolonym miejscu – ok. {distance} m drogą od startu."
+        )
+    else:
+        message = (
+            f"Cel leży w miejscu, do którego ten pojazd nie wjedzie ({why}). Trasa kończy się "
+            f"w najbliższym dozwolonym miejscu – ok. {distance} m drogą przed celem."
+        )
+    return StopIssue(
+        role=role,
+        index=0,
+        kind="moved",
+        message=message,
+        requested=requested,
+        reachable=reachable,
+        distance_m=float(distance),
+        parkings=_parkings(db, reachable),
+    )
+
+
 def diagnose_no_route(
     router: Router, db: Session, stops: list[Point], vehicle: VehicleIn
 ) -> list[str]:
@@ -690,15 +787,32 @@ def build_router(current_user) -> APIRouter:
         stops = [data.origin, *data.via, data.destination]
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
-        try:
-            first_candidates: list[Route] = []
-            route, analysis, avoided, base_km, avoided_warnings = plan(
-                _Recording(router_, first_candidates),
-                db,
-                stops,
-                vehicle,
-                data.avoid_difficult,
+        first_candidates: list[Route] = []
+
+        def plan_for(points: list[Point]):
+            first_candidates.clear()
+            return plan(
+                _Recording(router_, first_candidates), db, points, vehicle, data.avoid_difficult
             )
+
+        try:
+            try:
+                result = plan_for(stops)
+            except NoRouteFound as first_error:
+                # Start albo cel w strefie bez wjazdu: najbliższe dozwolone miejsce i trasa
+                # stamtąd; gdy i to się nie uda – wyjaśnienie pierwotnego problemu.
+                for moved_stops, moved in relocate_ends(router_, db, stops, vehicle):
+                    try:
+                        router_.route(moved_stops, vehicle)  # szybkie sprawdzenie wariantu
+                        result = plan_for(moved_stops)
+                    except NoRouteFound:
+                        continue
+                    issues = moved + [i for i in issues if i.role == "via"]
+                    stops = moved_stops
+                    break
+                else:
+                    raise first_error from None
+            route, analysis, avoided, base_km, avoided_warnings = result
         except ImpassableRoute as exc:
             places = "; ".join(
                 f"km {w.km:.1f}: {w.message}".replace(".", ",", 1) for w in exc.warnings

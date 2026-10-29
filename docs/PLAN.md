@@ -236,6 +236,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Wyszukiwanie adresów (Photon, dane OSM co tydzień): pola Skąd / Dokąd z podpowiedziami, adres klikniętego punktu
 - [x] Punkty pośrednie z adresu albo GPS, współrzędne GPS w każdym polu adresu; bazy firmy (nazwa + adres, zarządzają właściciel i dyspozytorzy) podpowiadane po wpisaniu „baza” lub nazwy bazy
 - [x] Gdy trasy nie da się wyznaczyć: okno z wyjaśnieniem, który odcinek blokuje które ograniczenie (np. nacisk osi 10 t na DK73 w Tarnowie), nieaktualna trasa znika z mapy
+- [x] Start albo cel w strefie bez wjazdu dla pojazdu (np. stare miasto za wiaduktem 2 m): trasa od / do najbliższego dozwolonego miejsca (tuż za ostatnim albo przed pierwszym ograniczeniem, do 5 km), z informacją o odległości; przesuwany tylko ten koniec, który przeszkadza
 - [ ] Numery domów tylko na ostatnich kilkuset metrach dojazdu do celu i odjazdu ze startu (pomoc przy nieregularnej numeracji); źródła: OSM `addr:housenumber`, w PL punkty adresowe z rejestru państwowego (GUGiK, dane otwarte)
 - [ ] Planowanie trasy z kolorami ryzyka
 - [ ] Nawigacja: GPS, dopasowanie do drogi, komunikaty głosowe, przeliczanie trasy
