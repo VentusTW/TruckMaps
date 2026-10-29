@@ -48,6 +48,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Głos nawigacji: syntezator mowy systemu (Android 11+ wymaga tego wpisu). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
         <!-- Logowanie: url_launcher otwiera stronę logowania w przeglądarce. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>

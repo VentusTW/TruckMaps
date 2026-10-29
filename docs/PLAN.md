@@ -246,7 +246,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Planowanie trasy z kolorami ryzyka w aplikacji (ekran „Trasa”): mapa (flutter_map, kafelki OSM – działa też na Windows), start i cel z adresu, GPS albo dotknięcia mapy, punkty pośrednie, pojazd, godzina wyjazdu, omijanie trudnych dróg; trasa w kolorach oceny, znaki ograniczeń i zakazy ⛔ na mapie, lista ostrzeżeń, zakazy ruchu w czasie z przyciskiem wyjazdu bez postoju, koszt, alternatywy; okno z wyjaśnieniem, gdy trasy nie ma
 - [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
 - [x] Nawigacja (pierwsza wersja): GPS (geolocator, także Windows), mapa podąża za pojazdem, pasek „zostało X km”, symulacja jazdy i pozycji z dotknięcia mapy, zjazd z trasy → po kilku pozycjach nowa trasa od pozycji (bez minionych punktów pośrednich) i nowy korytarz
-- [ ] Nawigacja: komunikaty głosowe i manewry (Valhalla `directions`), dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
+- [x] Nawigacja: manewry i komunikaty głosowe – manewry Valhalli w odpowiedzi trasy (w języku zapytania, także dla alternatyw), karta następnego manewru (strzałka, odległość, napis), zapowiedzi ok. 1 km / 300 m / tuż przed / „jedź prosto przez …”, wyciszanie; mowa z syntezatora systemu bez sieci (Android TextToSpeech, Windows System.Speech)
+- [ ] Nawigacja: głos na iOS (AVSpeechSynthesizer), zapowiedzi zależne od prędkości, pasy ruchu, dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
 - [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
 - [ ] Zgłoszenia od kierowców

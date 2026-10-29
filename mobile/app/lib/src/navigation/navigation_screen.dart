@@ -12,6 +12,8 @@ import '../l10n.dart';
 import '../planner/planner_screen.dart' show mapTiles;
 import '../planner/route.dart';
 import 'corridor.dart';
+import 'guidance.dart';
+import 'speech.dart';
 
 /// Skąd nawigacja bierze pozycję: GPS albo symulacja (testy, pokaz bez jazdy).
 abstract class PositionSource {
@@ -124,7 +126,14 @@ class NavigationRequest {
 const offRouteFixes = 3;
 
 class NavigationScreen extends StatefulWidget {
-  const NavigationScreen({super.key, required this.api, required this.request, this.source, this.alarmSound = true});
+  const NavigationScreen({
+    super.key,
+    required this.api,
+    required this.request,
+    this.source,
+    this.alarmSound = true,
+    this.speaker,
+  });
 
   final CoreApi api;
   final NavigationRequest request;
@@ -132,6 +141,9 @@ class NavigationScreen extends StatefulWidget {
   /// Źródło pozycji podane z góry (testy); zwykle GPS z symulacją pod ręką.
   final PositionSource? source;
   final bool alarmSound;
+
+  /// Głos podany z góry (testy); zwykle syntezator mowy systemu w języku aplikacji.
+  final Speaker? speaker;
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -158,6 +170,9 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   bool _recalculating = false;
   String? _notice;
   bool _follow = true;
+  Guidance? _guidance;
+  bool _voice = true;
+  late final Speaker _speaker = widget.speaker ?? systemSpeaker(_speechLanguage(Localizations.localeOf(context)));
 
   @override
   void initState() {
@@ -190,6 +205,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     _gps?.dispose();
     _simulation.dispose();
     _player.dispose();
+    _speaker.dispose();
     _blink.dispose();
     super.dispose();
   }
@@ -200,9 +216,13 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
         'vehicle_id': widget.request.vehicleId,
         'route': encodePolyline6(_route.points),
       });
+      final corridor = Corridor.fromJson(body as Map<String, dynamic>);
       setState(() {
-        _corridor = Corridor.fromJson(body as Map<String, dynamic>);
+        _corridor = corridor;
         _corridorError = null;
+        // Kilometry manewrów z silnika tras → metry linii trasy, po której liczona jest pozycja.
+        final valhallaM = _route.distanceKm * 1000;
+        _guidance = Guidance(_route.maneuvers, scale: valhallaM > 0 ? corridor.lengthM / valhallaM : 1);
       });
     } catch (error) {
       // Bez korytarza nie ma alarmu – kierowca musi o tym wiedzieć.
@@ -228,10 +248,22 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     final alarm = check?.alarm != null;
     if (alarm && !wasAlarm) _startAlarm();
     if (!alarm && wasAlarm) _stopAlarm();
+    if (!alarm && check?.alongM != null) _announce(check!.alongM!);
     if (_offRoute >= offRouteFixes && !_recalculating) _recalculate(position);
   }
 
+  /// Komunikaty głosowe przy tej pozycji na trasie (najwyżej raz każdy).
+  void _announce(double alongM) {
+    final texts = _guidance?.announce(alongM, context.l) ?? const [];
+    if (_voice && texts.isNotEmpty) _speaker.speak(texts.join(' '));
+  }
+
+  static String _speechLanguage(Locale locale) =>
+      const {'pl': 'pl-PL', 'en': 'en-US', 'de': 'de-DE', 'cs': 'cs-CZ', 'sk': 'sk-SK'}[locale.languageCode] ??
+      locale.toLanguageTag();
+
   Future<void> _startAlarm() async {
+    _speaker.stop();
     _blink.repeat(reverse: true);
     HapticFeedback.heavyImpact();
     if (widget.alarmSound) {
@@ -292,6 +324,14 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     return Scaffold(
       appBar: AppBar(title: Text(l.navigationTitle), actions: [
         IconButton(
+          tooltip: _voice ? l.voiceOn : l.voiceOff,
+          icon: Icon(_voice ? Icons.volume_up_outlined : Icons.volume_off_outlined),
+          onPressed: () {
+            setState(() => _voice = !_voice);
+            if (!_voice) _speaker.stop();
+          },
+        ),
+        IconButton(
           tooltip: _follow ? l.followingVehicle : l.backToVehicle,
           icon: Icon(_follow ? Icons.gps_fixed : Icons.gps_not_fixed),
           onPressed: () {
@@ -339,13 +379,22 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
             SimpleAttributionWidget(source: Text(l.mapAttribution)),
           ],
         ),
-        Positioned(left: 12, right: 12, top: 12, child: _StatusBanner(
-          check: check,
-          corridor: _corridor,
-          corridorError: _corridorError,
-          recalculating: _recalculating,
-          notice: _notice,
-        )),
+        Positioned(
+          left: 12,
+          right: 12,
+          top: 12,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (check?.alongM case final along? when alarm == null)
+              if (_guidance?.next(along) case final next?) _ManeuverCard(next: next),
+            _StatusBanner(
+              check: check,
+              corridor: _corridor,
+              corridorError: _corridorError,
+              recalculating: _recalculating,
+              notice: _notice,
+            ),
+          ]),
+        ),
         Positioned(left: 12, bottom: 24, child: _simulationControls()),
         if (alarm != null)
           Positioned.fill(
@@ -443,6 +492,57 @@ class _StatusBanner extends StatelessWidget {
     );
   }
 }
+
+/// Następny manewr: strzałka, odległość i napis (np. „300 m · Skręć w prawo w DK94”).
+class _ManeuverCard extends StatelessWidget {
+  const _ManeuverCard({required this.next});
+
+  final NextManeuver next;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return Card(
+      color: const Color(0xFF1F2A33),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(children: [
+          Icon(maneuverIcon(next.maneuver.type), color: Colors.white, size: 48),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(Guidance.display(l, next.distanceM),
+                  style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
+              Text(next.maneuver.instruction, style: const TextStyle(color: Colors.white, fontSize: 16)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Strzałka do rodzaju manewru Valhalli.
+IconData maneuverIcon(int type) => switch (type) {
+      >= 1 && <= 3 => Icons.navigation_outlined,
+      >= 4 && <= 6 => Icons.flag_outlined,
+      9 => Icons.turn_slight_right,
+      10 => Icons.turn_right,
+      11 => Icons.turn_sharp_right,
+      12 => Icons.u_turn_right,
+      13 => Icons.u_turn_left,
+      14 => Icons.turn_sharp_left,
+      15 => Icons.turn_left,
+      16 => Icons.turn_slight_left,
+      18 || 20 => Icons.ramp_right,
+      19 || 21 => Icons.ramp_left,
+      23 => Icons.fork_right,
+      24 => Icons.fork_left,
+      25 => Icons.merge,
+      26 || 27 => Icons.roundabout_right,
+      28 || 29 => Icons.directions_boat_outlined,
+      _ => Icons.straight,
+    };
 
 class _Pin extends StatelessWidget {
   const _Pin(this.label, this.color);

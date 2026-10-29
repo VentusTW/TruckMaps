@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from truckmaps.core import i18n
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
@@ -297,6 +298,41 @@ def test_valhalla_router_sends_truck_options():
     assert route.distance_km == 310.4
     assert route.duration_min == 245.0
     assert_points(route.geometry, [(16.9252, 52.4064), (21.0122, 52.2297)])
+    assert sent["directions_type"] == "instructions"
+    assert sent["language"] == "pl-PL"
+
+
+def test_valhalla_maneuvers_in_request_language_across_legs():
+    sent = []
+    first = encode_polyline6([(20.0, 50.0), (20.01, 50.0), (20.02, 50.0)])
+    second = encode_polyline6([(20.02, 50.0), (20.02, 50.01)])
+
+    def maneuver(kind, text, begin, length):
+        return {"type": kind, "instruction": text, "verbal_pre_transition_instruction": text,
+                "begin_shape_index": begin, "length": length, "street_names": ["DK94"]}  # fmt: skip
+
+    def valhalla(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        turns = [maneuver(1, "Drive east.", 0, 0.7), maneuver(10, "Turn right.", 1, 0.7)]
+        legs = [
+            {"shape": first, "summary": {"length": 1.4}, "maneuvers": turns},
+            {"shape": second, "summary": {"length": 1.1},
+             "maneuvers": [maneuver(4, "You have arrived.", 1, 0.0)]},
+        ]  # fmt: skip
+        trip = {"summary": {"length": 2.5, "time": 300}, "legs": legs}
+        return httpx.Response(200, json={"trip": trip})
+
+    router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
+    with i18n.use("en"):
+        route = router.route([Point(**POZNAN), Point(**WARSAW)], VehicleIn(**TRUCK))
+
+    assert sent[0]["language"] == "en-US"
+    assert [(m.type, m.instruction, m.km) for m in route.maneuvers] == [
+        (1, "Drive east.", 0.0),
+        (10, "Turn right.", 0.7),
+        (4, "You have arrived.", 1.4),
+    ]
+    assert (route.maneuvers[1].lon, route.maneuvers[2].lat) == (20.01, 50.01)
 
 
 def test_valhalla_no_route_and_unavailable():

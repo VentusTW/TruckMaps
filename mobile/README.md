@@ -72,6 +72,15 @@ poza trasą na drodze nieprzejezdnej dla pojazdu – czerwony, migający ekran, 
 poza trasą na innej drodze – po kilku pozycjach nowa trasa od miejsca, w którym jest pojazd.
 Bez GPS (komputer) pozycję ustawia dotknięcie mapy albo „Jedź 60 km/h” (symulacja).
 
+Manewry i głos: trasa z serwera ma manewry z komunikatami Valhalli w języku aplikacji.
+Na górze ekranu – strzałka, odległość i napis następnego manewru; głos mówi zapowiedź
+ok. 1 km i 300 m przed manewrem (na dłuższych odcinkach), komunikat tuż przed nim
+i „jedź prosto przez …” przed długim odcinkiem. Każdy komunikat raz; przy alarmie
+czerwonym głos milknie. Przycisk 🔊 w pasku wycisza głos. Mowa to syntezator systemu,
+bez sieci i bez dodatkowych pakietów: Android – `TextToSpeech` (kanał `truckmaps/speech`
+w `MainActivity.kt`), Windows – głosy systemu (System.Speech, np. Paulina dla polskiego);
+iOS jeszcze bez głosu. Brak głosu w danym języku → syntezator mówi domyślnym.
+
 Nowy moduł: pakiet `packages/module_<id>` z klasą `TruckMapsModule` (to samo `id` co moduł
 na serwerze), dopisany do `app/pubspec.yaml` i do listy w `app/lib/main.dart`. Moduł importuje
 tylko `core_sdk` – nie powłokę ani inne moduły.

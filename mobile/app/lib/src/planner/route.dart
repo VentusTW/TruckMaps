@@ -43,6 +43,43 @@ class RoutePlace {
   final String? limit;
 }
 
+/// Manewr z komunikatami w języku zapytania (Valhalla): napis, zapowiedź, tuż przed, po.
+class Maneuver {
+  const Maneuver({
+    required this.type,
+    required this.instruction,
+    required this.km,
+    required this.lengthKm,
+    required this.point,
+    this.alert,
+    this.pre,
+    this.post,
+  });
+
+  factory Maneuver.fromJson(Map<String, dynamic> json) => Maneuver(
+        type: json['type'] as int,
+        instruction: json['instruction'] as String,
+        alert: json['alert'] as String?,
+        pre: json['pre'] as String?,
+        post: json['post'] as String?,
+        km: _d(json['km']),
+        lengthKm: _d(json['length_km']),
+        point: LatLng(_d(json['lat']), _d(json['lon'])),
+      );
+
+  /// Rodzaj manewru Valhalli (1–3 start, 4–6 cel, 9–16 skręty, 26–27 rondo…).
+  final int type;
+  final String instruction;
+  final String? alert;
+  final String? pre;
+  final String? post;
+  final double km;
+  final double lengthKm;
+  final LatLng point;
+
+  bool get arrival => type >= 4 && type <= 6;
+}
+
 class Segment {
   const Segment(this.start, this.end, this.level);
 
@@ -70,6 +107,7 @@ class PlannedRoute {
     required this.level,
     required this.segments,
     required this.warnings,
+    this.maneuvers = const [],
     this.cost,
   });
 
@@ -88,6 +126,9 @@ class PlannedRoute {
         for (final w in (analysis?['warnings'] as List<dynamic>? ?? []))
           RoutePlace.fromJson(w as Map<String, dynamic>),
       ],
+      maneuvers: [
+        for (final m in (json['maneuvers'] as List<dynamic>? ?? [])) Maneuver.fromJson(m as Map<String, dynamic>),
+      ],
       cost: Cost.fromJson(json['cost']),
     );
   }
@@ -98,6 +139,7 @@ class PlannedRoute {
   final String? level;
   final List<Segment> segments;
   final List<RoutePlace> warnings;
+  final List<Maneuver> maneuvers;
   final Cost? cost;
 
   /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia).

@@ -111,5 +111,14 @@
   "onRouteRemaining": "Na trasie – zostało {km} km",
   "@onRouteRemaining": {"placeholders": {"km": {"type": "String"}}},
   "offRoute": "Poza trasą",
-  "offRouteRecalculating": "Poza trasą – przeliczam trasę…"
+  "offRouteRecalculating": "Poza trasą – przeliczam trasę…",
+
+  "voiceIn": "Za {distance} {instruction}",
+  "@voiceIn": {"description": "Zapowiedź głosowa manewru, np. „Za 300 m skręć w prawo w DK94.”", "placeholders": {"distance": {"type": "String"}, "instruction": {"type": "String"}}},
+  "distanceMeters": "{meters} m",
+  "@distanceMeters": {"placeholders": {"meters": {"type": "int"}}},
+  "distanceKm": "{km} km",
+  "@distanceKm": {"placeholders": {"km": {"type": "String"}}},
+  "voiceOn": "Głos włączony – dotknij, żeby wyciszyć",
+  "voiceOff": "Głos wyciszony – dotknij, żeby włączyć"
 }

@@ -12,7 +12,7 @@ from truckmaps.core import costs, parkings, restrictions, timebans
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
-from truckmaps.core.i18n import num, t
+from truckmaps.core.i18n import language, num, t
 from truckmaps.core.polyline import decode_polyline6
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import (
@@ -26,6 +26,8 @@ from truckmaps.core.route_analysis import (
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
 from truckmaps.sdk import Principal
 
+# Język komunikatów manewrów w Valhalli dla języka zapytania (bez tłumaczenia – angielski).
+VALHALLA_LANGUAGES = {"pl": "pl-PL", "en": "en-US", "de": "de-DE", "cs": "cs-CZ", "sk": "sk-SK"}
 # Kody Valhalli: 442 – "No path could be found", 171 – "No suitable edges near location".
 VALHALLA_NO_ROUTE = {442, 171}
 EDGE_ATTRIBUTES = [
@@ -89,10 +91,26 @@ class RouteRequest(BaseModel):
     )
 
 
+class Maneuver(BaseModel):
+    """Manewr z komunikatami do wyświetlenia i do głosu (Valhalla, w języku zapytania)."""
+
+    type: int = Field(description="Rodzaj manewru Valhalli (np. 10 – w prawo, 26 – rondo)")
+    instruction: str
+    alert: str | None = Field(default=None, description="Zapowiedź z wyprzedzeniem, bez odległości")
+    pre: str | None = Field(default=None, description="Komunikat tuż przed manewrem")
+    post: str | None = Field(default=None, description="Po manewrze, np. „Jedź prosto 400 m”")
+    street_names: list[str] = []
+    km: float = Field(description="Gdzie na trasie zaczyna się manewr (km od startu)")
+    length_km: float = Field(description="Odcinek od manewru do następnego")
+    lat: float
+    lon: float
+
+
 class Route(BaseModel):
     distance_km: float
     duration_min: float
     geometry: list[tuple[float, float]] = Field(description="Punkty trasy jako [lon, lat]")
+    maneuvers: list[Maneuver] = Field(default=[], description="Manewry do nawigacji, po kolei")
     edges: list[RouteEdge] | None = Field(default=None, exclude=True)
     """Odcinki z identyfikatorami dróg OSM; ``None``, gdy Valhalla ich nie zwróciła."""
     alternates: list["Route"] = Field(default=[], exclude=True)
@@ -103,6 +121,7 @@ class AlternativeRoute(BaseModel):
     distance_km: float
     duration_min: float
     geometry: list[tuple[float, float]]
+    maneuvers: list[Maneuver] = []
     analysis: Analysis | None
     cost: costs.RouteCost | None = None
 
@@ -171,6 +190,30 @@ class RoutingUnavailable(Exception):
     pass
 
 
+def _maneuvers(leg: dict, start_km: float) -> list[Maneuver]:
+    """Manewry odcinka trasy; położenie z linii odcinka (indeksy linii Valhalli)."""
+    shape = decode_polyline6(leg["shape"]) if leg.get("maneuvers") else []
+    found, km = [], start_km
+    for m in leg.get("maneuvers", []):
+        lon, lat = shape[min(m.get("begin_shape_index", 0), len(shape) - 1)]
+        found.append(
+            Maneuver(
+                type=m.get("type", 0),
+                instruction=m.get("instruction", ""),
+                alert=m.get("verbal_transition_alert_instruction"),
+                pre=m.get("verbal_pre_transition_instruction"),
+                post=m.get("verbal_post_transition_instruction"),
+                street_names=m.get("street_names", []),
+                km=round(km, 3),
+                length_km=m.get("length", 0.0),
+                lat=lat,
+                lon=lon,
+            )
+        )
+        km += m.get("length", 0.0)
+    return found
+
+
 class Router(Protocol):
     def route(
         self,
@@ -215,7 +258,8 @@ class ValhallaRouter:
             "locations": locations,
             **costing(vehicle),
             "units": "kilometers",
-            "directions_type": "none",
+            "directions_type": "instructions",
+            "language": VALHALLA_LANGUAGES.get(language(), "en-US"),
         }
         if exclude:
             request["exclude_locations"] = [{"lat": p.lat, "lon": p.lon} for p in exclude]
@@ -263,7 +307,11 @@ class ValhallaRouter:
     def _parse_trip(self, trip: dict, vehicle: VehicleIn) -> Route:
         geometry: list[tuple[float, float]] = []
         edges: list[RouteEdge] | None = []
+        maneuvers: list[Maneuver] = []
+        leg_km = 0.0
         for leg in trip["legs"]:
+            maneuvers += _maneuvers(leg, leg_km)
+            leg_km += leg.get("summary", {}).get("length", 0.0)
             offset = len(geometry)
             matched = self._edges(leg["shape"], vehicle)
             if matched is None:
@@ -279,6 +327,7 @@ class ValhallaRouter:
             duration_min=round(trip["summary"]["time"] / 60, 1),
             geometry=geometry,
             edges=edges,
+            maneuvers=maneuvers,
         )
 
     def _edges(
@@ -501,6 +550,7 @@ def alternatives(
                     distance_km=candidate.distance_km,
                     duration_min=candidate.duration_min,
                     geometry=candidate.geometry,
+                    maneuvers=candidate.maneuvers,
                     analysis=analysis,
                 ),
             )

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:truckmaps_app/src/navigation/navigation_screen.dart';
+import 'package:truckmaps_app/src/navigation/speech.dart';
 import 'package:truckmaps_app/src/planner/planner_screen.dart';
 import 'package:truckmaps_app/src/planner/route.dart';
 
@@ -24,6 +25,19 @@ class FakePositions implements PositionSource {
   Future<void> dispose() => controller.close();
 }
 
+class FakeSpeaker implements Speaker {
+  final spoken = <String>[];
+
+  @override
+  Future<void> speak(String text) async => spoken.add(text);
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 http.Response json(Object? body) => http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
 final route = PlannedRoute.fromJson({
@@ -31,6 +45,11 @@ final route = PlannedRoute.fromJson({
   'duration_min': 4.0,
   'geometry': [[20.98, 50.0], [21.0, 50.0], [21.02, 50.0]],
   'analysis': {'level': 'green', 'segments': [{'start_index': 0, 'end_index': 2, 'level': 'green'}], 'warnings': []},
+  'maneuvers': [
+    {'type': 1, 'instruction': 'Jedź na wschód.', 'pre': 'Jedź na wschód.', 'km': 0.0, 'length_km': 1.5, 'lat': 50.0, 'lon': 20.98},
+    {'type': 10, 'instruction': 'Skręć w prawo.', 'pre': 'Skręć w prawo.', 'km': 1.5, 'length_km': 1.4, 'lat': 50.0, 'lon': 21.0},
+    {'type': 4, 'instruction': 'Dotarłeś do celu.', 'km': 2.9, 'length_km': 0.0, 'lat': 50.0, 'lon': 21.02},
+  ],
 });
 
 void main() {
@@ -59,12 +78,14 @@ void main() {
       });
     });
     final positions = FakePositions();
+    final speaker = FakeSpeaker();
     await tester.pumpWidget(localized(
       NavigationScreen(
         api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
         request: NavigationRequest(vehicleId: 'v1', route: route, destination: const LatLng(50, 21.02)),
         source: positions,
         alarmSound: false,
+        speaker: speaker,
       ),
     ));
     await tester.pump(const Duration(milliseconds: 100));
@@ -72,6 +93,8 @@ void main() {
     positions.controller.add(const LatLng(50.0001, 20.99));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.textContaining('Na trasie – zostało'), findsOneWidget);
+    expect(find.text('Skręć w prawo.'), findsOneWidget);  // następny manewr
+    expect(speaker.spoken, ['Jedź na wschód.']);
 
     positions.controller.add(const LatLng(50.002, 21.0));
     await tester.pump(const Duration(milliseconds: 100));

@@ -87,5 +87,11 @@
   "waitingForPosition": "Waiting for a position (GPS or tap the map).",
   "onRouteRemaining": "On the route – {km} km to go",
   "offRoute": "Off the route",
-  "offRouteRecalculating": "Off the route – recalculating…"
+  "offRouteRecalculating": "Off the route – recalculating…",
+
+  "voiceIn": "In {distance}, {instruction}",
+  "distanceMeters": "{meters} m",
+  "distanceKm": "{km} km",
+  "voiceOn": "Voice on – tap to mute",
+  "voiceOff": "Voice muted – tap to turn on"
 }
