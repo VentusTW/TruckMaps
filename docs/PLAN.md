@@ -232,7 +232,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 **Gotowe, gdy:** API zwraca kolorowaną trasę Poznań → Berlin dla zestawu 40 t / 4 m, a testy przechodzą w macierzy „rdzeń” / „rdzeń + hello”.
 
 ### Faza 2 – Rdzeń aplikacja (miesiące 5–8)
-- [ ] Powłoka Flutter, `core_sdk`, rejestracja modułów, ekran „Kup moduł”
+- [x] Powłoka Flutter (`mobile/app`: Android, iOS, Windows, web), `core_sdk` (kontrakt modułu, rejestr, klient API), rejestracja modułów (wzór: `module_hello`), lista modułów konta z serwera (`/api/me/modules`), ekran „Kup moduł”; logowanie przez przeglądarkę z powrotem na 127.0.0.1 i jednorazowym kodem (RFC 8252); w CI analiza i testy
+- [ ] Logowanie w aplikacji: zapamiętanie sesji (bezpieczny magazyn), odświeżanie tokenu, na telefonie przekierowanie `truckmaps://auth/callback` (AppAuth), wersja web
 - [x] Mapa MapLibre, profil pojazdu
 - [x] Wyszukiwanie adresów (Photon, dane OSM co tydzień): pola Skąd / Dokąd z podpowiedziami, adres klikniętego punktu
 - [x] Punkty pośrednie z adresu albo GPS, współrzędne GPS w każdym polu adresu; bazy firmy (nazwa + adres, zarządzają właściciel i dyspozytorzy) podpowiadane po wpisaniu „baza” lub nazwy bazy
@@ -270,7 +271,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] zakazy dla ciężarówek PL (> 12 t: święta 8–22, dzień przed 18–22, wakacje pt./sob./niedz.), DE (> 7,5 t lub z przyczepą: niedziele i święta 0–22, soboty 1.07–31.08 7–20 na drogach z Ferienreiseverordnung – „sprawdź odcinek”), CZ (autostrady i drogi I klasy: niedziele i święta 13–22, wakacje pt. 17–21 i sob. 7–13), SK (niedziele i dni wolne 0–22, wakacyjne soboty 7–19 – „sprawdź”, przepisy bez sprawdzenia w tekście ustawy); LT bez ogólnego zakazu
   - [x] przy planowaniu godzina wjazdu na każdy odcinek (czas z silnika tras, kraj i land odcinka): ostrzeżenie z godzinami zakazu, postój do końca zakazu i dalsze godziny z postojem, przyjazd, parkingi w pobliżu, najbliższy wyjazd bez postoju (przycisk w planerze), znaczniki ⛔ na mapie
   - [ ] kolejne kraje (AT, CH nocne, FR, IT, HU…), wyjątki zależne od ładunku (pole w profilu przewozu), zakazy dla alternatyw tras
-  - [ ] ograniczenia czasowe z OSM (`hgv:conditional`, `maxweight:conditional`, `access:conditional`) – ponowny import ograniczeń – i z krajowych DATEX II
+  - [x] ograniczenia warunkowe z OSM (`hgv`, `motor_vehicle`, `access`, `goods`, `maxweight`, `maxweightrating`, `maxaxleload`, `maxlength`, `maxheight` `:conditional`, ok. 37 tys.): godziny, dni, święta, miesiące i daty, warunki pojazdu (`weight>7.5`); oceniane w godzinie przejazdu odcinka – aktywny zakaz jest czerwony i omijany jak inne miejsca nieprzejezdne, stały (bez godzin) także w korytarzu dla telefonu; wyjątki dla grup (`@ destination`, `@ agricultural`) pomijane, warunki nieczytelne (np. `@ winter`, `@ sunset-sunrise`) – żółte „sprawdź znak”
+  - [ ] ograniczenia czasowe z krajowych DATEX II
   - [ ] przerwy kierowcy (561/2006) w czasie przejazdu – z modułem M2
   - to samo przy ofertach w planerze zleceń (M7) i przy rozkładzie przerw (M2)
   - podział między rdzeń a moduły do ustalenia; bezpieczeństwo i legalność przejazdu najlepiej za darmo

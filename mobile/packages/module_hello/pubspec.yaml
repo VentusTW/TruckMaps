@@ -1,0 +1,20 @@
+name: module_hello
+description: "Moduł testowy Hello – wzór pakietu modułu TruckMaps."
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.4 <4.0.0'
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  core_sdk:
+    path: ../core_sdk
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  http: ^1.2.1

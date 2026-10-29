@@ -1,0 +1,26 @@
+name: truckmaps_app
+description: "TruckMaps – powłoka aplikacji (rdzeń) z modułami."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.4 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  url_launcher: ^6.2.5
+  core_sdk:
+    path: ../packages/core_sdk
+  # Pakiety modułów wbudowane w aplikację; dostęp do nich sprawdza serwer.
+  module_hello:
+    path: ../packages/module_hello
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

@@ -11,6 +11,7 @@ from truckmaps.core import devlogin
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken, OidcProvider
 from truckmaps.core.config import Settings
+from truckmaps.sdk import Module
 
 ISSUER = "http://idp.test"
 CLIENT_ID = "client-1"
@@ -144,3 +145,57 @@ def test_dev_login_rejects_wrong_state(provider):
 
     assert response.status_code == 303
     assert "error=" in response.headers["location"]
+
+
+def test_app_login_returns_to_loopback_with_one_time_code(provider):
+    access = make_token()
+
+    def token_endpoint(request: httpx.Request) -> httpx.Response:
+        nonce = devlogin.decode_flow(client.cookies[devlogin.FLOW_COOKIE])["nonce"]
+        id_token = make_token(aud=CLIENT_ID, nonce=nonce, name="Anna Kowalska")
+        return httpx.Response(
+            200, json={"access_token": access, "id_token": id_token, "expires_in": 1800}
+        )
+
+    app = dev_login_app(provider, token_endpoint)
+    with TestClient(app, follow_redirects=False) as client:
+        refused = client.get("/auth/login", params={"app": "http://evil.test:8080/callback"})
+        assert "error=" in refused.headers["location"]
+
+        login = client.get("/auth/login", params={"app": "http://127.0.0.1:53123/callback"})
+        state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+        callback = client.get("/auth/callback", params={"code": "the-code", "state": state})
+
+        back = urlparse(callback.headers["location"])
+        assert (back.hostname, back.port, back.path) == ("127.0.0.1", 53123, "/callback")
+        code = parse_qs(back.query)["code"][0]
+        assert access not in callback.headers["location"]  # token nie trafia do adresu
+
+        token = client.post("/auth/app/token", json={"code": code})
+        assert token.json() == {"access_token": access, "expires_in": 1800, "name": "Anna Kowalska"}
+        # Kod jest jednorazowy.
+        assert client.post("/auth/app/token", json={"code": code}).status_code == 400
+
+
+class HelloModule(Module):
+    id = "hello"
+    name = "Hello (moduł testowy)"
+    version = "0.1.0"
+    requires_core = ">=0.1,<1.0"
+
+    def register(self, ctx) -> None:
+        pass
+
+
+def test_my_modules_show_access(provider):
+    settings = Settings(licenses={"user-42": frozenset({"hello"})})
+    app = create_app(settings, modules=[HelloModule()], token_verifier=provider)
+    with TestClient(app) as client:
+        mine = client.get("/api/me/modules", headers={"Authorization": f"Bearer {make_token()}"})
+        other = make_token(sub="user-2")
+        theirs = client.get("/api/me/modules", headers={"Authorization": f"Bearer {other}"})
+
+    assert mine.json() == [
+        {"id": "hello", "name": "Hello (moduł testowy)", "version": "0.1.0", "granted": True}
+    ]
+    assert theirs.json()[0]["granted"] is False

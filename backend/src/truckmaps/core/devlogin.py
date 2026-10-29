@@ -2,6 +2,11 @@
 
 Przechodzi ten sam przepływ co docelowa aplikacja: przekierowanie do Zitadela,
 powrót z kodem, wymiana kodu na tokeny. Tokeny trzyma w ciasteczkach httpOnly.
+
+Aplikacja Flutter (na komputerze, w trakcie budowy) loguje się tak samo przez przeglądarkę:
+``/auth/login?app=http://127.0.0.1:<port>/callback`` – po zalogowaniu serwer wraca na ten
+adres lokalny z jednorazowym kodem (RFC 8252, przekierowanie na loopback), a aplikacja
+wymienia kod na token przez ``POST /auth/app/token``. Token nie trafia do adresu.
 """
 
 import base64
@@ -9,12 +14,14 @@ import hashlib
 import html
 import json
 import secrets
+import time
 from importlib import resources
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from pydantic import BaseModel
 
 from truckmaps.core.auth import InvalidToken, OidcProvider
 
@@ -22,12 +29,26 @@ FLOW_COOKIE = "tm_flow"
 ACCESS_COOKIE = "tm_access"
 ID_COOKIE = "tm_id"
 SCOPES = "openid profile email"
+APP_CODE_TTL_S = 120
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+
+
+class AppCode(BaseModel):
+    code: str
+
+
+class AppToken(BaseModel):
+    access_token: str
+    expires_in: int
+    name: str
 
 
 def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | None = None):
     router = APIRouter(include_in_schema=False)
     http = http or httpx.Client(timeout=15)
     redirect_uri = f"{public_url}/auth/callback"
+    # Jednorazowe kody dla aplikacji: kod → (ważny do, token).
+    app_codes: dict[str, tuple[float, AppToken]] = {}
 
     @router.get("/")
     def welcome(request: Request, error: str | None = None) -> Response:
@@ -53,7 +74,9 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         return HTMLResponse(page.replace("__USER_NAME__", _js(user["name"] or user["email"])))
 
     @router.get("/auth/login")
-    def login(register: bool = False) -> Response:
+    def login(register: bool = False, app: str | None = None) -> Response:
+        if app is not None and not _loopback(app):
+            return _back_with_error("Aplikacja może wrócić tylko na adres lokalny (127.0.0.1).")
         state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         verifier = secrets.token_urlsafe(64)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -71,7 +94,10 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
             params["prompt"] = "create"
         url = f"{provider.metadata['authorization_endpoint']}?{urlencode(params)}"
         response = RedirectResponse(url)
-        flow = encode_flow({"state": state, "nonce": nonce, "verifier": verifier})
+        flow = {"state": state, "nonce": nonce, "verifier": verifier}
+        if app is not None:
+            flow["app"] = app
+        flow = encode_flow(flow)
         response.set_cookie(FLOW_COOKIE, flow, max_age=600, httponly=True, samesite="lax")
         return response
 
@@ -109,8 +135,22 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         if id_claims.get("nonce") != flow["nonce"]:
             return _back_with_error("Nieprawidłowa odpowiedź serwera logowania.")
 
-        response = RedirectResponse(f"{public_url}/", status_code=303)
         max_age = int(tokens.get("expires_in", 3600))
+        if app := flow.get("app"):
+            now = time.monotonic()
+            for old in [c for c, (until, _) in app_codes.items() if until < now]:
+                del app_codes[old]
+            code = secrets.token_urlsafe(24)
+            name = id_claims.get("name") or id_claims.get("email") or ""
+            app_codes[code] = (
+                now + APP_CODE_TTL_S,
+                AppToken(access_token=tokens["access_token"], expires_in=max_age, name=name),
+            )
+            separator = "&" if "?" in app else "?"
+            response = RedirectResponse(f"{app}{separator}{urlencode({'code': code})}", 303)
+            response.delete_cookie(FLOW_COOKIE)
+            return response
+        response = RedirectResponse(f"{public_url}/", status_code=303)
         for name, value in (
             (ACCESS_COOKIE, tokens["access_token"]),
             (ID_COOKIE, tokens["id_token"]),
@@ -118,6 +158,14 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
             response.set_cookie(name, value, max_age=max_age, httponly=True, samesite="lax")
         response.delete_cookie(FLOW_COOKIE)
         return response
+
+    @router.post("/auth/app/token")
+    def app_token(data: AppCode) -> AppToken:
+        """Token dla aplikacji w zamian za jednorazowy kod z przekierowania na loopback."""
+        found = app_codes.pop(data.code, None)
+        if found is None or found[0] < time.monotonic():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kod logowania wygasł albo jest zły.")
+        return found[1]
 
     @router.get("/auth/logout")
     def logout(request: Request) -> Response:
@@ -132,6 +180,15 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         return response
 
     return router
+
+
+def _loopback(url: str) -> bool:
+    """Adres powrotu aplikacji: tylko http na tym samym komputerze, z numerem portu."""
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme == "http" and parsed.hostname in LOOPBACK_HOSTS and bool(parsed.port)
+    except ValueError:
+        return False
 
 
 def _js(value: str) -> str:

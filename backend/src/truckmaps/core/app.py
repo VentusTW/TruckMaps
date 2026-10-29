@@ -100,6 +100,7 @@ def create_app(
     app.state.events = bus
     app.state.extensions = extensions
     app.state.modules = manager
+    app.state.licensing = licensing
     app.state.router = router or routing.ValhallaRouter(settings.valhalla_url)
     app.state.geocoder = geocoder or geocoding.PhotonGeocoder(settings.photon_url)
     app.include_router(api.build_router(auth.current_user))
