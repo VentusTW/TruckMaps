@@ -36,6 +36,8 @@
   .badge.green { color:var(--ok); } .badge.yellow { color:var(--warn); } .badge.red { color:var(--bad); }
   .warnings { list-style:none; padding:0; margin:8px 0 0; display:flex; flex-direction:column; gap:6px; }
   .warnings button { text-align:left; font-size:13px; padding:7px 10px; display:flex; gap:8px; }
+  .time-bans li { font-size:13px; }
+  .time-bans .parkings { margin:4px 0 0 18px; color:var(--muted); font-size:12px; }
   .warnings .dot { width:10px; height:10px; border-radius:50%; flex:none; margin-top:5px; }
   .dot.green { background:#3b6d11; } .dot.lime { background:#97c459; } .dot.yellow { background:#f5c518; }
   .dot.orange { background:#f08c00; } .dot.red { background:#d62828; }
@@ -177,6 +179,7 @@
   </div>
 
   <h2>Trasa</h2>
+  <label>Wyjazd <input id="departure" type="datetime-local" title="Do zakazów ruchu w czasie (święta, weekendy, wakacje); puste = teraz"></label>
   <label>Waluta kosztów <select id="currency" title="Zapisywana w ustawieniach konta"></select></label>
   <p class="muted" id="rates-day"></p>
   <div class="search">
@@ -614,6 +617,7 @@ function clearRoute() {
   clearIssues();
   clearSigns();
   clearRouteLabels();
+  clearTimeBans();
   clearCorridor();
   $("corridor-tools").hidden = true;
   $("result").hidden = true;
@@ -738,6 +742,10 @@ const TEST_ROUTES = [
     a: [52.4082892, 16.933598], b: [50.0810618, 14.4246678], via: [[51.2, 16.2]] },
   { name: "Drezno, Stare Miasto → Praga (start przesunięty poza strefę bez wjazdu)", a: [51.0504, 13.7373], b: [50.0755, 14.4378] },
   { name: "Praga → Drezno, Stare Miasto (cel przesunięty przed strefę bez wjazdu)", a: [50.0755, 14.4378], b: [51.0504, 13.7373] },
+  { name: "Tarnów → Berlin, wyjazd sob. 31.10 16:00 (zakaz przed świętem w PL i niedziela w DE)",
+    a: [50.0121, 20.9858], b: [52.5163, 13.3777], departure: "2026-10-31T16:00" },
+  { name: "Drezno (A17) → Brno, wyjazd sob. 4.07 6:00 (wakacyjna sobota w CZ)",
+    a: [50.9930, 13.8070], b: [49.1951, 16.6068], departure: "2026-07-04T06:00" },
 ];
 
 $("test-routes").innerHTML = '<option value="">Trasy testowe…</option>' +
@@ -751,12 +759,14 @@ $("test-routes").addEventListener("change", (event) => {
   setStart(lngLat(route.a));
   setEnd(lngLat(route.b));
   for (const point of route.via ?? []) addVia(lngLat(point));
+  $("departure").value = route.departure ?? "";
   $("hint").textContent = hintText();
   calculate();
 });
 $("calc").addEventListener("click", calculate);
 $("clear").addEventListener("click", clearAll);
 $("avoid").addEventListener("change", recalculate);
+$("departure").addEventListener("change", recalculate);
 $("via-mode").addEventListener("click", () => {
   if (!start || !end) return showError("Najpierw zaznacz start (A) i cel (B).");
   setViaMode(!viaMode);
@@ -790,6 +800,7 @@ async function calculate(options = {}) {
       via: via.map((v) => point(v.lngLat)),
       vehicle_id: vehicleId,
       avoid_difficult: $("avoid").checked,
+      departure: $("departure").value || null,
     }) });
     routeShown = true;
     showRoute(route, options);
@@ -822,7 +833,7 @@ function showRoute(route, options = {}) {
   }
   $("result").className = `result ${route.analysis?.level ?? ""}`;
   $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${duration(route)}` +
-    costHtml(route) +
+    costHtml(route) + timeBansHtml(route) +
     `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t, DMC ${route.vehicle.gvw_t} t)</p>` +
     analysisHtml(route) + alternativesHtml(route);
   $("result").querySelectorAll("[data-warning]").forEach((button) => button.addEventListener("click", () => {
@@ -840,7 +851,72 @@ function showRoute(route, options = {}) {
   clearCorridor();
   $("corridor-tools").hidden = false;
   showIssues(route.stop_issues ?? []);
+  showTimeBans(route);
+  $("result").querySelectorAll("[data-ban]").forEach((button) => button.addEventListener("click", () => {
+    const ban = route.time_bans.bans[Number(button.dataset.ban)];
+    map.flyTo({ center: [ban.lon, ban.lat], zoom: 12 });
+  }));
+  $("free-departure")?.addEventListener("click", () => {
+    $("departure").value = localInput(route.time_bans.free_departure);
+    recalculate();
+  });
   $("result").hidden = false;
+}
+
+// --- Zakazy ruchu w czasie (święta, weekendy, wakacje) ------------------------------
+let banMarkers = [];
+
+function clearTimeBans() {
+  banMarkers.forEach((m) => m.remove());
+  banMarkers = [];
+}
+
+const when = (iso) => new Date(iso).toLocaleString("pl-PL",
+  { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const hoursMin = (min) => `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
+
+function localInput(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function timeBansHtml(route) {
+  const t = route.time_bans;
+  if (!t) return "";
+  const arrival = `<p class="muted">Przyjazd ok. ${when(t.arrival)}` +
+    (t.wait_min ? `, w tym postój w czasie zakazów ${hoursMin(t.wait_min)}` : "") +
+    " (czas jazdy bez przerw kierowcy).</p>";
+  if (!t.bans.length) {
+    return `<p class="muted">Zakazy ruchu w czasie: brak przy wyjeździe ${when(route.departure)}.</p>` + arrival;
+  }
+  const items = t.bans.map((b, i) => {
+    const parkings = b.parkings.map((p) =>
+      `${escapeHtml(p.name || p.kind_label)} (${(p.distance_m / 1000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} km)`).join(" · ");
+    return `<li><button type="button" data-ban="${i}"><span>⛔</span>` +
+      `<span>km ${b.km.toLocaleString("pl-PL")} – ${escapeHtml(b.message)}</span></button>` +
+      (parkings && b.verified ? `<div class="parkings">Parkingi w pobliżu: ${parkings}</div>` : "") + "</li>";
+  }).join("");
+  const free = t.free_departure
+    ? `<button type="button" id="free-departure" style="width:100%;margin-top:6px">Wyjedź ${when(t.free_departure)} – bez postoju w czasie zakazów</button>`
+    : "";
+  return `<h3>Zakazy ruchu w czasie</h3><ul class="warnings time-bans">${items}</ul>${arrival}${free}` +
+    '<p class="muted">Wyjątki (np. towary szybko psujące się, żywe zwierzęta, transport kombinowany) zależą od ładunku – sprawdź przepisy kraju.</p>';
+}
+
+function showTimeBans(route) {
+  clearTimeBans();
+  for (const ban of route.time_bans?.bans ?? []) {
+    const element = document.createElement("div");
+    element.className = "issue-marker";
+    element.textContent = "⛔";
+    element.title = ban.message;
+    element.style.cssText = "font-size:20px;line-height:1;cursor:pointer;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))";
+    element.addEventListener("click", (event) => event.stopPropagation());
+    banMarkers.push(new maplibregl.Marker({ element }).setLngLat([ban.lon, ban.lat])
+      .setPopup(new maplibregl.Popup({ offset: 14 }).setHTML(`<strong>${escapeHtml(ban.message)}</strong>`))
+      .addTo(map));
+  }
 }
 
 // --- Znaki ograniczeń na mapie -----------------------------------------------------

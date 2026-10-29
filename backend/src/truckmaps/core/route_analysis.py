@@ -100,6 +100,11 @@ class RouteEdge(BaseModel):
     lane_count: int | None = None
     roundabout: bool = False
     names: list[str] = []
+    country: str = ""
+    """Kod kraju ISO (np. "DE") i regionu (np. land "SN") – do zakazów ruchu w czasie."""
+    state: str = ""
+    end_s: float | None = None
+    """Czas jazdy od startu trasy do końca odcinka [s]; ``None`` – brak danych."""
 
 
 class Segment(BaseModel):

@@ -266,10 +266,12 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] M2 Czas pracy kierowcy: limity 561/2006, rozkład przerw wg preferencji, pauza tygodniowa poza kabiną
 - [ ] Zdarzenia drogowe z krajowych punktów dostępowych (DATEX II) → propozycja przerwy przed korkiem lub wypadkiem
 - [ ] Święta i zakazy ruchu w czasie, według danych państw:
-  - kalendarz świąt per kraj i region (np. święta landów w DE, kantonów w CH), z oficjalnych źródeł i bibliotek świąt
-  - zakazy dla ciężarówek: weekendowe, świąteczne, wakacyjne (np. soboty w lecie w DE, AT, FR), nocne (AT, CH), z progami DMC, wyjątkami (ładunki szybko psujące się, transport kombinowany) i godzinami
-  - ograniczenia czasowe z OSM (`hgv:conditional`, `maxweight:conditional`, `access:conditional`) i z krajowych DATEX II
-  - przy planowaniu liczona godzina wjazdu na każdy odcinek i do każdego kraju: ostrzeżenie „zakaz od sob. 15:00 do niedz. 22:00 w DE”, propozycja zmiany godziny wyjazdu, objazdu lub parkingu przed zakazem
+  - [x] kalendarz świąt PL, DE (z landami), CZ, SK – z tekstu przepisów (Wielkanoc liczona), w rdzeniu (`core/timebans.py`)
+  - [x] zakazy dla ciężarówek PL (> 12 t: święta 8–22, dzień przed 18–22, wakacje pt./sob./niedz.), DE (> 7,5 t lub z przyczepą: niedziele i święta 0–22, soboty 1.07–31.08 7–20 na drogach z Ferienreiseverordnung – „sprawdź odcinek”), CZ (autostrady i drogi I klasy: niedziele i święta 13–22, wakacje pt. 17–21 i sob. 7–13), SK (niedziele i dni wolne 0–22, wakacyjne soboty 7–19 – „sprawdź”, przepisy bez sprawdzenia w tekście ustawy); LT bez ogólnego zakazu
+  - [x] przy planowaniu godzina wjazdu na każdy odcinek (czas z silnika tras, kraj i land odcinka): ostrzeżenie z godzinami zakazu, postój do końca zakazu i dalsze godziny z postojem, przyjazd, parkingi w pobliżu, najbliższy wyjazd bez postoju (przycisk w planerze), znaczniki ⛔ na mapie
+  - [ ] kolejne kraje (AT, CH nocne, FR, IT, HU…), wyjątki zależne od ładunku (pole w profilu przewozu), zakazy dla alternatyw tras
+  - [ ] ograniczenia czasowe z OSM (`hgv:conditional`, `maxweight:conditional`, `access:conditional`) – ponowny import ograniczeń – i z krajowych DATEX II
+  - [ ] przerwy kierowcy (561/2006) w czasie przejazdu – z modułem M2
   - to samo przy ofertach w planerze zleceń (M7) i przy rozkładzie przerw (M2)
   - podział między rdzeń a moduły do ustalenia; bezpieczeństwo i legalność przejazdu najlepiej za darmo
 - [ ] M3 Parkingi i POI: wyszukiwanie, filtry, propozycje pod przerwę, zgłoszenia „pełny / są miejsca”

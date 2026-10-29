@@ -1,5 +1,6 @@
 """Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``) z omijaniem trudnych miejsc."""
 
+from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
 import httpx
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import costs, parkings, restrictions
+from truckmaps.core import costs, parkings, restrictions, timebans
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
@@ -35,6 +36,10 @@ EDGE_ATTRIBUTES = [
     "edge.lane_count",
     "edge.roundabout",
     "edge.names",
+    "node.elapsed_time",
+    "node.admin_index",
+    "admin.country_code",
+    "admin.state_code",
 ]
 
 # Dopasowanie do mapy (map_snap) Valhalla robi najwyżej dla 200 km – dłuższe odcinki kawałkami.
@@ -76,6 +81,10 @@ class RouteRequest(BaseModel):
     vehicle_id: str
     avoid_difficult: bool = Field(
         default=True, description="Omijaj miejsca pomarańczowe i czerwone, jeśli jest objazd"
+    )
+    departure: datetime | None = Field(
+        default=None,
+        description="Wyjazd (do zakazów ruchu w czasie); bez strefy – czas polski, brak – teraz",
     )
 
 
@@ -138,6 +147,10 @@ class RouteResponse(Route):
     )
     cost: costs.RouteCost | None = Field(
         default=None, description="Szacunkowy koszt; brak, gdy pojazd ani firma nie mają stawek"
+    )
+    departure: datetime | None = Field(default=None, description="Wyjazd, dla którego liczono")
+    time_bans: timebans.TimeBanCheck | None = Field(
+        default=None, description="Zakazy ruchu w czasie na trasie, postoje i przyjazd"
     )
 
 
@@ -259,15 +272,7 @@ class ValhallaRouter:
                 leg_edges, leg_shape = matched
                 geometry += leg_shape
                 if edges is not None:
-                    edges += [
-                        e.model_copy(
-                            update={
-                                "begin_index": e.begin_index + offset,
-                                "end_index": e.end_index + offset,
-                            }
-                        )
-                        for e in leg_edges
-                    ]
+                    edges += _shifted(leg_edges, offset, _end_s(edges))
         return Route(
             distance_km=round(trip["summary"]["length"], 1),
             duration_min=round(trip["summary"]["time"] / 60, 1),
@@ -296,18 +301,9 @@ class ValhallaRouter:
             part = self._match(chunk, vehicle)
             if part is None:
                 return None
-            offset = len(geometry)
             chunk_edges, chunk_shape = part
+            edges += _shifted(chunk_edges, len(geometry), _end_s(edges))
             geometry += chunk_shape
-            edges += [
-                e.model_copy(
-                    update={
-                        "begin_index": e.begin_index + offset,
-                        "end_index": e.end_index + offset,
-                    }
-                )
-                for e in chunk_edges
-            ]
         return edges, geometry
 
     def _match(
@@ -333,6 +329,7 @@ class ValhallaRouter:
             response.raise_for_status()
             body = response.json()
             matched_shape = decode_polyline6(body["shape"]) if body.get("shape") else points
+            admins = body.get("admins") or []
             edges = [
                 RouteEdge(
                     way_id=edge["way_id"],
@@ -343,6 +340,7 @@ class ValhallaRouter:
                     lane_count=edge.get("lane_count"),
                     roundabout=edge.get("roundabout", False),
                     names=edge.get("names", []),
+                    **_admin(admins, edge.get("end_node", {})),
                 )
                 for edge in body.get("edges", [])
                 if "way_id" in edge
@@ -352,6 +350,34 @@ class ValhallaRouter:
         if not edges or max(e.end_index for e in edges) >= len(matched_shape):
             return None
         return edges, matched_shape
+
+
+def _admin(admins: list[dict], node: dict) -> dict:
+    """Kraj i region końca odcinka oraz czas jazdy do niego (Valhalla ``trace_attributes``)."""
+    found = {"end_s": node.get("elapsed_time")}
+    index = node.get("admin_index")
+    if index is not None and 0 <= index < len(admins):
+        found["country"] = admins[index].get("country_code", "")
+        found["state"] = admins[index].get("state_code", "")
+    return found
+
+
+def _end_s(edges: list[RouteEdge]) -> float:
+    return next((e.end_s for e in reversed(edges) if e.end_s is not None), 0.0)
+
+
+def _shifted(edges: list[RouteEdge], index: int, seconds: float) -> list[RouteEdge]:
+    """Odcinki kolejnego kawałka trasy: indeksy linii i czas liczone od początku całej trasy."""
+    return [
+        e.model_copy(
+            update={
+                "begin_index": e.begin_index + index,
+                "end_index": e.end_index + index,
+                "end_s": None if e.end_s is None else e.end_s + seconds,
+            }
+        )
+        for e in edges
+    ]
 
 
 def _chunks(points: list[tuple[float, float]], max_km: float):
@@ -854,6 +880,12 @@ def build_router(current_user) -> APIRouter:
                 status.HTTP_503_SERVICE_UNAVAILABLE, "Serwer wyznaczania tras jest niedostępny."
             ) from exc
         extensions = request.app.state.extensions
+        departure = data.departure or datetime.now(timebans.HOME_ZONE)
+        if departure.tzinfo is None:
+            departure = departure.replace(tzinfo=timebans.HOME_ZONE)
+        bans = timebans.check_route(route, vehicle, departure)
+        for ban in bans.bans:
+            ban.parkings = _parkings(db, Point(lat=ban.lat, lon=ban.lon))[:3]
 
         def cost(distance_km: float, duration_min: float) -> costs.RouteCost | None:
             return costs.estimate(extensions, rates, distance_km, duration_min)
@@ -871,6 +903,8 @@ def build_router(current_user) -> APIRouter:
             ],
             stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
             cost=cost(route.distance_km, route.duration_min),
+            departure=departure,
+            time_bans=bans,
         )
 
     return router
