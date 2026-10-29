@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import costs, parkings, restrictions, timebans
+from truckmaps.core import costs, parkings, reports, restrictions, timebans
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
@@ -171,6 +171,12 @@ class RouteResponse(Route):
     departure: datetime | None = Field(default=None, description="Wyjazd, dla którego liczono")
     time_bans: timebans.TimeBanCheck | None = Field(
         default=None, description="Zakazy ruchu w czasie na trasie, postoje i przyjazd"
+    )
+    destination_points: list[reports.ReportOut] = Field(
+        default=[], description="Punkty dostawy zgłoszone przez kierowców przy celu (brama, rampa…)"
+    )
+    driver_reports: list[reports.ReportOut] = Field(
+        default=[], description="Problemy na drodze zgłoszone przez kierowców, na linii trasy"
     )
 
 
@@ -944,6 +950,10 @@ def build_router(current_user) -> APIRouter:
             cost=cost(route.distance_km, route.duration_min),
             departure=departure,
             time_bans=bans,
+            destination_points=reports.near_destination(
+                db, data.destination.lat, data.destination.lon, user
+            ),
+            driver_reports=reports.along_route(db, route.geometry, user),
         )
 
     return router

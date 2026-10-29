@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import '../l10n.dart';
 import '../planner/planner_screen.dart' show mapTiles;
 import '../planner/route.dart';
+import '../reports/report_sheet.dart';
 import 'corridor.dart';
 import 'guidance.dart';
 import 'speech.dart';
@@ -252,6 +253,13 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     if (_offRoute >= offRouteFixes && !_recalculating) _recalculate(position);
   }
 
+  /// Zgłoszenie w miejscu pojazdu jednym dotknięciem; przy celu najpierw punkty dostawy.
+  Future<void> _report(LatLng position) async {
+    final nearEnd = distanceM(position, widget.request.destination) < 500;
+    final saved = await showReportSheet(context, widget.api, position, deliveryFirst: nearEnd);
+    if (saved != null && mounted) setState(() => _notice = context.l.reportSaved(saved.message));
+  }
+
   /// Komunikaty głosowe przy tej pozycji na trasie (najwyżej raz każdy).
   void _announce(double alongM) {
     final texts = _guidance?.announce(alongM, context.l) ?? const [];
@@ -396,6 +404,17 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
           ]),
         ),
         Positioned(left: 12, bottom: 24, child: _simulationControls()),
+        if (_position != null)
+          Positioned(
+            right: 12,
+            bottom: 24,
+            child: FloatingActionButton.extended(
+              heroTag: 'report',
+              onPressed: () => _report(_position!),
+              icon: const Icon(Icons.campaign_outlined),
+              label: Text(l.reportButton),
+            ),
+          ),
         if (alarm != null)
           Positioned.fill(
             child: AnimatedBuilder(

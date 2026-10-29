@@ -4,7 +4,9 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
+import '../navigation/corridor.dart' show distanceM;
 import '../navigation/navigation_screen.dart';
+import '../reports/report_sheet.dart';
 import 'place_field.dart';
 import 'route.dart';
 
@@ -42,6 +44,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
   int? _alternative;
   bool _busy = false;
   String? _error;
+
+  /// Zgłoszenia zrobione na tym ekranie (widoczne na mapie od razu, bez przeliczania trasy).
+  final List<DriverReport> _myReports = [];
 
   @override
   void initState() {
@@ -217,6 +222,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         initialCenter: const LatLng(52.1, 19.1),
         initialZoom: 6,
         onTap: (_, point) => _onMapTap(point),
+        onLongPress: (_, point) => _report(point),
       ),
       children: [
         mapTiles(),
@@ -239,6 +245,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
               _placeMarker(w),
           if (result != null)
             for (final ban in result.timeBans) _placeMarker(ban),
+          if (result != null)
+            for (final report in [...result.destinationPoints, ...result.driverReports]) _reportMarker(report),
+          for (final report in _myReports) _reportMarker(report),
           if (_start != null) _stopMarker(_start!.point, 'A', const Color(0xFF185FA5)),
           if (_end != null) _stopMarker(_end!.point, 'B', const Color(0xFFA32D2D)),
           for (final (i, via) in _via.indexed)
@@ -274,6 +283,88 @@ class _PlannerScreenState extends State<PlannerScreen> {
           ),
         ),
       );
+
+  Marker _reportMarker(DriverReport report) {
+    final delivery = deliveryKinds.contains(report.kind);
+    return Marker(
+      point: report.point,
+      width: 30,
+      height: 30,
+      child: Tooltip(
+        message: report.message,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: delivery ? const Color(0xFF185FA5) : const Color(0xFFF08C00),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.white, width: 2),
+          ),
+          child: Icon(reportIcon(report.kind), color: Colors.white, size: 18),
+        ),
+      ),
+    );
+  }
+
+  /// Zgłoszenie w miejscu przytrzymania mapy; przy celu najpierw punkty dostawy.
+  Future<void> _report(LatLng point) async {
+    final end = _end;
+    final nearEnd = end != null && distanceM(point, end.point) < 500;
+    final saved = await showReportSheet(context, widget.api, point, deliveryFirst: nearEnd);
+    if (saved == null || !mounted) return;
+    setState(() => _myReports.add(saved));
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.reportSaved(saved.message))));
+  }
+
+  /// Cel trasy w punkcie dostawy (np. przy rampie zamiast przy adresie firmy).
+  void _driveTo(DriverReport point) {
+    final end = _end;
+    setState(() {
+      _end = Place(end == null ? point.message : '${point.label} – ${end.label}', point.point);
+      _to.text = _end!.label;
+    });
+    _calculate();
+  }
+
+  Future<void> _vote(DriverReport report, bool up) async {
+    try {
+      await voteReport(widget.api, report, up: up);
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.reportThanks)));
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Widget _reportTile(DriverReport report, {bool destination = false}) {
+    final l = context.l;
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(reportIcon(report.kind)),
+      title: Text(report.km != null ? l.placeAtKm(l.km(report.km!), report.message) : report.message),
+      subtitle: Text([
+        if (report.distanceM != null) l.distanceMeters(report.distanceM!.round()),
+        l.reportConfirmations(report.score),
+      ].join(' · ')),
+      onTap: () => _map.move(report.point, 17),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (destination && report.kind != 'hours')
+          TextButton(onPressed: () => _driveTo(report), child: Text(l.reportDriveHere)),
+        if (!report.mine) ...[
+          IconButton(
+            tooltip: l.reportStillValid,
+            icon: const Icon(Icons.thumb_up_outlined, size: 18),
+            onPressed: () => _vote(report, true),
+          ),
+          IconButton(
+            tooltip: l.reportOutdated,
+            icon: const Icon(Icons.thumb_down_outlined, size: 18),
+            onPressed: () => _vote(report, false),
+          ),
+        ],
+      ]),
+    );
+  }
 
   Marker _placeMarker(RoutePlace place) {
     final ban = place.level == 'ban';
@@ -394,6 +485,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
           padding: const EdgeInsets.only(top: 8),
           child: Text(l.plannerHint, style: theme.textTheme.bodySmall),
         ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(l.reportLongPressHint, style: theme.textTheme.bodySmall),
+      ),
       if (_error != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -458,6 +553,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
               child: Text(l.departWithoutWaiting(l.when(result.freeDeparture!))),
             ),
           ),
+      ],
+      if (result.destinationPoints.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(l.atDestinationTitle, style: theme.textTheme.titleSmall),
+        for (final point in result.destinationPoints) _reportTile(point, destination: true),
+      ],
+      if (result.driverReports.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(l.driverReportsTitle, style: theme.textTheme.titleSmall),
+        for (final report in result.driverReports) _reportTile(report),
       ],
       if (shown.warnings.isNotEmpty) ...[
         const SizedBox(height: 12),

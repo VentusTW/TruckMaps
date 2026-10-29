@@ -8,7 +8,6 @@
   "weekday.short_5": "sob.",
   "weekday.short_6": "niedz.",
   "time.moment": "{weekday} {day}.{month} {time}",
-
   "route.bad_surface": "Zła nawierzchnia",
   "route.roundabout": "Rondo",
   "route.industrial_road": "Droga dojazdowa w strefie przemysłowej",
@@ -42,7 +41,6 @@
   "route.no_route": "Brak trasy, którą ten pojazd może przejechać między tymi punktami. {reasons}",
   "route.move_point": "Przesuń punkt na drogę dostępną dla tego pojazdu.",
   "route.probably_restricted_zone": "Najpewniej start, cel albo punkt pośredni leży w strefie, do której ten pojazd nie wjedzie (np. stare miasto z zakazem dla ciężarówek). Przesuń punkt na pobliską drogę główną.",
-
   "stop.nearest_road": "najbliższa droga dostępna dla niego jest {distance} m dalej",
   "stop.no_road_nearby": "w pobliżu nie ma drogi dostępnej dla niego",
   "stop.via_unreachable": "Przez punkt pośredni nr {number} nie da się przejechać tym pojazdem – {where}. Przesuń punkt albo usuń go.",
@@ -55,7 +53,6 @@
   "stop.origin_label": "Start (A)",
   "stop.via_label": "Punkt pośredni {number}",
   "stop.destination_label": "Cel (B)",
-
   "ban.message": "Zakaz ruchu ciężarówek {country}: {title}, {start}–{end}. {where} {then}",
   "ban.in_country_PL": "w Polsce",
   "ban.in_country_DE": "w Niemczech",
@@ -72,11 +69,9 @@
   "ban.check_segment": "Sprawdź, czy dotyczy tego odcinka.",
   "ban.departure_during_ban": "Wyjazd w czasie zakazu.",
   "ban.vehicle_here_at": "Pojazd będzie tu ok. {time}.",
-
   "parking.truck_parking": "Parking dla ciężarówek",
   "parking.rest_area": "MOP (miejsce obsługi podróżnych)",
   "parking.services": "MOP ze stacją i obsługą",
-
   "currency.PLN": "złoty polski",
   "currency.EUR": "euro",
   "currency.CZK": "korona czeska",
@@ -89,7 +84,6 @@
   "currency.GBP": "funt brytyjski",
   "currency.TRY": "lira turecka",
   "currency.USD": "dolar amerykański",
-
   "error.login_required": "Wymagane logowanie.",
   "error.login_server_unavailable": "Serwer logowania jest niedostępny.",
   "error.login_code_invalid": "Kod logowania wygasł albo jest zły.",
@@ -115,5 +109,24 @@
   "error.vehicles_add_forbidden": "Pojazdy firmy dodają właściciel i dyspozytorzy.",
   "error.vehicles_edit_forbidden": "Pojazdy firmy zmieniają właściciel i dyspozytorzy.",
   "error.weight_above_gvw": "Masa rzeczywista nie może być większa niż DMC.",
-  "error.unsupported_currency": "Nieobsługiwana waluta: {code}. Dostępne: {codes}."
+  "error.unsupported_currency": "Nieobsługiwana waluta: {code}. Dostępne: {codes}.",
+  "report.gate": "Brama",
+  "report.ramp": "Rampa",
+  "report.office": "Biuro / portiernia",
+  "report.waiting_area": "Miejsce oczekiwania",
+  "report.hours": "Godziny przyjęć",
+  "report.height_limit": "Ograniczenie wysokości",
+  "report.weight_limit": "Ograniczenie masy",
+  "report.no_trucks": "Zakaz dla ciężarówek",
+  "report.road_closed": "Droga zamknięta",
+  "report.narrow": "Wąsko – trudny przejazd",
+  "report.other": "Uwaga kierowcy",
+  "report.with_value": "{label} {value} {unit}",
+  "report.with_note": "{label}: {note}",
+  "error.report_needs_note": "Wpisz opis, np. godziny przyjęć.",
+  "error.report_needs_value": "Podaj wartość ze znaku.",
+  "error.report_limit": "Za dużo zgłoszeń z tego konta w ciągu doby – spróbuj jutro.",
+  "error.report_not_found": "Nie znaleziono zgłoszenia.",
+  "error.report_own_vote": "To twoje zgłoszenie – możesz je usunąć.",
+  "error.report_not_yours": "Usunąć można tylko własne zgłoszenie."
 }

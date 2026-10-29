@@ -81,6 +81,15 @@ bez sieci i bez dodatkowych pakietów: Android – `TextToSpeech` (kanał `truck
 w `MainActivity.kt`), Windows – głosy systemu (System.Speech, np. Paulina dla polskiego);
 iOS jeszcze bez głosu. Brak głosu w danym języku → syntezator mówi domyślnym.
 
+## Zgłoszenia kierowców
+
+Przytrzymanie mapy w planerze (albo „Zgłoś” w nawigacji – miejsce pojazdu) otwiera okno
+zgłoszenia: brama, rampa, biuro, miejsce oczekiwania, godziny przyjęć, ograniczenie ze
+znaku, zakaz dla ciężarówek, droga zamknięta, wąsko. Jedno dotknięcie wysyła zgłoszenie;
+godziny przyjęć i ograniczenia pytają najpierw o tekst / wartość. Po wyznaczeniu trasy
+planer pokazuje punkty dostawy przy celu („Jedź tutaj” – cel przy rampie) i zgłoszenia na
+trasie, z przyciskami „nadal aktualne” / „nieaktualne”.
+
 Nowy moduł: pakiet `packages/module_<id>` z klasą `TruckMapsModule` (to samo `id` co moduł
 na serwerze), dopisany do `app/pubspec.yaml` i do listy w `app/lib/main.dart`. Moduł importuje
 tylko `core_sdk` – nie powłokę ani inne moduły.

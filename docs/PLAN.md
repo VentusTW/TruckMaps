@@ -250,8 +250,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Nawigacja: głos na iOS (AVSpeechSynthesizer), zapowiedzi zależne od prędkości, pasy ruchu, dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
 - [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
-- [ ] Zgłoszenia od kierowców
-- [ ] Punkty dostawy: wyświetlanie przy celu, zgłaszanie bramy/rampy/godzin przyjęć jednym dotknięciem, cel trasy przy rampie
+- [x] Zgłoszenia od kierowców (`/api/reports`, tabela `driver_reports`): problemy na drodze (ograniczenie wysokości / masy ze znaku, zakaz dla ciężarówek, droga zamknięta, wąsko, uwaga) jednym dotknięciem – przytrzymanie mapy w planerze, przycisk „Zgłoś” w nawigacji (miejsce pojazdu); inni kierowcy potwierdzają albo oznaczają jako nieaktualne (zgłoszenie znika przy przewadze „nieaktualne”), to samo miejsce i rodzaj = potwierdzenie; limit 100 zgłoszeń na dobę; kto zgłosił, nie jest pokazywany; zgłoszenia na linii trasy w odpowiedzi planera, bez wpływu na ocenę
+- [x] Punkty dostawy: brama, rampa, biuro / portiernia, miejsce oczekiwania, godziny przyjęć – zgłaszane jednym dotknięciem (godziny z tekstem), pokazywane przy celu (do 500 m) na mapie i na liście, „Jedź tutaj” ustawia cel trasy przy rampie
+  - [ ] moderacja i regulamin treści od użytkowników (DSA), zgłoszenia w korytarzu nawigacji (bez sieci), zdjęcia, zgłoszenia jako ograniczenia po potwierdzeniu przez kilku kierowców
 - [ ] Ekrany konta osobno od planera (dziś wszystko jest w jednym panelu strony testowej): przy rejestracji wybór „mam firmę” (założenie firmy) albo „dołączam kodem”; ustawienia konta, firmy, członków, pojazdów i kosztów w osobnych ekranach
 - [ ] Aktualizacje z możliwością powrotu:
   - po zalogowaniu aplikacja sprawdza wersje: aplikacji, modułów i danych (mapy offline, korytarz, baza ograniczeń); gdy są nowsze – pyta, czy pobrać (z rozmiarem i listą zmian), domyślnie przez Wi-Fi; nigdy w trakcie jazdy

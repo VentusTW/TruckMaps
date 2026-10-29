@@ -80,6 +80,43 @@ class Maneuver {
   bool get arrival => type >= 4 && type <= 6;
 }
 
+/// Zgłoszenie kierowcy: punkt dostawy (brama, rampa…) albo problem na drodze.
+class DriverReport {
+  const DriverReport({
+    required this.id,
+    required this.kind,
+    required this.label,
+    required this.message,
+    required this.point,
+    this.score = 1,
+    this.mine = false,
+    this.distanceM,
+    this.km,
+  });
+
+  factory DriverReport.fromJson(Map<String, dynamic> json) => DriverReport(
+        id: json['id'] as String,
+        kind: json['kind'] as String,
+        label: json['label'] as String,
+        message: json['message'] as String,
+        point: LatLng(_d(json['lat']), _d(json['lon'])),
+        score: json['score'] as int? ?? 1,
+        mine: json['mine'] == true,
+        distanceM: (json['distance_m'] as num?)?.toDouble(),
+        km: (json['km'] as num?)?.toDouble(),
+      );
+
+  final String id;
+  final String kind;
+  final String label;
+  final String message;
+  final LatLng point;
+  final int score;
+  final bool mine;
+  final double? distanceM;
+  final double? km;
+}
+
 class Segment {
   const Segment(this.start, this.end, this.level);
 
@@ -165,6 +202,8 @@ class RouteResult {
     required this.alternatives,
     required this.issues,
     required this.timeBans,
+    this.destinationPoints = const [],
+    this.driverReports = const [],
     this.arrival,
     this.waitMin = 0,
     this.freeDeparture,
@@ -185,6 +224,14 @@ class RouteResult {
         for (final b in (bans?['bans'] as List<dynamic>? ?? []))
           RoutePlace.fromJson(b as Map<String, dynamic>, level: 'ban'),
       ],
+      destinationPoints: [
+        for (final p in (json['destination_points'] as List<dynamic>? ?? []))
+          DriverReport.fromJson(p as Map<String, dynamic>),
+      ],
+      driverReports: [
+        for (final r in (json['driver_reports'] as List<dynamic>? ?? []))
+          DriverReport.fromJson(r as Map<String, dynamic>),
+      ],
       arrival: bans?['arrival'] == null ? null : DateTime.parse(bans!['arrival'] as String).toLocal(),
       waitMin: bans?['wait_min'] as int? ?? 0,
       freeDeparture:
@@ -196,6 +243,12 @@ class RouteResult {
   final List<PlannedRoute> alternatives;
   final List<String> issues;
   final List<RoutePlace> timeBans;
+
+  /// Punkty dostawy zgłoszone przez kierowców przy celu (brama, rampa, godziny przyjęć).
+  final List<DriverReport> destinationPoints;
+
+  /// Problemy na drodze zgłoszone przez kierowców na linii trasy (bez wpływu na ocenę).
+  final List<DriverReport> driverReports;
   final DateTime? arrival;
   final int waitMin;
 

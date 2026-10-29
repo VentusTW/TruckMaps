@@ -20,10 +20,10 @@ from truckmaps.core.polyline import decode_polyline6, encode_polyline6
 from truckmaps.core.restrictions import ROAD_CONTEXT, Kind, Restriction, distance_m
 from truckmaps.core.route_analysis import (
     Level,
+    SegmentGrid,
     _compare,
     _distance_to_segment,
     _limit_label,
-    _SegmentGrid,
     conditional_findings,
 )
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
@@ -77,7 +77,7 @@ class PositionCheck(BaseModel):
 def build_corridor(
     db: Session, route: list[tuple[float, float]], vehicle: VehicleIn, buffer_m: float
 ) -> Corridor:
-    grid = _SegmentGrid(route, cell=_cell(buffer_m))
+    grid = SegmentGrid(route, cell=_cell(buffer_m))
     items = []
     for restriction in _candidates(db, route, buffer_m):
         if restriction.kind in ROAD_CONTEXT:
@@ -125,7 +125,7 @@ def check_position(corridor: Corridor, lon: float, lat: float) -> PositionCheck:
     droga czerwona w promieniu ``ON_ROAD_M``.
     """
     route = decode_polyline6(corridor.route)
-    if _SegmentGrid(route).nearest(lon, lat, OFF_ROUTE_M) is not None:
+    if SegmentGrid(route).nearest(lon, lat, OFF_ROUTE_M) is not None:
         return PositionCheck(on_route=True)
     best, alarm = ON_ROAD_M, None
     for item in corridor.items:
@@ -143,7 +143,7 @@ def check_position(corridor: Corridor, lon: float, lat: float) -> PositionCheck:
 
 
 def _distance_to_line(lon: float, lat: float, points: list[tuple[float, float]]) -> float:
-    grid = _SegmentGrid(points)
+    grid = SegmentGrid(points)
     index = grid.nearest(lon, lat, ON_ROAD_M)
     if index is None:
         return float("inf")

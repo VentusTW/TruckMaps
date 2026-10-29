@@ -9,6 +9,7 @@ from truckmaps.core import (  # noqa: F401  (rejestrują tabele w Base.metadata)
     companies,
     currency,
     parkings,
+    reports,
     restrictions,
     vehicles,
 )

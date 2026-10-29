@@ -419,7 +419,7 @@ def _bend_findings(points, edges: list[RouteEdge], vehicle: VehicleIn):
 
 def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
     """Ograniczenia punktowe (np. bramki wysokości) leżące na linii trasy – tylko ostrzeżenie."""
-    grid = _SegmentGrid(points)
+    grid = SegmentGrid(points)
     for node in nodes:
         if node.kind not in (Kind.HEIGHT, Kind.WEIGHT, Kind.WEIGHT_RATING) or node.lat is None:
             continue
@@ -524,7 +524,7 @@ def _circle_radius(a, b, c) -> float:
     return ab * bc * ca / (4 * area)
 
 
-class _SegmentGrid:
+class SegmentGrid:
     """Siatka ~100 m na odcinki trasy – szybkie szukanie odcinka najbliższego punktowi."""
 
     CELL = 0.001

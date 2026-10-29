@@ -8,7 +8,6 @@
   "weekday.short_5": "Sat",
   "weekday.short_6": "Sun",
   "time.moment": "{weekday} {day}/{month} {time}",
-
   "route.bad_surface": "Poor road surface",
   "route.roundabout": "Roundabout",
   "route.industrial_road": "Access road in an industrial area",
@@ -42,7 +41,6 @@
   "route.no_route": "There is no route this vehicle can drive between these points. {reasons}",
   "route.move_point": "Move the point to a road this vehicle can use.",
   "route.probably_restricted_zone": "Most likely the start, destination or a waypoint lies in a zone this vehicle may not enter (e.g. an old town closed to trucks). Move the point to a nearby main road.",
-
   "stop.nearest_road": "the nearest road it can use is {distance} m away",
   "stop.no_road_nearby": "there is no road nearby it can use",
   "stop.via_unreachable": "This vehicle cannot pass through waypoint {number} – {where}. Move the waypoint or remove it.",
@@ -55,7 +53,6 @@
   "stop.origin_label": "Start (A)",
   "stop.via_label": "Waypoint {number}",
   "stop.destination_label": "Destination (B)",
-
   "ban.message": "Truck driving ban {country}: {title}, {start}–{end}. {where} {then}",
   "ban.in_country_PL": "in Poland",
   "ban.in_country_DE": "in Germany",
@@ -72,11 +69,9 @@
   "ban.check_segment": "Check whether it applies to this section.",
   "ban.departure_during_ban": "Departure during the ban.",
   "ban.vehicle_here_at": "The vehicle will be here at about {time}.",
-
   "parking.truck_parking": "Truck parking",
   "parking.rest_area": "Rest area",
   "parking.services": "Service area with fuel station",
-
   "currency.PLN": "Polish złoty",
   "currency.EUR": "euro",
   "currency.CZK": "Czech koruna",
@@ -89,7 +84,6 @@
   "currency.GBP": "pound sterling",
   "currency.TRY": "Turkish lira",
   "currency.USD": "US dollar",
-
   "error.login_required": "Login required.",
   "error.login_server_unavailable": "The login server is unavailable.",
   "error.login_code_invalid": "The login code has expired or is invalid.",
@@ -115,5 +109,24 @@
   "error.vehicles_add_forbidden": "Company vehicles are added by the owner and dispatchers.",
   "error.vehicles_edit_forbidden": "Company vehicles are changed by the owner and dispatchers.",
   "error.weight_above_gvw": "The actual weight cannot exceed the GVW.",
-  "error.unsupported_currency": "Unsupported currency: {code}. Available: {codes}."
+  "error.unsupported_currency": "Unsupported currency: {code}. Available: {codes}.",
+  "report.gate": "Gate",
+  "report.ramp": "Loading dock",
+  "report.office": "Office / gatehouse",
+  "report.waiting_area": "Waiting area",
+  "report.hours": "Receiving hours",
+  "report.height_limit": "Height limit",
+  "report.weight_limit": "Weight limit",
+  "report.no_trucks": "No trucks",
+  "report.road_closed": "Road closed",
+  "report.narrow": "Narrow – difficult passage",
+  "report.other": "Driver note",
+  "report.with_value": "{label} {value} {unit}",
+  "report.with_note": "{label}: {note}",
+  "error.report_needs_note": "Enter a description, e.g. receiving hours.",
+  "error.report_needs_value": "Enter the value from the sign.",
+  "error.report_limit": "Too many reports from this account within 24 hours – try tomorrow.",
+  "error.report_not_found": "Report not found.",
+  "error.report_own_vote": "This is your report – you can delete it.",
+  "error.report_not_yours": "You can only delete your own report."
 }
