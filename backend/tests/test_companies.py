@@ -263,3 +263,42 @@ def test_private_vehicle_rates_and_validation(client):
 
     negative = {**TRUCK, "cost_eur_per_km": -1}
     assert client.post("/api/vehicles", json=negative, headers=as_user("ola")).status_code == 422
+
+
+def test_company_bases_are_shared_with_members_and_managed_by_dispatchers(client):
+    company_id = new_company(client)
+    join(client, company_id, "jan")
+    join(client, company_id, "ewa", role="dispatcher")
+    url = f"/api/companies/{company_id}/bases"
+    base = {"name": "Baza Tarnów", "label": "Chemiczna 5, Tarnów", "lat": 50.0286, "lon": 20.9135}
+
+    assert client.post(url, json=base, headers=as_user("jan")).status_code == 403
+    created = client.post(url, json=base, headers=as_user("ewa"))
+    assert created.status_code == 201
+    base_id = created.json()["id"]
+
+    (seen,) = client.get("/api/bases", headers=as_user("jan")).json()
+    assert (seen["name"], seen["company_name"], seen["lat"]) == (
+        "Baza Tarnów",
+        "Trans-Miś",
+        50.0286,
+    )
+    assert client.get("/api/bases", headers=as_user("obcy")).json() == []
+
+    renamed = client.put(
+        f"{url}/{base_id}", json={**base, "name": "Baza główna"}, headers=as_user("olek")
+    )
+    assert renamed.json()["name"] == "Baza główna"
+    assert client.delete(f"{url}/{base_id}", headers=as_user("jan")).status_code == 403
+    assert client.delete(f"{url}/{base_id}", headers=as_user("olek")).status_code == 204
+    assert client.get("/api/bases", headers=as_user("olek")).json() == []
+
+
+def test_deleting_company_removes_its_bases(client):
+    company_id = new_company(client)
+    base = {"name": "Baza", "lat": 50.0, "lon": 20.0}
+    client.post(f"/api/companies/{company_id}/bases", json=base, headers=as_user("olek"))
+
+    client.delete(f"/api/companies/{company_id}", headers=as_user("olek"))
+
+    assert client.get("/api/bases", headers=as_user("olek")).json() == []

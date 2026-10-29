@@ -52,6 +52,21 @@
                          background:#5f5e5a; padding:1px 4px; border-radius:4px; white-space:nowrap; }
   @keyframes pulse { to { border-color:#fff; } }
   .avoided-list { margin:4px 0 0; padding-left:18px; font-size:13px; }
+  .pin.via { background:#5f5e5a; }
+  .suggestions button.base { font-weight:600; }
+  .bases { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }
+  .bases li { display:flex; align-items:center; gap:6px; } .bases li span { flex:1; }
+  .via-items { list-style:none; margin:0 0 0 30px; padding:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }
+  .via-items li { display:flex; align-items:center; gap:6px; }
+  .via-items .num { width:18px; height:18px; flex:none; border-radius:50%; background:#5f5e5a; color:#fff;
+                    display:grid; place-items:center; font:600 11px system-ui; }
+  .via-items span.text { flex:1; }
+  /* Okno z problemem trasy – na środku, żeby nie dało się go przeoczyć. */
+  .modal { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.45); display:grid; place-items:center; padding:16px; }
+  .modal .box { max-width:460px; background:var(--card); color:var(--text); border-radius:14px; padding:18px 20px;
+                border-top:6px solid #d62828; box-shadow:0 8px 30px rgba(0,0,0,.35); }
+  .modal h3 { margin:0 0 8px; font-size:17px; }
+  .modal p { margin:0 0 14px; font-size:14px; line-height:1.5; }
   button.link { border:none; padding:0; background:none; color:var(--accent); text-align:left; font-size:13px; flex:none; }
   .sign { position:relative; }
   .badge.lime { color:#3b6d11; } .badge.orange { color:#c26f00; } .result.orange { border-color:#f08c00; }
@@ -159,7 +174,12 @@
     <label class="addr"><span class="pin b">B</span><input id="to" placeholder="Dokąd – adres, miejscowość, firma" autocomplete="off"></label>
     <ul class="suggestions" id="to-list" hidden></ul>
   </div>
-  <p class="muted" id="hint">Wpisz adresy albo kliknij na mapie punkt startu (A), potem cel (B).</p>
+  <div class="search">
+    <label class="addr"><span class="pin via">+</span><input id="via-input" placeholder="Punkt pośredni – adres albo GPS" autocomplete="off"></label>
+    <ul class="suggestions" id="via-list" hidden></ul>
+  </div>
+  <ol class="via-items" id="via-items"></ol>
+  <p class="muted" id="hint">Wpisz adresy albo współrzędne GPS (np. 50.0131, 21.0214), albo kliknij na mapie punkt startu (A), potem cel (B).</p>
   <label class="check"><input type="checkbox" id="avoid" checked> Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd</label>
   <div class="row">
     <button type="button" class="primary" id="calc">Wyznacz trasę</button>
@@ -183,6 +203,13 @@
   <div class="error" id="error" hidden></div>
 </aside>
 <div id="map"></div>
+<div class="modal" id="problem" hidden role="alertdialog" aria-labelledby="problem-title">
+  <div class="box">
+    <h3 id="problem-title">Nie da się wyznaczyć trasy</h3>
+    <p id="problem-text"></p>
+    <div class="row"><button type="button" class="primary" id="problem-ok">Rozumiem</button></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
@@ -350,12 +377,41 @@ async function fillAddress(input, lngLat) {
   } catch { /* wyszukiwarka niedostępna – zostają współrzędne */ }
 }
 
+// Współrzędne GPS: "50.0131, 21.0214", "50,0131 21,0214", "50.0131° N, 21.0214° E".
+// Obie liczby z częścią dziesiętną – inaczej np. kod pocztowy "33 100" wyglądałby jak GPS.
+const COORDS = /^\s*([NS])?\s*(-?\d{1,2}[.,]\d+)\s*°?\s*([NS])?\s*[,;\s]\s*([EW])?\s*(-?\d{1,3}[.,]\d+)\s*°?\s*([EW])?\s*$/i;
+
+function parseCoords(text) {
+  const m = COORDS.exec(text);
+  if (!m) return null;
+  let lat = Number(m[2].replace(",", "."));
+  let lon = Number(m[5].replace(",", "."));
+  if (/s/i.test(m[1] ?? m[3] ?? "")) lat = -lat;
+  if (/w/i.test(m[4] ?? m[6] ?? "")) lon = -lon;
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { label: `GPS ${lat.toFixed(5)}, ${lon.toFixed(5)}`, lat, lon };
+}
+
+// Bazy firm użytkownika: "baza" pokazuje wszystkie, "baza tar" albo nazwa – pasujące.
+let bases = [];
+
+function matchingBases(query) {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return bases
+    .filter((b) => {
+      const text = `baza ${b.name} ${b.company_name}`.toLowerCase();
+      return words.every((w) => text.includes(w));
+    })
+    .map((b) => ({ label: `🏠 ${b.name}${b.label ? ` – ${b.label}` : ""}`, lat: b.lat, lon: b.lon, base: true }));
+}
+
 function setupSearch(input, list, onPick) {
   let timer = null, places = [], active = -1;
   const hide = () => { list.hidden = true; active = -1; };
   const render = () => {
     list.innerHTML = places.map((p, i) =>
-      `<li><button type="button" data-i="${i}" class="${i === active ? "active" : ""}">${escapeHtml(p.label)}</button></li>`).join("");
+      `<li><button type="button" data-i="${i}" class="${[i === active ? "active" : "", p.base ? "base" : ""].join(" ")}">${escapeHtml(p.label)}</button></li>`).join("");
     list.hidden = !places.length;
     list.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (event) => {
       event.preventDefault();
@@ -366,11 +422,23 @@ function setupSearch(input, list, onPick) {
   input.addEventListener("input", () => {
     clearTimeout(timer);
     const query = input.value.trim();
-    if (query.length < 3) return hide();
+    const gps = parseCoords(query);
+    if (gps) {
+      places = [gps];
+      active = 0;
+      return render();
+    }
+    const own = matchingBases(query);
+    if (own.length) {
+      places = own;
+      active = -1;
+      render();
+    }
+    if (query.length < 3) return own.length ? undefined : hide();
     timer = setTimeout(async () => {
       const center = map.getCenter();
       try {
-        places = await api(`/api/geocode?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}`);
+        places = [...own, ...await api(`/api/geocode?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}`)];
         active = -1;
         render();
         showError("");
@@ -426,40 +494,69 @@ $("swap").addEventListener("click", swapEnds);
 
 setupSearch($("from"), $("from-list"), (place) => { setStart(placeLngLat(place), place.label); afterPick(); });
 setupSearch($("to"), $("to-list"), (place) => { setEnd(placeLngLat(place), place.label); afterPick(); });
+setupSearch($("via-input"), $("via-list"), (place) => {
+  addVia(placeLngLat(place), place.label);
+  $("via-input").value = "";
+  if (start && end) return calculate({ keepView: true });
+  map.flyTo({ center: [place.lon, place.lat], zoom: 13 });
+});
 
 function distance(a, b) {
   const x = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
   return Math.hypot(x, b.lat - a.lat);
 }
 
-function addVia(lngLat) {
-  // Wstawia punkt tam, gdzie najmniej wydłuża łamaną A → pośrednie → B.
-  const stops = [start.lngLat, ...via.map((v) => v.lngLat), end.lngLat];
-  let bestIndex = 0, bestCost = Infinity;
-  for (let i = 0; i < stops.length - 1; i++) {
-    const cost = distance(stops[i], lngLat) + distance(lngLat, stops[i + 1]) - distance(stops[i], stops[i + 1]);
-    if (cost < bestCost) { bestCost = cost; bestIndex = i; }
+function addVia(lngLat, label) {
+  // Wstawia punkt tam, gdzie najmniej wydłuża łamaną A → pośrednie → B (bez A i B – na koniec).
+  let bestIndex = via.length;
+  if (start && end) {
+    const stops = [start.lngLat, ...via.map((v) => v.lngLat), end.lngLat];
+    let bestCost = Infinity;
+    for (let i = 0; i < stops.length - 1; i++) {
+      const cost = distance(stops[i], lngLat) + distance(lngLat, stops[i + 1]) - distance(stops[i], stops[i + 1]);
+      if (cost < bestCost) { bestCost = cost; bestIndex = i; }
+    }
   }
-  const point = { lngLat, marker: null };
-  point.marker = makeMarker(lngLat, "", "#5f5e5a", (p) => { point.lngLat = p; });
+  const point = { lngLat, marker: null, label: label ?? "" };
+  point.marker = makeMarker(lngLat, "", "#5f5e5a", (p) => { point.lngLat = p; describeVia(point); });
   // Prawy przycisk myszy (albo dwuklik) usuwa punkt pośredni.
   const remove = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    point.marker.remove();
-    via = via.filter((v) => v !== point);
-    renumberVia();
-    recalculate();
+    removeVia(point);
   };
   point.marker.getElement().addEventListener("contextmenu", remove);
   point.marker.getElement().addEventListener("dblclick", remove);
   point.marker.getElement().title = "Prawy przycisk myszy – usuń punkt";
   via.splice(bestIndex, 0, point);
   renumberVia();
+  if (!label) describeVia(point);
+}
+
+function removeVia(point) {
+  point.marker.remove();
+  via = via.filter((v) => v !== point);
+  renumberVia();
+  recalculate();
+}
+
+async function describeVia(point) {
+  // Punkt z mapy: najpierw współrzędne, potem adres z wyszukiwarki.
+  point.label = `GPS ${point.lngLat.lat.toFixed(5)}, ${point.lngLat.lng.toFixed(5)}`;
+  renumberVia();
+  try {
+    const place = await api(`/api/geocode/reverse?lat=${point.lngLat.lat}&lon=${point.lngLat.lng}`);
+    if (place) { point.label = place.label; renumberVia(); }
+  } catch { /* wyszukiwarka niedostępna – zostają współrzędne */ }
 }
 
 function renumberVia() {
   via.forEach((v, i) => { v.marker.getElement().textContent = String(i + 1); });
+  $("via-items").innerHTML = via.map((v, i) =>
+    `<li><span class="num">${i + 1}</span><span class="text">${escapeHtml(v.label)}</span>` +
+    `<button type="button" class="small" data-remove-via="${i}" title="Usuń punkt pośredni">✕</button></li>`).join("");
+  $("via-items").querySelectorAll("[data-remove-via]").forEach((b) =>
+    b.addEventListener("click", () => removeVia(via[Number(b.dataset.removeVia)])));
 }
 
 function setViaMode(on) {
@@ -478,6 +575,7 @@ function clearAll() {
   [start, end, ...via].forEach((p) => p?.marker.remove());
   start = end = null;
   via = [];
+  renumberVia();
   $("from").value = $("to").value = "";
   routeShown = false;
   setViaMode(false);
@@ -604,6 +702,15 @@ $("via-mode").addEventListener("click", () => {
   setViaMode(!viaMode);
 });
 
+function showProblem(message) {
+  $("problem-text").textContent = message;
+  $("problem").hidden = false;
+  $("problem-ok").focus();
+}
+$("problem-ok").addEventListener("click", () => { $("problem").hidden = true; });
+$("problem").addEventListener("click", (event) => { if (event.target === $("problem")) $("problem").hidden = true; });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") $("problem").hidden = true; });
+
 function recalculate() {
   if (routeShown) calculate({ keepView: true });
 }
@@ -627,7 +734,11 @@ async function calculate(options = {}) {
     routeShown = true;
     showRoute(route, options);
   } catch (e) {
+    // Nieaktualna trasa nie może zostać na mapie – wyglądałoby, że nic się nie zmieniło.
+    clearRoute();
     showError(e.message);
+    $("error").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    showProblem(e.message);
   } finally {
     $("calc").disabled = false;
   }
@@ -825,6 +936,7 @@ let openCompanyId = null;
 
 async function loadCompanies() {
   companies = await api("/api/companies");
+  bases = await api("/api/bases");
   $("company-summary").textContent = companies.length
     ? `Firma i flota: ${companies.map((c) => c.name).join(", ")}`
     : "Firma i flota";
@@ -874,6 +986,19 @@ async function openCompany(id) {
         <input name="cost_eur_per_hour" type="number" step="0.5" min="0" max="500" placeholder="€/h jazdy" aria-label="Koszt €/h jazdy" value="${company.cost_eur_per_hour ?? ""}">
         <button type="submit" class="small">Zapisz</button>
       </form>` : ""}
+    <h3>Bazy firmy (wpisz „baza” w polu adresu)</h3>
+    <ul class="bases">${bases.filter((b) => b.company_id === id).map((b) =>
+      `<li><span>🏠 <strong>${escapeHtml(b.name)}</strong>${b.label ? ` – ${escapeHtml(b.label)}` : ""}</span>` +
+      (manager ? `<button type="button" class="small" data-delete-base="${escapeHtml(b.id)}" title="Usuń bazę">✕</button>` : "") +
+      "</li>").join("") || '<li class="muted">Brak baz.</li>'}</ul>
+    ${manager ? `
+      <div class="stack" style="margin-top:6px">
+        <input id="base-name" placeholder="Nazwa bazy, np. Baza Tarnów" maxlength="100">
+        <div class="search">
+          <input id="base-address" placeholder="Adres albo GPS bazy – wybierz z listy" autocomplete="off">
+          <ul class="suggestions" id="base-list" hidden style="left:0"></ul>
+        </div>
+      </div>` : ""}
     ${manager ? `
       <h3>Zaproś do firmy</h3>
       <div class="row">${roleChoice}<input id="invite-note" placeholder="Dla kogo (opcjonalnie)" maxlength="200"></div>
@@ -902,7 +1027,21 @@ async function openCompany(id) {
   $("invite")?.addEventListener("click", () => companyAction(() =>
     api(`/api/companies/${id}/invites`, { method: "POST",
       body: JSON.stringify({ role: $("invite-role").value, note: $("invite-note").value }) })));
-  if (manager) await loadInvites(id);
+  box.querySelectorAll("[data-delete-base]").forEach((button) => button.addEventListener("click", () => {
+    if (confirm("Usunąć tę bazę?"))
+      companyAction(() => api(`/api/companies/${id}/bases/${button.dataset.deleteBase}`, { method: "DELETE" }));
+  }));
+  if (manager) {
+    // Baza zapisuje się od razu po wybraniu adresu z listy.
+    setupSearch($("base-address"), $("base-list"), (place) => companyAction(() =>
+      api(`/api/companies/${id}/bases`, { method: "POST", body: JSON.stringify({
+        name: $("base-name").value.trim() || "Baza",
+        label: place.label.replace(/^🏠 /, ""),
+        lat: place.lat,
+        lon: place.lon,
+      }) })));
+    await loadInvites(id);
+  }
 }
 
 async function loadInvites(id) {

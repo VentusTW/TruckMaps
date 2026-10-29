@@ -568,3 +568,42 @@ def test_vehicle_gvw_is_stored_and_validated(database):
     assert defaulted.json()["gvw_t"] == TRUCK["weight_t"]
     too_low = client.post("/api/vehicles", json=TRUCK | {"gvw_t": 30}, headers=as_user("anna"))
     assert too_low.status_code == 422
+
+
+class AxleLimitRouter(FakeRouter):
+    """Droga z ograniczeniem nacisku osi 10 t – Valhalla nie znajduje trasy dla cięższych."""
+
+    def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
+        if vehicle.axle_load_t > 10:
+            raise NoRouteFound("No path could be found for input")
+        return Route(
+            distance_km=2.0,
+            duration_min=4.0,
+            geometry=[(p.lon, p.lat) for p in stops],
+            edges=[RouteEdge(way_id=5, begin_index=0, end_index=1, names=["Lwowska"])],
+        )
+
+
+def test_no_route_explains_which_leg_and_restriction_blocks_it(database):
+    with database.session() as db:
+        db.add(
+            Restriction(
+                osm_type="way",
+                osm_id=5,
+                kind="axle_load",
+                value=10.0,
+                raw="maxaxleload=10",
+                source="osm",
+                source_date="2026-10-29",
+            )
+        )
+        db.commit()
+    client = make_client(database, AxleLimitRouter())
+    body = {**route_body(client), "via": [{"lat": 50.0131, "lon": 21.0214}]}
+
+    response = client.post("/api/routes", json=body, headers=as_user("anna"))
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "Start (A) → Punkt pośredni 1: Ograniczenie nacisku osi 10 t" in detail
+    assert "Lwowska" in detail

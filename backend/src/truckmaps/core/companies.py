@@ -70,6 +70,20 @@ class CompanyMember(Base):
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class CompanyBase(Base):
+    """Baza firmy – miejsce, skąd wyjeżdżają pojazdy (podpowiadane w polach adresu)."""
+
+    __tablename__ = "company_bases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_id)
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    label: Mapped[str] = mapped_column(String(300), default="")
+    lat: Mapped[float]
+    lon: Mapped[float]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class CompanyInvite(Base):
     __tablename__ = "company_invites"
 
@@ -129,6 +143,23 @@ class InviteOut(BaseModel):
     role: Role
     note: str
     expires_at: datetime
+
+
+class BaseIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)] = (
+        Field(examples=["Baza Tarnów"])
+    )
+    label: str = Field(default="", max_length=300, description="Adres, np. z wyszukiwarki")
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class BaseOut(BaseIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    company_id: str
+    company_name: str = ""
 
 
 class JoinIn(BaseModel):
@@ -264,7 +295,7 @@ def build_router(current_user) -> APIRouter:
         db.execute(
             update(vehicles).where(vehicles.c.company_id == company_id).values(company_id=None)
         )
-        for model in (CompanyInvite, CompanyMember):
+        for model in (CompanyBase, CompanyInvite, CompanyMember):
             for row in db.scalars(select(model).where(model.company_id == company_id)):
                 db.delete(row)
         db.delete(db.get(Company, company_id))
@@ -367,7 +398,54 @@ def build_router(current_user) -> APIRouter:
         db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    @router.get("/api/bases")
+    def my_bases(user: User, db: Db) -> list[BaseOut]:
+        """Bazy wszystkich firm użytkownika – do podpowiedzi w polach adresu."""
+        rows = db.execute(
+            select(CompanyBase, Company.name)
+            .join(Company, Company.id == CompanyBase.company_id)
+            .where(CompanyBase.company_id.in_(company_ids(db, user)))
+            .order_by(Company.name, CompanyBase.name)
+        )
+        return [
+            BaseOut.model_validate(base).model_copy(update={"company_name": name})
+            for base, name in rows
+        ]
+
+    @router.post("/api/companies/{company_id}/bases", status_code=status.HTTP_201_CREATED)
+    def add_base(company_id: str, data: BaseIn, user: User, db: Db) -> BaseOut:
+        require_member(db, company_id, user, MANAGES_VEHICLES)
+        base = CompanyBase(company_id=company_id, **data.model_dump())
+        db.add(base)
+        db.commit()
+        return BaseOut.model_validate(base)
+
+    @router.put("/api/companies/{company_id}/bases/{base_id}")
+    def update_base(company_id: str, base_id: str, data: BaseIn, user: User, db: Db) -> BaseOut:
+        require_member(db, company_id, user, MANAGES_VEHICLES)
+        base = _base(db, company_id, base_id)
+        for field, value in data.model_dump().items():
+            setattr(base, field, value)
+        db.commit()
+        return BaseOut.model_validate(base)
+
+    @router.delete(
+        "/api/companies/{company_id}/bases/{base_id}", status_code=status.HTTP_204_NO_CONTENT
+    )
+    def delete_base(company_id: str, base_id: str, user: User, db: Db) -> Response:
+        require_member(db, company_id, user, MANAGES_VEHICLES)
+        db.delete(_base(db, company_id, base_id))
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     return router
+
+
+def _base(db: Session, company_id: str, base_id: str) -> CompanyBase:
+    base = db.get(CompanyBase, base_id)
+    if base is None or base.company_id != company_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Nie znaleziono bazy.")
+    return base
 
 
 def _fields(company: Company) -> dict:

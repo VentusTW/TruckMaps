@@ -556,6 +556,48 @@ def assess(db: Session, route: Route, vehicle: VehicleIn) -> Analysis | None:
     )
 
 
+# Pojazd bez ograniczeń wymiarów i masy – do sprawdzenia, czy droga w ogóle istnieje.
+_ANY_VEHICLE = {
+    "height_m": 2.0, "width_m": 2.0, "length_m": 5.0, "weight_t": 3.0, "gvw_t": 3.0,
+    "axle_load_t": 2.0, "hazmat": False,
+}  # fmt: skip
+
+
+def diagnose_no_route(
+    router: Router, db: Session, stops: list[Point], vehicle: VehicleIn
+) -> list[str]:
+    """Dlaczego nie ma trasy: odcinek po odcinku, z ograniczeniem, które go blokuje.
+
+    Odcinek, którego pojazd nie przejedzie, jest liczony jeszcze raz dla pojazdu bez
+    ograniczeń wymiarów i masy, a ta trasa – oceniana dla prawdziwego pojazdu.
+    """
+    labels = [
+        "Start (A)",
+        *[f"Punkt pośredni {i}" for i in range(1, len(stops) - 1)],
+        "Cel (B)",
+    ]
+    any_vehicle = vehicle.model_copy(update=_ANY_VEHICLE)
+    reasons = []
+    for i in range(len(stops) - 1):
+        leg, name = [stops[i], stops[i + 1]], f"{labels[i]} → {labels[i + 1]}"
+        try:
+            router.route(leg, vehicle)
+            continue
+        except NoRouteFound:
+            pass
+        try:
+            open_route = router.route(leg, any_vehicle)
+        except (NoRouteFound, RoutingUnavailable):
+            continue  # brak drogi w ogóle (np. strefa bez wjazdu) – ogólne wyjaśnienie wyżej
+        analysis = assess(db, open_route, vehicle)
+        blocked = list(dict.fromkeys(w.message for w in _impassable(analysis))) if analysis else []
+        if blocked:
+            reasons.append(f"{name}: {'; '.join(blocked[:3])}.")
+        else:
+            reasons.append(f"{name}: droga zamknięta dla tego pojazdu (zakaz albo ograniczenie).")
+    return reasons
+
+
 def _avoid_points(
     route: Route, warnings: list[RouteWarning], stops: list[Point], levels: set[str]
 ) -> list[Point]:
@@ -636,7 +678,10 @@ def build_router(current_user) -> APIRouter:
         except NoRouteFound as exc:
             # Punkt tuż przy drodze, ale w strefie bez wjazdu dla ciężarówek (np. stare miasto):
             # sprawdzenie punktów go nie wychwyci, bo droga jest blisko.
-            reasons = " ".join(issue.message for issue in issues) or (
+            reasons = " ".join(issue.message for issue in issues)
+            if not reasons and (found := diagnose_no_route(router_, db, stops, vehicle)):
+                reasons = " ".join(found) + " Przesuń punkt na drogę dostępną dla tego pojazdu."
+            reasons = reasons or (
                 "Najpewniej start, cel albo punkt pośredni leży w strefie, do której ten pojazd "
                 "nie wjedzie (np. stare miasto z zakazem dla ciężarówek). Przesuń punkt na "
                 "pobliską drogę główną."
