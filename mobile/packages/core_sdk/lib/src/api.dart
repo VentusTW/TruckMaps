@@ -16,30 +16,58 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Skąd klient API bierze token: powłoka odświeża go, zanim wygaśnie.
+abstract class TokenSource {
+  /// Aktualny token dostępu (odświeżony, jeśli zaraz wygasa).
+  Future<String> token();
+
+  /// Odświeżenie po odpowiedzi 401; `false` – sesja wygasła, trzeba się zalogować.
+  Future<bool> refresh();
+}
+
+class _FixedToken implements TokenSource {
+  _FixedToken(this._token);
+
+  final String _token;
+
+  @override
+  Future<String> token() async => _token;
+
+  @override
+  Future<bool> refresh() async => false;
+}
+
 /// Klient API rdzenia: adres serwera i token zalogowanego użytkownika.
 class CoreApi {
-  CoreApi({required this.baseUrl, required this.token, http.Client? client})
-      : _client = client ?? http.Client();
+  CoreApi({required this.baseUrl, String? token, TokenSource? tokens, http.Client? client})
+      : assert(token != null || tokens != null),
+        _tokens = tokens ?? _FixedToken(token!),
+        _client = client ?? http.Client();
 
   final String baseUrl;
-  final String token;
+  final TokenSource _tokens;
   final http.Client _client;
-
-  Map<String, String> get _headers => {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      };
 
   Uri uri(String path) => Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}$path');
 
-  Future<dynamic> get(String path) async =>
-      _decode(await _client.get(uri(path), headers: _headers));
+  Future<dynamic> get(String path) => _send((headers) => _client.get(uri(path), headers: headers));
 
-  Future<dynamic> post(String path, Object? body) async =>
-      _decode(await _client.post(uri(path), headers: _headers, body: jsonEncode(body)));
+  Future<dynamic> post(String path, Object? body) =>
+      _send((headers) => _client.post(uri(path), headers: headers, body: jsonEncode(body)));
 
-  Future<dynamic> put(String path, Object? body) async =>
-      _decode(await _client.put(uri(path), headers: _headers, body: jsonEncode(body)));
+  Future<dynamic> put(String path, Object? body) =>
+      _send((headers) => _client.put(uri(path), headers: headers, body: jsonEncode(body)));
+
+  Future<dynamic> _send(Future<http.Response> Function(Map<String, String> headers) request) async {
+    Future<http.Response> attempt() async => request({
+          'Authorization': 'Bearer ${await _tokens.token()}',
+          'Content-Type': 'application/json',
+        });
+    var response = await attempt();
+    // Token wygasł po drodze (np. komputer był uśpiony) – jedno odświeżenie i ponowienie.
+    if (response.statusCode == 401 && await _tokens.refresh()) response = await attempt();
+    return _decode(response);
+  }
 
   dynamic _decode(http.Response response) {
     final text = utf8.decode(response.bodyBytes);

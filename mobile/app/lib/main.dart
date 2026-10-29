@@ -16,17 +16,45 @@ final modules = ModuleRegistry([HelloModule()]);
 void main() => runApp(const TruckMapsApp());
 
 class TruckMapsApp extends StatefulWidget {
-  const TruckMapsApp({super.key, this.session});
+  const TruckMapsApp({super.key, this.session, this.login});
 
-  /// Sesja podana z góry (testy); zwykle powstaje po zalogowaniu.
+  /// Sesja podana z góry (testy); zwykle przywrócona z poprzedniego uruchomienia albo z logowania.
   final Session? session;
+  final BrowserLogin? login;
 
   @override
   State<TruckMapsApp> createState() => _TruckMapsAppState();
 }
 
 class _TruckMapsAppState extends State<TruckMapsApp> {
+  late final BrowserLogin _login = widget.login ?? BrowserLogin(serverUrl);
   late Session? _session = widget.session;
+  late bool _restoring = widget.session == null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_restoring) _restore();
+  }
+
+  Future<void> _restore() async {
+    final session = await _login.restore();
+    if (!mounted) return;
+    setState(() => _restoring = false);
+    if (session != null) _start(session);
+  }
+
+  void _start(Session session) {
+    session.tokens?.onExpired = () {
+      if (mounted) setState(() => _session = null);
+    };
+    setState(() => _session = session);
+  }
+
+  Future<void> _logout() async {
+    await _login.logout();
+    setState(() => _session = null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +67,11 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       locale: const Locale('pl'),
       supportedLocales: const [Locale('pl'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      home: session == null
-          ? LoginScreen(serverUrl: serverUrl, onLoggedIn: (s) => setState(() => _session = s))
-          : HomeScreen(
-              session: session,
-              registry: modules,
-              onLogout: () => setState(() => _session = null),
-            ),
+      home: _restoring
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : session == null
+              ? LoginScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start)
+              : HomeScreen(session: session, registry: modules, onLogout: _logout),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../navigation/navigation_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
 
@@ -406,6 +407,25 @@ class _PlannerScreenState extends State<PlannerScreen> {
     return [
       const Divider(height: 32),
       Text(shown.summary, style: theme.textTheme.titleMedium),
+      const SizedBox(height: 8),
+      FilledButton.icon(
+        onPressed: _end == null || _vehicleId == null
+            ? null
+            : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => NavigationScreen(
+                    api: widget.api,
+                    request: NavigationRequest(
+                      vehicleId: _vehicleId!,
+                      route: shown,
+                      destination: _end!.point,
+                      via: [for (final v in _via) v.point],
+                      avoidDifficult: _avoid,
+                    ),
+                  ),
+                )),
+        icon: const Icon(Icons.navigation_outlined),
+        label: const Text('Jedź – nawigacja z alarmem'),
+      ),
       if (shown.cost != null) Text('koszt szacunkowo', style: theme.textTheme.bodySmall),
       const SizedBox(height: 8),
       Chip(

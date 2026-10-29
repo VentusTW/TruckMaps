@@ -17,6 +17,47 @@ Inny serwer: `flutter run -d windows --dart-define=TRUCKMAPS_SERVER=http://adres
 Logowanie otwiera przeglądarkę; po zalogowaniu serwer wraca do aplikacji na adres
 127.0.0.1 z jednorazowym kodem, który aplikacja wymienia na token.
 
+Sesja (token odświeżania) zostaje w magazynie systemu – Menedżer poświadczeń (Windows),
+Keystore (Android), Keychain (iOS) – więc po ponownym uruchomieniu aplikacja nie pyta
+o logowanie; token dostępu odświeża się sam (`POST /auth/app/refresh`).
+
+## Telefon z Androidem (USB)
+
+Telefon w trybie debugowania USB, serwer i Zitadel na komputerze. `adb reverse` sprawia,
+że `localhost` w telefonie to komputer – logowanie działa tak samo jak na komputerze
+(przeglądarka telefonu wraca do aplikacji na 127.0.0.1):
+
+```
+adb reverse tcp:8000 tcp:8000
+adb reverse tcp:8080 tcp:8080
+flutter run -d <telefon>
+```
+
+Budowanie na Androida (`flutter build apk`) pobiera biblioteki przez Gradle (Java). Antywirus
+skanujący połączenia HTTPS (np. Avast) podstawia własny certyfikat, któremu Java nie ufa –
+błąd `PKIX path building failed`. Trzeba dodać certyfikat antywirusa do magazynu Javy
+(`keytool -importcert` do `cacerts` JDK z Android Studio) albo wyłączyć skanowanie HTTPS dla Javy.
+
+```powershell
+$c = Get-ChildItem Cert:\LocalMachine\Root | ? Subject -match 'Avast Web/Mail Shield Root'
+[IO.File]::WriteAllBytes("$env:TEMPvast.cer", $c.Export('Cert'))
+& "C:\Program Files\Android\Android Studio\jbrin\keytool.exe" -importcert -noprompt -cacerts `
+  -alias avast-web-mail-shield -file "$env:TEMPvast.cer" -storepass changeit
+```
+
+Po aktualizacji Android Studio (nowy JDK) trzeba to powtórzyć.
+
+Emulator bez `adb reverse`: `--dart-define=TRUCKMAPS_SERVER=http://10.0.2.2:8000` – ale
+logowanie przez Zitadela pod `localhost:8080` wymaga i tak `adb reverse tcp:8080 tcp:8080`.
+
+## Nawigacja
+
+Ekran „Trasa” → „Jedź – nawigacja z alarmem”. Aplikacja pobiera korytarz danych
+(`POST /api/corridor`) i dalej sprawdza pozycję bez sieci: na trasie – pasek „zostało X km”,
+poza trasą na drodze nieprzejezdnej dla pojazdu – czerwony, migający ekran, dźwięk i wibracja,
+poza trasą na innej drodze – po kilku pozycjach nowa trasa od miejsca, w którym jest pojazd.
+Bez GPS (komputer) pozycję ustawia dotknięcie mapy albo „Jedź 60 km/h” (symulacja).
+
 Nowy moduł: pakiet `packages/module_<id>` z klasą `TruckMapsModule` (to samo `id` co moduł
 na serwerze), dopisany do `app/pubspec.yaml` i do listy w `app/lib/main.dart`. Moduł importuje
 tylko `core_sdk` – nie powłokę ani inne moduły.

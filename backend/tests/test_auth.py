@@ -151,10 +151,21 @@ def test_app_login_returns_to_loopback_with_one_time_code(provider):
     access = make_token()
 
     def token_endpoint(request: httpx.Request) -> httpx.Response:
+        form = parse_qs(request.content.decode())
+        if form["grant_type"] == ["refresh_token"]:
+            if form["refresh_token"] != ["refresh-1"]:
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            return httpx.Response(200, json={"access_token": access, "expires_in": 900})
         nonce = devlogin.decode_flow(client.cookies[devlogin.FLOW_COOKIE])["nonce"]
         id_token = make_token(aud=CLIENT_ID, nonce=nonce, name="Anna Kowalska")
         return httpx.Response(
-            200, json={"access_token": access, "id_token": id_token, "expires_in": 1800}
+            200,
+            json={
+                "access_token": access,
+                "id_token": id_token,
+                "expires_in": 1800,
+                "refresh_token": "refresh-1",
+            },
         )
 
     app = dev_login_app(provider, token_endpoint)
@@ -172,9 +183,25 @@ def test_app_login_returns_to_loopback_with_one_time_code(provider):
         assert access not in callback.headers["location"]  # token nie trafia do adresu
 
         token = client.post("/auth/app/token", json={"code": code})
-        assert token.json() == {"access_token": access, "expires_in": 1800, "name": "Anna Kowalska"}
+        assert token.json() == {
+            "access_token": access,
+            "expires_in": 1800,
+            "name": "Anna Kowalska",
+            "refresh_token": "refresh-1",
+        }
+        assert "offline_access" in parse_qs(urlparse(login.headers["location"]).query)["scope"][0]
         # Kod jest jednorazowy.
         assert client.post("/auth/app/token", json={"code": code}).status_code == 400
+
+        refreshed = client.post("/auth/app/refresh", json={"refresh_token": "refresh-1"})
+        assert refreshed.json() == {
+            "access_token": access,
+            "expires_in": 900,
+            "name": "",
+            "refresh_token": "refresh-1",
+        }
+        stale = client.post("/auth/app/refresh", json={"refresh_token": "stary"})
+        assert stale.status_code == 401
 
 
 class HelloModule(Module):

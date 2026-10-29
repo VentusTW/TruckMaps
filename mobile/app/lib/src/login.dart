@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'auth.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.serverUrl, required this.onLoggedIn});
+  const LoginScreen({super.key, required this.serverUrl, required this.login, required this.onLoggedIn});
 
   final String serverUrl;
+  final BrowserLogin login;
   final ValueChanged<Session> onLoggedIn;
 
   @override
@@ -23,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      widget.onLoggedIn(await BrowserLogin(widget.serverUrl).login());
+      widget.onLoggedIn(await widget.login.login());
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {

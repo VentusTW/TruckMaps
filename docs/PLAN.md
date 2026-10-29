@@ -233,7 +233,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 
 ### Faza 2 – Rdzeń aplikacja (miesiące 5–8)
 - [x] Powłoka Flutter (`mobile/app`: Android, iOS, Windows, web), `core_sdk` (kontrakt modułu, rejestr, klient API), rejestracja modułów (wzór: `module_hello`), lista modułów konta z serwera (`/api/me/modules`), ekran „Kup moduł”; logowanie przez przeglądarkę z powrotem na 127.0.0.1 i jednorazowym kodem (RFC 8252); w CI analiza i testy
-- [ ] Logowanie w aplikacji: zapamiętanie sesji (bezpieczny magazyn), odświeżanie tokenu, na telefonie przekierowanie `truckmaps://auth/callback` (AppAuth), wersja web
+- [x] Logowanie w aplikacji: sesja w magazynie systemu (Menedżer poświadczeń / Keystore / Keychain), samoczynne odświeżanie tokenu (`offline_access`, `POST /auth/app/refresh`, ponowienie po 401), wylogowanie przy odrzuconej sesji, ale nie przy braku sieci; Android: to samo logowanie przez przeglądarkę telefonu (z `adb reverse` do serwera na komputerze), http tylko do localhost / emulatora
+- [ ] Logowanie w wersji web i produkcyjne przekierowanie `truckmaps://auth/callback` (AppAuth) z Zitadelem pod https
 - [x] Mapa MapLibre, profil pojazdu
 - [x] Wyszukiwanie adresów (Photon, dane OSM co tydzień): pola Skąd / Dokąd z podpowiedziami, adres klikniętego punktu
 - [x] Punkty pośrednie z adresu albo GPS, współrzędne GPS w każdym polu adresu; bazy firmy (nazwa + adres, zarządzają właściciel i dyspozytorzy) podpowiadane po wpisaniu „baza” lub nazwy bazy
@@ -242,8 +243,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Numery domów tylko na ostatnich kilkuset metrach dojazdu do celu i odjazdu ze startu (pomoc przy nieregularnej numeracji); źródła: OSM `addr:housenumber`, w PL punkty adresowe z rejestru państwowego (GUGiK, dane otwarte)
 - [x] Planowanie trasy z kolorami ryzyka w aplikacji (ekran „Trasa”): mapa (flutter_map, kafelki OSM – działa też na Windows), start i cel z adresu, GPS albo dotknięcia mapy, punkty pośrednie, pojazd, godzina wyjazdu, omijanie trudnych dróg; trasa w kolorach oceny, znaki ograniczeń i zakazy ⛔ na mapie, lista ostrzeżeń, zakazy ruchu w czasie z przyciskiem wyjazdu bez postoju, koszt, alternatywy; okno z wyjaśnieniem, gdy trasy nie ma
 - [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
-- [ ] Nawigacja: GPS, dopasowanie do drogi, komunikaty głosowe, przeliczanie trasy
-- [ ] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza
+- [x] Nawigacja (pierwsza wersja): GPS (geolocator, także Windows), mapa podąża za pojazdem, pasek „zostało X km”, symulacja jazdy i pozycji z dotknięcia mapy, zjazd z trasy → po kilku pozycjach nowa trasa od pozycji (bez minionych punktów pośrednich) i nowy korytarz
+- [ ] Nawigacja: komunikaty głosowe i manewry (Valhalla `directions`), dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
+- [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
 - [ ] Zgłoszenia od kierowców
 - [ ] Punkty dostawy: wyświetlanie przy celu, zgłaszanie bramy/rampy/godzin przyjęć jednym dotknięciem, cel trasy przy rampie

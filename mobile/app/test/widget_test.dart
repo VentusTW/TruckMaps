@@ -16,15 +16,15 @@ Session session(Map<String, Object> responses) {
   return Session(
     api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
     userName: 'Anna Kowalska',
-    expiresAt: DateTime(2030),
   );
 }
 
 void main() {
   setUp(() => mapTiles = () => const SizedBox());
 
-  testWidgets('bez sesji – ekran logowania', (tester) async {
-    await tester.pumpWidget(const TruckMapsApp());
+  testWidgets('bez zapisanej sesji – ekran logowania', (tester) async {
+    await tester.pumpWidget(TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore())));
+    await tester.pumpAndSettle();
 
     expect(find.text('Zaloguj się e-mailem'), findsOneWidget);
   });
@@ -64,4 +64,17 @@ void main() {
     expect(find.text('Aktywny'), findsOneWidget);
     expect(find.text('Wymaga nowszej wersji aplikacji.'), findsOneWidget);
   });
+}
+
+class MemoryStore implements SessionStore {
+  Tokens? tokens;
+
+  @override
+  Future<Tokens?> load() async => tokens;
+
+  @override
+  Future<void> save(Tokens value) async => tokens = value;
+
+  @override
+  Future<void> clear() async => tokens = null;
 }

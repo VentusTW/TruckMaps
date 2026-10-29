@@ -13,9 +13,14 @@ dependencies:
     sdk: flutter
   http: ^1.2.1
   url_launcher: ^6.2.5
+  # Sesja (token odświeżania) w magazynie systemu: Menedżer poświadczeń / Keystore / Keychain.
+  flutter_secure_storage: ^9.0.0
   # Mapa: kafelki OSM jak w planerze w przeglądarce; działa także na Windows.
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
+  # Nawigacja: pozycja GPS i dźwięk alarmu czerwonego.
+  geolocator: ^11.0.0
+  audioplayers: ^5.2.1
   core_sdk:
     path: ../packages/core_sdk
   # Pakiety modułów wbudowane w aplikację; dostęp do nich sprawdza serwer.
@@ -29,3 +34,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/alarm.wav

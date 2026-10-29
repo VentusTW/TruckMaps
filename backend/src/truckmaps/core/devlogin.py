@@ -7,6 +7,8 @@ Aplikacja Flutter (na komputerze, w trakcie budowy) loguje się tak samo przez p
 ``/auth/login?app=http://127.0.0.1:<port>/callback`` – po zalogowaniu serwer wraca na ten
 adres lokalny z jednorazowym kodem (RFC 8252, przekierowanie na loopback), a aplikacja
 wymienia kod na token przez ``POST /auth/app/token``. Token nie trafia do adresu.
+Aplikacja dostaje też token odświeżania (``offline_access``) – ``POST /auth/app/refresh``
+daje nowy token dostępu bez ponownego logowania.
 """
 
 import base64
@@ -29,6 +31,8 @@ FLOW_COOKIE = "tm_flow"
 ACCESS_COOKIE = "tm_access"
 ID_COOKIE = "tm_id"
 SCOPES = "openid profile email"
+# Aplikacja zostaje zalogowana między uruchomieniami – potrzebuje tokenu odświeżania.
+APP_SCOPES = f"{SCOPES} offline_access"
 APP_CODE_TTL_S = 120
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
@@ -41,6 +45,11 @@ class AppToken(BaseModel):
     access_token: str
     expires_in: int
     name: str
+    refresh_token: str | None = None
+
+
+class AppRefresh(BaseModel):
+    refresh_token: str
 
 
 def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | None = None):
@@ -84,7 +93,7 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
             "client_id": provider.client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
-            "scope": SCOPES,
+            "scope": APP_SCOPES if app is not None else SCOPES,
             "state": state,
             "nonce": nonce,
             "code_challenge": challenge.rstrip(b"=").decode(),
@@ -144,7 +153,12 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
             name = id_claims.get("name") or id_claims.get("email") or ""
             app_codes[code] = (
                 now + APP_CODE_TTL_S,
-                AppToken(access_token=tokens["access_token"], expires_in=max_age, name=name),
+                AppToken(
+                    access_token=tokens["access_token"],
+                    expires_in=max_age,
+                    name=name,
+                    refresh_token=tokens.get("refresh_token"),
+                ),
             )
             separator = "&" if "?" in app else "?"
             response = RedirectResponse(f"{app}{separator}{urlencode({'code': code})}", 303)
@@ -166,6 +180,37 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         if found is None or found[0] < time.monotonic():
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Kod logowania wygasł albo jest zły.")
         return found[1]
+
+    @router.post("/auth/app/refresh")
+    def app_refresh(data: AppRefresh) -> AppToken:
+        """Nowy token dostępu z tokenu odświeżania (aplikacja zostaje zalogowana)."""
+        response = http.post(
+            provider.metadata["token_endpoint"],
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": data.refresh_token,
+                "client_id": provider.client_id,
+            },
+        )
+        if response.is_error:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "Sesja wygasła – zaloguj się ponownie."
+            )
+        tokens = response.json()
+        try:
+            provider.verify(tokens["access_token"])
+        except (KeyError, InvalidToken):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sesja wygasła.") from None
+        try:
+            claims = provider.decode(tokens["id_token"], audience=provider.client_id)
+        except (KeyError, InvalidToken):
+            claims = {}  # nazwa użytkownika jest opcjonalna – aplikacja ma ją z logowania
+        return AppToken(
+            access_token=tokens["access_token"],
+            expires_in=int(tokens.get("expires_in", 3600)),
+            name=claims.get("name") or claims.get("email") or "",
+            refresh_token=tokens.get("refresh_token") or data.refresh_token,
+        )
 
     @router.get("/auth/logout")
     def logout(request: Request) -> Response:

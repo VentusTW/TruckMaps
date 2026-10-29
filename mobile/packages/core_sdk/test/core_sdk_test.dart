@@ -23,6 +23,8 @@ class _Module extends TruckMapsModule {
 }
 
 void main() {
+  tokenTests();
+
   test('rejestr łączy pakiety aplikacji z modułami serwera', () {
     final registry = ModuleRegistry([_Module('hello'), _Module('tolls')]);
 
@@ -63,3 +65,31 @@ void main() {
 }
 
 Widget _empty(BuildContext context) => const SizedBox();
+
+class _Tokens implements TokenSource {
+  String current = 'stary';
+  int refreshes = 0;
+
+  @override
+  Future<String> token() async => current;
+
+  @override
+  Future<bool> refresh() async {
+    refreshes++;
+    current = 'nowy';
+    return true;
+  }
+}
+
+void tokenTests() {
+  test('po 401 klient odświeża token i ponawia zapytanie', () async {
+    final tokens = _Tokens();
+    final client = MockClient((request) async => request.headers['Authorization'] == 'Bearer nowy'
+        ? http.Response('[]', 200)
+        : http.Response.bytes(utf8.encode('{"detail": "Nieprawidłowy token."}'), 401));
+    final api = CoreApi(baseUrl: 'http://serwer.test', tokens: tokens, client: client);
+
+    expect(await api.get('/api/vehicles'), isEmpty);
+    expect(tokens.refreshes, 1);
+  });
+}

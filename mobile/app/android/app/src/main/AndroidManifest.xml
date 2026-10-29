@@ -1,8 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Serwer TruckMaps i kafelki mapy. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Nawigacja: pozycja GPS w trakcie jazdy (tylko gdy aplikacja jest otwarta). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Alarm czerwony: wibracja. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <application
-        android:label="truckmaps_app"
+        android:label="TruckMaps"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -39,6 +47,15 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Logowanie: url_launcher otwiera stronę logowania w przeglądarce. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
     </queries>
 </manifest>
