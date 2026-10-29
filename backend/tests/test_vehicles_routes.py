@@ -466,6 +466,56 @@ def test_alternatives_skip_duplicates_and_are_sorted_by_difficulty(database):
     ]
 
 
+class ParallelRoadRouter:
+    """Miejsce nieprzejezdne (droga 2 z zakazem); pierwszy objazd trafia w równoległy odcinek
+    tej samej drogi (3 – też zakaz, do tego osiedle), dopiero drugi omija ją całkiem."""
+
+    def __init__(self) -> None:
+        self.rounds = 0
+
+    def locate(self, stops, vehicle):
+        return [(p, 0.0) for p in stops]
+
+    def route(self, stops, vehicle: VehicleIn, exclude=None, alternates=0) -> Route:
+        a, b = stops[0], stops[-1]
+        geometry = [(a.lon + (b.lon - a.lon) * i / 100, a.lat) for i in range(101)]
+        if exclude:
+            self.rounds += 1
+        # Bez wykluczeń: zakaz; pierwszy objazd: osiedle i zakaz obok; drugi: bez problemów.
+        middle = [[(2, "primary")], [(3, "residential"), (2, "primary")], []][min(self.rounds, 2)]
+        edges = [RouteEdge(way_id=1, begin_index=0, end_index=40, road_class="primary")]
+        for i, (way, road_class) in enumerate(middle):
+            start = 40 + 10 * i
+            edges.append(
+                RouteEdge(
+                    way_id=way, begin_index=start, end_index=start + 10, road_class=road_class
+                )
+            )
+        edges.append(RouteEdge(way_id=4, begin_index=60, end_index=100, road_class="primary"))
+        km = 10.0 + self.rounds * 5
+        return Route(distance_km=km, duration_min=12, geometry=geometry, edges=edges)
+
+
+def test_planner_keeps_avoiding_impassable_place_hit_again_by_first_detour(database):
+    with database.session() as db:
+        for way in (2, 3):
+            db.add(
+                Restriction(
+                    osm_type="way", osm_id=way, kind="weight", value=3.5, raw="maxweight:hgv=3.5",
+                    source="osm", source_date="2026-10-27",
+                )
+            )  # fmt: skip
+        db.commit()
+    router = ParallelRoadRouter()
+    client = make_client(database, router)
+
+    response = client.post("/api/routes", json=route_body(client), headers=as_user("anna"))
+
+    assert response.status_code == 200, response.json()
+    assert response.json()["analysis"]["level"] == "green"
+    assert router.rounds == 2
+
+
 def test_planner_keeps_route_when_detour_too_long_or_avoiding_disabled(database):
     client = make_client(database, DetourRouter(detour_km=50.0))
     too_long = client.post("/api/routes", json=route_body(client), headers=as_user("anna")).json()

@@ -50,6 +50,9 @@ TRACE_CHUNK_KM = 150.0
 
 # Omijanie trudnych miejsc: ile razy przeliczać trasę i jak długi objazd jest rozsądny.
 AVOID_ROUNDS = 3
+# Miejsce nieprzejezdne omijamy dłużej: silnik tras często wybiera najpierw równoległy
+# odcinek tej samej drogi (np. druga jezdnia), więc wykluczenia trzeba dokładać.
+IMPASSABLE_ROUNDS = 8
 MAX_DETOUR_FACTOR = 1.25
 MAX_DETOUR_EXTRA_KM = 3.0
 # Miejsc przy starcie, celu i punktach pośrednich nie omijamy – tam trzeba dojechać.
@@ -504,8 +507,14 @@ def plan(
 
     excluded: list[Point] = []
     max_km = first.distance_km * MAX_DETOUR_FACTOR + MAX_DETOUR_EXTRA_KM
-    for _ in range(AVOID_ROUNDS):
-        points = _avoid_points(best, best_analysis.warnings, stops, levels)
+    # Kolejne wykluczenia bierzemy z ostatniego wariantu – także gorszego, gdy najlepszy
+    # wciąż jest nieprzejezdny (objazd trafił w ten sam problem kawałek obok).
+    current, current_analysis = best, best_analysis
+    for round_ in range(IMPASSABLE_ROUNDS):
+        blocked = bool(_impassable(best_analysis))
+        if round_ >= AVOID_ROUNDS and not blocked:
+            break
+        points = _avoid_points(current, current_analysis.warnings, stops, levels)
         if not points:
             break
         excluded += points
@@ -514,12 +523,17 @@ def plan(
         except NoRouteFound:
             break
         analysis = assess(db, candidate, vehicle, departure)
-        if analysis is None or analysis.score >= best_analysis.score:
+        if analysis is None:
             break
-        if candidate.distance_km > max_km and not _impassable(best_analysis):
+        better = analysis.score < best_analysis.score and (
+            candidate.distance_km <= max_km or blocked
+        )
+        if better:
+            difficult += [w for w in best_analysis.warnings if w.level in levels]
+            best, best_analysis, best_excluded = candidate, analysis, list(excluded)
+        elif not blocked:
             break
-        difficult += [w for w in best_analysis.warnings if w.level in levels]
-        best, best_analysis, best_excluded = candidate, analysis, list(excluded)
+        current, current_analysis = candidate, analysis
     if blocked := _impassable(best_analysis):
         raise ImpassableRoute(blocked)
     # Ominięte = trudne miejsca z wcześniejszych wariantów, których nie ma na wybranej trasie.
