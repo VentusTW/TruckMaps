@@ -413,7 +413,7 @@ def test_alternatives_skip_duplicates_and_are_sorted_by_difficulty(database):
 
     assert [(a["distance_km"], a["analysis"]["level"]) for a in body["alternatives"]] == [
         (320.0, "green"),
-        (330.0, "orange"),
+        (330.0, "yellow"),  # ulica osiedlowa na całej trasie = dojazd do startu i celu
     ]
 
 

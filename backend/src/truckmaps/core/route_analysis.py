@@ -51,6 +51,12 @@ WIDE_ROAD_M = 6.0
 NARROW_ROAD_M = 4.5
 NARROW_USES = {"living_street", "track", "driveway", "alley", "parking_aisle", "drive_through"}
 MINOR_CLASSES = {"residential", "service_other"}
+# Ulica z kilkoma pasami w kierunku jazdy nie jest ciasna, nawet gdy w danych jest osiedlowa.
+WIDE_LANES = 2
+# Dojazd do startu i celu: kierowca i tak musi tamtędy przejechać, więc ulica osiedlowa jest
+# tu tylko żółta. Strefa zamieszkania (living_street) zostaje pomarańczowa.
+END_ZONE_M = 1000.0
+END_STREET = "Dojazd ulicą osiedlową / dojazdową – trudny dla zestawu"
 BEND_SPACING_M = 10.0
 NODE_MATCH_M = 4.0
 
@@ -144,14 +150,23 @@ def analyze(
     node_restrictions: list[Restriction],
 ) -> Analysis:
     findings: list[_Finding] = []
+    cumulative = _cumulative_m(points)
+    total = cumulative[-1]
     for edge in edges:
-        findings += _edge_findings(edge, vehicle, way_restrictions.get(edge.way_id, []))
+        last = min(edge.end_index, len(cumulative) - 1)
+        near_end = (
+            cumulative[min(edge.begin_index, last)] < END_ZONE_M
+            or cumulative[last] > total - END_ZONE_M
+        )
+        findings += _edge_findings(edge, vehicle, way_restrictions.get(edge.way_id, []), near_end)
     findings += _bend_findings(points, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
     return _summarize(points, findings)
 
 
-def _edge_findings(edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restriction]):
+def _edge_findings(
+    edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restriction], near_end: bool = False
+):
     span = (edge.begin_index, edge.end_index)
     name = f" ({edge.names[0]})" if edge.names else ""
     context: dict[Kind, Restriction] = {}
@@ -171,7 +186,7 @@ def _edge_findings(edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restr
                 limit=_limit_label(restriction),
             )
 
-    road = _road_level(edge, vehicle, context)
+    road = _road_level(edge, vehicle, context, near_end)
     if road:
         level, message = road
         yield _Finding(level, "narrow", message + name, *span, key=("narrow", level))
@@ -182,22 +197,27 @@ def _edge_findings(edge: RouteEdge, vehicle: VehicleIn, restrictions: list[Restr
 
 
 def _road_level(
-    edge: RouteEdge, vehicle: VehicleIn, context: dict[Kind, Restriction]
+    edge: RouteEdge, vehicle: VehicleIn, context: dict[Kind, Restriction], near_end: bool = False
 ) -> tuple[Level, str] | None:
     """Ulice osiedlowe, dojazdowe i lokalne – im dłuższy pojazd, tym trudniej.
 
-    Otoczenie i cechy drogi łagodzą ocenę: drogi oznaczone dla ciężarówek albo szerokie
-    nie są problemem, a w strefach przemysłowych drogi "osiedlowe" są zwykle szerokie.
+    Otoczenie i cechy drogi łagodzą ocenę: drogi oznaczone dla ciężarówek, szerokie albo
+    z kilkoma pasami nie są problemem, a w strefach przemysłowych drogi "osiedlowe" są
+    zwykle szerokie. Przy starcie i celu (``near_end``) ulica osiedlowa jest tylko żółta.
     """
     length = vehicle.length_m
     width = context[Kind.ROAD_WIDTH].value if Kind.ROAD_WIDTH in context else None
     if Kind.HGV_DESIGNATED in context or (width is not None and width >= WIDE_ROAD_M):
+        return None
+    if (edge.lane_count or 0) >= WIDE_LANES:
         return None
     if edge.use in NARROW_USES or edge.road_class in MINOR_CLASSES:
         if Kind.INDUSTRIAL_AREA in context and (width is None or width >= NARROW_ROAD_M):
             if length > MEDIUM_VEHICLE_M:
                 return Level.YELLOW, "Droga dojazdowa w strefie przemysłowej"
             return None
+        if length > LONG_VEHICLE_M and near_end and edge.use != "living_street":
+            return Level.YELLOW, END_STREET
         if length > LONG_VEHICLE_M:
             return Level.ORANGE, "Ulica osiedlowa / dojazdowa – bardzo trudna dla zestawu"
         if length > MEDIUM_VEHICLE_M or edge.use in NARROW_USES:

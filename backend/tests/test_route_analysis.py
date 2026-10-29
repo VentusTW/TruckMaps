@@ -72,6 +72,10 @@ def straight_line(n: int = 50, step_deg: float = 0.0005) -> list[tuple[float, fl
     return [(17.0 + i * step_deg, 52.0) for i in range(n)]
 
 
+# Ok. 17 km – odcinki 10–20 leżą w środku trasy, daleko od dojazdu do startu i celu.
+LONG_LINE = straight_line(step_deg=0.005)
+
+
 def way_restriction(kind: Kind, value: float | None, raw: str, way_id: int = 1) -> Restriction:
     return Restriction(
         osm_type="way",
@@ -203,13 +207,48 @@ def test_residential_street_level_depends_on_vehicle_length():
         axle_count=2,
     )
 
-    truck = run(TRUCK, edges=edges)
+    truck = run(TRUCK, edges=edges, points=LONG_LINE)
     assert (truck.level, truck.warnings[0].message) == (
         "orange",
         "Ulica osiedlowa / dojazdowa – bardzo trudna dla zestawu (Długa)",
     )
-    assert run(SOLO, edges=edges).level == "yellow"
-    assert run(van, edges=edges).warnings == []
+    assert run(SOLO, edges=edges, points=LONG_LINE).level == "yellow"
+    assert run(van, edges=edges, points=LONG_LINE).warnings == []
+
+
+@pytest.mark.parametrize(
+    ("use", "level", "message"),
+    [
+        ("road", "yellow", "Dojazd ulicą osiedlową / dojazdową – trudny dla zestawu (Rynek)"),
+        (
+            "living_street",
+            "orange",
+            "Ulica osiedlowa / dojazdowa – bardzo trudna dla zestawu (Rynek)",
+        ),
+    ],
+    ids=["ulica", "strefa-zamieszkania"],
+)
+def test_residential_street_near_start_or_end_is_milder(use, level, message):
+    # Pierwszy i ostatni kilometr to dojazd, którego kierowca i tak nie ominie.
+    for begin, end in ((0, 2), (47, 49)):
+        edges = [
+            RouteEdge(
+                way_id=1, begin_index=begin, end_index=end, road_class="residential", use=use,
+                names=["Rynek"],
+            )
+        ]  # fmt: skip
+
+        result = run(TRUCK, edges=edges, points=LONG_LINE)
+
+        assert (result.level, result.warnings[0].message) == (level, message)
+
+
+def test_residential_street_with_several_lanes_is_not_narrow():
+    edges = [
+        RouteEdge(way_id=1, begin_index=10, end_index=20, road_class="residential", lane_count=3)
+    ]
+
+    assert run(TRUCK, edges=edges, points=LONG_LINE).warnings == []
 
 
 def test_roundabout_is_lime():
@@ -321,7 +360,7 @@ RESIDENTIAL = [
 def test_minor_road_context_for_long_vehicle(context, level, message):
     restrictions = [way_restriction(kind, value, f"{kind}") for kind, value in context]
 
-    result = run(TRUCK, restrictions, edges=RESIDENTIAL)
+    result = run(TRUCK, restrictions, edges=RESIDENTIAL, points=LONG_LINE)
 
     assert result.level == level
     if message:
@@ -334,7 +373,7 @@ def test_bad_surface_is_a_separate_yellow_warning():
         way_restriction(Kind.BAD_SURFACE, None, "smoothness=bad"),
     ]
 
-    result = run(TRUCK, restrictions, edges=RESIDENTIAL)
+    result = run(TRUCK, restrictions, edges=RESIDENTIAL, points=LONG_LINE)
 
     assert result.level == "yellow"
     assert sorted(w.message for w in result.warnings) == [

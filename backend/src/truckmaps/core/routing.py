@@ -12,7 +12,14 @@ from truckmaps.core.companies import Company
 from truckmaps.core.db import get_session
 from truckmaps.core.polyline import decode_polyline6
 from truckmaps.core.restrictions import distance_m
-from truckmaps.core.route_analysis import Analysis, Level, RouteEdge, RouteWarning, analyze
+from truckmaps.core.route_analysis import (
+    END_STREET,
+    Analysis,
+    Level,
+    RouteEdge,
+    RouteWarning,
+    analyze,
+)
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
 from truckmaps.sdk import Principal
 
@@ -525,7 +532,10 @@ def difficult_ends(
     stops: list[Point],
     already: list[StopIssue],
 ) -> list[StopIssue]:
-    """Trudny dojazd tuż przy starcie lub celu (pomarańczowy, czerwony) – podpowiedź parkingu."""
+    """Trudny dojazd tuż przy starcie lub celu – podpowiedź parkingu.
+
+    Trudny to pomarańczowy, czerwony albo żółty dojazd ulicą osiedlową dla zestawu.
+    """
     if analysis is None:
         return []
     total_m = route.distance_km * 1000
@@ -537,7 +547,7 @@ def difficult_ends(
         near_end = [
             w
             for w in analysis.warnings
-            if w.level in AVOID_LEVELS
+            if (w.level in AVOID_LEVELS or w.message.startswith(END_STREET))
             and (
                 w.km * 1000 <= DIFFICULT_END_M
                 if role == "origin"
