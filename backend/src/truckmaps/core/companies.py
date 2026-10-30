@@ -17,6 +17,7 @@ from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func, sel
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.costs import CostRates
+from truckmaps.core.currency import UserSettings, display_name
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
@@ -203,11 +204,12 @@ def require_member(
     return member
 
 
-def _display_name(requested: str | None, user: Principal) -> str:
-    claims = user.claims
-    name = requested or claims.get("name") or claims.get("email")
-    name = name or claims.get("preferred_username")
-    return (name or f"Użytkownik {user.subject[-6:]}").strip()[:200]
+def _joined(db: Session, requested: str | None, user: Principal) -> str:
+    """Imię nowego członka; kto dołącza do firmy, ma już za sobą pierwsze logowanie."""
+    settings = db.get(UserSettings, user.subject) or UserSettings(subject=user.subject)
+    settings.onboarded = True
+    db.add(settings)
+    return (requested or "").strip()[:200] or display_name(user, settings)
 
 
 def _owners(db: Session, company_id: str) -> int:
@@ -269,7 +271,7 @@ def build_router(current_user) -> APIRouter:
         me = CompanyMember(
             company_id=company.id,
             subject=user.subject,
-            display_name=_display_name(data.display_name, user),
+            display_name=_joined(db, data.display_name, user),
             role=Role.OWNER,
         )
         db.add(me)
@@ -359,7 +361,7 @@ def build_router(current_user) -> APIRouter:
         me = CompanyMember(
             company_id=company.id,
             subject=user.subject,
-            display_name=_display_name(data.display_name, user),
+            display_name=_joined(db, data.display_name, user),
             role=invite.role,
         )
         db.add(me)

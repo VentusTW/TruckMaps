@@ -64,6 +64,25 @@ Po aktualizacji Android Studio (nowy JDK) trzeba to powtórzyć.
 Emulator bez `adb reverse`: `--dart-define=TRUCKMAPS_SERVER=http://10.0.2.2:8000` – ale
 logowanie przez Zitadela pod `localhost:8080` wymaga i tak `adb reverse tcp:8080 tcp:8080`.
 
+## Konto, firma i role
+
+Pierwsze logowanie bez firmy pyta: „Mam firmę” (zakładasz firmę – nazwa, NIP/VAT, waluta – i
+zostajesz właścicielem), „Dołączam kodem” (kod zaproszenia; rola jest w kodzie) albo „Sam, bez
+firmy” (wybór zapisany na serwerze, nie pyta ponownie; firmę założysz później w „Konto”).
+
+Menu zależy od roli w wybranej firmie:
+
+| Ekran | Właściciel | Dyspozytor | Kierowca | Bez firmy |
+|---|---|---|---|---|
+| Trasa, Pojazdy, Moduły, Konto | ✓ | ✓ | ✓ | ✓ |
+| Firma – dane i stawki | zmienia | widzi | widzi | – |
+| Firma – bazy | zmienia | zmienia | widzi | – |
+| Członkowie i zaproszenia | role, usuwanie, zaprasza każdego | zaprasza kierowców | – | – |
+
+Kilka firm → przełącznik na górze ekranu „Firma”. Ostatniego właściciela nie da się
+zdegradować ani usunąć. „Konto”: imię wyświetlane (widoczne w firmach), język aplikacji
+(„jak w telefonie” albo wybrany), waluta kosztów w planerze, wylogowanie.
+
 ## Nawigacja
 
 Ekran „Trasa” → „Jedź – nawigacja z alarmem”. Aplikacja pobiera korytarz danych
