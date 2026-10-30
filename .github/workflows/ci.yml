@@ -73,13 +73,13 @@ jobs:
       - run: pip install pytest
       - run: pytest tools --rootdir tools
 
-  # Aplikacja Flutter: powłoka i pakiety (core_sdk, moduły) – analiza i testy.
+  # Aplikacja Flutter, program administracyjny i pakiety (core_sdk, logowanie, moduły) – analiza i testy.
   test-mobile:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        package: [packages/core_sdk, packages/module_hello, app]
+        package: [packages/core_sdk, packages/app_auth, packages/module_hello, app, admin]
     defaults:
       run:
         working-directory: mobile/${{ matrix.package }}

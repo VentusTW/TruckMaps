@@ -132,5 +132,12 @@
   "error.report_limit": "Too many reports from this account within 24 hours – try tomorrow.",
   "error.report_not_found": "Report not found.",
   "error.report_own_vote": "This is your report – you can delete it.",
-  "error.report_not_yours": "You can only delete your own report."
+  "error.report_not_yours": "You can only delete your own report.",
+  "error.admin_required": "This account has no access to the administration program.",
+  "error.admin_mfa_required": "The administration program requires signing in with a second factor (e.g. an authenticator app).",
+  "error.admin_read_only": "A support account is read-only.",
+  "error.admin_access_not_granted": "The company owner has not granted access to changes in this scope, or the access has expired.",
+  "error.grant_not_found": "Access grant not found.",
+  "admin.saved": "Administrator account {subject} saved.",
+  "admin.not_found": "Administrator account {subject} not found."
 }
