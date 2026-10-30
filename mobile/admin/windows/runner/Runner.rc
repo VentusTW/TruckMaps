@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "pl.truckmaps" "\0"
-            VALUE "FileDescription", "truckmaps_admin" "\0"
+            VALUE "FileDescription", "TruckMaps - program administracyjny" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "truckmaps_admin" "\0"
+            VALUE "InternalName", "TrucksMapsAdministrator" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 pl.truckmaps. All rights reserved." "\0"
-            VALUE "OriginalFilename", "truckmaps_admin.exe" "\0"
-            VALUE "ProductName", "truckmaps_admin" "\0"
+            VALUE "OriginalFilename", "TrucksMapsAdministrator.exe" "\0"
+            VALUE "ProductName", "TruckMaps Administrator" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
