@@ -365,5 +365,13 @@
   "inboxReject": "Decline",
   "inboxExtend": "Extend by {time}",
   "inboxNewRequest": "A TruckMaps administrator asks for access to change your company data.",
-  "inboxShow": "Show"
+  "inboxShow": "Show",
+
+  "companyKind": "Type of company",
+  "companyKindCarrier": "Goods carrier",
+  "companyKindCarrierHint": "Own fleet (tractors, trucks, vans, semi-trailers, trailers) and drivers.",
+  "companyKindForwarder": "Forwarding (goods only)",
+  "companyKindForwarderHint": "Orders and carriers; no fleet or drivers of its own – owner and forwarders.",
+  "companyKindPassenger": "Passenger transport",
+  "companyKindPassengerHint": "Buses and coaches (with trailers) and drivers."
 }

@@ -12,6 +12,32 @@ String roleLabel(AppLocalizations l, String? role) => switch (role) {
       _ => l.roleDriver,
     };
 
+/// Rodzaje firmy (te same co na serwerze).
+const companyKinds = ['carrier', 'forwarder', 'passenger'];
+
+String companyKindLabel(AppLocalizations l, String? kind) => switch (kind) {
+      'forwarder' => l.companyKindForwarder,
+      'passenger' => l.companyKindPassenger,
+      _ => l.companyKindCarrier,
+    };
+
+String companyKindHint(AppLocalizations l, String? kind) => switch (kind) {
+      'forwarder' => l.companyKindForwarderHint,
+      'passenger' => l.companyKindPassengerHint,
+      _ => l.companyKindCarrierHint,
+    };
+
+/// Role w firmie danego rodzaju: spedycja nie ma kierowców.
+List<String> rolesFor(String? companyKind) => companyKind == 'forwarder' ? const ['owner', 'dispatcher'] : roles;
+
+/// Jakie pojazdy może mieć firma (jak na serwerze): spedycja – żadnych, transport osób –
+/// autobusy i przyczepy, przewoźnik towarów – wszystkie poza autobusami.
+bool companyAllows(String? companyKind, String vehicleKind) => switch (companyKind) {
+      'forwarder' => false,
+      'passenger' => vehicleKind == 'bus' || vehicleKind == 'trailer',
+      _ => vehicleKind != 'bus',
+    };
+
 /// Bazy, pojazdy firmy i zapraszanie kierowców: właściciel i dyspozytorzy (jak na serwerze).
 bool managesCompany(String? role) => role == 'owner' || role == 'dispatcher';
 

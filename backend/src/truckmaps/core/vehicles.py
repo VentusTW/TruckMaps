@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import DateTime, ForeignKey, String, func, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from truckmaps.core.companies import MANAGES_VEHICLES, company_ids
+from truckmaps.core.companies import MANAGES_VEHICLES, Company, CompanyKind, company_ids
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
@@ -60,6 +60,12 @@ DRIVABLE = {
 }
 """Rodzaje, dla których liczy się trasę; naczepy i przyczepy to wyposażenie floty."""
 TOWED = {VehicleKind.SEMITRAILER, VehicleKind.TRAILER}
+COMPANY_VEHICLES = {
+    CompanyKind.CARRIER: set(VehicleKind) - {VehicleKind.BUS},
+    CompanyKind.PASSENGER: {VehicleKind.BUS, VehicleKind.TRAILER},
+    CompanyKind.FORWARDER: set(),
+}
+"""Jakie pojazdy może mieć firma danego rodzaju (spedycja – żadnych)."""
 COUPLES = {
     VehicleKind.TRACTOR: VehicleKind.SEMITRAILER,
     VehicleKind.RIGID: VehicleKind.TRAILER,
@@ -244,7 +250,7 @@ def build_router(current_user) -> APIRouter:
     @router.post("", status_code=status.HTTP_201_CREATED)
     def create_vehicle(data: VehicleData, user: User, db: Db, request: Request) -> VehicleOut:
         roles = company_ids(db, user)
-        _check_target(data.company_id, roles)
+        _check_target(db, data, roles)
         if data.company_id is None:
             check_private_limit(request, db, user)
         vehicle = VehicleProfile(owner_subject=user.subject, **data.model_dump())
@@ -262,7 +268,7 @@ def build_router(current_user) -> APIRouter:
     ) -> VehicleOut:
         roles = company_ids(db, user)
         vehicle = load_owned(db, vehicle_id, user, edit=True)
-        _check_target(data.company_id, roles)
+        _check_target(db, data, roles)
         if data.company_id is None and vehicle.company_id is not None:
             check_private_limit(request, db, user)
         for field, value in data.model_dump().items():
@@ -385,14 +391,24 @@ def _can_edit(vehicle: VehicleProfile, roles: dict, user: Principal) -> bool:
     return roles.get(vehicle.company_id) in MANAGES_VEHICLES
 
 
-def _check_target(company_id: str | None, roles: dict) -> None:
-    """Pojazd można zapisać w firmie tylko jako jej właściciel albo dyspozytor."""
+def _check_target(db: Session, data: "VehicleData", roles: dict) -> None:
+    """Pojazd można zapisać w firmie tylko jako jej właściciel albo dyspozytor
+    i tylko taki, jaki ma firma tego rodzaju (spedycja – żadnych, autobusy – transport osób)."""
+    company_id = data.company_id
     if company_id is None:
         return
     if company_id not in roles:
         raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.company_not_found"))
     if roles[company_id] not in MANAGES_VEHICLES:
         raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.vehicles_add_forbidden"))
+    kind = CompanyKind(db.get(Company, company_id).kind)
+    if data.kind not in COMPANY_VEHICLES[kind]:
+        key = (
+            "error.forwarder_no_fleet"
+            if kind == CompanyKind.FORWARDER
+            else "error.company_vehicle_kind"
+        )
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t(key))
 
 
 def vehicle_outs(

@@ -132,6 +132,8 @@ void main() {
 
     await tester.enterText(find.widgetWithText(TextFormField, 'Nazwa firmy'), 'Trans-Miś');
     await tester.enterText(find.widgetWithText(TextFormField, 'NIP / VAT'), 'PL1234567890');
+    await tester.tap(find.text('Transport osób'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Waluta firmy'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('PLN').last);
@@ -140,7 +142,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     final sent = requests.singleWhere((r) => r.$1 == 'POST' && r.$2 == '/api/companies').$3!;
-    expect(sent, {'name': 'Trans-Miś', 'tax_id': 'PL1234567890', 'cost_currency': 'PLN'});
+    expect(sent, {'name': 'Trans-Miś', 'tax_id': 'PL1234567890', 'cost_currency': 'PLN', 'kind': 'passenger'});
     expect(find.text('Członkowie'), findsOneWidget);
   });
 
@@ -247,5 +249,25 @@ void main() {
     ]);
     expect(languages, ['en']);
     expect(changes, 3);
+  });
+
+  testWidgets('spedycja: zaproszenia i role bez kierowców', (tester) async {
+    bigScreen(tester);
+    await tester.pumpWidget(
+        localized(MembersScreen(api: api(), companyId: 'c1', role: 'owner', companyKind: 'forwarder')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(PopupMenuButton<String>).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Zmień rolę na: Kierowca'), findsNothing);
+    expect(find.text('Zmień rolę na: Dyspozytor'), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Zaproś'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Utwórz kod'));
+    await tester.pumpAndSettle();
+    expect(requests.singleWhere((r) => r.$1 == 'POST').$3, {'role': 'dispatcher', 'note': ''});
   });
 }

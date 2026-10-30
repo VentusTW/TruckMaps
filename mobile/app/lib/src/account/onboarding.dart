@@ -101,6 +101,7 @@ class _CompanyCreateScreenState extends State<CompanyCreateScreen> {
   final _name = TextEditingController();
   final _taxId = TextEditingController();
   late String _currency = widget.currency;
+  String _kind = 'carrier';
   List<String> _currencies = const [];
   bool _busy = false;
   String? _error;
@@ -132,6 +133,7 @@ class _CompanyCreateScreenState extends State<CompanyCreateScreen> {
         'name': _name.text.trim(),
         'tax_id': taxId.isEmpty ? null : taxId,
         'cost_currency': _currency,
+        'kind': _kind,
       });
       if (mounted) Navigator.of(context).pop(saved);
     } catch (error) {
@@ -159,6 +161,17 @@ class _CompanyCreateScreenState extends State<CompanyCreateScreen> {
             validator: (text) => (text ?? '').trim().length < 2 ? l.companyNameRequired : null,
           ),
           TextFormField(controller: _taxId, maxLength: 30, decoration: field(l.companyTaxId)),
+          Text(l.companyKind, style: theme.textTheme.titleSmall),
+          for (final kind in companyKinds)
+            RadioListTile<String>(
+              contentPadding: EdgeInsets.zero,
+              value: kind,
+              groupValue: _kind,
+              title: Text(companyKindLabel(l, kind)),
+              subtitle: Text(companyKindHint(l, kind)),
+              onChanged: (value) => setState(() => _kind = value ?? _kind),
+            ),
+          const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _currency,
             decoration: field(l.companyCurrency),

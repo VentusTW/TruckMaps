@@ -223,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     api: widget.session.api,
                     companyId: company['id'] as String,
                     role: company['role'] as String,
+                    companyKind: company['kind'] as String?,
                     onChanged: _loadAccount,
                   )),
         if (company['role'] == 'owner')

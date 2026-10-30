@@ -2,6 +2,7 @@ import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../account/common.dart' show companyAllows;
 import '../l10n.dart';
 
 /// Rodzaje naczep (te same co na serwerze).
@@ -358,7 +359,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               decoration: InputDecoration(labelText: l.vehicleOwner, border: const OutlineInputBorder(), isDense: true),
               items: [
                 DropdownMenuItem(value: null, child: Text(l.vehiclePrivate)),
-                for (final c in _companies) DropdownMenuItem(value: c['id'] as String, child: Text('${c['name']}')),
+                for (final c in _companies)
+                  if (c['id'] == _companyId || companyAllows(c['kind'] as String?, _kind))
+                    DropdownMenuItem(value: c['id'] as String, child: Text('${c['name']}')),
               ],
               onChanged: (value) => setState(() => _companyId = value),
             ),

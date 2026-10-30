@@ -94,6 +94,11 @@ Pierwsze logowanie bez firmy pyta: „Mam firmę” (zakładasz firmę – nazwa
 zostajesz właścicielem), „Dołączam kodem” (kod zaproszenia; rola jest w kodzie) albo „Sam, bez
 firmy” (wybór zapisany na serwerze, nie pyta ponownie; firmę założysz później w „Konto”).
 
+Firma ma rodzaj (wybór przy zakładaniu, zmienia właściciel): **przewoźnik towarów** (flota bez
+autobusów, kierowcy), **spedycja** – tylko towary (bez własnej floty i kierowców; role: właściciel
+i spedytor), **transport osób** (autobusy i busy z przyczepami, kierowcy). Formularz pojazdu
+pokazuje tylko firmy, które mogą mieć dany pojazd; serwer sprawdza to samo.
+
 Menu zależy od roli w wybranej firmie:
 
 | Ekran | Właściciel | Dyspozytor | Kierowca | Bez firmy |
