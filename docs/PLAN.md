@@ -140,7 +140,7 @@ Rdzeń musi dawać realną wartość za darmo – to on przyciąga użytkownikó
 
 ## 3. Moduły płatne
 
-Ceny orientacyjne, do weryfikacji na rynku.
+Ceny orientacyjne, do weryfikacji na rynku. Typy kont, moduły kont (K1–K4), plany i sposoby płatności: [OFERTA.md](OFERTA.md).
 
 | # | Moduł | Co daje | Używa z rdzenia | Dostarcza | Cena (orient.) |
 |---|---|---|---|---|---|
@@ -256,6 +256,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] moderacja i regulamin treści od użytkowników (DSA), zgłoszenia w korytarzu nawigacji (bez sieci), zdjęcia, zgłoszenia jako ograniczenia po potwierdzeniu przez kilku kierowców
 - [x] Ekrany konta osobno od planera (aplikacja): pierwsze logowanie bez firmy – „mam firmę” (nazwa, NIP/VAT, waluta), „dołączam kodem” albo „sam, bez firmy”; konto (imię wyświetlane widoczne w firmach, język aplikacji, waluta kosztów, wylogowanie – `/api/me/settings` zmienia tylko podane pola); firma (dane i stawki zmienia właściciel, bazy właściciel i dyspozytor, przełączanie firm, opuszczenie / usunięcie); członkowie i zaproszenia (role zmienia i usuwa właściciel, dyspozytor zaprasza tylko kierowców, kod z notatką, lista aktywnych kodów, firma zawsze ma właściciela); menu zależne od roli
   - [ ] te same ekrany w wersji przeglądarkowej (dziś wszystko jest w jednym panelu strony testowej)
+- [x] Logowanie: na panelu „Utwórz konto” (formularz Zitadela, potem od razu zalogowanie) i „Nie pamiętasz hasła?” (adres e-mail → link do ustawienia nowego hasła; odpowiedź nie zdradza, czy konto istnieje; limit 3 prośby na adres na godzinę); zmiana hasła w „Konto” (obecne + nowe, zasady jak w Zitadelu); serwer rozmawia z Zitadelem kontem technicznym (`TRUCKMAPS_ZITADEL_TOKEN`, zakłada je `infra/zitadel/bootstrap.py`)
+- [ ] Typy kont (Przedsiębiorca, Spedytor, Kierowca), moduły kont K1–K4 i plany – propozycja w [OFERTA.md](OFERTA.md), czeka na decyzję
 - [ ] Aktualizacje z możliwością powrotu:
   - [x] krok 1: katalog wydań na serwerze (tabela `releases`: aplikacja na platformę, moduły, pakiety danych; lista zmian w językach), `POST /api/updates/check`, stopniowe wydania (procent użytkowników, ten sam użytkownik zawsze w tej samej części), wstrzymanie, wycofanie z propozycją powrotu do poprzedniego wydania – polecenie `python -m truckmaps.core.releases`; aplikacja po zalogowaniu pyta o nowszą wersję (wersja, rozmiar, lista zmian), tylko na ekranie głównym, „Pobierz” otwiera plik w przeglądarce
   - [ ] krok 2: pobieranie w aplikacji (sprawdzenie sumy SHA-256, tylko Wi-Fi jako ustawienie, wznawianie), pakiety danych obok poprzednich, oznaczanie wersji „dobra” po starcie i pierwszej trasie, samoczynny powrót po awariach, minimalna wspierana wersja aplikacji

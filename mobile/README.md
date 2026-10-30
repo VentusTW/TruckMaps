@@ -64,6 +64,15 @@ Po aktualizacji Android Studio (nowy JDK) trzeba to powtórzyć.
 Emulator bez `adb reverse`: `--dart-define=TRUCKMAPS_SERVER=http://10.0.2.2:8000` – ale
 logowanie przez Zitadela pod `localhost:8080` wymaga i tak `adb reverse tcp:8080 tcp:8080`.
 
+## Logowanie i hasło
+
+Panel logowania: „Zaloguj się e-mailem”, „Utwórz konto” (formularz nowego konta w
+przeglądarce, potem od razu zalogowanie) i „Nie pamiętasz hasła?” (adres e-mail → serwer
+prosi Zitadela o link do ustawienia nowego hasła; lokalnie maile widać w Mailpit,
+http://localhost:8025). Hasło zmienia się w „Konto” → „Zmień hasło” (obecne i nowe:
+8 znaków, wielka i mała litera, cyfra, symbol). Wymaga `TRUCKMAPS_ZITADEL_TOKEN` na serwerze
+(zakłada go `infra/zitadel/bootstrap.py`).
+
 ## Konto, firma i role
 
 Pierwsze logowanie bez firmy pyta: „Mam firmę” (zakładasz firmę – nazwa, NIP/VAT, waluta – i

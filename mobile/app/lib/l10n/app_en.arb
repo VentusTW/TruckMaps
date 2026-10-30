@@ -269,5 +269,23 @@
   "updateRollbackHint": "The installed version was withdrawn – we recommend going back to the previous, proven one.",
   "updateWifiHint": "Download over Wi-Fi if you can, and not while driving.",
   "updateLater": "Later",
-  "updateDownload": "Download"
+  "updateDownload": "Download",
+
+  "loginRegister": "Create account",
+  "loginForgotPassword": "Forgot your password?",
+  "passwordResetTitle": "New password",
+  "passwordResetHint": "Enter your account's e-mail address. We will send a link where you can set a new password.",
+  "passwordResetEmail": "E-mail address",
+  "passwordResetEmailInvalid": "Enter a valid e-mail address.",
+  "passwordResetSend": "Send link",
+  "accountSecurity": "Security",
+  "passwordChangeTitle": "Change password",
+  "passwordCurrent": "Current password",
+  "passwordCurrentRequired": "Enter your current password.",
+  "passwordNew": "New password",
+  "passwordRepeat": "Repeat new password",
+  "passwordMismatch": "The passwords do not match.",
+  "passwordRules": "At least 8 characters, an upper and lower case letter, a digit and a symbol.",
+  "passwordChange": "Change password",
+  "passwordChanged": "Password changed."
 }

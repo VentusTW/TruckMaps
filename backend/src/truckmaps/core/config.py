@@ -23,6 +23,9 @@ class Settings:
     oidc_client_id: str | None = None
     oidc_project_id: str | None = None
 
+    zitadel_token: str | None = None
+    """Token konta technicznego w Zitadelu – reset i zmiana hasła; ``None`` – wyłączone."""
+
     public_url: str = "http://localhost:8000"
     """Adres, pod którym użytkownik widzi serwer – do przekierowań po logowaniu."""
 
@@ -48,7 +51,8 @@ class Settings:
 
         ``TRUCKMAPS_MODULES``: brak lub ``*`` – wszystkie, pusty – sam rdzeń, ``a,b`` – wybrane.
         ``TRUCKMAPS_LICENSES``: ``sub1:hello,tolls;sub2:hello``.
-        ``TRUCKMAPS_OIDC_ISSUER``, ``TRUCKMAPS_OIDC_CLIENT_ID``, ``TRUCKMAPS_OIDC_PROJECT_ID``:
+        ``TRUCKMAPS_OIDC_ISSUER``, ``TRUCKMAPS_OIDC_CLIENT_ID``, ``TRUCKMAPS_OIDC_PROJECT_ID``,
+        ``TRUCKMAPS_ZITADEL_TOKEN``:
         zapisuje je ``infra/zitadel/bootstrap.py``.
         """
         modules = env.get("TRUCKMAPS_MODULES")
@@ -60,6 +64,7 @@ class Settings:
             oidc_issuer=env.get("TRUCKMAPS_OIDC_ISSUER") or None,
             oidc_client_id=env.get("TRUCKMAPS_OIDC_CLIENT_ID") or None,
             oidc_project_id=env.get("TRUCKMAPS_OIDC_PROJECT_ID") or None,
+            zitadel_token=env.get("TRUCKMAPS_ZITADEL_TOKEN") or None,
             public_url=env.get("TRUCKMAPS_PUBLIC_URL", cls.public_url).rstrip("/"),
             dev_login_page=_flag(env, "TRUCKMAPS_DEV_LOGIN"),
             database_url=env.get("TRUCKMAPS_DATABASE_URL") or None,

@@ -312,5 +312,23 @@
   "updateRollbackHint": "Zainstalowaną wersję wycofano – zalecamy powrót do poprzedniej, sprawdzonej.",
   "updateWifiHint": "Pobieraj najlepiej przez Wi-Fi i nie w trakcie jazdy.",
   "updateLater": "Później",
-  "updateDownload": "Pobierz"
+  "updateDownload": "Pobierz",
+
+  "loginRegister": "Utwórz konto",
+  "loginForgotPassword": "Nie pamiętasz hasła?",
+  "passwordResetTitle": "Nowe hasło",
+  "passwordResetHint": "Podaj adres e-mail konta. Wyślemy na niego link, pod którym ustawisz nowe hasło.",
+  "passwordResetEmail": "Adres e-mail",
+  "passwordResetEmailInvalid": "Wpisz poprawny adres e-mail.",
+  "passwordResetSend": "Wyślij link",
+  "accountSecurity": "Bezpieczeństwo",
+  "passwordChangeTitle": "Zmień hasło",
+  "passwordCurrent": "Obecne hasło",
+  "passwordCurrentRequired": "Wpisz obecne hasło.",
+  "passwordNew": "Nowe hasło",
+  "passwordRepeat": "Powtórz nowe hasło",
+  "passwordMismatch": "Hasła się różnią.",
+  "passwordRules": "Co najmniej 8 znaków, wielka i mała litera, cyfra i symbol.",
+  "passwordChange": "Zmień hasło",
+  "passwordChanged": "Hasło zmienione."
 }
