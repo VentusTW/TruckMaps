@@ -424,5 +424,13 @@
   "inboxExtend": "Przedłuż o {time}",
   "@inboxExtend": {"placeholders": {"time": {"type": "String"}}},
   "inboxNewRequest": "Administrator TruckMaps prosi o dostęp do zmian w firmie.",
-  "inboxShow": "Pokaż"
+  "inboxShow": "Pokaż",
+
+  "companyKind": "Rodzaj firmy",
+  "companyKindCarrier": "Przewoźnik towarów",
+  "companyKindCarrierHint": "Własna flota (ciągniki, solówki, dostawcze, naczepy, przyczepy) i kierowcy.",
+  "companyKindForwarder": "Spedycja (tylko towary)",
+  "companyKindForwarderHint": "Zlecenia i przewoźnicy; bez własnej floty i kierowców – właściciel i spedytorzy.",
+  "companyKindPassenger": "Transport osób",
+  "companyKindPassengerHint": "Autobusy i busy (z przyczepami) oraz kierowcy."
 }

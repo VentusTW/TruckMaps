@@ -37,6 +37,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
   final _form = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _fields;
   late String _currency;
+  late String _kind = widget.company['kind'] as String? ?? 'carrier';
   List<String> _currencies = const [];
   late Future<dynamic> _bases = widget.api.get('/api/bases');
   bool _busy = false;
@@ -100,6 +101,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
         'cost_per_km': parseAmount(_fields['cost_per_km']!.text),
         'cost_per_hour': parseAmount(_fields['cost_per_hour']!.text),
         'cost_currency': _currency,
+        'kind': _kind,
       });
       widget.onChanged();
       if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.companySaved)));
@@ -206,6 +208,17 @@ class _CompanyScreenState extends State<CompanyScreen> {
           validator: (text) => (text ?? '').trim().length < 2 ? l.companyNameRequired : null,
         ),
         TextFormField(controller: _fields['tax_id'], enabled: _owner, maxLength: 30, decoration: field(l.companyTaxId)),
+        DropdownButtonFormField<String>(
+          value: _kind,
+          isExpanded: true,
+          decoration: field(l.companyKind),
+          items: [for (final k in companyKinds) DropdownMenuItem(value: k, child: Text(companyKindLabel(l, k)))],
+          onChanged: _owner ? (value) => setState(() => _kind = value ?? _kind) : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 16),
+          child: Text(companyKindHint(l, _kind), style: theme.textTheme.bodySmall),
+        ),
         Text(l.companyRates, style: theme.textTheme.titleSmall),
         Text(l.companyRatesHint, style: theme.textTheme.bodySmall),
         const SizedBox(height: 8),

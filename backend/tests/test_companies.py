@@ -383,3 +383,47 @@ def test_account_settings_name_language_and_first_login(client):
     client.put("/api/me/settings", json={"display_name": "Ewa Nowak"}, headers=as_user("ewa"))
     members = client.get(f"/api/companies/{company_id}", headers=as_user("olek")).json()["members"]
     assert [m["display_name"] for m in members] == ["Olek", "Ewa Nowak"]
+
+
+def test_company_kind_limits_fleet_and_roles(client):
+    def create(kind):
+        body = {"name": f"Firma {kind}", "kind": kind}
+        response = client.post("/api/companies", json=body, headers=as_user("olek"))
+        assert response.status_code == 201
+        assert response.json()["kind"] == kind
+        return response.json()["id"]
+
+    forwarder, passenger, carrier = create("forwarder"), create("passenger"), create("carrier")
+    bus = TRUCK | {"kind": "bus", "seats": 49}
+
+    def add(company_id, body):
+        return client.post(
+            "/api/vehicles", json=body | {"company_id": company_id}, headers=as_user("olek")
+        )
+
+    # Spedycja: bez floty i bez kierowców.
+    no_fleet = add(forwarder, TRUCK)
+    assert no_fleet.status_code == 422
+    assert no_fleet.json()["detail"].startswith("Spedycja nie ma własnej floty")
+    invite = client.post(
+        f"/api/companies/{forwarder}/invites", json={"role": "driver"}, headers=as_user("olek")
+    )
+    assert invite.status_code == 422
+    join(client, forwarder, "ewa", role="dispatcher")
+
+    # Transport osób – autobusy i przyczepy; przewoźnik towarów – bez autobusów.
+    assert add(passenger, bus).status_code == 201
+    assert add(passenger, TRUCK | {"kind": "tractor"}).status_code == 422
+    assert add(carrier, TRUCK | {"kind": "tractor"}).status_code == 201
+    assert add(carrier, bus).status_code == 422
+
+    # Zmiana na spedycję – tylko bez floty i kierowców.
+    change = {"name": "Firma carrier", "kind": "forwarder"}
+    blocked = client.put(f"/api/companies/{carrier}", json=change, headers=as_user("olek"))
+    assert blocked.status_code == 409
+    to_passenger = client.put(
+        f"/api/companies/{forwarder}",
+        json={"name": "Firma forwarder", "kind": "passenger"},
+        headers=as_user("olek"),
+    )
+    assert to_passenger.json()["kind"] == "passenger"

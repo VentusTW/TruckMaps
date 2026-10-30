@@ -8,13 +8,17 @@ import '../l10n.dart';
 /// Członkowie firmy z rolami i zaproszenia kodem. Role zmienia i usuwa członków właściciel;
 /// dyspozytor zaprasza tylko kierowców. Firma zawsze ma co najmniej jednego właściciela.
 class MembersScreen extends StatefulWidget {
-  const MembersScreen({super.key, required this.api, required this.companyId, required this.role, this.onChanged});
+  const MembersScreen(
+      {super.key, required this.api, required this.companyId, required this.role, this.companyKind, this.onChanged});
 
   final CoreApi api;
   final String companyId;
 
   /// Rola zalogowanego użytkownika w tej firmie.
   final String role;
+
+  /// Rodzaj firmy – w spedycji nie ma kierowców.
+  final String? companyKind;
 
   /// Po zmianie własnej roli (menu zależy od roli).
   final VoidCallback? onChanged;
@@ -72,7 +76,7 @@ class _MembersScreenState extends State<MembersScreen> {
   Future<void> _invite() async {
     final invite = await showDialog<(String, String)>(
       context: context,
-      builder: (_) => _InviteDialog(owner: _owner),
+      builder: (_) => _InviteDialog(owner: _owner, roles: rolesFor(widget.companyKind)),
     );
     if (invite == null || !mounted) return;
     try {
@@ -205,7 +209,7 @@ class _MembersScreenState extends State<MembersScreen> {
               onSelected: (action) =>
                   action == 'remove' ? _remove(member, members) : _setRole(member, action, members),
               itemBuilder: (context) => [
-                for (final r in roles)
+                for (final r in rolesFor(widget.companyKind))
                   if (r != role) PopupMenuItem(value: r, child: Text(l.memberMakeRole(roleLabel(l, r)))),
                 if (!me) PopupMenuItem(value: 'remove', child: Text(l.memberRemove)),
               ],
@@ -217,9 +221,10 @@ class _MembersScreenState extends State<MembersScreen> {
 
 /// Rola i notatka nowego zaproszenia; dyspozytor zaprasza tylko kierowców.
 class _InviteDialog extends StatefulWidget {
-  const _InviteDialog({required this.owner});
+  const _InviteDialog({required this.owner, required this.roles});
 
   final bool owner;
+  final List<String> roles;
 
   @override
   State<_InviteDialog> createState() => _InviteDialogState();
@@ -227,7 +232,7 @@ class _InviteDialog extends StatefulWidget {
 
 class _InviteDialogState extends State<_InviteDialog> {
   final _note = TextEditingController();
-  String _role = 'driver';
+  late String _role = widget.roles.last;
 
   @override
   void dispose() {
@@ -247,7 +252,7 @@ class _InviteDialogState extends State<_InviteDialog> {
             DropdownButtonFormField<String>(
               value: _role,
               decoration: field(l.inviteRole),
-              items: [for (final r in roles) DropdownMenuItem(value: r, child: Text(roleLabel(l, r)))],
+              items: [for (final r in widget.roles) DropdownMenuItem(value: r, child: Text(roleLabel(l, r)))],
               onChanged: (value) => setState(() => _role = value ?? _role),
             )
           else

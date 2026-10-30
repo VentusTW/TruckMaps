@@ -40,6 +40,15 @@ class Role(StrEnum):
 MANAGES_VEHICLES = {Role.OWNER, Role.DISPATCHER}
 
 
+class CompanyKind(StrEnum):
+    CARRIER = "carrier"
+    """Przewoźnik towarów: flota (bez autobusów), kierowcy."""
+    FORWARDER = "forwarder"
+    """Spedycja – tylko towary; bez własnej floty i kierowców (właściciel i spedytorzy)."""
+    PASSENGER = "passenger"
+    """Transport osób: autobusy i busy (z przyczepami), kierowcy."""
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -59,6 +68,7 @@ class Company(Base):
     cost_per_hour: Mapped[float | None]
     cost_currency: Mapped[str] = mapped_column(String(3), default="EUR")
     """Waluta firmy: jej stawek i domyślna waluta kosztów dla członków."""
+    kind: Mapped[str] = mapped_column(String(20), default=CompanyKind.CARRIER)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -105,6 +115,7 @@ class CompanyIn(CostRates):
         Field(examples=["Trans-Miś Sp. z o.o."])
     )
     tax_id: str | None = Field(default=None, max_length=30, description="NIP / VAT ID")
+    kind: CompanyKind = CompanyKind.CARRIER
 
 
 class CompanyCreate(CompanyIn):
@@ -220,6 +231,29 @@ def _owners(db: Session, company_id: str) -> int:
     )
 
 
+def _check_role_allowed(company: Company, role: Role) -> None:
+    """Spedycja nie ma kierowców – zaprasza się tam tylko właścicieli i spedytorów."""
+    if company.kind == CompanyKind.FORWARDER and role == Role.DRIVER:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.forwarder_no_drivers"))
+
+
+def _check_kind_change(db: Session, company_id: str, kind: CompanyKind) -> None:
+    """Zmiana rodzaju nie może zostawić firmy z czymś, czego ten rodzaj nie ma."""
+    if kind != CompanyKind.FORWARDER:
+        return
+    vehicles = Base.metadata.tables["vehicle_profiles"]
+    has_fleet = db.scalar(
+        select(func.count()).select_from(vehicles).where(vehicles.c.company_id == company_id)
+    )
+    has_drivers = db.scalar(
+        select(func.count()).where(
+            CompanyMember.company_id == company_id, CompanyMember.role == Role.DRIVER
+        )
+    )
+    if has_fleet or has_drivers:
+        raise HTTPException(status.HTTP_409_CONFLICT, t("error.company_kind_fleet"))
+
+
 def _new_code() -> str:
     return "".join(secrets.choice(INVITE_ALPHABET) for _ in range(INVITE_LENGTH))
 
@@ -287,6 +321,8 @@ def build_router(current_user) -> APIRouter:
     def update_company(company_id: str, data: CompanyIn, user: User, db: Db) -> CompanyDetails:
         me = require_member(db, company_id, user, {Role.OWNER})
         company = db.get(Company, company_id)
+        if data.kind != company.kind:
+            _check_kind_change(db, company_id, data.kind)
         for field, value in data.model_dump().items():
             setattr(company, field, value)
         db.commit()
@@ -322,6 +358,7 @@ def build_router(current_user) -> APIRouter:
         me = require_member(db, company_id, user, MANAGES_VEHICLES)
         if me.role != Role.OWNER and data.role != Role.DRIVER:
             raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.dispatcher_invites_drivers"))
+        _check_role_allowed(db.get(Company, company_id), data.role)
         code = _new_code()
         while db.get(CompanyInvite, code) is not None:
             code = _new_code()
@@ -377,6 +414,7 @@ def build_router(current_user) -> APIRouter:
         member = _member(db, company_id, member_id)
         if member.role == Role.OWNER and data.role != Role.OWNER and _owners(db, company_id) == 1:
             raise HTTPException(status.HTTP_409_CONFLICT, t("error.company_needs_owner"))
+        _check_role_allowed(db.get(Company, company_id), data.role)
         member.role = data.role
         db.commit()
         return details(db, db.get(Company, company_id), me)
