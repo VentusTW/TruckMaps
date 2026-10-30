@@ -41,6 +41,9 @@ class Settings:
     exchange_rates_url: str | None = None
     """Kursy walut EBC (``currency.ECB_URL``); ``None`` – bez pobierania (testy)."""
 
+    admin_require_mfa: bool = True
+    """Program administracyjny tylko po logowaniu z drugim składnikiem (``amr`` w tokenie)."""
+
     @property
     def oidc_enabled(self) -> bool:
         return bool(self.oidc_issuer and self.oidc_client_id)
@@ -72,6 +75,9 @@ class Settings:
             photon_url=env.get("TRUCKMAPS_PHOTON_URL", cls.photon_url),
             # Pusta wartość wyłącza pobieranie kursów (np. serwer bez dostępu do internetu).
             exchange_rates_url=env.get("TRUCKMAPS_EXCHANGE_RATES_URL", ECB_URL) or None,
+            # Bezpiecznie domyślnie: wyłączenie tylko wprost (np. lokalny Zitadel bez 2FA).
+            admin_require_mfa=env.get("TRUCKMAPS_ADMIN_REQUIRE_MFA", "1").lower()
+            in {"1", "true", "yes"},
         )
 
 

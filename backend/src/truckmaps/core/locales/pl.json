@@ -142,5 +142,12 @@
   "error.report_limit": "Za dużo zgłoszeń z tego konta w ciągu doby – spróbuj jutro.",
   "error.report_not_found": "Nie znaleziono zgłoszenia.",
   "error.report_own_vote": "To twoje zgłoszenie – możesz je usunąć.",
-  "error.report_not_yours": "Usunąć można tylko własne zgłoszenie."
+  "error.report_not_yours": "Usunąć można tylko własne zgłoszenie.",
+  "error.admin_required": "To konto nie ma dostępu do programu administracyjnego.",
+  "error.admin_mfa_required": "Program administracyjny wymaga logowania z drugim składnikiem (np. aplikacja z kodami).",
+  "error.admin_read_only": "Konto wsparcia ma tylko odczyt.",
+  "error.admin_access_not_granted": "Właściciel firmy nie udzielił dostępu do zmian w tym zakresie albo dostęp wygasł.",
+  "error.grant_not_found": "Nie znaleziono udzielonego dostępu.",
+  "admin.saved": "Zapisano konto administratora {subject}.",
+  "admin.not_found": "Nie znaleziono konta administratora {subject}."
 }

@@ -1,0 +1,6 @@
+# Tłumaczenia programu administracyjnego: lib/l10n/admin_<język>.arb (polski jest wzorcem).
+arb-dir: lib/l10n
+template-arb-file: admin_pl.arb
+output-localization-file: admin_localizations.dart
+output-class: AdminLocalizations
+nullable-getter: false
