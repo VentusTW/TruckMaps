@@ -72,6 +72,8 @@
   "parking.truck_parking": "Truck parking",
   "parking.rest_area": "Rest area",
   "parking.services": "Service area with fuel station",
+  "releases.saved": "Release {version} saved.",
+  "releases.not_found": "Release {version} not found.",
   "account.user_fallback": "User {id}",
   "currency.PLN": "Polish złoty",
   "currency.EUR": "euro",

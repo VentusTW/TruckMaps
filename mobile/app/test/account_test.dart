@@ -139,7 +139,7 @@ void main() {
     await tester.tap(find.text('Załóż firmę'));
     await tester.pump(const Duration(seconds: 1));
 
-    final sent = requests.singleWhere((r) => r.$1 == 'POST').$3!;
+    final sent = requests.singleWhere((r) => r.$1 == 'POST' && r.$2 == '/api/companies').$3!;
     expect(sent, {'name': 'Trans-Miś', 'tax_id': 'PL1234567890', 'cost_currency': 'PLN'});
     expect(find.text('Członkowie'), findsOneWidget);
   });

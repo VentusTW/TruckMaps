@@ -151,6 +151,21 @@ Test trasy dla ciężarówki 4 m / 40 t:
 curl.exe -s http://127.0.0.1:8002/route -H "Content-Type: application/json" -d '{\"locations\":[{\"lat\":52.4064,\"lon\":16.9252},{\"lat\":52.2297,\"lon\":21.0122}],\"costing\":\"truck\",\"costing_options\":{\"truck\":{\"height\":4.0,\"weight\":40,\"length\":16.5}}}'
 ```
 
+## Wydania (aktualizacje aplikacji)
+
+Aplikacja po zalogowaniu pyta serwer o nowsze wersje. Wydaniami zarządza polecenie (z katalogu
+głównego, baza z `.env`):
+
+```
+python -m truckmaps.core.releases add --platform windows 0.2.0 --url https://…/truckmaps-0.2.0.zip --size 52428800 --notes "pl=Konto i firmy" --notes "en=Accounts and companies" --rollout 10
+python -m truckmaps.core.releases rollout --platform windows 0.2.0 50   # więcej użytkowników
+python -m truckmaps.core.releases pause --platform windows 0.2.0        # wstrzymanie (resume – wznowienie)
+python -m truckmaps.core.releases withdraw --platform windows 0.2.0     # wycofanie: kto ma, wraca do poprzedniej
+python -m truckmaps.core.releases list
+```
+
+Moduły i pakiety danych: `--kind module|data --name <id>` (bez `--platform` = każda platforma).
+
 ## Nowy moduł
 
 1. Skopiuj `backend/modules/hello` jako `backend/modules/<id>` i zmień nazwę pakietu na `truckmaps_<id>`.

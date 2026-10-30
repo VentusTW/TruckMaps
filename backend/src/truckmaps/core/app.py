@@ -17,6 +17,7 @@ from truckmaps.core import (
     devlogin,
     geocoding,
     i18n,
+    releases,
     reports,
     routing,
     vehicles,
@@ -113,6 +114,7 @@ def create_app(
     app.include_router(routing.build_router(auth.current_user))
     app.include_router(corridor.build_router(auth.current_user))
     app.include_router(reports.build_router(auth.current_user))
+    app.include_router(releases.build_router(auth.current_user))
     app.include_router(currency.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:

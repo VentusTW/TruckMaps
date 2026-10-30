@@ -72,6 +72,8 @@
   "parking.truck_parking": "Parking dla ciężarówek",
   "parking.rest_area": "MOP (miejsce obsługi podróżnych)",
   "parking.services": "MOP ze stacją i obsługą",
+  "releases.saved": "Zapisano wydanie {version}.",
+  "releases.not_found": "Nie znaleziono wydania {version}.",
   "account.user_fallback": "Użytkownik {id}",
   "currency.PLN": "złoty polski",
   "currency.EUR": "euro",

@@ -303,5 +303,14 @@
   "accountCurrency": "Waluta kosztów",
   "accountCurrencyAuto": "Jak firma pojazdu albo jego stawki",
   "accountCurrencyHint": "W tej walucie planer pokazuje szacowany koszt trasy.",
-  "accountCompanies": "Firmy"
+  "accountCompanies": "Firmy",
+
+  "updateTitle": "Jest nowa wersja",
+  "updateRollbackTitle": "Powrót do poprzedniej wersji",
+  "updateVersion": "TruckMaps {installed} → {version} ({size} MB)",
+  "@updateVersion": {"placeholders": {"installed": {"type": "String"}, "version": {"type": "String"}, "size": {"type": "String"}}},
+  "updateRollbackHint": "Zainstalowaną wersję wycofano – zalecamy powrót do poprzedniej, sprawdzonej.",
+  "updateWifiHint": "Pobieraj najlepiej przez Wi-Fi i nie w trakcie jazdy.",
+  "updateLater": "Później",
+  "updateDownload": "Pobierz"
 }
