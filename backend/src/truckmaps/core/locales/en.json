@@ -139,5 +139,8 @@
   "error.admin_access_not_granted": "The company owner has not granted access to changes in this scope, or the access has expired.",
   "error.grant_not_found": "Access grant not found.",
   "admin.saved": "Administrator account {subject} saved.",
-  "admin.not_found": "Administrator account {subject} not found."
+  "admin.not_found": "Administrator account {subject} not found.",
+  "error.grant_not_pending": "This request has already been answered.",
+  "error.grant_not_active": "The access is not active (it expired or was closed).",
+  "error.message_not_found": "Message not found."
 }

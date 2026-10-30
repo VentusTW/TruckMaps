@@ -40,7 +40,14 @@ void main() {
               return json({
                 'total': 1,
                 'items': [
-                  {'subject': 's1', 'display_name': 'Anna', 'language': 'pl', 'currency': null, 'onboarded': true, 'companies': 1},
+                  {
+                    'subject': 's1',
+                    'display_name': 'Anna',
+                    'language': 'pl',
+                    'currency': null,
+                    'onboarded': true,
+                    'companies': 1
+                  },
                 ],
               });
             case '/api/admin/companies':

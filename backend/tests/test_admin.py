@@ -147,7 +147,7 @@ def test_change_needs_owner_grant_and_lands_in_company_log(client, database, adm
     )
 
     # Tylko właściciel udziela dostępu.
-    grant = {"scopes": ["company"], "days": 3, "note": "zgłoszenie 12"}
+    grant = {"scopes": ["company"], "minutes": 90, "note": "zgłoszenie 12"}
     url = f"/api/companies/{company}/admin-access"
     dispatcher_code = client.post(
         f"/api/companies/{company}/invites", json={"role": "dispatcher"}, headers=as_user("owner")
@@ -188,7 +188,7 @@ def test_change_needs_owner_grant_and_lands_in_company_log(client, database, adm
 
 def test_expired_grant_does_not_allow_changes(client, database, admins, company):
     url = f"/api/companies/{company}/admin-access"
-    client.post(url, json={"scopes": ["company", "bases"], "days": 1}, headers=as_user("owner"))
+    client.post(url, json={"scopes": ["company", "bases"], "minutes": 60}, headers=as_user("owner"))
     with database.session() as db:
         db.execute(update(AccessGrant).values(expires_at=datetime.now(UTC) - timedelta(minutes=1)))
         db.commit()
@@ -203,10 +203,13 @@ def test_grant_limits(client, company):
     url = f"/api/companies/{company}/admin-access"
     owner = as_user("owner")
     assert (
-        client.post(url, json={"scopes": ["company"], "days": 31}, headers=owner).status_code == 422
+        client.post(url, json={"scopes": ["company"], "minutes": 481}, headers=owner).status_code
+        == 422
     )
-    assert client.post(url, json={"scopes": [], "days": 1}, headers=owner).status_code == 422
-    assert client.post(url, json={"scopes": ["all"], "days": 1}, headers=owner).status_code == 422
+    assert client.post(url, json={"scopes": [], "minutes": 60}, headers=owner).status_code == 422
+    assert (
+        client.post(url, json={"scopes": ["all"], "minutes": 60}, headers=owner).status_code == 422
+    )
 
 
 def test_base_change_with_grant(client, admins, company):
@@ -216,7 +219,7 @@ def test_base_change_with_grant(client, admins, company):
         headers=as_user("owner"),
     ).json()
     url = f"/api/companies/{company}/admin-access"
-    client.post(url, json={"scopes": ["bases"], "days": 1}, headers=as_user("owner"))
+    client.post(url, json={"scopes": ["bases"], "minutes": 60}, headers=as_user("owner"))
     response = client.put(
         f"/api/admin/companies/{company}/bases/{base['id']}",
         json={"name": "Baza", "label": "Tarnów, Krakowska 1", "lat": 50.0, "lon": 21.0},
@@ -246,3 +249,119 @@ def test_cli_manages_admins_and_logs_it(database, capsys):
 def test_mfa_required_by_default():
     assert Settings.from_env({}).admin_require_mfa is True
     assert Settings.from_env({"TRUCKMAPS_ADMIN_REQUIRE_MFA": "0"}).admin_require_mfa is False
+
+
+def test_admin_requests_access_owner_accepts_in_inbox_and_extends(
+    client, database, admins, company
+):
+    boss = as_user("boss", mfa=True)
+    request = {"scopes": ["company"], "note": "Poprawa NIP – zgłoszenie 7"}
+    assert (
+        client.post(
+            f"/api/admin/companies/{company}/access-requests",
+            json=request,
+            headers=as_user("help", mfa=True),
+        ).status_code
+        == 403
+    )
+    created = client.post(
+        f"/api/admin/companies/{company}/access-requests", json=request, headers=boss
+    ).json()
+    assert created["state"] == "pending"
+    change = {**COMPANY, "tax_id": "PL999"}
+    assert (
+        client.put(f"/api/admin/companies/{company}", json=change, headers=boss).status_code == 403
+    )
+
+    # Prośba w skrzynce właściciela – wyróżniona, z imieniem administratora i powodem.
+    inbox = client.get("/api/me/messages", headers=as_user("owner")).json()
+    assert inbox["unread"] == 1
+    message = inbox["items"][0]
+    assert (message["kind"], message["sender_name"]) == ("admin_access_request", "Anna")
+    assert message["data"] == {"scopes": ["company"], "note": "Poprawa NIP – zgłoszenie 7"}
+    assert message["grant"]["state"] == "pending"
+    assert client.get("/api/me/messages", headers=as_user("other")).json()["unread"] == 0
+
+    url = f"/api/companies/{company}/admin-access/{created['id']}"
+    accepted = client.post(f"{url}/accept", json={}, headers=as_user("owner")).json()
+    assert accepted["state"] == "active"
+    minutes = (
+        datetime.fromisoformat(accepted["expires_at"])
+        - datetime.fromisoformat(accepted["granted_at"])
+    ).total_seconds() / 60
+    assert minutes == 60
+    assert client.post(f"{url}/accept", json={}, headers=as_user("owner")).status_code == 409
+    assert client.get("/api/me/messages", headers=as_user("owner")).json()["unread"] == 0
+    assert (
+        client.put(f"/api/admin/companies/{company}", json=change, headers=boss).status_code == 200
+    )
+
+    # Administrator widzi termin i prosi o przedłużenie; właściciel przedłuża.
+    mine = client.get("/api/admin/grants", headers=boss).json()
+    assert (mine[0]["state"], mine[0]["company_name"]) == ("active", "Trans-Miś")
+    path = f"/api/admin/grants/{created['id']}"
+    assert (
+        client.post(f"{path}/extension-request", json={"minutes": 30}, headers=boss).status_code
+        == 204
+    )
+    inbox = client.get("/api/me/messages", headers=as_user("owner")).json()
+    assert (inbox["items"][0]["kind"], inbox["items"][0]["data"]) == (
+        "admin_extension_request",
+        {"minutes": 30},
+    )
+    extended = client.post(f"{url}/extend", json={"minutes": 30}, headers=as_user("owner")).json()
+    assert extended["expires_at"] > accepted["expires_at"]
+
+    # Administrator kończy wcześniej – właściciel dostaje wiadomość, zmiany zablokowane.
+    assert client.post(f"{path}/close", headers=boss).status_code == 204
+    assert client.get("/api/admin/grants", headers=boss).json()[0]["state"] == "closed"
+    inbox = client.get("/api/me/messages", headers=as_user("owner")).json()
+    assert inbox["items"][0]["kind"] == "admin_access_closed"
+    assert (
+        client.put(f"/api/admin/companies/{company}", json=change, headers=boss).status_code == 403
+    )
+    assert client.post(f"{url}/extend", json={}, headers=as_user("owner")).status_code == 409
+
+
+def test_owner_rejects_request_and_reads_message(client, admins, company):
+    boss = as_user("boss", mfa=True)
+    created = client.post(
+        f"/api/admin/companies/{company}/access-requests",
+        json={"scopes": ["bases"], "note": "Adres bazy"},
+        headers=boss,
+    ).json()
+    url = f"/api/companies/{company}/admin-access/{created['id']}"
+    assert client.post(f"{url}/reject", headers=as_user("disp")).status_code == 404
+    assert client.post(f"{url}/reject", headers=as_user("owner")).json()["state"] == "rejected"
+    assert client.get("/api/admin/grants", headers=boss).json()[0]["state"] == "rejected"
+    assert (
+        client.post(
+            f"/api/admin/grants/{created['id']}/extension-request", json={}, headers=boss
+        ).status_code
+        == 409
+    )
+
+    message = client.get("/api/me/messages", headers=as_user("owner")).json()["items"][0]
+    assert message["grant"]["state"] == "rejected"
+    assert (
+        client.post(f"/api/me/messages/{message['id']}/read", headers=as_user("other")).status_code
+        == 404
+    )
+    assert (
+        client.post(f"/api/me/messages/{message['id']}/read", headers=as_user("owner")).status_code
+        == 204
+    )
+
+
+def test_extension_is_capped(client, admins, company):
+    url = f"/api/companies/{company}/admin-access"
+    created = client.post(
+        url, json={"scopes": ["company"], "minutes": 480}, headers=as_user("owner")
+    ).json()
+    extended = client.post(
+        f"{url}/{created['id']}/extend", json={"minutes": 480}, headers=as_user("owner")
+    ).json()
+    hours = (
+        datetime.fromisoformat(extended["expires_at"]) - datetime.now(UTC)
+    ).total_seconds() / 3600
+    assert 7.9 < hours <= 8

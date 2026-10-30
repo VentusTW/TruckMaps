@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,6 +11,7 @@ import 'auth.dart';
 import 'company/company_screen.dart';
 import 'company/admin_access_screen.dart';
 import 'company/members_screen.dart';
+import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
 import 'planner/planner_screen.dart';
@@ -42,7 +45,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _Page {
-  const _Page(this.id, this.title, this.icon, this.builder);
+  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0});
 
   /// Stały identyfikator: wybrany ekran zostaje wybrany, gdy menu zmienia się z rolą albo językiem.
   final String id;
@@ -50,7 +53,14 @@ class _Page {
   final String title;
   final IconData icon;
   final WidgetBuilder builder;
+
+  /// Liczba nowych (np. nieprzeczytane wiadomości) przy pozycji menu.
+  final int badge;
 }
+
+/// Ikona z licznikiem nowych.
+Widget _badged(IconData icon, int count) =>
+    Badge(isLabelVisible: count > 0, label: Text('$count'), child: Icon(icon));
 
 class _HomeScreenState extends State<HomeScreen> {
   List<ModuleAccess> _modules = const [];
@@ -66,9 +76,16 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Zmiana pojazdów na ekranie „Pojazdy” → planer odświeża listę.
   final _vehiclesChanged = ValueNotifier(0);
 
+  /// Nieprzeczytane wiadomości i prośby administratora, które już pokazaliśmy.
+  int _unread = 0;
+  final _announced = <String>{};
+  Timer? _inboxTimer;
+  int _inboxVersion = 0;
+
   @override
   void dispose() {
     _vehiclesChanged.dispose();
+    _inboxTimer?.cancel();
     super.dispose();
   }
 
@@ -78,6 +95,38 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadModules();
     _loadAccount();
     _checkUpdates();
+    _loadInbox();
+    // Prośba administratora ma dotrzeć bez ponownego uruchamiania aplikacji.
+    _inboxTimer = Timer.periodic(const Duration(minutes: 1), (_) => _loadInbox());
+  }
+
+  /// Licznik nieprzeczytanych; nowa prośba administratora o dostęp – wyróżnione powiadomienie.
+  Future<void> _loadInbox() async {
+    try {
+      final inbox = await widget.session.api.get('/api/me/messages') as Map<String, dynamic>;
+      if (!mounted) return;
+      final requests = [
+        for (final m in (inbox['items'] as List<dynamic>).cast<Map<String, dynamic>>())
+          if (m['kind'] == 'admin_access_request' && (m['grant'] as Map?)?['state'] == 'pending') '${m['id']}',
+      ];
+      setState(() => _unread = inbox['unread'] as int? ?? 0);
+      final fresh = requests.where(_announced.add).toList();
+      if (fresh.isEmpty || _selected == 'inbox') return;
+      final l = context.l;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        duration: const Duration(seconds: 10),
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        content: Text(l.inboxNewRequest),
+        action: SnackBarAction(label: l.inboxShow, onPressed: () => setState(() => _selected = 'inbox')),
+      ));
+    } catch (_) {
+      // Skrzynka jest dodatkiem – bez niej aplikacja działa dalej.
+    }
+  }
+
+  void _inboxChanged() {
+    _loadInbox();
+    setState(() => _inboxVersion++);
   }
 
   /// Po zalogowaniu: czy są nowsze wydania. Pytamy tylko na ekranie głównym – nigdy w trakcie
@@ -190,6 +239,16 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final access in _modules.where((m) => m.usable))
         for (final (i, entry) in access.module!.entries(module).indexed)
           _Page('${access.id}/$i', entry.title, entry.icon, entry.builder),
+      _Page(
+          'inbox',
+          l.menuInbox,
+          Icons.mail_outline,
+          (_) => InboxScreen(
+                key: ValueKey(('inbox', _inboxVersion)),
+                api: widget.session.api,
+                onChanged: _loadInbox,
+              ),
+          badge: _unread),
       _Page('modules', l.menuModules, Icons.extension_outlined, (_) => ModulesScreen(modules: _modules, error: _error)),
       _Page(
           'account',
@@ -215,9 +274,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final selected = pages.indexWhere((page) => page.id == _selected).clamp(0, pages.length - 1);
     final wide = MediaQuery.sizeOf(context).width >= 720;
     final menu = [
-      for (final page in pages) NavigationDrawerDestination(icon: Icon(page.icon), label: Text(page.title)),
+      for (final page in pages) NavigationDrawerDestination(icon: _badged(page.icon, page.badge), label: Text(page.title)),
     ];
     void select(int index) {
+      if (pages[index].id == 'inbox' && _selected != 'inbox') _inboxChanged();
       setState(() => _selected = pages[index].id);
       if (!wide) Navigator.of(context).maybePop();
     }
@@ -243,7 +303,16 @@ class _HomeScreenState extends State<HomeScreen> {
     // Ekrany zostają w pamięci: po powrocie do planera trasa i mapa są tam, gdzie były.
     final body = IndexedStack(index: selected, children: [for (final page in pages) page.builder(context)]);
     return Scaffold(
-      appBar: AppBar(title: Text(pages[selected].title)),
+      appBar: AppBar(title: Text(pages[selected].title), actions: [
+        IconButton(
+          tooltip: context.l.menuInbox,
+          onPressed: () {
+            if (_selected != 'inbox') _inboxChanged();
+            setState(() => _selected = 'inbox');
+          },
+          icon: _badged(Icons.mail_outline, _unread),
+        ),
+      ]),
       drawer: wide ? null : drawer,
       body: wide ? Row(children: [SizedBox(width: 280, child: drawer), Expanded(child: body)]) : body,
     );
