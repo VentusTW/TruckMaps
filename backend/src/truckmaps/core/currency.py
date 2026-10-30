@@ -17,14 +17,15 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import AfterValidator, BaseModel, Field
-from sqlalchemy import Date, String, func, select
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from sqlalchemy import Boolean, Date, String, func, select, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.config import ECB_URL
 from truckmaps.core.db import Base, Database, get_session
 from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
+from truckmaps.sdk.i18n import languages
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,12 @@ class UserSettings(Base):
 
     subject: Mapped[str] = mapped_column(String(255), primary_key=True)
     currency: Mapped[str | None] = mapped_column(String(3))
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    """Jak widzą cię członkowie firm; brak = imię z konta logowania."""
+    language: Mapped[str | None] = mapped_column(String(5))
+    """Język aplikacji; brak = język telefonu."""
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    """Pierwsze logowanie za nami: firma założona, dołączenie kodem albo „sam, bez firmy”."""
 
 
 @dataclass(frozen=True)
@@ -163,9 +170,48 @@ class CurrenciesOut(BaseModel):
     per_eur: dict[str, float]
 
 
+def _language(code: str) -> str:
+    code = code.strip().lower()
+    if code not in languages():
+        raise ValueError(t("error.unsupported_language", code=code, codes=", ".join(languages())))
+    return code
+
+
 class SettingsIn(BaseModel):
+    """Ustawienia konta; zmieniane są tylko pola podane w zapytaniu."""
+
     currency: Currency | None = Field(
         default=None, description="Waluta kosztów; brak = waluta firmy pojazdu albo jego stawek"
+    )
+    display_name: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+        | None
+    ) = Field(default=None, description="Jak widzą cię członkowie firm")
+    language: Annotated[str, AfterValidator(_language)] | None = Field(
+        default=None, examples=["pl"], description="Język aplikacji; brak = język telefonu"
+    )
+    onboarded: bool = False
+
+
+class SettingsOut(SettingsIn):
+    display_name: str = ""
+    """Ustawione imię albo imię z konta logowania."""
+
+
+def display_name(user: Principal, settings: UserSettings | None = None) -> str:
+    """Imię widoczne dla innych: ustawione w koncie, z konta logowania albo z końcówki konta."""
+    claims = user.claims
+    name = settings.display_name if settings else None
+    name = name or claims.get("name") or claims.get("email") or claims.get("preferred_username")
+    return (name or t("account.user_fallback", id=user.subject[-6:])).strip()[:200]
+
+
+def _settings_out(user: Principal, settings: UserSettings | None) -> SettingsOut:
+    return SettingsOut(
+        currency=settings.currency if settings else None,
+        display_name=display_name(user, settings),
+        language=settings.language if settings else None,
+        onboarded=bool(settings and settings.onboarded),
     )
 
 
@@ -184,15 +230,24 @@ def build_router(current_user) -> APIRouter:
         )
 
     @router.get("/api/me/settings")
-    def get_settings(user: User, db: Db) -> SettingsIn:
-        return SettingsIn(currency=user_currency(db, user))
+    def get_settings(user: User, db: Db) -> SettingsOut:
+        return _settings_out(user, db.get(UserSettings, user.subject))
 
     @router.put("/api/me/settings")
-    def put_settings(data: SettingsIn, user: User, db: Db) -> SettingsIn:
+    def put_settings(data: SettingsIn, user: User, db: Db) -> SettingsOut:
         settings = db.get(UserSettings, user.subject) or UserSettings(subject=user.subject)
-        settings.currency = data.currency
+        for name, value in data.model_dump(exclude_unset=True).items():
+            setattr(settings, name, value)
         db.add(settings)
+        if "display_name" in data.model_fields_set:
+            # Nowe imię widać od razu we wszystkich firmach użytkownika.
+            members = Base.metadata.tables["company_members"]
+            db.execute(
+                update(members)
+                .where(members.c.subject == user.subject)
+                .values(display_name=display_name(user, settings))
+            )
         db.commit()
-        return data
+        return _settings_out(user, settings)
 
     return router

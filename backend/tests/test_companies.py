@@ -293,10 +293,10 @@ def test_route_cost_in_chosen_currency_with_ecb_rate(client, database):
     assert (cost["rates_currencies"], cost["exchange_day"]) == (["EUR", "PLN"], "2026-10-28")
 
     settings = client.put("/api/me/settings", json={"currency": "czk"}, headers=as_user("olek"))
-    assert settings.json() == {"currency": "CZK"}
+    assert settings.json()["currency"] == "CZK"
     cost = route_cost(client, vehicle["id"])
     assert (cost["amount"], cost["currency"]) == (10812.5, "CZK")
-    assert client.get("/api/me/settings", headers=as_user("olek")).json() == {"currency": "CZK"}
+    assert client.get("/api/me/settings", headers=as_user("olek")).json()["currency"] == "CZK"
 
     currencies = client.get("/api/currencies", headers=as_user("olek")).json()
     assert currencies["rates_day"] == "2026-10-28"
@@ -350,3 +350,36 @@ def test_deleting_company_removes_its_bases(client):
     client.delete(f"/api/companies/{company_id}", headers=as_user("olek"))
 
     assert client.get("/api/bases", headers=as_user("olek")).json() == []
+
+
+def test_account_settings_name_language_and_first_login(client):
+    me = client.get("/api/me/settings", headers=as_user("jan")).json()
+    assert me == {
+        "currency": None,
+        "display_name": "Użytkownik jan",
+        "language": None,
+        "onboarded": False,
+    }
+
+    # Sam, bez firmy: tylko znacznik; reszta ustawień zostaje, jak była.
+    client.put("/api/me/settings", json={"currency": "PLN"}, headers=as_user("jan"))
+    me = client.put("/api/me/settings", json={"onboarded": True}, headers=as_user("jan")).json()
+    assert (me["currency"], me["onboarded"]) == ("PLN", True)
+
+    bad = client.put("/api/me/settings", json={"language": "xx"}, headers=as_user("jan"))
+    assert bad.status_code == 422
+    me = client.put(
+        "/api/me/settings",
+        json={"language": "EN", "display_name": " Jan K. "},
+        headers=as_user("jan"),
+    ).json()
+    assert (me["language"], me["display_name"], me["currency"]) == ("en", "Jan K.", "PLN")
+
+    # Dołączenie kodem kończy pierwsze logowanie; nowe imię widać w firmie.
+    company_id = new_company(client)
+    join(client, company_id, "ewa")
+    assert client.get("/api/me/settings", headers=as_user("ewa")).json()["onboarded"] is True
+    assert client.get("/api/me/settings", headers=as_user("olek")).json()["onboarded"] is True
+    client.put("/api/me/settings", json={"display_name": "Ewa Nowak"}, headers=as_user("ewa"))
+    members = client.get(f"/api/companies/{company_id}", headers=as_user("olek")).json()["members"]
+    assert [m["display_name"] for m in members] == ["Olek", "Ewa Nowak"]

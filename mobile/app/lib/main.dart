@@ -40,6 +40,9 @@ class TruckMapsApp extends StatefulWidget {
 class _TruckMapsAppState extends State<TruckMapsApp> {
   late final BrowserLogin _login = widget.login ?? BrowserLogin(serverUrl);
   late Session? _session = widget.session;
+
+  /// Język wybrany w koncie; bez wyboru – [TruckMapsApp.locale] albo język systemu.
+  Locale? _language;
   late bool _restoring = widget.session == null;
 
   @override
@@ -64,7 +67,10 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
 
   Future<void> _logout() async {
     await _login.logout();
-    setState(() => _session = null);
+    setState(() {
+      _session = null;
+      _language = null;
+    });
   }
 
   @override
@@ -75,7 +81,7 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: const Color(0xFF1B6E3A), useMaterial3: true),
       // Język telefonu / systemu, jeśli aplikacja go ma; inaczej polski.
-      locale: widget.locale,
+      locale: _language ?? widget.locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       localeResolutionCallback: resolveLocale,
@@ -88,7 +94,12 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : session == null
               ? LoginScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start)
-              : HomeScreen(session: session, registry: modules, onLogout: _logout),
+              : HomeScreen(
+                  session: session,
+                  registry: modules,
+                  onLogout: _logout,
+                  onLanguage: (code) => setState(() => _language = code == null ? null : Locale(code)),
+                ),
     );
   }
 }
