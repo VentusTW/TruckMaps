@@ -24,7 +24,7 @@ powershell -ExecutionPolicy Bypass -File infra\build_routing.ps1
 .venv\Scripts\python data_pipeline\import_parkings.py infra\data\valhalla\region.osm.pbf
 ```
 
-- `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
+- `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, konto techniczne serwera (reset i zmiana hasła), kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
 - Adres bazy: `127.0.0.1`, nie `localhost` – pod `localhost` Windows najpierw próbuje IPv6 i połączenie wisi. Hasło jak w `infra/.env`.
 - `alembic ... upgrade head` tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
 - `pobieraj.exe mapy` pobiera mapy Polski, Niemiec, Czech, Słowacji i Litwy (ok. 8 GB) do `infra/data/osm` – patrz „Pobieranie dużych danych” niżej.
@@ -58,6 +58,7 @@ Konfiguracja przez zmienne środowiskowe (albo plik `.env` w katalogu, z któreg
 | `TRUCKMAPS_DEV_GRANT_ALL` | `true` – każdy ma każdy moduł (domyślnie przy `python -m truckmaps.core`) |
 | `TRUCKMAPS_LICENSES` | `sub1:hello,tolls;sub2:hello` – licencje przypisane do identyfikatora użytkownika z `/api/me` |
 | `TRUCKMAPS_OIDC_ISSUER`, `TRUCKMAPS_OIDC_CLIENT_ID`, `TRUCKMAPS_OIDC_PROJECT_ID` | logowanie (zapisuje je `bootstrap.py`) |
+| `TRUCKMAPS_ZITADEL_TOKEN` | konto techniczne w Zitadelu: link do nowego hasła i zmiana hasła (zapisuje `bootstrap.py`) |
 | `TRUCKMAPS_DEV_LOGIN` | `true` – testowa strona logowania pod `/` (domyślnie przy `python -m truckmaps.core`) |
 | `TRUCKMAPS_DATABASE_URL` | baza PostgreSQL TruckMaps; bez niej profile pojazdów i trasy zwracają 503 |
 | `TRUCKMAPS_VALHALLA_URL` | serwer tras, domyślnie `http://127.0.0.1:8002` |

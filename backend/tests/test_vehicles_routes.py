@@ -19,7 +19,7 @@ from truckmaps.core.routing import (
     ValhallaRouter,
     decode_polyline6,
 )
-from truckmaps.core.vehicles import VehicleIn
+from truckmaps.core.vehicles import VEHICLES_PLUS, VehicleIn
 from truckmaps.sdk import Principal
 
 TRUCK = {
@@ -104,9 +104,17 @@ def as_user(subject: str) -> dict:
     return {"Authorization": f"Bearer user-{subject}"}
 
 
-def make_client(database, router=None) -> TestClient:
+class EveryoneHasVehiclesPlus(dict):
+    """Licencje: każdy ma moduł „Dodatkowe pojazdy” (testy tras zakładają kilka pojazdów)."""
+
+    def get(self, key, default=None):
+        return frozenset({VEHICLES_PLUS})
+
+
+def make_client(database, router=None, *, vehicles_plus=True) -> TestClient:
+    licenses = EveryoneHasVehiclesPlus() if vehicles_plus else {}
     app = create_app(
-        Settings(),
+        Settings(licenses=licenses),
         modules=[],
         token_verifier=FakeVerifier(),
         database=database,
@@ -862,3 +870,163 @@ def test_blocked_destination_moves_to_nearest_allowed_place(database):
     assert issue["role"] == "destination"
     assert 20.094 <= issue["reachable"]["lon"] <= 20.096  # tuż przed wiaduktem
     assert "przed celem" in issue["message"]
+
+
+def test_one_private_vehicle_without_plan(database):
+    client = make_client(database, vehicles_plus=False)
+
+    assert client.post("/api/vehicles", json=TRUCK, headers=as_user("ola")).status_code == 201
+    second = client.post("/api/vehicles", json=TRUCK, headers=as_user("ola"))
+    assert second.status_code == 403
+    assert second.json()["detail"].startswith("Bez planu możesz mieć jeden pojazd prywatny")
+    # Inny użytkownik ma swój jeden pojazd.
+    assert client.post("/api/vehicles", json=TRUCK, headers=as_user("jan")).status_code == 201
+
+
+SEMITRAILER = {
+    "name": "Cysterna 32 m³",
+    "kind": "semitrailer",
+    "height_m": 3.8,
+    "width_m": 2.55,
+    "length_m": 13.0,
+    "weight_t": 7.5,
+    "gvw_t": 36,
+    "axle_load_t": 9,
+    "axle_count": 3,
+    "trailer_type": "tanker",
+    "tank_volume_m3": 32,
+    "hazmat": True,
+}
+
+
+def test_couplings_follow_kinds_and_route_uses_whole_combination(database):
+    router = FakeRouter()
+    client = make_client(database, router)
+    anna = as_user("anna")
+
+    def add(body):
+        response = client.post("/api/vehicles", json=body, headers=anna)
+        assert response.status_code == 201, response.json()
+        return response.json()
+
+    tractor = add(
+        TRUCK
+        | {
+            "name": "MAN TGX",
+            "kind": "tractor",
+            "length_m": 6,
+            "weight_t": 8,
+            "gvw_t": 18,
+            "axle_count": 2,
+            "trailer_type": "none",
+        }
+    )
+    rigid = add(
+        TRUCK
+        | {
+            "name": "Solówka",
+            "kind": "rigid",
+            "length_m": 10,
+            "weight_t": 12,
+            "gvw_t": 18,
+            "axle_count": 2,
+        }
+    )
+    tank = add(SEMITRAILER)
+    curtain = add(SEMITRAILER | {"name": "Plandeka", "trailer_type": "curtain"})
+    assert (tank["kind"], tank["tank_volume_m3"], curtain["tank_volume_m3"]) == (
+        "semitrailer",
+        32,
+        None,
+    )
+    drawbar = add(
+        SEMITRAILER
+        | {
+            "name": "Przyczepa",
+            "kind": "trailer",
+            "axle_count": 1,
+            "length_m": 8,
+            "trailer_type": "box",
+        }
+    )
+    no_axles = TRUCK | {"kind": "rigid", "axle_count": 1}
+    assert client.post("/api/vehicles", json=no_axles, headers=anna).status_code == 422
+
+    def couple(vehicle, trailer, who=anna):
+        body = {"trailer_id": trailer["id"] if trailer else None}
+        return client.put(f"/api/vehicles/{vehicle['id']}/trailer", json=body, headers=who)
+
+    # Ciągnik – naczepa, solówka – przyczepa; na krzyż i ciągnik z solówką – nie.
+    assert couple(tractor, drawbar).status_code == 422
+    assert couple(rigid, tank).status_code == 422
+    assert couple(tractor, rigid).status_code == 422
+    coupled = couple(tractor, tank).json()
+    assert (coupled["trailer_id"], coupled["trailer_name"]) == (tank["id"], "Cysterna 32 m³")
+    busy = couple(add(TRUCK | {"name": "Drugi", "kind": "tractor"}), tank)
+    assert busy.status_code == 409
+    assert "MAN TGX" in busy.json()["detail"]
+    assert couple(rigid, drawbar).status_code == 200
+    assert couple(rigid, curtain, who=as_user("jan")).status_code == 404
+
+    listed = {v["name"]: v for v in client.get("/api/vehicles", headers=anna).json()}
+    assert (listed["Cysterna 32 m³"]["in_use"], listed["Cysterna 32 m³"]["coupled_to_name"]) == (
+        True,
+        "MAN TGX",
+    )
+    assert listed["Plandeka"]["in_use"] is False
+
+    body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": tractor["id"]}
+    assert client.post("/api/routes", json=body, headers=anna).status_code == 200
+    whole = router.vehicles[-1]
+    assert (whole.height_m, whole.length_m, whole.weight_t, whole.axle_count) == (
+        4.0,
+        6 + 13 - 3.1,
+        15.5,
+        5,
+    )
+    assert (whole.trailer_type, whole.hazmat) == ("tanker", True)
+    trailer_route = body | {"vehicle_id": tank["id"]}
+    assert client.post("/api/routes", json=trailer_route, headers=anna).status_code == 422
+
+    # Zmiana rodzaju rozpina połączenie, które przestało pasować; usunięcie naczepy też.
+    client.put(f"/api/vehicles/{rigid['id']}", json=TRUCK | {"kind": "tractor"}, headers=anna)
+    assert client.get(f"/api/vehicles/{rigid['id']}", headers=anna).json()["trailer_id"] is None
+    client.delete(f"/api/vehicles/{tank['id']}", headers=anna)
+    assert client.get(f"/api/vehicles/{tractor['id']}", headers=anna).json()["trailer_id"] is None
+
+
+def test_navigation_marks_vehicle_in_use_until_released(database):
+    client = make_client(database)
+    anna = as_user("anna")
+    vehicle = client.post("/api/vehicles", json=TRUCK, headers=anna).json()
+    route = encode_polyline6([(16.0, 52.0), (16.01, 52.01)])
+
+    started = client.post(
+        "/api/corridor", json={"vehicle_id": vehicle["id"], "route": route}, headers=anna
+    )
+    assert started.status_code == 200
+    assert client.get(f"/api/vehicles/{vehicle['id']}", headers=anna).json()["in_use"] is True
+    released = client.post(f"/api/vehicles/{vehicle['id']}/release", headers=anna).json()
+    assert released["in_use"] is False
+
+
+def test_bus_needs_seats_and_others_have_none(database):
+    client = make_client(database)
+    anna = as_user("anna")
+    bus = TRUCK | {
+        "name": "Setra",
+        "kind": "bus",
+        "length_m": 12.2,
+        "weight_t": 14,
+        "gvw_t": 19,
+        "axle_count": 2,
+        "trailer_type": "none",
+    }
+
+    assert client.post("/api/vehicles", json=bus, headers=anna).status_code == 422
+    saved = client.post(
+        "/api/vehicles", json=bus | {"seats": 49, "standing_places": 0}, headers=anna
+    ).json()
+    assert (saved["kind"], saved["seats"], saved["standing_places"]) == ("bus", 49, 0)
+    van = client.post("/api/vehicles", json=bus | {"kind": "van", "seats": 8}, headers=anna).json()
+    assert van["seats"] is None

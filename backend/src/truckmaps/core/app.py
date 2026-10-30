@@ -19,6 +19,7 @@ from truckmaps.core import (
     geocoding,
     i18n,
     inbox,
+    passwords,
     releases,
     reports,
     routing,
@@ -44,6 +45,7 @@ def create_app(
     database: Database | None = None,
     router: routing.Router | None = None,
     geocoder: geocoding.Geocoder | None = None,
+    password_service: passwords.PasswordService | None = None,
 ) -> FastAPI:
     """Tworzy aplikację.
 
@@ -104,7 +106,11 @@ def create_app(
     if database is None and settings.database_url:
         database = Database(settings.database_url)
 
+    if password_service is None and settings.oidc_issuer and settings.zitadel_token:
+        password_service = passwords.ZitadelPasswords(settings.oidc_issuer, settings.zitadel_token)
+
     app.state.auth = auth
+    app.state.passwords = password_service
     app.state.database = database
     app.state.events = bus
     app.state.extensions = extensions
@@ -121,6 +127,7 @@ def create_app(
     app.include_router(releases.build_router(auth.current_user))
     app.include_router(currency.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))
+    app.include_router(passwords.build_router(auth.current_user))
     app.include_router(admin.build_router(auth.current_user, settings, licensing))
     app.include_router(inbox.build_router(auth.current_user, admin.describe_grant))
     if settings.dev_login_page and provider is not None:

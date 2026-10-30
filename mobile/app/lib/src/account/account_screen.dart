@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../l10n.dart';
 import 'common.dart';
 import 'onboarding.dart';
+import 'password.dart';
 
 /// Konto: imię widoczne w firmach, język aplikacji, domyślna waluta kosztów, firmy i wylogowanie.
 class AccountScreen extends StatefulWidget {
@@ -97,6 +98,14 @@ class _AccountScreenState extends State<AccountScreen> {
     if (done != null && mounted) widget.onChanged();
   }
 
+  Future<void> _changePassword() async {
+    final changed = await Navigator.of(context)
+        .push<bool>(MaterialPageRoute(builder: (_) => ChangePasswordScreen(api: widget.api)));
+    if (changed == true && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.passwordChanged)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l;
@@ -164,6 +173,17 @@ class _AccountScreenState extends State<AccountScreen> {
             label: Text(l.onboardingJoin),
           ),
         ]),
+        const SizedBox(height: 24),
+        Text(l.accountSecurity, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: _changePassword,
+            icon: const Icon(Icons.lock_reset),
+            label: Text(l.passwordChangeTitle),
+          ),
+        ),
         const SizedBox(height: 24),
         FilledButton.tonalIcon(onPressed: widget.onLogout, icon: const Icon(Icons.logout), label: Text(l.logout)),
       ]),
