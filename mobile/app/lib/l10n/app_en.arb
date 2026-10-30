@@ -261,5 +261,13 @@
   "accountCurrency": "Cost currency",
   "accountCurrencyAuto": "As the vehicle's company or rates",
   "accountCurrencyHint": "The planner shows estimated route costs in this currency.",
-  "accountCompanies": "Companies"
+  "accountCompanies": "Companies",
+
+  "updateTitle": "A new version is available",
+  "updateRollbackTitle": "Back to the previous version",
+  "updateVersion": "TruckMaps {installed} → {version} ({size} MB)",
+  "updateRollbackHint": "The installed version was withdrawn – we recommend going back to the previous, proven one.",
+  "updateWifiHint": "Download over Wi-Fi if you can, and not while driving.",
+  "updateLater": "Later",
+  "updateDownload": "Download"
 }

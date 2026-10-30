@@ -1,5 +1,6 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'account/account_screen.dart';
 import 'account/common.dart';
@@ -10,6 +11,7 @@ import 'company/members_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
 import 'planner/planner_screen.dart';
+import 'updates.dart';
 import 'vehicles_screen.dart';
 
 /// Ekran główny: menu rdzenia (trasa, pojazdy, firma, konto, moduły) i ekrany modułów z dostępem.
@@ -17,7 +19,12 @@ import 'vehicles_screen.dart';
 /// czy zakładasz firmę, dołączasz kodem, czy jeździsz sam.
 class HomeScreen extends StatefulWidget {
   const HomeScreen(
-      {super.key, required this.session, required this.registry, required this.onLogout, this.onLanguage});
+      {super.key,
+      required this.session,
+      required this.registry,
+      required this.onLogout,
+      this.onLanguage,
+      this.openUrl});
 
   final Session session;
   final ModuleRegistry registry;
@@ -25,6 +32,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Język wybrany w koncie (`null` = język telefonu).
   final ValueChanged<String?>? onLanguage;
+
+  /// Pobranie aktualizacji (testy podmieniają); zwykle przeglądarka systemowa.
+  final ValueChanged<Uri>? openUrl;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -66,6 +76,24 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadModules();
     _loadAccount();
+    _checkUpdates();
+  }
+
+  /// Po zalogowaniu: czy są nowsze wydania. Pytamy tylko na ekranie głównym – nigdy w trakcie
+  /// jazdy (nawigacja i inne ekrany otwierają się nad nim).
+  Future<void> _checkUpdates() async {
+    final updates = await checkUpdates(widget.session.api);
+    if (updates.isEmpty || !mounted || ModalRoute.of(context)?.isCurrent == false) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => UpdateDialog(updates: updates, onDownload: (update) => _download(Uri.parse('${update['url']}'))),
+    );
+  }
+
+  void _download(Uri url) {
+    final open = widget.openUrl;
+    if (open != null) return open(url);
+    launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _loadAccount() async {

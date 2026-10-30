@@ -83,6 +83,16 @@ Kilka firm → przełącznik na górze ekranu „Firma”. Ostatniego właścici
 zdegradować ani usunąć. „Konto”: imię wyświetlane (widoczne w firmach), język aplikacji
 („jak w telefonie” albo wybrany), waluta kosztów w planerze, wylogowanie.
 
+## Aktualizacje
+
+Po zalogowaniu aplikacja wysyła swoją wersję (`appVersion` w `lib/src/updates.dart`, ta sama co
+`version` w `pubspec.yaml` – pilnuje tego test) do `POST /api/updates/check`. Gdy jest nowsza
+(albo zainstalowaną wycofano), pyta o pobranie: wersja, rozmiar, lista zmian w języku aplikacji.
+Pyta tylko na ekranie głównym, nigdy przy otwartej nawigacji. „Pobierz” otwiera plik w
+przeglądarce; pobieranie w aplikacji i powrót do poprzedniej wersji – w kolejnym kroku.
+
+Wydania dodaje się na serwerze (zob. README w katalogu głównym, „Wydania”).
+
 ## Nawigacja
 
 Ekran „Trasa” → „Jedź – nawigacja z alarmem”. Aplikacja pobiera korytarz danych
