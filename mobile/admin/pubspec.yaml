@@ -1,0 +1,32 @@
+name: truckmaps_admin
+description: "TruckMaps – program administracyjny (tylko dla administratorów projektu)."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.4 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  # Daty i liczby według języka (wersję wyznacza flutter_localizations).
+  intl: any
+  http: ^1.2.1
+  core_sdk:
+    path: ../packages/core_sdk
+  # To samo logowanie co w aplikacji (przeglądarka + Zitadel), ale osobna sesja.
+  app_auth:
+    path: ../packages/app_auth
+  flutter_secure_storage: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  # Teksty w wielu językach z lib/l10n (l10n.yaml).
+  generate: true

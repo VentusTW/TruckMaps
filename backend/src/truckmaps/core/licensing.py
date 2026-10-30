@@ -24,6 +24,14 @@ class StaticLicensing:
         self._optional_user = optional_user
         self._grant_all = grant_all
 
+    @property
+    def grants_all(self) -> bool:
+        return self._grant_all
+
+    def assignments(self) -> Mapping[str, frozenset[str]]:
+        """Konto → moduły (do wglądu w programie administracyjnym)."""
+        return self._licenses
+
     def is_granted(self, user: Principal | None, module_id: str) -> bool:
         if self._grant_all:
             return True

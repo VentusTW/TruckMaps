@@ -25,6 +25,8 @@ dependencies:
   audioplayers: ^5.2.1
   core_sdk:
     path: ../packages/core_sdk
+  app_auth:
+    path: ../packages/app_auth
   # Pakiety modułów wbudowane w aplikację; dostęp do nich sprawdza serwer.
   module_hello:
     path: ../packages/module_hello

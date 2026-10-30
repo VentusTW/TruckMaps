@@ -7,6 +7,7 @@ import 'account/common.dart';
 import 'account/onboarding.dart';
 import 'auth.dart';
 import 'company/company_screen.dart';
+import 'company/admin_access_screen.dart';
 import 'company/members_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
@@ -174,6 +175,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     companyId: company['id'] as String,
                     role: company['role'] as String,
                     onChanged: _loadAccount,
+                  )),
+        if (company['role'] == 'owner')
+          _Page(
+              'admin-access',
+              l.menuAdminAccess,
+              Icons.admin_panel_settings_outlined,
+              (_) => AdminAccessScreen(
+                    key: ValueKey(('admin-access', company['id'])),
+                    api: widget.session.api,
+                    companyId: company['id'] as String,
                   )),
       ],
       for (final access in _modules.where((m) => m.usable))
