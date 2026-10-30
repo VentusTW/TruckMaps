@@ -69,6 +69,20 @@ void main() {
             vehicles = [];
             return http.Response('', 204);
         }
+        if (request.method == 'PUT' && request.url.path.endsWith('/trailer')) {
+          final id = request.url.pathSegments[2];
+          final trailerId = body!['trailer_id'];
+          vehicles = [
+            for (final v in vehicles)
+              if (v['id'] == id)
+                {...v, 'trailer_id': trailerId}
+              else if (v['id'] == trailerId)
+                {...v, 'in_use': true, 'coupled_to_id': id}
+              else
+                v
+          ];
+          return json(vehicles.firstWhere((v) => v['id'] == id));
+        }
         return json(null, 404);
       }),
     );
@@ -137,5 +151,75 @@ void main() {
     expect(requests.any((r) => r.$1 == 'DELETE'), isTrue);
     expect(find.text('Brak pojazdów. Dodaj pierwszy przyciskiem „Dodaj pojazd”.'), findsOneWidget);
     expect(changes, 1);
+  });
+
+  testWidgets('naczepa cysterna z pojemnością; „Podepnij” – zajęte na czerwono, nie do wybrania', (tester) async {
+    vehicles = [
+      {...truck, 'id': 't1', 'name': 'MAN TGX', 'plate': null, 'kind': 'tractor', 'trailer_type': 'none'},
+      {...truck, 'id': 'n0', 'name': 'Chłodnia', 'plate': null, 'kind': 'semitrailer', 'trailer_type': 'reefer',
+        'in_use': true, 'coupled_to_id': 'x', 'coupled_to_name': 'Volvo FH'},
+      {...truck, 'id': 'p1', 'name': 'Przyczepa', 'plate': null, 'kind': 'trailer', 'trailer_type': 'box'},
+    ];
+    await pump(tester);
+    expect(find.text('Samochody'), findsOneWidget);
+    expect(find.text('Naczepy i przyczepy'), findsOneWidget);
+    expect(find.textContaining('podpięta do: Volvo FH'), findsOneWidget);
+
+    await tester.tap(find.text('Dodaj pojazd'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Rodzaj'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Naczepa').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Zabudowa'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cysterna').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nazwa'), 'Cysterna 32');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność cysterny'), '32');
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+    final tank = requests.singleWhere((r) => r.$1 == 'POST').$3!;
+    expect((tank['kind'], tank['trailer_type'], tank['tank_volume_m3']), ('semitrailer', 'tanker', 32.0));
+
+    await tester.tap(find.text('Podepnij'));
+    await tester.pumpAndSettle();
+    expect(find.text('Podepnij do: MAN TGX'), findsOneWidget);
+    expect(find.text('Przyczepa'), findsOneWidget); // tylko na liście w tle – w oknie same naczepy
+    await tester.tap(find.text('Chłodnia').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Podepnij do: MAN TGX'), findsOneWidget); // zajęta – nic się nie dzieje
+    await tester.tap(find.text('Cysterna 32').last);
+    await tester.pumpAndSettle();
+
+    final put = requests.singleWhere((r) => r.$1 == 'PUT');
+    expect(put.$2, '/api/vehicles/t1/trailer');
+    expect(put.$3, {'trailer_id': 'v2'});
+    expect(find.text('Podpięta: Cysterna 32'), findsOneWidget);
+  });
+
+  testWidgets('autobus wymaga miejsc siedzących', (tester) async {
+    vehicles = [];
+    await pump(tester);
+
+    await tester.tap(find.text('Dodaj pojazd'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Rodzaj'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Autobus / bus (przewóz osób)').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nazwa'), 'Setra');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Wysokość'), '3,7');
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+    expect(requests.where((r) => r.$1 == 'POST'), isEmpty);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Miejsca siedzące'), '49');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Miejsca stojące'), '10');
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+    final bus = requests.singleWhere((r) => r.$1 == 'POST').$3!;
+    expect((bus['kind'], bus['seats'], bus['standing_places']), ('bus', 49, 10));
+    expect(find.textContaining('49 miejsc siedz. + 10 stoj.'), findsOneWidget);
   });
 }

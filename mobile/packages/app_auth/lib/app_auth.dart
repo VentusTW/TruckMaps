@@ -178,11 +178,13 @@ class BrowserLogin {
   Session _session(SessionTokens tokens) => Session.fromTokens(serverUrl, tokens, client: _client);
 
   /// Logowanie w przeglądarce; [donePage] i [failedPage] – tekst strony po powrocie z logowania.
-  Future<Session> login({required String donePage, required String failedPage}) async {
+  /// [register] – najpierw formularz nowego konta, potem od razu zalogowanie.
+  Future<Session> login({required String donePage, required String failedPage, bool register = false}) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     try {
       final callback = 'http://127.0.0.1:${server.port}/callback';
-      final url = Uri.parse('$serverUrl/auth/login').replace(queryParameters: {'app': callback});
+      final url = Uri.parse('$serverUrl/auth/login')
+          .replace(queryParameters: {'app': callback, if (register) 'register': 'true'});
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw const LoginFailure(LoginProblem.browser);
       }
@@ -222,6 +224,20 @@ class BrowserLogin {
   }
 
   Future<void> logout() => _store.clear();
+
+  /// Prośba o link do ustawienia nowego hasła (bez logowania). Zwraca komunikat serwera
+  /// – ten sam, czy konto istnieje, czy nie.
+  Future<String> requestPasswordReset(String email, {required String language}) async {
+    final response = await _client.post(
+      Uri.parse('$serverUrl/api/auth/password-reset'),
+      headers: {'Content-Type': 'application/json', 'Accept-Language': language},
+      body: jsonEncode({'email': email}),
+    );
+    final body = jsonDecode(utf8.decode(response.bodyBytes));
+    final detail = body is Map ? body['detail'] : null;
+    if (response.statusCode != 202) throw ApiException(response.statusCode, detail is String ? detail : '$detail');
+    return '$detail';
+  }
 }
 
 enum LoginProblem { browser, timeout, failed }

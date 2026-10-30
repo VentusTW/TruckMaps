@@ -2,6 +2,7 @@
 
 - projekt "TruckMaps" i aplikacja OIDC "truckmaps-dev" (PKCE, bez sekretu, tokeny JWT),
 - wysyłka maili przez Mailpit (http://localhost:8025), domyślnie po polsku,
+- konto techniczne serwera (reset i zmiana hasła, rola ORG_USER_MANAGER),
 - zapisuje TRUCKMAPS_OIDC_* do pliku .env w katalogu głównym repozytorium.
 
 Uruchomienie (po ``docker compose -f infra/docker-compose.yml up -d --wait``):
@@ -17,6 +18,7 @@ ISSUER = "http://localhost:8080"
 PUBLIC_URL = "http://localhost:8000"
 PROJECT_NAME = "TruckMaps"
 APP_NAME = "truckmaps-dev"
+SERVER_USER = "truckmaps-server"
 
 REPO = Path(__file__).resolve().parents[2]
 PAT_FILE = REPO / "infra" / "data" / "zitadel-bootstrap" / "admin.pat"
@@ -63,12 +65,15 @@ def main() -> None:
     # Domyślny język maili i ekranów dla użytkowników bez wybranego języka.
     call(client, "PUT", "/admin/v1/languages/default/pl", {}, allow={400})
 
+    server_token = ensure_server_user(client)
+
     write_env(
         {
             "TRUCKMAPS_OIDC_ISSUER": ISSUER,
             "TRUCKMAPS_OIDC_CLIENT_ID": client_id,
             "TRUCKMAPS_OIDC_PROJECT_ID": project_id,
             "TRUCKMAPS_PUBLIC_URL": PUBLIC_URL,
+            **({"TRUCKMAPS_ZITADEL_TOKEN": server_token} if server_token else {}),
         }
     )
     print(f"Projekt {PROJECT_NAME}: {project_id}")
@@ -100,6 +105,27 @@ def ensure_app(client: httpx.Client, project_id: str) -> str:
             return app["oidcConfig"]["clientId"]
     created = call(client, "POST", f"/management/v1/projects/{project_id}/apps/oidc", OIDC_APP)
     return created["clientId"]
+
+
+def ensure_server_user(client: httpx.Client) -> str | None:
+    """Konto techniczne serwera; nowy token tylko, gdy w .env jeszcze go nie ma."""
+    query = {"userNameQuery": {"userName": SERVER_USER, "method": "TEXT_QUERY_METHOD_EQUALS"}}
+    found = call(client, "POST", "/management/v1/users/_search", {"queries": [query]})
+    if found.get("result"):
+        user_id = found["result"][0]["id"]
+    else:
+        machine = {
+            "userName": SERVER_USER,
+            "name": "TruckMaps server",
+            "accessTokenType": "ACCESS_TOKEN_TYPE_BEARER",
+        }
+        user_id = call(client, "POST", "/management/v1/users/machine", machine)["userId"]
+    member = {"userId": user_id, "roles": ["ORG_USER_MANAGER"]}
+    call(client, "POST", "/management/v1/orgs/me/members", member, allow={409})
+    if "TRUCKMAPS_ZITADEL_TOKEN=" in (ENV_FILE.read_text("utf-8") if ENV_FILE.exists() else ""):
+        return None
+    pat = {"expirationDate": "2099-01-01T00:00:00Z"}
+    return call(client, "POST", f"/management/v1/users/{user_id}/pats", pat)["token"]
 
 
 def ensure_smtp(client: httpx.Client) -> None:

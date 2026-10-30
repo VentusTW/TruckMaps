@@ -140,7 +140,7 @@ Rdzeń musi dawać realną wartość za darmo – to on przyciąga użytkownikó
 
 ## 3. Moduły płatne
 
-Ceny orientacyjne, do weryfikacji na rynku.
+Ceny orientacyjne, do weryfikacji na rynku. Typy kont, moduły kont (K1–K4), plany i sposoby płatności: [OFERTA.md](OFERTA.md).
 
 | # | Moduł | Co daje | Używa z rdzenia | Dostarcza | Cena (orient.) |
 |---|---|---|---|---|---|
@@ -256,6 +256,18 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] moderacja i regulamin treści od użytkowników (DSA), zgłoszenia w korytarzu nawigacji (bez sieci), zdjęcia, zgłoszenia jako ograniczenia po potwierdzeniu przez kilku kierowców
 - [x] Ekrany konta osobno od planera (aplikacja): pierwsze logowanie bez firmy – „mam firmę” (nazwa, NIP/VAT, waluta), „dołączam kodem” albo „sam, bez firmy”; konto (imię wyświetlane widoczne w firmach, język aplikacji, waluta kosztów, wylogowanie – `/api/me/settings` zmienia tylko podane pola); firma (dane i stawki zmienia właściciel, bazy właściciel i dyspozytor, przełączanie firm, opuszczenie / usunięcie); członkowie i zaproszenia (role zmienia i usuwa właściciel, dyspozytor zaprasza tylko kierowców, kod z notatką, lista aktywnych kodów, firma zawsze ma właściciela); menu zależne od roli
   - [ ] te same ekrany w wersji przeglądarkowej (dziś wszystko jest w jednym panelu strony testowej)
+- [x] Logowanie: na panelu „Utwórz konto” (formularz Zitadela, potem od razu zalogowanie) i „Nie pamiętasz hasła?” (adres e-mail → link do ustawienia nowego hasła; odpowiedź nie zdradza, czy konto istnieje; limit 3 prośby na adres na godzinę); zmiana hasła w „Konto” (obecne + nowe, zasady jak w Zitadelu); serwer rozmawia z Zitadelem kontem technicznym (`TRUCKMAPS_ZITADEL_TOKEN`, zakłada je `infra/zitadel/bootstrap.py`)
+- [ ] Typy kont (Przedsiębiorca, Spedytor, Kierowca), moduły kont K1–K4 i plany – [OFERTA.md](OFERTA.md); plany i ceny na razie poglądowe:
+  - [ ] firma ma rodzaj: przewoźnik towarów, spedycja (osobna firma o ograniczonych możliwościach, tylko towary: bez floty i kierowców, ze zleceniami i przewoźnikami) albo transport osób (autobusy i busy, kierowcy, kursy – moduł K5)
+  - [x] konto bez planu (kierowca): wyznaczanie tras i jeden pojazd prywatny; kolejne – po wykupieniu (moduł `vehicles_plus`)
+  - [x] pojazdy według rodzaju, każdy osobno: ciągnik, samochód ciężarowy, samochód dostawczy (towary), autobus / bus do przewozu osób (miejsca siedzące i stojące), naczepa, przyczepa (zabudowa, cysterna z pojemnością); łączenie: ciągnik + naczepa, solówka / autobus / dostawczy + przyczepa (przeciąganie albo „Podepnij”); trasa dla pojazdu z podpiętą częścią; „w użyciu” (podpięta gdzie indziej, pojazd w nawigacji) na stonowanym czerwonym
+  - [ ] w użyciu: kto jedzie (imię kierowcy), przydział kierowców do pojazdów (K3), dokładna długość zestawu z dokumentów
+- [ ] **Program administracyjny** (osobna aplikacja dla administratora projektu):
+  - wgląd we wszystkie dane (konta, firmy, członkowie, pojazdy, zgłoszenia, wydania, licencje) – bez haseł (są tylko u dostawcy logowania); listy z filtrami i wyszukiwaniem
+  - zmiany w danych firmy tylko za zgodą właściciela: właściciel w aplikacji udziela dostępu (zakres, termin ważności, możliwość cofnięcia), każda zmiana administratora w dzienniku widocznym dla firmy
+  - plany kont z cenami, promocje czasowe dla wybranych grup (typ konta, kraj, nowe firmy, kod promocyjny), przydział i zmiana planu
+  - role administratorów (pełny, wsparcie – tylko odczyt), logowanie przez Zitadela z drugim składnikiem
+- [ ] **Moduł faktur**: faktury za plany i tokeny (numeracja, PDF, wysyłka e-mailem, korekty), dane do KSeF; w programie administracyjnym lista z filtrami
 - [ ] Aktualizacje z możliwością powrotu:
   - [x] krok 1: katalog wydań na serwerze (tabela `releases`: aplikacja na platformę, moduły, pakiety danych; lista zmian w językach), `POST /api/updates/check`, stopniowe wydania (procent użytkowników, ten sam użytkownik zawsze w tej samej części), wstrzymanie, wycofanie z propozycją powrotu do poprzedniego wydania – polecenie `python -m truckmaps.core.releases`; aplikacja po zalogowaniu pyta o nowszą wersję (wersja, rozmiar, lista zmian), tylko na ekranie głównym, „Pobierz” otwiera plik w przeglądarce
   - [ ] krok 2: pobieranie w aplikacji (sprawdzenie sumy SHA-256, tylko Wi-Fi jako ustawienie, wznawianie), pakiety danych obok poprzednich, oznaczanie wersji „dobra” po starcie i pierwszej trasie, samoczynny powrót po awariach, minimalna wspierana wersja aplikacji
@@ -372,7 +384,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - zastrzeżenie: pomoc, nie certyfikat – odpowiedzialność za zabezpieczenie po stronie ładującego i kierowcy
 - [ ] Prognozy stawek (uczenie maszynowe), optymalizacja całej floty
 - [ ] Kolejne kontynenty
-- [ ] **Kierunek rozwoju: przewóz osób (autokary, wycieczki)** – osobny pakiet na tej samej architekturze:
+- [ ] Trasy dla autobusów: ograniczenia i pasy dla autobusów (OSM `bus`, `psv`), zakazy dla ciężarówek nie zawsze dotyczą autobusów – osobny profil w Valhalli
+- [ ] **Kierunek rozwoju: przewóz osób (autokary, wycieczki)** – osobny pakiet na tej samej architekturze (konto „Transport osób” i moduł K5 już w [OFERTA.md](OFERTA.md)):
   - profil pojazdu „autokar / bus” → trasy wg wymiarów (wiadukty, wąskie ulice, zakręty), jak dla ciężarówek
   - czas pracy kierowcy wg 561/2006, z wyjątkiem dla przewozów okazjonalnych (zasada 12 dni)
   - parkingi dla autokarów przy atrakcjach i w miastach, punkty odbioru grup

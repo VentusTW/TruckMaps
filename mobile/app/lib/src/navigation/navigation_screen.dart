@@ -208,6 +208,8 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     _player.dispose();
     _speaker.dispose();
     _blink.dispose();
+    // Koniec jazdy: pojazd przestaje być „w użyciu” (bez sieci – serwer zwolni go sam po czasie).
+    widget.api.post('/api/vehicles/${widget.request.vehicleId}/release', {}).ignore();
     super.dispose();
   }
 

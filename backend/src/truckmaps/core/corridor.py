@@ -26,7 +26,7 @@ from truckmaps.core.route_analysis import (
     _limit_label,
     conditional_findings,
 )
-from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
+from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_drivable, load_owned, mark_in_use
 from truckmaps.sdk import Principal
 
 CORRIDOR_VERSION = 1
@@ -199,7 +199,7 @@ def build_router(current_user) -> APIRouter:
     @router.post("")
     def corridor(data: CorridorRequest, user: User, db: Db) -> Corridor:
         """Korytarz danych dla trasy i pojazdu – do pracy telefonu bez zasięgu."""
-        vehicle = VehicleOut.model_validate(load_owned(db, data.vehicle_id, user))
+        vehicle = VehicleOut.model_validate(load_drivable(db, data.vehicle_id, user))
         try:
             route = decode_polyline6(data.route)
         except (IndexError, ValueError) as exc:
@@ -208,7 +208,10 @@ def build_router(current_user) -> APIRouter:
             ) from exc
         if len(route) < 2:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, t("error.route_too_short"))
-        return build_corridor(db, route, vehicle, data.buffer_m)
+        corridor = build_corridor(db, route, vehicle, data.buffer_m)
+        mark_in_use(load_owned(db, data.vehicle_id, user), user)
+        db.commit()
+        return corridor
 
     @router.post("/position")
     def position(corridor: Corridor, lon: float, lat: float, user: User) -> PositionCheck:

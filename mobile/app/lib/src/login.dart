@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'account/password.dart';
 import 'auth.dart';
 import 'l10n.dart';
 
@@ -19,14 +20,15 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _busy = false;
   String? _error;
 
-  Future<void> _login() async {
+  Future<void> _login({bool register = false}) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
       final l = context.l;
-      widget.onLoggedIn(await widget.login.login(donePage: l.loginBrowserDone, failedPage: l.loginFailed));
+      widget.onLoggedIn(await widget.login
+          .login(donePage: l.loginBrowserDone, failedPage: l.loginFailed, register: register));
     } on LoginFailure catch (failure) {
       if (mounted) setState(() => _error = _describe(failure));
     } catch (error) {
@@ -72,6 +74,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Icon(Icons.login),
                   label: Text(_busy ? l.loginPending : l.loginWithEmail),
                 ),
+              if (!kIsWeb) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _login(register: true),
+                  icon: const Icon(Icons.person_add_alt),
+                  label: Text(l.loginRegister),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context)
+                          .push(MaterialPageRoute<void>(builder: (_) => PasswordResetScreen(login: widget.login))),
+                  child: Text(l.loginForgotPassword),
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 16),
                 Text(_error!, style: TextStyle(color: theme.colorScheme.error)),

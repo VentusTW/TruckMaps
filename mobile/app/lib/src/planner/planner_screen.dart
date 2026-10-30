@@ -75,7 +75,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   Future<void> _loadVehicles() async {
     try {
-      final list = (await widget.api.get('/api/vehicles') as List<dynamic>).cast<Map<String, dynamic>>();
+      // Trasa tylko dla pojazdów jezdnych – naczepa ani przyczepa sama nie jedzie.
+      final list = (await widget.api.get('/api/vehicles') as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .where(isDrivable)
+          .toList();
       if (!mounted) return;
       setState(() {
         _vehicles = list;
@@ -480,7 +484,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
               for (final v in _vehicles)
                 DropdownMenuItem(
                   value: v['id'] as String,
-                  child: Text(v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
+                  child: Text(
+                      [
+                        v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
+                        if (v['trailer_name'] != null) '${v['trailer_name']}',
+                      ].join(' + '),
                       overflow: TextOverflow.ellipsis),
                 ),
             ],
