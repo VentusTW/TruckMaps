@@ -54,6 +54,7 @@ const _ranges = {
   'length_m': (3.0, 40.0),
   'weight_t': (1.0, 150.0),
   'gvw_t': (1.0, 150.0),
+  'tare_t': (0.3, 150.0),
   'axle_load_t': (1.0, 20.0),
   'axle_count': (1.0, 20.0),
   'tank_volume_m3': (0.1, 100.0),
@@ -103,8 +104,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'height_m': TextEditingController(text: text('height_m', 4.0)),
       'width_m': TextEditingController(text: text('width_m', 2.55)),
       'length_m': TextEditingController(text: text('length_m', 16.5)),
-      'weight_t': TextEditingController(text: text('weight_t', 40)),
       'gvw_t': TextEditingController(text: text('gvw_t', 40)),
+      'tare_t': TextEditingController(text: text('tare_t')),
       'axle_load_t': TextEditingController(text: text('axle_load_t', 11.5)),
       'axle_count': TextEditingController(text: text('axle_count', 5)),
       'cost_per_km': TextEditingController(text: text('cost_per_km')),
@@ -202,7 +203,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     final body = {
       'name': _fields['name']!.text.trim(),
       'plate': _fields['plate']!.text.trim(),
-      for (final key in ['height_m', 'width_m', 'length_m', 'weight_t', 'gvw_t', 'axle_load_t']) key: _number(key),
+      // Masy rzeczywistej formularz nie pyta – serwer przyjmuje ją równą DMC (ostrożnie przy ograniczeniach masy).
+      for (final key in ['height_m', 'width_m', 'length_m', 'gvw_t', 'tare_t', 'axle_load_t']) key: _number(key),
       'axle_count': _number('axle_count')!.round(),
       'kind': _kind,
       'trailer_type': _trailer,
@@ -297,8 +299,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             _numberField('length_m', l.vehicleLength, suffix: 'm'),
           ]),
           row([
-            _numberField('weight_t', l.vehicleWeight, suffix: 't'),
             _numberField('gvw_t', l.vehicleGvw, suffix: 't'),
+            _numberField('tare_t', l.vehicleTare, suffix: 't', required: false),
           ]),
           row([
             _numberField('axle_load_t', l.vehicleAxleLoad, suffix: 't'),

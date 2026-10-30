@@ -31,7 +31,7 @@
   "moduleFromCompanyLicense": "Module from a company licence? The company owner assigns it in the fleet panel.",
 
   "vehiclesEmpty": "No vehicles. Add the first one with “Add vehicle”.",
-  "vehicleSummary": "height {height} m · width {width} m · length {length} m · {weight} t (GVW {gvw} t) · axle load {axle} t",
+  "vehicleSummary": "height {height} m · width {width} m · length {length} m · GVW {gvw} t · axle load {axle} t",
   "vehicleReadOnly": "Company vehicle – read only",
 
   "addVehicleFirst": "Add a vehicle first.",
@@ -147,7 +147,7 @@
   "vehicleTrailer": "Trailer / body",
   "vehicleHazmat": "ADR (dangerous goods)",
   "vehicleCosts": "Rates (for the route cost estimate)",
-  "vehicleCostsHint": "Empty = company rate or no estimate. Changing the currency converts the rates at the ECB rate.",
+  "vehicleCostsHint": "The rates add up: route cost = km × rate per km (fuel, tyres, wear) + driving hours × rate per hour (driver, leasing). Empty = company rate or that part left out. Changing the currency converts the rates at the ECB rate.",
   "vehicleCostPerKm": "Per km",
   "vehicleCostPerHour": "Per hour",
   "vehicleCurrency": "Currency",
@@ -373,5 +373,8 @@
   "companyKindForwarder": "Forwarding (goods only)",
   "companyKindForwarderHint": "Orders and carriers; no fleet or drivers of its own – owner and forwarders.",
   "companyKindPassenger": "Passenger transport",
-  "companyKindPassengerHint": "Buses and coaches (with trailers) and drivers."
+  "companyKindPassengerHint": "Buses and coaches (with trailers) and drivers.",
+
+  "vehicleTare": "Empty weight",
+  "vehicleTareSummary": "empty {tare} t · payload {payload} t"
 }

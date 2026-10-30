@@ -117,6 +117,8 @@ class VehicleProfile(Base):
     length_m: Mapped[float]
     weight_t: Mapped[float]
     gvw_t: Mapped[float]
+    tare_t: Mapped[float | None]
+    """Masa własna (pusty pojazd); ładowność = DMC − masa własna."""
     axle_load_t: Mapped[float]
     axle_count: Mapped[int]
     trailer_type: Mapped[str] = mapped_column(String(20))
@@ -138,13 +140,22 @@ class VehicleIn(BaseModel):
     height_m: float = Field(ge=1.5, le=6.0, description="Wysokość całkowita [m]", examples=[4.0])
     width_m: float = Field(ge=1.5, le=4.5, description="Szerokość [m]", examples=[2.55])
     length_m: float = Field(ge=3.0, le=40.0, description="Długość całkowita [m]", examples=[16.5])
-    weight_t: float = Field(ge=1.0, le=150.0, description="Masa rzeczywista [t]", examples=[40])
+    weight_t: float | None = Field(
+        default=None,
+        ge=1.0,
+        le=150.0,
+        description="Masa rzeczywista [t]; brak = równa DMC (formularz w aplikacji jej nie pyta)",
+        examples=[40],
+    )
     gvw_t: float | None = Field(
         default=None,
         ge=1.0,
         le=150.0,
         description="Dopuszczalna masa całkowita – DMC [t]; brak = równa masie rzeczywistej",
         examples=[40],
+    )
+    tare_t: float | None = Field(
+        default=None, ge=0.3, le=150.0, description="Masa własna – pusty pojazd [t]", examples=[7.5]
     )
     axle_load_t: float = Field(
         ge=1.0, le=20.0, description="Największy nacisk osi [t]", examples=[11.5]
@@ -172,6 +183,12 @@ class VehicleIn(BaseModel):
             self.seats = self.standing_places = None
         elif self.seats is None:
             raise ValueError(t("error.bus_seats"))
+        if self.gvw_t is None and self.weight_t is None:
+            raise ValueError(t("error.vehicle_gvw_required"))
+        if self.weight_t is None:
+            self.weight_t = self.gvw_t
+        if self.tare_t is not None and self.tare_t > (self.gvw_t or self.weight_t):
+            raise ValueError(t("error.tare_above_gvw"))
         if self.gvw_t is None:
             self.gvw_t = self.weight_t
         elif self.weight_t > self.gvw_t:

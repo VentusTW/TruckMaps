@@ -217,10 +217,13 @@ class _VehicleCard extends StatelessWidget {
     final inUse = v['in_use'] == true;
     String n(Object? value) => value is num ? l.number(value) : '–';
     final kind = v['kind'] as String?;
-    final summary = l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']), n(v['weight_t']),
+    final summary = l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']),
         n(v['gvw_t']), n(v['axle_load_t']));
     final tank = v['tank_volume_m3'] is num ? ' · ${l.number(v['tank_volume_m3'] as num)} m³' : '';
     final adr = v['hazmat'] == true ? ' · ADR' : '';
+    final tare = v['tare_t'] is num && v['gvw_t'] is num
+        ? ' · ${l.vehicleTareSummary(n(v['tare_t']), n((v['gvw_t'] as num) - (v['tare_t'] as num)))}'
+        : '';
     final seats = v['seats'] is num ? ' · ${l.vehicleSeatsSummary(n(v['seats']), n(v['standing_places'] ?? 0))}' : '';
     return Card(
       color: inUse ? _InUse.tint(context) : null,
@@ -230,7 +233,7 @@ class _VehicleCard extends StatelessWidget {
           title: Text(_title(v)),
           subtitle: Text('${kindLabel(l, kind)} · ${company ? l.vehicleOfCompany : l.vehiclePrivate}'
               '${inUse ? ' · ${_inUseText(l, v)}' : ''}\n'
-              '$summary$tank$seats$adr'),
+              '$summary$tare$tank$seats$adr'),
           isThreeLine: true,
           onTap: editable ? onEdit : null,
           trailing: editable

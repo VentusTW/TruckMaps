@@ -88,6 +88,8 @@
   "error.forwarder_no_fleet": "Spedycja nie ma własnej floty – pojazdy dodaje przewoźnik.",
   "error.company_vehicle_kind": "Ten rodzaj firmy nie ma takich pojazdów: przewoźnik towarów – bez autobusów, transport osób – autobusy i przyczepy.",
   "error.company_kind_fleet": "Firma ma pojazdy albo kierowców – najpierw je usuń albo przenieś, potem zmień rodzaj na spedycję.",
+  "error.vehicle_gvw_required": "Podaj DMC pojazdu.",
+  "error.tare_above_gvw": "Masa własna nie może być większa niż DMC.",
   "account.user_fallback": "Użytkownik {id}",
   "currency.PLN": "złoty polski",
   "currency.EUR": "euro",
