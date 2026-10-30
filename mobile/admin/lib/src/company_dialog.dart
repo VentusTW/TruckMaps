@@ -1,14 +1,20 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import 'grants.dart';
 import 'l10n.dart';
 
 /// Firma: dane i dostęp do zmian udzielony przez właściciela (zakres, termin, stan).
 class CompanyDialog extends StatelessWidget {
-  const CompanyDialog({super.key, required this.api, required this.companyId});
+  const CompanyDialog(
+      {super.key, required this.api, required this.companyId, this.canRequest = false, this.onRequested});
 
   final CoreApi api;
   final String companyId;
+
+  /// Pełny administrator: przycisk „Poproś o dostęp” (wsparcie ma tylko odczyt).
+  final bool canRequest;
+  final VoidCallback? onRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -38,14 +44,41 @@ class CompanyDialog extends StatelessWidget {
           },
         ),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(l.close))],
+      actions: [
+        if (canRequest)
+          OutlinedButton.icon(
+            onPressed: () async {
+              final sent = await showDialog<bool>(
+                context: context,
+                builder: (_) => RequestDialog(api: api, companyId: companyId),
+              );
+              if (sent != true || !context.mounted) return;
+              onRequested?.call();
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              Navigator.pop(context);
+              messenger?.showSnackBar(SnackBar(content: Text(l.requestSent)));
+            },
+            icon: const Icon(Icons.lock_open_outlined),
+            label: Text(l.requestAccess),
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(l.close)),
+      ],
     );
   }
 
   Widget _grant(AdminLocalizations l, Map<String, dynamic> grant) {
     final scopes = (grant['scopes'] as List<dynamic>).map((s) => l.scope('$s')).join(', ');
-    final until = l.when(DateTime.parse('${grant['expires_at']}'));
+    final until = grant['expires_at'] == null ? '—' : l.when(DateTime.parse('${grant['expires_at']}'));
     final active = grant['active'] == true;
+    final pending = grant['state'] == 'pending';
+    if (pending) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.hourglass_top),
+        title: Text(l.grantPending(scopes)),
+        subtitle: Text('${grant['note']}'),
+      );
+    }
     return ListTile(
       contentPadding: EdgeInsets.zero,
       enabled: active,

@@ -89,16 +89,22 @@ final sections = <Section>[
   ], filters: [
     Filter('role', (l) => l.filterRole, _roles),
   ]),
-  Section('invites', (l) => l.sectionInvites, Icons.vpn_key_outlined, [
-    Col('company_name', (l) => l.colCompany),
-    Col('code', (l) => l.colCode),
-    Col('role', (l) => l.colRole, Format.code),
-    Col('note', (l) => l.colNote),
-    Col('created_by', (l) => l.colCreatedBy),
-    Col('expires_at', (l) => l.colExpires, Format.date),
-  ], search: null, filters: [
-    Filter('active', (l) => l.filterActive, ['true', 'false'], flag: true),
-  ]),
+  Section(
+      'invites',
+      (l) => l.sectionInvites,
+      Icons.vpn_key_outlined,
+      [
+        Col('company_name', (l) => l.colCompany),
+        Col('code', (l) => l.colCode),
+        Col('role', (l) => l.colRole, Format.code),
+        Col('note', (l) => l.colNote),
+        Col('created_by', (l) => l.colCreatedBy),
+        Col('expires_at', (l) => l.colExpires, Format.date),
+      ],
+      search: null,
+      filters: [
+        Filter('active', (l) => l.filterActive, ['true', 'false'], flag: true),
+      ]),
   Section('bases', (l) => l.sectionBases, Icons.warehouse_outlined, [
     Col('company_name', (l) => l.colCompany),
     Col('name', (l) => l.colName),
@@ -122,33 +128,45 @@ final sections = <Section>[
   ], filters: [
     Filter('kind', (l) => l.filterKind, _reportKinds),
   ]),
-  Section('releases', (l) => l.sectionReleases, Icons.system_update_outlined, [
-    Col('kind', (l) => l.colKind, Format.code),
-    Col('name', (l) => l.colName),
-    Col('platform', (l) => l.colPlatform),
-    Col('version', (l) => l.colVersion),
-    Col('status', (l) => l.colStatus, Format.code),
-    Col('rollout', (l) => l.colRollout),
-    Col('published_at', (l) => l.colCreated, Format.date),
-  ], search: null, filters: [
-    Filter('kind', (l) => l.filterKind, ['app', 'module', 'data']),
-    Filter('status', (l) => l.filterStatus, ['active', 'paused', 'withdrawn']),
-  ]),
+  Section(
+      'releases',
+      (l) => l.sectionReleases,
+      Icons.system_update_outlined,
+      [
+        Col('kind', (l) => l.colKind, Format.code),
+        Col('name', (l) => l.colName),
+        Col('platform', (l) => l.colPlatform),
+        Col('version', (l) => l.colVersion),
+        Col('status', (l) => l.colStatus, Format.code),
+        Col('rollout', (l) => l.colRollout),
+        Col('published_at', (l) => l.colCreated, Format.date),
+      ],
+      search: null,
+      filters: [
+        Filter('kind', (l) => l.filterKind, ['app', 'module', 'data']),
+        Filter('status', (l) => l.filterStatus, ['active', 'paused', 'withdrawn']),
+      ]),
   Section('licenses', (l) => l.sectionLicenses, Icons.workspace_premium_outlined, [
     Col('subject', (l) => l.colSubject),
     Col('modules', (l) => l.colModules, Format.list),
   ]),
-  Section('audit', (l) => l.sectionAudit, Icons.history, [
-    Col('at', (l) => l.colTime, Format.date),
-    Col('subject', (l) => l.colAdmin),
-    Col('method', (l) => l.colMethod),
-    Col('path', (l) => l.colPath),
-    Col('status_code', (l) => l.colResult),
-    Col('ip', (l) => l.colIp),
-    Col('user_agent', (l) => l.colDevice),
-    Col('action', (l) => l.colAction),
-    Col('changes', (l) => l.colChanges, Format.changes),
-  ], search: 'subject', filters: [
-    Filter('changes_only', (l) => l.filterChangesOnly, ['true'], flag: true),
-  ]),
+  Section(
+      'audit',
+      (l) => l.sectionAudit,
+      Icons.history,
+      [
+        Col('at', (l) => l.colTime, Format.date),
+        Col('subject', (l) => l.colAdmin),
+        Col('method', (l) => l.colMethod),
+        Col('path', (l) => l.colPath),
+        Col('status_code', (l) => l.colResult),
+        Col('ip', (l) => l.colIp),
+        Col('user_agent', (l) => l.colDevice),
+        Col('action', (l) => l.colAction),
+        Col('changes', (l) => l.colChanges, Format.changes),
+      ],
+      search: 'subject',
+      filters: [
+        Filter('changes_only', (l) => l.filterChangesOnly, ['true'], flag: true),
+      ]),
 ];

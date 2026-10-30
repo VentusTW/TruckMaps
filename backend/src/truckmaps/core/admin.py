@@ -37,12 +37,15 @@ from truckmaps.core.config import Settings, load_env_file
 from truckmaps.core.currency import UserSettings
 from truckmaps.core.db import Base, Database, get_session
 from truckmaps.core.i18n import t
+from truckmaps.core.inbox import Kind, mark_read, send
 from truckmaps.core.releases import Release
 from truckmaps.core.reports import DriverReport
 from truckmaps.core.vehicles import VehicleProfile
 from truckmaps.sdk import Principal
 
-MAX_GRANT_DAYS = 30
+GRANT_MINUTES = 60
+"""Tyle trwa dostęp po zgodzie właściciela; dłużej – tylko po przedłużeniu."""
+MAX_GRANT_MINUTES = 8 * 60
 PAGE_LIMIT = 200
 # Wartości ``amr`` (RFC 8176, Zitadel) oznaczające logowanie z drugim składnikiem.
 MFA_METHODS = {"mfa", "otp", "u2f", "hwk", "swk"}
@@ -107,8 +110,18 @@ class AuditEntry(Base):
     """``{"pole": [przed, po]}``."""
 
 
+class GrantState(StrEnum):
+    PENDING = "pending"
+    """Prośba administratora czeka na decyzję właściciela."""
+    ACTIVE = "active"
+    REJECTED = "rejected"
+    CLOSED = "closed"
+    """Zamknięty przed czasem – przez właściciela albo administratora."""
+    EXPIRED = "expired"
+
+
 class AccessGrant(Base):
-    """Zgoda właściciela firmy na zmiany administratora."""
+    """Dostęp administratora do zmian w firmie: prośba administratora i zgoda właściciela."""
 
     __tablename__ = "company_access_grants"
 
@@ -118,29 +131,58 @@ class AccessGrant(Base):
     )
     scopes: Mapped[list] = mapped_column(JSON)
     note: Mapped[str] = mapped_column(String(300), default="")
-    granted_by: Mapped[str] = mapped_column(String(255))
-    granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    """Powód prośby administratora albo notatka właściciela."""
+    requested_by: Mapped[str | None] = mapped_column(String(255))
+    """Administrator, który poprosił; brak – właściciel udzielił dostępu sam."""
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    granted_by: Mapped[str | None] = mapped_column(String(255))
+    granted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_by: Mapped[str | None] = mapped_column(String(255))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    def state(self, moment: datetime) -> GrantState:
+        if self.granted_at is None:
+            return GrantState.REJECTED if self.revoked_at else GrantState.PENDING
+        if self.revoked_at is not None:
+            return GrantState.CLOSED
+        if _aware(self.expires_at) <= moment:
+            return GrantState.EXPIRED
+        return GrantState.ACTIVE
+
     def active(self, moment: datetime) -> bool:
-        return self.revoked_at is None and _aware(self.expires_at) > moment
+        return self.state(moment) == GrantState.ACTIVE
+
+
+Minutes = Annotated[int, Field(ge=15, le=MAX_GRANT_MINUTES, description="Na ile minut")]
 
 
 class GrantIn(BaseModel):
     scopes: list[Scope] = Field(min_length=1)
-    days: int = Field(ge=1, le=MAX_GRANT_DAYS, description="Ile dni dostęp jest ważny")
+    minutes: Minutes = GRANT_MINUTES
     note: str = Field(default="", max_length=300, description="Np. numer zgłoszenia do wsparcia")
+
+
+class RequestIn(BaseModel):
+    scopes: list[Scope] = Field(min_length=1)
+    note: str = Field(min_length=3, max_length=300, description="Co i dlaczego trzeba zmienić")
+
+
+class MinutesIn(BaseModel):
+    minutes: Minutes = GRANT_MINUTES
 
 
 class GrantOut(BaseModel):
     id: str
+    company_id: str
     scopes: list[Scope]
     note: str
-    granted_by: str
-    granted_at: datetime
-    expires_at: datetime
+    state: GrantState
+    requested_by: str | None
+    """Imię administratora, który poprosił."""
+    requested_at: datetime | None
+    granted_at: datetime | None
+    expires_at: datetime | None
     revoked_at: datetime | None
     active: bool
 
@@ -159,16 +201,41 @@ class AdminAccess(BaseModel):
     changes: list[ChangeOut]
 
 
-def _grant_out(grant: AccessGrant, moment: datetime) -> GrantOut:
+def _maybe(moment: datetime | None) -> datetime | None:
+    return moment and _aware(moment)
+
+
+def _grant_out(db: Session, grant: AccessGrant, moment: datetime) -> GrantOut:
+    admin = grant.requested_by and db.get(AdminAccount, grant.requested_by)
+    state = grant.state(moment)
     return GrantOut(
         id=grant.id,
+        company_id=grant.company_id,
         scopes=grant.scopes,
         note=grant.note,
-        granted_by=grant.granted_by,
-        granted_at=_aware(grant.granted_at),
-        expires_at=_aware(grant.expires_at),
-        revoked_at=grant.revoked_at and _aware(grant.revoked_at),
-        active=grant.active(moment),
+        state=state,
+        requested_by=(admin.name or admin.subject) if admin else grant.requested_by,
+        requested_at=_maybe(grant.requested_at),
+        granted_at=_maybe(grant.granted_at),
+        expires_at=_maybe(grant.expires_at),
+        revoked_at=_maybe(grant.revoked_at),
+        active=state == GrantState.ACTIVE,
+    )
+
+
+def describe_grant(db: Session, grant_id: str) -> dict | None:
+    """Stan dostępu dla skrzynki wiadomości."""
+    grant = db.get(AccessGrant, grant_id)
+    return grant and _grant_out(db, grant, _now()).model_dump(mode="json")
+
+
+def _owners(db: Session, company_id: str) -> list[str]:
+    return list(
+        db.scalars(
+            select(CompanyMember.subject).where(
+                CompanyMember.company_id == company_id, CompanyMember.role == Role.OWNER
+            )
+        )
     )
 
 
@@ -368,7 +435,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
         )
         return {
             **_company(found),
-            "grants": [_grant_out(g, moment).model_dump() for g in grants],
+            "grants": [_grant_out(db, g, moment).model_dump() for g in grants],
         }
 
     @router.get("/api/admin/members")
@@ -661,7 +728,102 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
         db.commit()
         return {"id": base.id, **data.model_dump()}
 
+    # --- Prośba o dostęp: administrator prosi, właściciel decyduje w skrzynce -----------
+
+    def my_grant(db: Session, grant_id: str, account: AdminAccount) -> AccessGrant:
+        found = db.get(AccessGrant, grant_id)
+        if found is None or found.requested_by != account.subject:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.grant_not_found"))
+        return found
+
+    @router.post(
+        "/api/admin/companies/{company_id}/access-requests", status_code=status.HTTP_201_CREATED
+    )
+    def request_access(company_id: str, data: RequestIn, account: FullAdmin, db: Db) -> GrantOut:
+        if db.get(Company, company_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.company_not_found"))
+        moment = _now()
+        created = AccessGrant(
+            company_id=company_id,
+            scopes=sorted(set(data.scopes)),
+            note=data.note.strip(),
+            requested_by=account.subject,
+            requested_at=moment,
+        )
+        db.add(created)
+        db.flush()
+        send(
+            db,
+            _owners(db, company_id),
+            Kind.ACCESS_REQUEST,
+            sender_name=account.name,
+            company_id=company_id,
+            grant_id=created.id,
+            data={"scopes": created.scopes, "note": created.note},
+        )
+        db.commit()
+        return _grant_out(db, created, moment)
+
+    @router.get("/api/admin/grants")
+    def my_grants(account: Admin, db: Db) -> list[dict]:
+        """Prośby i dostępy tego administratora – do odliczania czasu w programie."""
+        moment = _now()
+        rows = db.execute(
+            select(AccessGrant, Company.name)
+            .join(Company, Company.id == AccessGrant.company_id)
+            .where(AccessGrant.requested_by == account.subject)
+            .order_by(AccessGrant.requested_at.desc())
+            .limit(PAGE_LIMIT)
+        )
+        return [
+            {**_grant_out(db, g, moment).model_dump(), "company_name": name} for g, name in rows
+        ]
+
+    @router.post("/api/admin/grants/{grant_id}/close", status_code=status.HTTP_204_NO_CONTENT)
+    def close_grant(grant_id: str, account: Admin, db: Db) -> Response:
+        """Administrator skończył zmiany – dostęp zamknięty przed czasem."""
+        found = my_grant(db, grant_id, account)
+        if found.state(_now()) in {GrantState.ACTIVE, GrantState.PENDING}:
+            found.revoked_at = _now()
+            found.revoked_by = account.subject
+            send(
+                db,
+                _owners(db, found.company_id),
+                Kind.ACCESS_CLOSED,
+                sender_name=account.name,
+                company_id=found.company_id,
+                grant_id=found.id,
+            )
+            db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.post(
+        "/api/admin/grants/{grant_id}/extension-request", status_code=status.HTTP_204_NO_CONTENT
+    )
+    def request_extension(grant_id: str, data: MinutesIn, account: Admin, db: Db) -> Response:
+        found = my_grant(db, grant_id, account)
+        if not found.active(_now()):
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_active"))
+        send(
+            db,
+            _owners(db, found.company_id),
+            Kind.EXTENSION_REQUEST,
+            sender_name=account.name,
+            company_id=found.company_id,
+            grant_id=found.id,
+            data={"minutes": data.minutes},
+        )
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     # --- Właściciel firmy: zgoda na zmiany administratora ------------------------------
+
+    def owners_grant(db: Session, company_id: str, grant_id: str, user: Principal) -> AccessGrant:
+        require_member(db, company_id, user, {Role.OWNER})
+        found = db.get(AccessGrant, grant_id)
+        if found is None or found.company_id != company_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.grant_not_found"))
+        return found
 
     @router.get("/api/companies/{company_id}/admin-access")
     def access(company_id: str, user: User, db: Db) -> AdminAccess:
@@ -670,7 +832,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
         grants = db.scalars(
             select(AccessGrant)
             .where(AccessGrant.company_id == company_id)
-            .order_by(AccessGrant.granted_at.desc())
+            .order_by(func.coalesce(AccessGrant.requested_at, AccessGrant.granted_at).desc())
         )
         entries = db.execute(
             select(AuditEntry, AdminAccount.name)
@@ -680,7 +842,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             .limit(PAGE_LIMIT)
         )
         return AdminAccess(
-            grants=[_grant_out(g, moment) for g in grants],
+            grants=[_grant_out(db, g, moment) for g in grants],
             changes=[
                 ChangeOut(
                     at=_aware(e.at),
@@ -694,6 +856,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
 
     @router.post("/api/companies/{company_id}/admin-access", status_code=status.HTTP_201_CREATED)
     def grant(company_id: str, data: GrantIn, user: User, db: Db) -> GrantOut:
+        """Właściciel udziela dostępu sam, bez prośby administratora."""
         require_member(db, company_id, user, {Role.OWNER})
         moment = _now()
         created = AccessGrant(
@@ -702,24 +865,60 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             note=data.note.strip(),
             granted_by=user.subject,
             granted_at=moment,
-            expires_at=moment + timedelta(days=data.days),
+            expires_at=moment + timedelta(minutes=data.minutes),
         )
         db.add(created)
         db.commit()
-        return _grant_out(created, moment)
+        return _grant_out(db, created, moment)
+
+    @router.post("/api/companies/{company_id}/admin-access/{grant_id}/accept")
+    def accept(company_id: str, grant_id: str, data: MinutesIn, user: User, db: Db) -> GrantOut:
+        found = owners_grant(db, company_id, grant_id, user)
+        moment = _now()
+        if found.state(moment) != GrantState.PENDING:
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_pending"))
+        found.granted_by = user.subject
+        found.granted_at = moment
+        found.expires_at = moment + timedelta(minutes=data.minutes)
+        mark_read(db, found.id, user.subject)
+        db.commit()
+        return _grant_out(db, found, moment)
+
+    @router.post("/api/companies/{company_id}/admin-access/{grant_id}/reject")
+    def reject(company_id: str, grant_id: str, user: User, db: Db) -> GrantOut:
+        found = owners_grant(db, company_id, grant_id, user)
+        moment = _now()
+        if found.state(moment) != GrantState.PENDING:
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_pending"))
+        found.revoked_at = moment
+        found.revoked_by = user.subject
+        mark_read(db, found.id, user.subject)
+        db.commit()
+        return _grant_out(db, found, moment)
+
+    @router.post("/api/companies/{company_id}/admin-access/{grant_id}/extend")
+    def extend(company_id: str, grant_id: str, data: MinutesIn, user: User, db: Db) -> GrantOut:
+        found = owners_grant(db, company_id, grant_id, user)
+        moment = _now()
+        if not found.active(moment):
+            raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_active"))
+        found.expires_at = _aware(found.expires_at) + timedelta(minutes=data.minutes)
+        if found.expires_at - moment > timedelta(minutes=MAX_GRANT_MINUTES):
+            found.expires_at = moment + timedelta(minutes=MAX_GRANT_MINUTES)
+        mark_read(db, found.id, user.subject)
+        db.commit()
+        return _grant_out(db, found, moment)
 
     @router.delete(
         "/api/companies/{company_id}/admin-access/{grant_id}",
         status_code=status.HTTP_204_NO_CONTENT,
     )
     def revoke(company_id: str, grant_id: str, user: User, db: Db) -> Response:
-        require_member(db, company_id, user, {Role.OWNER})
-        found = db.get(AccessGrant, grant_id)
-        if found is None or found.company_id != company_id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.grant_not_found"))
+        found = owners_grant(db, company_id, grant_id, user)
         if found.revoked_at is None:
             found.revoked_at = _now()
             found.revoked_by = user.subject
+            mark_read(db, found.id, user.subject)
             db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 

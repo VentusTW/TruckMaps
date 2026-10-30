@@ -11,10 +11,14 @@ const pageSize = 50;
 
 /// Lista z serwera z wyszukiwaniem, filtrami i stronami (`{"total": n, "items": [...]}`).
 class ListScreen extends StatefulWidget {
-  const ListScreen({super.key, required this.api, required this.section});
+  const ListScreen({super.key, required this.api, required this.section, this.fullAdmin = false, this.onRequested});
 
   final CoreApi api;
   final Section section;
+
+  /// Pełny administrator może poprosić właściciela firmy o dostęp do zmian.
+  final bool fullAdmin;
+  final VoidCallback? onRequested;
 
   @override
   State<ListScreen> createState() => _ListScreenState();
@@ -96,7 +100,9 @@ class _ListScreenState extends State<ListScreen> {
                   TextButton(onPressed: _reload, child: Text(l.retry)),
                 ]);
               }
-              if (!snapshot.hasData) return const Align(alignment: Alignment.topCenter, child: LinearProgressIndicator());
+              if (!snapshot.hasData) {
+                return const Align(alignment: Alignment.topCenter, child: LinearProgressIndicator());
+              }
               return _table(l, snapshot.data as Map<String, dynamic>);
             },
           ),
@@ -131,7 +137,8 @@ class _ListScreenState extends State<ListScreen> {
     final total = page['total'] as int;
     final companies = _section.id == 'companies';
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (page['grant_all'] == true) Text(l.grantAllLicenses, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      if (page['grant_all'] == true)
+        Text(l.grantAllLicenses, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       Expanded(
         child: items.isEmpty
             ? Text(l.empty)
@@ -147,7 +154,12 @@ class _ListScreenState extends State<ListScreen> {
                           onSelectChanged: companies
                               ? (_) => showDialog<void>(
                                     context: context,
-                                    builder: (_) => CompanyDialog(api: widget.api, companyId: '${item['id']}'),
+                                    builder: (_) => CompanyDialog(
+                                      api: widget.api,
+                                      companyId: '${item['id']}',
+                                      canRequest: widget.fullAdmin,
+                                      onRequested: widget.onRequested,
+                                    ),
                                   )
                               : null,
                           cells: [for (final c in _section.columns) DataCell(Text(_value(l, c, item[c.key])))],

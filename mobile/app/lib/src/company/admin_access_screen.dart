@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
@@ -6,7 +8,10 @@ import '../l10n.dart';
 
 /// Zakresy, w których właściciel może pozwolić administratorowi TruckMaps na zmiany.
 const adminScopes = ['company', 'bases'];
-const _grantDays = [1, 3, 7, 14, 30];
+
+/// Tyle trwa dostęp po zgodzie; dłużej – po przedłużeniu.
+const grantMinutes = 60;
+const _durations = [30, 60, 120, 240, 480];
 
 String scopeLabel(AppLocalizations l, String scope) => switch (scope) {
       'company' => l.adminScopeCompany,
@@ -14,9 +19,26 @@ String scopeLabel(AppLocalizations l, String scope) => switch (scope) {
       _ => scope,
     };
 
+/// „30 min”, „1 godz.”, „8 godz.”.
+String grantDuration(AppLocalizations l, int minutes) =>
+    minutes < 60 ? l.durationMinutes(minutes) : l.durationHours(minutes ~/ 60);
+
+/// Stan dostępu w jednym zdaniu (prośba czeka, aktywny do…, odrzucona, zamknięty, wygasł).
+String grantStateLabel(AppLocalizations l, Map<String, dynamic>? grant) {
+  String at(String key) => l.when(DateTime.parse('${grant![key]}').toLocal());
+  return switch (grant?['state']) {
+    'pending' => l.adminStatePending,
+    'active' => l.adminAccessUntil(at('expires_at')),
+    'rejected' => l.adminStateRejected,
+    'closed' => l.adminAccessRevoked(at('revoked_at')),
+    'expired' => l.adminAccessExpired(at('expires_at')),
+    _ => '',
+  };
+}
+
 /// Dostęp administratora TruckMaps do zmian w firmie – tylko właściciel.
-/// Administrator widzi dane zawsze, ale zmienia je wyłącznie w zakresie i terminie, na które
-/// pozwoli właściciel; każda jego zmiana jest w dzienniku poniżej.
+/// Administrator widzi dane zawsze, ale zmienia je wyłącznie po zgodzie właściciela, przez
+/// określony czas (zwykle godzinę); każda jego zmiana jest w dzienniku poniżej.
 class AdminAccessScreen extends StatefulWidget {
   const AdminAccessScreen({super.key, required this.api, required this.companyId});
 
@@ -29,8 +51,24 @@ class AdminAccessScreen extends StatefulWidget {
 
 class _AdminAccessScreenState extends State<AdminAccessScreen> {
   late Future<dynamic> _access = widget.api.get(_path);
+  Timer? _ticker;
 
   String get _path => '/api/companies/${widget.companyId}/admin-access';
+
+  @override
+  void initState() {
+    super.initState();
+    // Pozostały czas aktywnego dostępu odświeża się co pół minuty.
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   void _reload() {
     final access = widget.api.get(_path);
@@ -39,15 +77,18 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
     });
   }
 
-  Future<void> _grant() async {
-    final grant = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => const _GrantDialog());
-    if (grant == null || !mounted) return;
+  Future<void> _call(Future<dynamic> Function() request) async {
     try {
-      await widget.api.post(_path, grant);
+      await request();
       if (mounted) _reload();
     } catch (error) {
       if (mounted) showError(context, error);
     }
+  }
+
+  Future<void> _grant() async {
+    final grant = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => const _GrantDialog());
+    if (grant != null && mounted) await _call(() => widget.api.post(_path, grant));
   }
 
   Future<void> _revoke(Map<String, dynamic> grant) async {
@@ -55,15 +96,8 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
     if (!await confirm(context, title: l.adminRevokeTitle, question: l.adminRevokeQuestion, action: l.adminRevoke)) {
       return;
     }
-    try {
-      await widget.api.delete('$_path/${grant['id']}');
-      if (mounted) _reload();
-    } catch (error) {
-      if (mounted) showError(context, error);
-    }
+    await _call(() => widget.api.delete('$_path/${grant['id']}'));
   }
-
-  String _when(AppLocalizations l, Object? moment) => l.when(DateTime.parse('$moment').toLocal());
 
   @override
   Widget build(BuildContext context) {
@@ -105,22 +139,55 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
   }
 
   Widget _grantTile(AppLocalizations l, Map<String, dynamic> grant) {
-    final active = grant['active'] == true;
+    final state = grant['state'] as String?;
+    final active = state == 'active';
+    final pending = state == 'pending';
     final scopes = (grant['scopes'] as List<dynamic>).map((s) => scopeLabel(l, '$s')).join(', ');
-    final state = active
-        ? l.adminAccessUntil(_when(l, grant['expires_at']))
-        : grant['revoked_at'] != null
-            ? l.adminAccessRevoked(_when(l, grant['revoked_at']))
-            : l.adminAccessExpired(_when(l, grant['expires_at']));
+    final left = active ? DateTime.parse('${grant['expires_at']}').difference(DateTime.now()) : null;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      enabled: active,
-      leading: Icon(active ? Icons.lock_open : Icons.lock_outline),
+      enabled: active || pending,
+      leading: Icon(active
+          ? Icons.lock_open
+          : pending
+              ? Icons.hourglass_top
+              : Icons.lock_outline),
       title: Text(scopes),
-      subtitle: Text([state, if ('${grant['note']}'.isNotEmpty) '${grant['note']}'].join(' · ')),
-      trailing: active
-          ? IconButton(tooltip: l.adminRevoke, onPressed: () => _revoke(grant), icon: const Icon(Icons.block))
-          : null,
+      subtitle: Text([
+        if (grant['requested_by'] != null) l.adminRequestedBy('${grant['requested_by']}'),
+        grantStateLabel(l, grant),
+        if (left != null) l.adminTimeLeft(grantDuration(l, left.inMinutes.clamp(0, 9999) + 1)),
+        if ('${grant['note']}'.isNotEmpty) '${grant['note']}',
+      ].join(' · ')),
+      trailing: pending
+          ? Wrap(spacing: 4, children: [
+              IconButton(
+                tooltip: l.inboxReject,
+                onPressed: () => _call(() => widget.api.post('$_path/${grant['id']}/reject', null)),
+                icon: const Icon(Icons.close),
+              ),
+              IconButton(
+                tooltip: l.inboxAccept(grantDuration(l, grantMinutes)),
+                onPressed: () =>
+                    _call(() => widget.api.post('$_path/${grant['id']}/accept', {'minutes': grantMinutes})),
+                icon: const Icon(Icons.check),
+              ),
+            ])
+          : active
+              ? Wrap(spacing: 4, children: [
+                  PopupMenuButton<int>(
+                    tooltip: l.adminExtend,
+                    icon: const Icon(Icons.more_time),
+                    onSelected: (minutes) =>
+                        _call(() => widget.api.post('$_path/${grant['id']}/extend', {'minutes': minutes})),
+                    itemBuilder: (_) => [
+                      for (final m in const [30, 60, 120])
+                        PopupMenuItem(value: m, child: Text(l.adminExtendBy(grantDuration(l, m)))),
+                    ],
+                  ),
+                  IconButton(tooltip: l.adminRevoke, onPressed: () => _revoke(grant), icon: const Icon(Icons.block)),
+                ])
+              : null,
     );
   }
 
@@ -133,7 +200,7 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.history),
       title: Text('${_actionLabel(l, '${change['action']}')} · ${change['admin']}'),
-      subtitle: Text([_when(l, change['at']), ...fields].join('\n')),
+      subtitle: Text([l.when(DateTime.parse('${change['at']}').toLocal()), ...fields].join('\n')),
       isThreeLine: fields.isNotEmpty,
     );
   }
@@ -159,7 +226,7 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
       };
 }
 
-/// Zakres, termin i notatka nowego dostępu.
+/// Zakres, czas i notatka dostępu, którego właściciel udziela sam.
 class _GrantDialog extends StatefulWidget {
   const _GrantDialog();
 
@@ -170,7 +237,7 @@ class _GrantDialog extends StatefulWidget {
 class _GrantDialogState extends State<_GrantDialog> {
   final _note = TextEditingController();
   final _scopes = <String>{'company'};
-  int _days = 1;
+  int _minutes = grantMinutes;
 
   @override
   void dispose() {
@@ -196,10 +263,10 @@ class _GrantDialogState extends State<_GrantDialog> {
                 onChanged: (on) => setState(() => on == true ? _scopes.add(scope) : _scopes.remove(scope)),
               ),
             DropdownButtonFormField<int>(
-              value: _days,
+              value: _minutes,
               decoration: field(l.adminGrantDuration),
-              items: [for (final d in _grantDays) DropdownMenuItem(value: d, child: Text(l.adminGrantDays(d)))],
-              onChanged: (value) => setState(() => _days = value ?? _days),
+              items: [for (final m in _durations) DropdownMenuItem(value: m, child: Text(grantDuration(l, m)))],
+              onChanged: (value) => setState(() => _minutes = value ?? _minutes),
             ),
             const SizedBox(height: 16),
             TextField(controller: _note, maxLength: 300, decoration: field(l.adminGrantNote, hint: l.adminGrantNoteHint)),
@@ -213,7 +280,7 @@ class _GrantDialogState extends State<_GrantDialog> {
               ? null
               : () => Navigator.pop(context, {
                     'scopes': [for (final s in adminScopes) if (_scopes.contains(s)) s],
-                    'days': _days,
+                    'minutes': _minutes,
                     'note': _note.text.trim(),
                   }),
           child: Text(l.adminGrant),
