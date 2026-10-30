@@ -23,7 +23,7 @@ from truckmaps.core.route_analysis import (
     RouteWarning,
     analyze,
 )
-from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_owned
+from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_drivable
 from truckmaps.sdk import Principal
 
 # Język komunikatów manewrów w Valhalli dla języka zapytania (bez tłumaczenia – angielski).
@@ -880,7 +880,7 @@ def build_router(current_user) -> APIRouter:
         user: Annotated[Principal, Depends(current_user)],
         db: Annotated[Session, Depends(get_session)],
     ) -> RouteResponse:
-        profile = load_owned(db, data.vehicle_id, user)
+        profile = load_drivable(db, data.vehicle_id, user)
         vehicle = VehicleOut.model_validate(profile)
         company = db.get(Company, profile.company_id) if profile.company_id else None
         shown = costs.display_currency(user_currency(db, user), profile, company)

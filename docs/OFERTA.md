@@ -1,6 +1,8 @@
 # Oferta: typy kont, moduły i plany (propozycja do akceptacji)
 
-Ceny orientacyjne netto, w euro jak w `PLAN.md` (w PLN po kursie, zaokrąglone „ładnie”).
+**Plany i ceny są na razie poglądowe** – ustala je i zmienia administrator (program
+administracyjny: plany, ceny, promocje czasowe dla grup). Ceny orientacyjne netto, w euro
+jak w `PLAN.md` (w PLN po kursie, zaokrąglone „ładnie”).
 Nic tu nie jest jeszcze wdrożone poza rdzeniem i kontami firm z rolami; płatności przyjdą
 później (zob. „Najpierw bezkosztowo”).
 
@@ -9,8 +11,9 @@ później (zob. „Najpierw bezkosztowo”).
 | Typ konta | Dla kogo | Co dostaje na start |
 |---|---|---|
 | **Przedsiębiorca** (przewoźnik) | właściciel firmy transportowej | firma, role (właściciel, dyspozytor, kierowca), flota, kierowcy; opcjonalnie spedycja |
-| **Spedytor** | biuro spedycyjne, spedytor na własny rachunek | firma, zlecenia, przewoźnicy i ich kierowcy / pojazdy; bez własnej floty |
-| **Kierowca** | kierowca zatrudniony albo jeżdżący na swoim | konto osobiste; do firmy dołącza kodem zaproszenia |
+| **Spedytor** | biuro spedycyjne, spedytor na własny rachunek | osobna firma rodzaju „spedycja” o ograniczonych możliwościach, **tylko towary**: zlecenia, przewoźnicy i ich kierowcy / pojazdy; bez własnej floty |
+| **Transport osób** | przewoźnik osób: autobusy, busy, wycieczki, przewozy regularne i okazjonalne | firma, flota autobusów i busów (miejsca siedzące / stojące), kierowcy; później kursy, rozkłady, listy pasażerów |
+| **Kierowca** | kierowca zatrudniony albo jeżdżący na swoim | wyznaczanie tras i jeden pojazd; kolejne pojazdy po wykupieniu; do firmy dołącza kodem zaproszenia |
 
 Typ konta to tylko punkt startu: każde konto może później dokupić inne moduły albo
 zmienić plan (np. kierowca zakłada firmę, przewoźnik dodaje spedycję).
@@ -22,7 +25,8 @@ zmienić plan (np. kierowca zakłada firmę, przewoźnik dodaje spedycję).
 | K1 | **Firma** | dane firmy, stawki, bazy, członkowie i role, zaproszenia, konta biurowe (właściciel, dyspozytor, spedytor) | – |
 | K2 | **Flota** | pojazdy, naczepy i przyczepy firmy, przydział do kierowców, terminy (rozszerza się w M13) | K1 (pakiet) |
 | K3 | **Kierowcy** | kierowcy firmy, przydział do pojazdów i zleceń, ich dostęp do modułów kierowcy (M1–M5) | K1 (pakiet) |
-| K4 | **Spedycja** | zlecenia, baza przewoźników, przypisanie zlecenia do przewoźnika / pojazdu, statusy (rozszerza się w M7–M10, M14) | K1 (pakiet) |
+| K4 | **Spedycja** | zlecenia (tylko towary), baza przewoźników, przypisanie zlecenia do przewoźnika / pojazdu, statusy (rozszerza się w M7–M10, M14) | K1 (pakiet) |
+| K5 | **Transport osób** | kursy i przejazdy okazjonalne, przydział autobusu / busa i kierowcy, liczba pasażerów vs miejsca w pojeździe; później rozkłady, listy pasażerów, zamówienia od klientów (szkoły, biura podróży) | K1 (pakiet); flota (K2) i kierowcy (K3) w planach |
 
 Dzisiejsze ekrany „Firma” i „Członkowie” to zalążek K1; pojazdy firmy – zalążek K2.
 
@@ -59,6 +63,14 @@ Kierowca w firmie z planem Flota lub wyższym ma Plus w cenie planu firmy.
 | **Spedytor** | €39/mies. | 4 | 15 / 15 | + dokumenty (M14), raporty (M11) |
 | **Spedytor Pro** | €69/mies. | 8 | 50 / 50 | + planer zleceń (M7), integracje giełd (M8, gdy będą umowy) |
 
+### Transport osób
+
+| Plan | Cena | Konta biurowe | Kierowcy | Autobusy / busy | Co zawiera |
+|---|---|---|---|---|---|
+| **Przewozy Start** | €29/mies. | 2 | 5 | 5 | K1 + K2 + K3 + K5 |
+| **Przewozy** | €59/mies. | 3 | 10 | 10 | + terminy (M13), raporty (M11), kierowcy z Plus |
+| **Przewozy Pro** | €99/mies. | 5 | 25 | 25 | + koszty i myto (M4), dokumenty (M14), kierowcy z Pro |
+
 ### Dodatki (do każdego planu firmowego)
 
 | Dodatek | Miesięcznie | Tokenami |
@@ -84,7 +96,7 @@ Kierowca w firmie z planem Flota lub wyższym ma Plus w cenie planu firmy.
 - wyższy plan / dodatek – od razu, dopłata proporcjonalnie do końca okresu;
 - niższy plan – od kolejnego okresu; dane ponad limit nie znikają, tylko są „tylko do odczytu”;
 - zmiana sposobu płatności (miesięcznie ↔ rocznie ↔ tokeny) – od kolejnego okresu;
-- 30 dni próbnych planu **Flota** / **Spedytor** dla nowych firm, bez karty.
+- 30 dni próbnych planu **Flota** / **Spedytor** / **Przewozy** dla nowych firm, bez karty.
 
 ## 5. Co to oznacza technicznie (po akceptacji)
 

@@ -73,6 +73,21 @@ http://localhost:8025). Hasło zmienia się w „Konto” → „Zmień hasło�
 8 znaków, wielka i mała litera, cyfra, symbol). Wymaga `TRUCKMAPS_ZITADEL_TOKEN` na serwerze
 (zakłada go `infra/zitadel/bootstrap.py`).
 
+## Pojazdy
+
+Każdy pojazd jest osobny: ciągnik siodłowy, samochód ciężarowy (solówka), samochód dostawczy
+(towary), autobus / bus do przewozu osób (miejsca siedzące – wymagane, stojące – opcjonalnie),
+naczepa, przyczepa (z zabudową; cysterna z pojemnością). Ekran „Pojazdy”: samochody po lewej,
+naczepy i przyczepy po prawej (na wąskim ekranie – jedna lista). Naczepę / przyczepę
+przeciąga się na pole pojazdu (na telefonie po przytrzymaniu) albo wybiera przyciskiem
+„Podepnij”. Łączy się tylko: ciągnik + naczepa; solówka, autobus, dostawczy + przyczepa.
+W użyciu (na stonowanym czerwonym, nie do wybrania): naczepa / przyczepa podpięta do innego
+pojazdu, pojazd, którym ktoś jedzie (od startu nawigacji do jej zamknięcia, najwyżej 14 h).
+Trasę liczy się dla pojazdu razem z podpiętą częścią (największa wysokość i szerokość, suma
+długości – przy naczepie minus ok. 3,1 m nad ciągnikiem, suma mas i osi, zabudowa i ADR
+z naczepy). Dawne wpisy „zestaw” (wymiary całości) działają dalej. Konto bez planu ma jeden
+pojazd prywatny; kolejne po wykupieniu modułu „Dodatkowe pojazdy” (`vehicles_plus`).
+
 ## Konto, firma i role
 
 Pierwsze logowanie bez firmy pyta: „Mam firmę” (zakładasz firmę – nazwa, NIP/VAT, waluta – i
