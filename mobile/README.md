@@ -88,6 +88,12 @@ długości – przy naczepie minus ok. 3,1 m nad ciągnikiem, suma mas i osi, za
 z naczepy). Dawne wpisy „zestaw” (wymiary całości) działają dalej. Konto bez planu ma jeden
 pojazd prywatny; kolejne po wykupieniu modułu „Dodatkowe pojazdy” (`vehicles_plus`).
 
+Formularz zależy od rodzaju: ciągnik i autobus bez zabudowy, naczepa i przyczepa bez silnika
+i stawek, autobus z miejscami, cysterna z pojemnością (inne zabudowy – miejsca paletowe).
+Dla każdego rodzaju są typowe wartości na start. Terminy (przegląd, OC, tachograf, TDT, ADR)
+wybiera się z kalendarza; lista ostrzega 30 dni przed terminem i po terminie. Mechanik firmy
+zmienia tylko terminy („Terminy przeglądów” w menu pojazdu).
+
 ## Konto, firma i role
 
 Pierwsze logowanie bez firmy pyta: „Mam firmę” (zakładasz firmę – nazwa, NIP/VAT, waluta – i

@@ -376,5 +376,32 @@
   "companyKindPassengerHint": "Buses and coaches (with trailers) and drivers.",
 
   "vehicleTare": "Empty weight",
-  "vehicleTareSummary": "empty {tare} t · payload {payload} t"
+  "vehicleTareSummary": "empty {tare} t · payload {payload} t",
+
+  "roleMechanic": "Mechanic",
+  "vehicleIdentity": "Identification",
+  "vehicleVin": "VIN",
+  "vehicleYear": "Year of manufacture",
+  "vehicleMasses": "Weights and axles",
+  "vehicleBodySection": "Body",
+  "vehiclePallets": "Pallet places (EUR)",
+  "vehiclePassengers": "Passengers",
+  "vehicleEngine": "Engine",
+  "vehicleEmission": "Emission class",
+  "emissionElectric": "Electric",
+  "emissionEuro": "Euro {n}",
+  "vehicleDates": "Due dates",
+  "vehicleDatesHint": "A warning appears on the vehicle list 30 days before a due date. The company's mechanics can change the dates too.",
+  "vehicleLastInspection": "Last technical inspection",
+  "vehicleInspectionUntil": "Technical inspection valid until",
+  "vehicleInsuranceUntil": "Liability insurance valid until",
+  "vehicleTachographUntil": "Tachograph calibration until",
+  "vehicleTdtUntil": "Tank inspection (TDT / UDT) until",
+  "vehicleAdrUntil": "Vehicle ADR certificate until",
+  "vehicleDateNone": "— not set —",
+  "vehicleDateClear": "Clear",
+  "vehicleDatesTitle": "Due dates: {vehicle}",
+  "vehicleServiceAction": "Inspection dates",
+  "vehicleOverdue": "Overdue – {what}: {date}",
+  "vehicleDueSoon": "Due soon – {what}: {date}"
 }

@@ -8,7 +8,7 @@ autobusu i dostawczego – przyczepę. Trasę liczy się dla pojazdu razem z pod
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 
@@ -17,7 +17,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import DateTime, ForeignKey, String, func, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from truckmaps.core.companies import MANAGES_VEHICLES, Company, CompanyKind, company_ids
+from truckmaps.core.companies import (
+    MANAGES_VEHICLES,
+    SERVICES_VEHICLES,
+    Company,
+    CompanyKind,
+    company_ids,
+)
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
@@ -75,6 +81,33 @@ COUPLES = {
 """Co do czego można podpiąć – ciągnika z solówką czy autobusem już nie."""
 
 
+class EmissionClass(StrEnum):
+    """Klasa emisji spalin – myto, strefy czystego transportu, przetargi."""
+
+    EURO3 = "euro3"
+    EURO4 = "euro4"
+    EURO5 = "euro5"
+    EURO6 = "euro6"
+    ELECTRIC = "electric"
+
+
+BODY_KINDS = {
+    VehicleKind.COMBINATION,
+    VehicleKind.RIGID,
+    VehicleKind.VAN,
+    VehicleKind.SEMITRAILER,
+    VehicleKind.TRAILER,
+}
+"""Rodzaje z zabudową (plandeka, chłodnia, cysterna…); ciągnik i autobus jej nie mają."""
+TACHOGRAPH_KINDS = {
+    VehicleKind.COMBINATION,
+    VehicleKind.RIGID,
+    VehicleKind.TRACTOR,
+    VehicleKind.BUS,
+}
+"""Rodzaje z tachografem (dostawczy do 3,5 t go nie ma)."""
+
+
 class TrailerType(StrEnum):
     NONE = "none"
     CURTAIN = "curtain"
@@ -102,6 +135,20 @@ class VehicleProfile(Base):
     seats: Mapped[int | None]
     """Autobus: miejsca siedzące (bez kierowcy)."""
     standing_places: Mapped[int | None]
+    vin: Mapped[str | None] = mapped_column(String(17))
+    production_year: Mapped[int | None]
+    emission_class: Mapped[str | None] = mapped_column(String(10))
+    pallet_places: Mapped[int | None]
+    last_inspection: Mapped[date | None]
+    """Ostatni przegląd techniczny."""
+    inspection_until: Mapped[date | None]
+    tachograph_until: Mapped[date | None]
+    """Legalizacja (sprawdzenie okresowe) tachografu ważna do."""
+    insurance_until: Mapped[date | None]
+    tdt_until: Mapped[date | None]
+    """Badanie zbiornika cysterny (TDT / UDT) ważne do."""
+    adr_until: Mapped[date | None]
+    """Świadectwo dopuszczenia pojazdu do przewozu ADR ważne do."""
     trailer_id: Mapped[str | None] = mapped_column(String(36))
     """Podpięta naczepa (do ciągnika) albo przyczepa (do samochodu, autobusu, dostawczego)."""
     in_use_by: Mapped[str | None] = mapped_column(String(255))
@@ -201,12 +248,32 @@ class VehicleIn(BaseModel):
         return (self.gvw_t or self.weight_t) > HGV_MIN_GVW_T
 
 
-class VehicleData(VehicleIn, CostRates):
+class ServiceDates(BaseModel):
+    """Terminy przeglądów i badań – zmieniają je też mechanicy firmy."""
+
+    last_inspection: date | None = Field(default=None, description="Ostatni przegląd techniczny")
+    inspection_until: date | None = Field(default=None, description="Przegląd techniczny ważny do")
+    tachograph_until: date | None = Field(default=None, description="Legalizacja tachografu do")
+    insurance_until: date | None = Field(default=None, description="Ubezpieczenie OC ważne do")
+    tdt_until: date | None = Field(default=None, description="Badanie TDT / UDT cysterny do")
+    adr_until: date | None = Field(default=None, description="Świadectwo ADR pojazdu do")
+
+
+class VehicleData(VehicleIn, ServiceDates, CostRates):
     company_id: str | None = Field(
         default=None, description="Firma, do której należy pojazd; brak = pojazd prywatny"
     )
     plate: str | None = Field(
         default=None, max_length=15, description="Tablica rejestracyjna", examples=["KTA 12345"]
+    )
+
+    vin: str | None = Field(default=None, max_length=17, description="Numer VIN")
+    production_year: int | None = Field(default=None, ge=1950, le=2100)
+    emission_class: EmissionClass | None = Field(
+        default=None, description="Klasa emisji spalin (pojazdy z silnikiem)"
+    )
+    pallet_places: int | None = Field(
+        default=None, ge=1, le=80, description="Miejsca paletowe (EUR) w zabudowie"
     )
 
     @field_validator("plate")
@@ -215,6 +282,31 @@ class VehicleData(VehicleIn, CostRates):
         """Wielkie litery i pojedyncze spacje, jak na tablicy; pusta = brak."""
         return " ".join((value or "").upper().split()) or None
 
+    @field_validator("vin", mode="before")
+    @classmethod
+    def _vin(cls, value: str | None) -> str | None:
+        """Wielkie litery, bez spacji (VIN przepisany z dowodu bywa z odstępami)."""
+        return "".join((value or "").upper().split()) or None
+
+    @model_validator(mode="after")
+    def _only_what_the_kind_has(self) -> "VehicleData":
+        """Każdy rodzaj ma swoje cechy: pola, które go nie dotyczą, nie są zapisywane."""
+        motor = self.kind not in TOWED
+        if self.kind not in BODY_KINDS:
+            self.trailer_type = TrailerType.NONE
+        if self.kind not in BODY_KINDS or self.trailer_type == TrailerType.TANKER:
+            self.pallet_places = None
+        if not motor:
+            self.emission_class = None
+            self.cost_per_km = self.cost_per_hour = None
+        if self.kind not in TACHOGRAPH_KINDS:
+            self.tachograph_until = None
+        if self.trailer_type != TrailerType.TANKER:
+            self.tdt_until = None
+        if not self.hazmat:
+            self.adr_until = None
+        return self
+
 
 class VehicleOut(VehicleData):
     model_config = ConfigDict(from_attributes=True)
@@ -222,6 +314,8 @@ class VehicleOut(VehicleData):
     id: str
     can_edit: bool = True
     """Czy zalogowany użytkownik może zmienić lub usunąć pojazd."""
+    can_service: bool = True
+    """Czy może zmienić terminy przeglądów (także mechanik firmy)."""
     trailer_id: str | None = None
     trailer_name: str | None = None
     coupled_to_id: str | None = None
@@ -318,6 +412,20 @@ def build_router(current_user) -> APIRouter:
         db.commit()
         return vehicle_outs(db, [vehicle], roles, user)[0]
 
+    @router.put("/{vehicle_id}/service")
+    def service(vehicle_id: str, data: ServiceDates, user: User, db: Db) -> VehicleOut:
+        """Terminy przeglądów i badań – właściciel, dyspozytor albo mechanik firmy."""
+        roles = company_ids(db, user)
+        vehicle = load_owned(db, vehicle_id, user)
+        if not _can_service(vehicle, roles, user):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.vehicles_service_forbidden"))
+        current = VehicleData.model_validate(vehicle, from_attributes=True)
+        cleaned = VehicleData.model_validate(current.model_dump() | data.model_dump())
+        for field in ServiceDates.model_fields:
+            setattr(vehicle, field, getattr(cleaned, field))
+        db.commit()
+        return vehicle_outs(db, [vehicle], roles, user)[0]
+
     @router.post("/{vehicle_id}/release")
     def release(vehicle_id: str, user: User, db: Db) -> VehicleOut:
         """Koniec jazdy: pojazd przestaje być „w użyciu”."""
@@ -398,8 +506,16 @@ def load_drivable(db: Session, vehicle_id: str, user: Principal) -> VehicleProfi
             "trailer_type": trailer.trailer_type,
             "hazmat": vehicle.hazmat or trailer.hazmat,
             "tank_volume_m3": trailer.tank_volume_m3,
+            "kind": VehicleKind.COMBINATION,
+            "pallet_places": trailer.pallet_places,
         }
     )
+
+
+def _can_service(vehicle: VehicleProfile, roles: dict, user: Principal) -> bool:
+    if vehicle.company_id is None:
+        return vehicle.owner_subject == user.subject
+    return roles.get(vehicle.company_id) in SERVICES_VEHICLES
 
 
 def _can_edit(vehicle: VehicleProfile, roles: dict, user: Principal) -> bool:
@@ -450,6 +566,7 @@ def vehicle_outs(
             out.model_copy(
                 update={
                     "can_edit": _can_edit(v, roles, user),
+                    "can_service": _can_service(v, roles, user),
                     "trailer_name": trailer.name if trailer else None,
                     "coupled_to_id": holder.id if holder else None,
                     "coupled_to_name": holder.name if holder else None,

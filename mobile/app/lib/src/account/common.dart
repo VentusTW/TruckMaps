@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import '../l10n.dart';
 
 /// Role w firmie (te same co na serwerze), od najwyższej.
-const roles = ['owner', 'dispatcher', 'driver'];
+const roles = ['owner', 'dispatcher', 'mechanic', 'driver'];
 
 String roleLabel(AppLocalizations l, String? role) => switch (role) {
       'owner' => l.roleOwner,
       'dispatcher' => l.roleDispatcher,
+      'mechanic' => l.roleMechanic,
       _ => l.roleDriver,
     };
 
@@ -27,7 +28,7 @@ String companyKindHint(AppLocalizations l, String? kind) => switch (kind) {
       _ => l.companyKindCarrierHint,
     };
 
-/// Role w firmie danego rodzaju: spedycja nie ma kierowców.
+/// Role w firmie danego rodzaju: spedycja nie ma floty, więc ani kierowców, ani mechaników.
 List<String> rolesFor(String? companyKind) => companyKind == 'forwarder' ? const ['owner', 'dispatcher'] : roles;
 
 /// Jakie pojazdy może mieć firma (jak na serwerze): spedycja – żadnych, transport osób –

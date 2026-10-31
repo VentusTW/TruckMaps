@@ -115,7 +115,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final sent = requests.singleWhere((r) => r.$1 == 'POST').$3!;
-    expect((sent['name'], sent['plate'], sent['height_m'], sent['axle_count']), ('Solówka 12 t', 'kr 1abc', 3.6, 5));
+    // Nowy pojazd zaczyna jako ciągnik z typowymi wartościami (2 osie, DMC 18 t).
+    expect((sent['name'], sent['plate'], sent['height_m'], sent['axle_count'], sent['kind'], sent['gvw_t']),
+        ('Solówka 12 t', 'kr 1abc', 3.6, 2, 'tractor', 18.0));
+    expect((sent['trailer_type'], sent['pallet_places'], sent['cost_currency']), ('curtain', null, 'EUR'));
     expect(find.textContaining('Solówka 12 t'), findsOneWidget);
     expect(changes, 1);
   });
@@ -210,6 +213,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Nazwa'), 'Setra');
     await tester.enterText(find.widgetWithText(TextFormField, 'Wysokość'), '3,7');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Miejsca siedzące'), '');
     await tester.tap(find.text('Zapisz'));
     await tester.pumpAndSettle();
     expect(requests.where((r) => r.$1 == 'POST'), isEmpty);
@@ -221,5 +225,45 @@ void main() {
     final bus = requests.singleWhere((r) => r.$1 == 'POST').$3!;
     expect((bus['kind'], bus['seats'], bus['standing_places']), ('bus', 49, 10));
     expect(find.textContaining('49 miejsc siedz. + 10 stoj.'), findsOneWidget);
+  });
+
+  testWidgets('formularz według rodzaju: ciągnik bez zabudowy, naczepa bez silnika i stawek', (tester) async {
+    vehicles = [];
+    await pump(tester);
+    await tester.tap(find.text('Dodaj pojazd'));
+    await tester.pumpAndSettle();
+
+    // Ciągnik (domyślny): silnik, tachograf, stawki; bez zabudowy i palet.
+    expect(find.text('Klasa emisji spalin'), findsOneWidget);
+    expect(find.text('Legalizacja tachografu do'), findsOneWidget);
+    expect(find.text('Za km'), findsOneWidget);
+    expect(find.text('Zabudowa'), findsNothing);
+    expect(find.widgetWithText(TextFormField, 'Miejsca paletowe (EUR)'), findsNothing);
+
+    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Rodzaj'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Naczepa').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Klasa emisji spalin'), findsNothing);
+    expect(find.text('Legalizacja tachografu do'), findsNothing);
+    expect(find.text('Za km'), findsNothing);
+    expect(find.widgetWithText(TextFormField, 'Miejsca paletowe (EUR)'), findsOneWidget);
+    String value(String label) => tester.widget<TextFormField>(find.widgetWithText(TextFormField, label)).controller!.text;
+    expect((value('Długość'), value('DMC'), value('Liczba osi')), ('13,6', '36', '3'));
+  });
+
+  testWidgets('mechanik: tylko terminy; ostrzeżenie o terminie na liście', (tester) async {
+    final soon = DateTime.now().add(const Duration(days: 10));
+    final iso = '${soon.year}-${soon.month.toString().padLeft(2, '0')}-${soon.day.toString().padLeft(2, '0')}';
+    vehicles = [
+      {...truck, 'kind': 'tractor', 'can_edit': false, 'can_service': true, 'inspection_until': iso},
+    ];
+    await pump(tester);
+    expect(find.textContaining('Wkrótce – Przegląd techniczny ważny do'), findsOneWidget);
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Zmień'), findsNothing);
+    expect(find.text('Terminy przeglądów'), findsOneWidget);
   });
 }

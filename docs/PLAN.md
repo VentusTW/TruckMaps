@@ -263,6 +263,10 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] konto bez planu (kierowca): wyznaczanie tras i jeden pojazd prywatny; kolejne – po wykupieniu (moduł `vehicles_plus`)
   - [x] pojazdy według rodzaju, każdy osobno: ciągnik, samochód ciężarowy, samochód dostawczy (towary), autobus / bus do przewozu osób (miejsca siedzące i stojące), naczepa, przyczepa (zabudowa, cysterna z pojemnością); łączenie: ciągnik + naczepa, solówka / autobus / dostawczy + przyczepa (przeciąganie albo „Podepnij”); trasa dla pojazdu z podpiętą częścią; „w użyciu” (podpięta gdzie indziej, pojazd w nawigacji) na stonowanym czerwonym
   - [ ] w użyciu: kto jedzie (imię kierowcy), przydział kierowców do pojazdów (K3), dokładna długość zestawu z dokumentów
+  - [x] formularz według rodzaju pojazdu (cechy ważne dla przedsiębiorcy): VIN, rok produkcji, klasa emisji (pojazdy z silnikiem), zabudowa i miejsca paletowe albo pojemność cysterny (solówka, dostawczy, naczepa, przyczepa), miejsca w autobusie, stawki tylko dla pojazdów z silnikiem; typowe wartości na start dla każdego rodzaju
+  - [x] terminy: ostatni przegląd, przegląd ważny do, OC, legalizacja tachografu (pojazdy z tachografem), badanie TDT / UDT (cysterny), świadectwo ADR; ostrzeżenie na liście 30 dni przed terminem i po terminie
+  - [x] rola **mechanik** (nie w spedycji): widzi pojazdy firmy i zmienia ich terminy
+  - [ ] **Serwis** (moduł dla mechaników): zlecenia naprawy od kierowców i dyspozytorów, przyjęcie, protokół naprawy (czynności, części, czas, zdjęcia), historia napraw pojazdu, przypomnienia o terminach (powiadomienia)
 - [ ] **Program administracyjny** (osobna aplikacja dla administratora projektu):
   - wgląd we wszystkie dane (konta, firmy, członkowie, pojazdy, zgłoszenia, wydania, licencje) – bez haseł (są tylko u dostawcy logowania); listy z filtrami i wyszukiwaniem
   - zmiany w danych firmy tylko za zgodą właściciela: właściciel w aplikacji udziela dostępu (zakres, termin ważności, możliwość cofnięcia), każda zmiana administratora w dzienniku widocznym dla firmy

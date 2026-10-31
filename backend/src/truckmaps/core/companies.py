@@ -35,9 +35,13 @@ class Role(StrEnum):
     """Pojazdy firmy i zapraszanie kierowców."""
     DRIVER = "driver"
     """Korzysta z pojazdów firmy."""
+    MECHANIC = "mechanic"
+    """Obsługa pojazdów: terminy przeglądów, później zlecenia i protokoły napraw."""
 
 
 MANAGES_VEHICLES = {Role.OWNER, Role.DISPATCHER}
+SERVICES_VEHICLES = MANAGES_VEHICLES | {Role.MECHANIC}
+"""Kto zmienia terminy przeglądów i badań pojazdów firmy."""
 
 
 class CompanyKind(StrEnum):
@@ -232,8 +236,8 @@ def _owners(db: Session, company_id: str) -> int:
 
 
 def _check_role_allowed(company: Company, role: Role) -> None:
-    """Spedycja nie ma kierowców – zaprasza się tam tylko właścicieli i spedytorów."""
-    if company.kind == CompanyKind.FORWARDER and role == Role.DRIVER:
+    """Spedycja nie ma floty ani kierowców – zaprasza się tam tylko właścicieli i spedytorów."""
+    if company.kind == CompanyKind.FORWARDER and role in (Role.DRIVER, Role.MECHANIC):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.forwarder_no_drivers"))
 
 

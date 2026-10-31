@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../account/common.dart' show companyAllows;
 import '../l10n.dart';
+import 'service_dates.dart';
 
 /// Rodzaje naczep (te same co na serwerze).
 const trailerTypes = ['none', 'curtain', 'box', 'reefer', 'tanker', 'flatbed', 'container', 'lowloader'];
@@ -47,6 +48,23 @@ IconData kindIcon(String? kind) => switch (kind) {
       _ => Icons.local_shipping_outlined,
     };
 
+/// Klasy emisji spalin (jak na serwerze).
+const emissionClasses = ['euro3', 'euro4', 'euro5', 'euro6', 'electric'];
+
+String emissionLabel(AppLocalizations l, String value) =>
+    value == 'electric' ? l.emissionElectric : l.emissionEuro(value.substring(4));
+
+/// Typowe wartości na start dla nowego pojazdu danego rodzaju (wysokość, szerokość, długość,
+/// DMC, masa własna, osie, nacisk osi) – użytkownik poprawia według dowodu rejestracyjnego.
+const _typical = {
+  'tractor': (3.9, 2.55, 6.0, 18.0, 7.5, 2, 11.5),
+  'rigid': (3.8, 2.55, 10.0, 26.0, 11.0, 3, 11.5),
+  'van': (2.8, 2.1, 6.5, 3.5, 2.2, 2, 1.8),
+  'bus': (3.7, 2.55, 12.2, 19.0, 13.0, 2, 11.5),
+  'semitrailer': (4.0, 2.55, 13.6, 36.0, 7.0, 3, 9.0),
+  'trailer': (3.8, 2.55, 8.2, 24.0, 6.0, 2, 10.0),
+};
+
 /// Zakresy jak na serwerze (VehicleIn) – błąd widać od razu, przed wysłaniem.
 const _ranges = {
   'height_m': (1.5, 6.0),
@@ -60,6 +78,8 @@ const _ranges = {
   'tank_volume_m3': (0.1, 100.0),
   'seats': (1.0, 120.0),
   'standing_places': (0.0, 200.0),
+  'pallet_places': (1.0, 80.0),
+  'production_year': (1950.0, 2100.0),
 };
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
@@ -80,6 +100,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late String _trailer;
   late bool _hazmat;
   late String _currency;
+  String? _emission;
+  late final Map<String, DateTime?> _dates;
   String? _companyId;
   List<Map<String, dynamic>> _companies = const [];
   List<Map<String, dynamic>> _currencies = const [];
@@ -113,8 +135,14 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'tank_volume_m3': TextEditingController(text: text('tank_volume_m3')),
       'seats': TextEditingController(text: text('seats')),
       'standing_places': TextEditingController(text: text('standing_places')),
+      'vin': TextEditingController(text: text('vin')),
+      'production_year': TextEditingController(text: text('production_year')),
+      'pallet_places': TextEditingController(text: text('pallet_places')),
     };
+    _emission = v['emission_class'] as String?;
+    _dates = {for (final k in serviceDateKeys) k: parseDate(v[k])};
     _kind = v['kind'] as String? ?? (widget.vehicle == null ? 'tractor' : 'combination');
+    if (widget.vehicle == null) _applyTypical(_kind, format: false);
     _trailer = v['trailer_type'] as String? ?? 'curtain';
     _hazmat = v['hazmat'] == true;
     _currency = v['cost_currency'] as String? ?? 'EUR';
@@ -131,7 +159,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     if (_formatted) return;
     _formatted = true;
     for (final entry in _fields.entries) {
-      if (entry.key == 'name' || entry.key == 'plate') continue;
+      if (const {'name', 'plate', 'vin', 'production_year', 'axle_count', 'seats', 'standing_places', 'pallet_places'}
+          .contains(entry.key)) {
+        continue;
+      }
       final value = double.tryParse(entry.value.text);
       if (value != null) entry.value.text = context.l.number(value);
     }
@@ -164,6 +195,21 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     } catch (_) {
       // Bez listy firm i walut formularz działa dalej (pojazd prywatny, waluta jak była).
     }
+  }
+
+  /// Nowy pojazd: po zmianie rodzaju typowe wymiary i masy tego rodzaju.
+  void _applyTypical(String kind, {bool format = true}) {
+    final t = _typical[kind];
+    if (t == null) return;
+    String n(double value) => format ? context.l.number(value) : '$value';
+    _fields['height_m']!.text = n(t.$1);
+    _fields['width_m']!.text = n(t.$2);
+    _fields['length_m']!.text = n(t.$3);
+    _fields['gvw_t']!.text = n(t.$4);
+    _fields['tare_t']!.text = n(t.$5);
+    _fields['axle_count']!.text = '${t.$6}';
+    _fields['axle_load_t']!.text = n(t.$7);
+    if (kind == 'bus' && _fields['seats']!.text.isEmpty) _fields['seats']!.text = '49';
   }
 
   double? _number(String key) => double.tryParse(_fields[key]!.text.trim().replaceAll(',', '.'));
@@ -216,6 +262,11 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'cost_per_hour': _number('cost_per_hour'),
       'cost_currency': _currency,
       'company_id': _companyId,
+      'vin': _fields['vin']!.text.trim(),
+      'production_year': _number('production_year')?.round(),
+      'emission_class': towedKinds.contains(_kind) ? null : _emission,
+      'pallet_places': bodyKinds.contains(_kind) && _trailer != 'tanker' ? _number('pallet_places')?.round() : null,
+      for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
     };
     try {
       final saved = _editing
@@ -254,6 +305,20 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ]),
         );
 
+    final motor = !towed;
+    final hasBody = bodyKinds.contains(_kind);
+    Widget section(String title, [String? hint]) => Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: theme.textTheme.titleSmall),
+            if (hint != null) Text(hint, style: theme.textTheme.bodySmall),
+          ]),
+        );
+    final dateKeys = [
+      for (final k in serviceDateKeys)
+        if (serviceDateApplies(k, kind: _kind, body: _trailer, hazmat: _hazmat)) k,
+    ];
+
     return Scaffold(
       appBar: AppBar(title: Text(_editing ? l.vehicleEditTitle : l.vehicleAddTitle)),
       body: Form(
@@ -268,10 +333,11 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             ],
             onChanged: (value) => setState(() {
               _kind = value ?? _kind;
-              if (towedKinds.contains(_kind) && _trailer == 'none') _trailer = 'curtain';
+              if (!_editing) _applyTypical(_kind);
+              if (bodyKinds.contains(_kind) && _kind != 'combination' && _trailer == 'none') _trailer = 'curtain';
             }),
           ),
-          const SizedBox(height: 12),
+          section(l.vehicleIdentity),
           row([
             TextFormField(
               controller: _fields['name'],
@@ -291,70 +357,107 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                   labelText: l.vehiclePlate, hintText: 'KTA 12345', border: const OutlineInputBorder(), isDense: true),
             ),
           ]),
-          Text(l.vehicleDimensions, style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          row([
+            TextFormField(
+              controller: _fields['vin'],
+              maxLength: 20,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(labelText: l.vehicleVin, border: const OutlineInputBorder(), isDense: true),
+            ),
+            _numberField('production_year', l.vehicleYear, required: false, integer: true),
+          ]),
+          section(l.vehicleDimensions),
           row([
             _numberField('height_m', l.vehicleHeight, suffix: 'm'),
             _numberField('width_m', l.vehicleWidth, suffix: 'm'),
             _numberField('length_m', l.vehicleLength, suffix: 'm'),
           ]),
+          section(l.vehicleMasses),
           row([
             _numberField('gvw_t', l.vehicleGvw, suffix: 't'),
             _numberField('tare_t', l.vehicleTare, suffix: 't', required: false),
           ]),
           row([
-            _numberField('axle_load_t', l.vehicleAxleLoad, suffix: 't'),
             _numberField('axle_count', l.vehicleAxleCount, integer: true),
+            _numberField('axle_load_t', l.vehicleAxleLoad, suffix: 't'),
           ]),
-          DropdownButtonFormField<String>(
-            value: _trailer,
-            decoration: InputDecoration(
-                labelText: towed ? l.vehicleBody : l.vehicleTrailer, border: const OutlineInputBorder(), isDense: true),
-            items: [
-              for (final t in trailerTypes)
-                if (!towed || t != 'none') DropdownMenuItem(value: t, child: Text(trailerLabel(l, t))),
-            ],
-            onChanged: (value) => setState(() => _trailer = value ?? _trailer),
-          ),
-          if (_kind == 'bus')
+          if (hasBody) ...[
+            section(l.vehicleBodySection),
+            DropdownButtonFormField<String>(
+              value: _trailer,
+              decoration: InputDecoration(labelText: l.vehicleBody, border: const OutlineInputBorder(), isDense: true),
+              items: [
+                for (final t in trailerTypes)
+                  if (t != 'none' || _kind == 'combination') DropdownMenuItem(value: t, child: Text(trailerLabel(l, t))),
+              ],
+              onChanged: (value) => setState(() => _trailer = value ?? _trailer),
+            ),
+            const SizedBox(height: 12),
+            if (_trailer == 'tanker')
+              _numberField('tank_volume_m3', l.vehicleTankVolume, suffix: 'm³', required: false)
+            else
+              _numberField('pallet_places', l.vehiclePallets, required: false, integer: true),
+            const SizedBox(height: 12),
+          ],
+          if (_kind == 'bus') ...[
+            section(l.vehiclePassengers),
             row([
               _numberField('seats', l.vehicleSeats, integer: true),
               _numberField('standing_places', l.vehicleStanding, integer: true, required: false),
             ]),
-          if (_trailer == 'tanker') ...[
-            const SizedBox(height: 12),
-            _numberField('tank_volume_m3', l.vehicleTankVolume, suffix: 'm³', required: false),
           ],
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _hazmat,
-            onChanged: (on) => setState(() => _hazmat = on),
-            title: Text(l.vehicleHazmat),
-          ),
-          const SizedBox(height: 8),
-          Text(l.vehicleCosts, style: theme.textTheme.titleSmall),
-          Text(l.vehicleCostsHint, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 8),
-          row([
-            _numberField('cost_per_km', l.vehicleCostPerKm, suffix: _currency, required: false),
-            _numberField('cost_per_hour', l.vehicleCostPerHour, suffix: _currency, required: false),
-            DropdownButtonFormField<String>(
-              value: _currency,
-              decoration:
-                  InputDecoration(labelText: l.vehicleCurrency, border: const OutlineInputBorder(), isDense: true),
+          if (motor) ...[
+            section(l.vehicleEngine),
+            DropdownButtonFormField<String?>(
+              value: _emission,
+              decoration: InputDecoration(labelText: l.vehicleEmission, border: const OutlineInputBorder(), isDense: true),
               items: [
-                for (final c in _currencies.isEmpty
-                    ? [
-                        {'code': _currency}
-                      ]
-                    : _currencies)
-                  DropdownMenuItem(value: c['code'] as String, child: Text(c['code'] as String)),
+                DropdownMenuItem(value: null, child: Text(l.vehicleDateNone)),
+                for (final e in emissionClasses) DropdownMenuItem(value: e, child: Text(emissionLabel(l, e))),
               ],
-              onChanged: (value) {
-                if (value != null && value != _currency) _changeCurrency(value);
-              },
+              onChanged: (value) => setState(() => _emission = value),
             ),
-          ]),
+          ],
+          if (_kind != 'bus')
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _hazmat,
+              onChanged: (on) => setState(() => _hazmat = on),
+              title: Text(l.vehicleHazmat),
+            ),
+          section(l.vehicleDates, l.vehicleDatesHint),
+          for (final key in dateKeys)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: DateField(
+                label: serviceDateLabel(l, key),
+                value: _dates[key],
+                onChanged: (day) => setState(() => _dates[key] = day),
+              ),
+            ),
+          if (motor) ...[
+            section(l.vehicleCosts, l.vehicleCostsHint),
+            row([
+              _numberField('cost_per_km', l.vehicleCostPerKm, suffix: _currency, required: false),
+              _numberField('cost_per_hour', l.vehicleCostPerHour, suffix: _currency, required: false),
+              DropdownButtonFormField<String>(
+                value: _currency,
+                decoration:
+                    InputDecoration(labelText: l.vehicleCurrency, border: const OutlineInputBorder(), isDense: true),
+                items: [
+                  for (final c in _currencies.isEmpty
+                      ? [
+                          {'code': _currency}
+                        ]
+                      : _currencies)
+                    DropdownMenuItem(value: c['code'] as String, child: Text(c['code'] as String)),
+                ],
+                onChanged: (value) {
+                  if (value != null && value != _currency) _changeCurrency(value);
+                },
+              ),
+            ]),
+          ],
           if (_companies.isNotEmpty) ...[
             DropdownButtonFormField<String?>(
               value: _companyId,
