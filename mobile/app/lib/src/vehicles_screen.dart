@@ -9,12 +9,15 @@ import 'vehicles/vehicle_form.dart';
 /// Profile pojazdów konta (prywatne i firmowe) – wymiary, według których liczona jest trasa.
 /// Dodawanie, zmiana i usuwanie; pojazd firmy zmieniają właściciel i dyspozytorzy.
 class VehiclesScreen extends StatefulWidget {
-  const VehiclesScreen({super.key, required this.api, this.onChanged});
+  const VehiclesScreen({super.key, required this.api, this.onChanged, this.refresh});
 
   final CoreApi api;
 
   /// Po każdej zmianie listy (np. planer odświeża wybór pojazdu).
   final VoidCallback? onChanged;
+
+  /// Sygnał „pobierz listę od nowa” (np. wejście na ekran).
+  final Listenable? refresh;
 
   @override
   State<VehiclesScreen> createState() => _VehiclesScreenState();
@@ -22,6 +25,26 @@ class VehiclesScreen extends StatefulWidget {
 
 class _VehiclesScreenState extends State<VehiclesScreen> {
   late Future<dynamic> _vehicles = widget.api.get('/api/vehicles');
+
+  @override
+  void initState() {
+    super.initState();
+    widget.refresh?.addListener(_refresh);
+  }
+
+  @override
+  void dispose() {
+    widget.refresh?.removeListener(_refresh);
+    super.dispose();
+  }
+
+  /// Świeża lista bez powiadamiania innych ekranów (nic się tu nie zmieniło).
+  void _refresh() {
+    final vehicles = widget.api.get('/api/vehicles');
+    setState(() {
+      _vehicles = vehicles;
+    });
+  }
 
   void _reload() {
     final vehicles = widget.api.get('/api/vehicles');
@@ -244,7 +267,8 @@ class _VehicleCard extends StatelessWidget {
         : '';
     final seats = v['seats'] is num ? ' · ${l.vehicleSeatsSummary(n(v['seats']), n(v['standing_places'] ?? 0))}' : '';
     return Card(
-      color: inUse ? _InUse.tint(context) : null,
+      // W naprawie – wyraźnie na czerwono (wyłączony z użytku); w użyciu – stonowany czerwony.
+      color: v['in_repair'] == true ? scheme.errorContainer : (inUse ? _InUse.tint(context) : null),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
           leading: Icon(kindIcon(kind), color: inUse ? scheme.error : null),
