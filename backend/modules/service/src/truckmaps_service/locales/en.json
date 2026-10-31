@@ -1,0 +1,6 @@
+{
+  "service.order_not_found": "Order not found.",
+  "service.vehicle_not_found": "Vehicle not found.",
+  "service.handle_forbidden": "Orders are handled by the company's mechanics, dispatchers and owner.",
+  "service.wrong_status": "This is not possible in the order's current state."
+}

@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [hello]
+        module: [hello, service]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,7 +79,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [packages/core_sdk, packages/app_auth, packages/module_hello, app, admin]
+        package: [packages/core_sdk, packages/app_auth, packages/module_hello, packages/module_service, app, admin]
     defaults:
       run:
         working-directory: mobile/${{ matrix.package }}

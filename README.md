@@ -15,7 +15,7 @@ copy infra\.env.example infra\.env
 docker compose -f infra/docker-compose.yml up -d --wait
 .venv\Scripts\python infra\zitadel\bootstrap.py
 Add-Content .env "TRUCKMAPS_DATABASE_URL=postgresql+psycopg://truckmaps:truckmaps_dev@127.0.0.1:5432/truckmaps"
-.venv\Scripts\alembic -c backend\alembic.ini upgrade head
+.venv\Scripts\alembic -c backend\alembic.ini upgrade heads
 powershell -ExecutionPolicy Bypass -File packaging\windows\build_pobieraj.ps1
 dist\pobieraj.exe mapy
 powershell -ExecutionPolicy Bypass -File infra\build_routing.ps1
@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File infra\build_routing.ps1
 
 - `bootstrap.py` tworzy w Zitadelu projekt i aplikację logowania, konto techniczne serwera (reset i zmiana hasła), kieruje maile do Mailpit (po polsku) i zapisuje konfigurację do `.env`.
 - Adres bazy: `127.0.0.1`, nie `localhost` – pod `localhost` Windows najpierw próbuje IPv6 i połączenie wisi. Hasło jak w `infra/.env`.
-- `alembic ... upgrade head` tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
+- `alembic ... upgrade heads` (rdzeń i moduły z tabelami) tworzy i aktualizuje tabele TruckMaps (uruchamiaj po każdej aktualizacji kodu).
 - `pobieraj.exe mapy` pobiera mapy Polski, Niemiec, Czech, Słowacji i Litwy (ok. 8 GB) do `infra/data/osm` – patrz „Pobieranie dużych danych” niżej.
 - `build_routing.ps1` łączy je w jedną mapę `infra/data/valhalla/region.osm.pbf` (przy granicach mapy krajów nachodzą na siebie) i buduje z niej dane tras Valhalli. Dotychczasowe dane działają aż do podmiany na końcu, więc można go uruchamiać przy działającym planerze.
 - `import_restrictions.py` wczytuje z połączonej mapy ograniczenia dla ciężarówek (wysokość, masa, nacisk osi, szerokość, długość, zakazy) i drogi w strefach przemysłowych. Uruchamiaj po każdej nowej mapie.

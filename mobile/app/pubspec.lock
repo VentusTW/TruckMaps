@@ -410,6 +410,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  module_service:
+    dependency: "direct main"
+    description:
+      path: "../packages/module_service"
+      relative: true
+    source: path
+    version: "0.1.0"
   path:
     dependency: transitive
     description:

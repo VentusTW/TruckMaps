@@ -6,6 +6,7 @@
 root_packages =
     truckmaps
     truckmaps_hello
+    truckmaps_service
 
 [importlinter:contract:sdk-pure]
 name = SDK nie zależy od wnętrza rdzenia
@@ -20,6 +21,7 @@ name = Moduły korzystają tylko z truckmaps.sdk
 type = forbidden
 source_modules =
     truckmaps_hello
+    truckmaps_service
 forbidden_modules =
     truckmaps.core
 
@@ -30,9 +32,11 @@ source_modules =
     truckmaps
 forbidden_modules =
     truckmaps_hello
+    truckmaps_service
 
 [importlinter:contract:modules-independent]
 name = Moduły nie importują się nawzajem
 type = independence
 modules =
     truckmaps_hello
+    truckmaps_service

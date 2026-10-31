@@ -467,5 +467,6 @@
   "vehicleOverdue": "Po terminie – {what}: {date}",
   "@vehicleOverdue": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
   "vehicleDueSoon": "Wkrótce – {what}: {date}",
-  "@vehicleDueSoon": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}}
+  "@vehicleDueSoon": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "vehicleInRepair": "w naprawie"
 }
