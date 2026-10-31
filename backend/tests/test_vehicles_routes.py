@@ -1030,3 +1030,22 @@ def test_bus_needs_seats_and_others_have_none(database):
     assert (saved["kind"], saved["seats"], saved["standing_places"]) == ("bus", 49, 0)
     van = client.post("/api/vehicles", json=bus | {"kind": "van", "seats": 8}, headers=anna).json()
     assert van["seats"] is None
+
+
+def test_actual_weight_defaults_to_gvw(database):
+    client = make_client(database)
+    anna = as_user("anna")
+    body = {k: v for k, v in TRUCK.items() if k != "weight_t"}
+
+    saved = client.post("/api/vehicles", json=body | {"gvw_t": 18}, headers=anna).json()
+    assert (saved["weight_t"], saved["gvw_t"]) == (18, 18)
+    missing = client.post("/api/vehicles", json=body, headers=anna)
+    assert missing.status_code == 422
+    assert "Podaj DMC pojazdu." in missing.text
+
+    with_tare = client.post(
+        "/api/vehicles", json=body | {"gvw_t": 18, "tare_t": 7.5}, headers=anna
+    ).json()
+    assert (with_tare["tare_t"], with_tare["weight_t"]) == (7.5, 18)
+    heavy = client.post("/api/vehicles", json=body | {"gvw_t": 18, "tare_t": 20}, headers=anna)
+    assert heavy.status_code == 422

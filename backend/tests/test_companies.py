@@ -427,3 +427,66 @@ def test_company_kind_limits_fleet_and_roles(client):
         headers=as_user("olek"),
     )
     assert to_passenger.json()["kind"] == "passenger"
+
+
+def test_vehicle_features_by_kind_and_mechanic_service_dates(client):
+    company_id = new_company(client)
+    join(client, company_id, "marek", role="mechanic")
+    join(client, company_id, "jan")
+    extra = {
+        "company_id": company_id,
+        "vin": "wdb 9634031l123456",
+        "production_year": 2021,
+        "emission_class": "euro6",
+        "pallet_places": 33,
+        "tachograph_until": "2027-05-01",
+        "tdt_until": "2027-01-01",
+        "cost_per_km": 1.1,
+    }
+    tractor = client.post(
+        "/api/vehicles",
+        json=TRUCK | extra | {"kind": "tractor", "trailer_type": "curtain"},
+        headers=as_user("olek"),
+    )
+    assert tractor.status_code == 201, tractor.json()
+    tractor = tractor.json()
+    # Ciągnik: bez zabudowy i miejsc paletowych; z tachografem, klasą emisji i stawkami.
+    assert (tractor["vin"], tractor["trailer_type"], tractor["pallet_places"]) == (
+        "WDB9634031L123456",
+        "none",
+        None,
+    )
+    assert (tractor["emission_class"], tractor["tachograph_until"]) == ("euro6", "2027-05-01")
+    assert tractor["tdt_until"] is None
+    tank = client.post(
+        "/api/vehicles",
+        json=TRUCK | extra | {"kind": "semitrailer", "trailer_type": "tanker", "axle_count": 3},
+        headers=as_user("olek"),
+    ).json()
+    # Naczepa: bez silnika, tachografu i stawek; cysterna – z badaniem TDT, bez palet.
+    assert (tank["emission_class"], tank["tachograph_until"], tank["cost_per_km"]) == (
+        None,
+        None,
+        None,
+    )
+    assert (tank["tdt_until"], tank["pallet_places"]) == ("2027-01-01", None)
+
+    dates = {"last_inspection": "2026-10-01", "inspection_until": "2027-10-01"}
+    url = f"/api/vehicles/{tractor['id']}/service"
+    by_mechanic = client.put(url, json=dates, headers=as_user("marek"))
+    assert by_mechanic.status_code == 200
+    assert by_mechanic.json()["inspection_until"] == "2027-10-01"
+    assert by_mechanic.json()["can_edit"] is False
+    assert client.put(url, json=dates, headers=as_user("jan")).status_code == 403
+    edit = client.put(
+        f"/api/vehicles/{tractor['id']}", json=TRUCK | {"kind": "tractor"}, headers=as_user("marek")
+    )
+    assert edit.status_code == 403
+
+    forwarder = client.post(
+        "/api/companies", json={"name": "Spedycja", "kind": "forwarder"}, headers=as_user("olek")
+    ).json()["id"]
+    invite = client.post(
+        f"/api/companies/{forwarder}/invites", json={"role": "mechanic"}, headers=as_user("olek")
+    )
+    assert invite.status_code == 422

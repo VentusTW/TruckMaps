@@ -199,6 +199,7 @@ class _MembersScreenState extends State<MembersScreen> {
       leading: Icon(switch (role) {
         'owner' => Icons.star_outline,
         'dispatcher' => Icons.support_agent,
+        'mechanic' => Icons.build_outlined,
         _ => Icons.local_shipping_outlined,
       }),
       title: Text(me ? l.memberMe('${member['display_name']}') : '${member['display_name']}'),

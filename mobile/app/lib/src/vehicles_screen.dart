@@ -1,7 +1,9 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'l10n.dart';
+import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_form.dart';
 
 /// Profile pojazdów konta (prywatne i firmowe) – wymiary, według których liczona jest trasa.
@@ -32,6 +34,13 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   Future<void> _open([Map<String, dynamic>? vehicle]) async {
     final saved = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute(builder: (_) => VehicleFormScreen(api: widget.api, vehicle: vehicle)),
+    );
+    if (saved != null && mounted) _reload();
+  }
+
+  Future<void> _service(Map<String, dynamic> vehicle) async {
+    final saved = await Navigator.of(context).push<dynamic>(
+      MaterialPageRoute(builder: (_) => ServiceDatesScreen(api: widget.api, vehicle: vehicle)),
     );
     if (saved != null && mounted) _reload();
   }
@@ -133,6 +142,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 vehicle: v,
                 onEdit: () => _open(v),
                 onDelete: () => _delete(v),
+                onService: () => _service(v),
                 coupling: couples.containsKey(v['kind'])
                     ? _CouplingSlot(
                         vehicle: v,
@@ -146,7 +156,8 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               );
           Widget trailerCard(Map<String, dynamic> t) => _DraggableTrailer(
                 trailer: t,
-                child: _VehicleCard(vehicle: t, onEdit: () => _open(t), onDelete: () => _delete(t)),
+                child: _VehicleCard(
+                    vehicle: t, onEdit: () => _open(t), onDelete: () => _delete(t), onService: () => _service(t)),
               );
           List<Widget> section(String title, List<Map<String, dynamic>> items, Widget Function(Map<String, dynamic>) card,
                   String empty) =>
@@ -200,11 +211,13 @@ class _InUse extends StatelessWidget {
 }
 
 class _VehicleCard extends StatelessWidget {
-  const _VehicleCard({required this.vehicle, required this.onEdit, required this.onDelete, this.coupling});
+  const _VehicleCard(
+      {required this.vehicle, required this.onEdit, required this.onDelete, required this.onService, this.coupling});
 
   final Map<String, dynamic> vehicle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onService;
   final Widget? coupling;
 
   @override
@@ -215,12 +228,17 @@ class _VehicleCard extends StatelessWidget {
     final company = v['company_id'] != null;
     final editable = v['can_edit'] != false;
     final inUse = v['in_use'] == true;
+    final service = v['can_service'] == true;
+    final urgent = mostUrgent(v);
     String n(Object? value) => value is num ? l.number(value) : '–';
     final kind = v['kind'] as String?;
-    final summary = l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']), n(v['weight_t']),
+    final summary = l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']),
         n(v['gvw_t']), n(v['axle_load_t']));
     final tank = v['tank_volume_m3'] is num ? ' · ${l.number(v['tank_volume_m3'] as num)} m³' : '';
     final adr = v['hazmat'] == true ? ' · ADR' : '';
+    final tare = v['tare_t'] is num && v['gvw_t'] is num
+        ? ' · ${l.vehicleTareSummary(n(v['tare_t']), n((v['gvw_t'] as num) - (v['tare_t'] as num)))}'
+        : '';
     final seats = v['seats'] is num ? ' · ${l.vehicleSeatsSummary(n(v['seats']), n(v['standing_places'] ?? 0))}' : '';
     return Card(
       color: inUse ? _InUse.tint(context) : null,
@@ -230,19 +248,40 @@ class _VehicleCard extends StatelessWidget {
           title: Text(_title(v)),
           subtitle: Text('${kindLabel(l, kind)} · ${company ? l.vehicleOfCompany : l.vehiclePrivate}'
               '${inUse ? ' · ${_inUseText(l, v)}' : ''}\n'
-              '$summary$tank$seats$adr'),
+              '$summary$tare$tank$seats$adr'),
           isThreeLine: true,
-          onTap: editable ? onEdit : null,
-          trailing: editable
+          onTap: editable ? onEdit : (service ? onService : null),
+          trailing: editable || service
               ? PopupMenuButton<String>(
-                  onSelected: (action) => action == 'edit' ? onEdit() : onDelete(),
+                  onSelected: (action) => switch (action) {
+                    'edit' => onEdit(),
+                    'service' => onService(),
+                    _ => onDelete(),
+                  },
                   itemBuilder: (context) => [
-                    PopupMenuItem(value: 'edit', child: Text(l.edit)),
-                    PopupMenuItem(value: 'delete', child: Text(l.delete)),
+                    if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
+                    if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
+                    if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
                   ],
                 )
               : Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline)),
         ),
+        if (urgent != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              Icon(urgent.overdue ? Icons.error_outline : Icons.schedule,
+                  size: 18, color: urgent.overdue ? scheme.error : scheme.tertiary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  (urgent.overdue ? l.vehicleOverdue : l.vehicleDueSoon)(
+                      serviceDateLabel(l, urgent.key), DateFormat.yMd(l.localeName).format(urgent.day)),
+                  style: TextStyle(color: urgent.overdue ? scheme.error : scheme.tertiary),
+                ),
+              ),
+            ]),
+          ),
         if (coupling != null) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), child: coupling),
       ]),
     );

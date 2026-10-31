@@ -36,12 +36,12 @@
   "moduleFromCompanyLicense": "Moduł z firmowej licencji? Właściciel firmy przydzieli go w panelu floty.",
 
   "vehiclesEmpty": "Brak pojazdów. Dodaj pierwszy przyciskiem „Dodaj pojazd”.",
-  "vehicleSummary": "wys. {height} m · szer. {width} m · dł. {length} m · {weight} t (DMC {gvw} t) · nacisk osi {axle} t",
+  "vehicleSummary": "wys. {height} m · szer. {width} m · dł. {length} m · DMC {gvw} t · nacisk osi {axle} t",
   "@vehicleSummary": {
     "description": "Wymiary pojazdu w jednej linii.",
     "placeholders": {
       "height": {"type": "String"}, "width": {"type": "String"}, "length": {"type": "String"},
-      "weight": {"type": "String"}, "gvw": {"type": "String"}, "axle": {"type": "String"}
+      "gvw": {"type": "String"}, "axle": {"type": "String"}
     }
   },
   "vehicleReadOnly": "Pojazd firmy – tylko do odczytu",
@@ -177,7 +177,7 @@
   "vehicleTrailer": "Naczepa / zabudowa",
   "vehicleHazmat": "Przewóz ADR (towary niebezpieczne)",
   "vehicleCosts": "Stawki (do szacunku kosztu trasy)",
-  "vehicleCostsHint": "Puste pole = stawka firmy albo brak szacunku. Zmiana waluty przelicza stawki kursem EBC.",
+  "vehicleCostsHint": "Stawki się sumują: koszt trasy = km × stawka za km (paliwo, opony, zużycie) + godziny jazdy × stawka za godzinę (kierowca, leasing). Puste pole = stawka firmy albo bez tej części. Zmiana waluty przelicza stawki kursem EBC.",
   "vehicleCostPerKm": "Za km",
   "vehicleCostPerHour": "Za godzinę",
   "vehicleCurrency": "Waluta",
@@ -432,5 +432,40 @@
   "companyKindForwarder": "Spedycja (tylko towary)",
   "companyKindForwarderHint": "Zlecenia i przewoźnicy; bez własnej floty i kierowców – właściciel i spedytorzy.",
   "companyKindPassenger": "Transport osób",
-  "companyKindPassengerHint": "Autobusy i busy (z przyczepami) oraz kierowcy."
+  "companyKindPassengerHint": "Autobusy i busy (z przyczepami) oraz kierowcy.",
+
+  "vehicleTare": "Masa własna (pusty)",
+  "vehicleTareSummary": "masa własna {tare} t · ładowność {payload} t",
+  "@vehicleTareSummary": {"placeholders": {"tare": {"type": "String"}, "payload": {"type": "String"}}},
+
+  "roleMechanic": "Mechanik",
+  "vehicleIdentity": "Identyfikacja",
+  "vehicleVin": "VIN",
+  "vehicleYear": "Rok produkcji",
+  "vehicleMasses": "Masy i osie",
+  "vehicleBodySection": "Zabudowa",
+  "vehiclePallets": "Miejsca paletowe (EUR)",
+  "vehiclePassengers": "Pasażerowie",
+  "vehicleEngine": "Silnik",
+  "vehicleEmission": "Klasa emisji spalin",
+  "emissionElectric": "Elektryczny",
+  "emissionEuro": "Euro {n}",
+  "@emissionEuro": {"placeholders": {"n": {"type": "String"}}},
+  "vehicleDates": "Terminy",
+  "vehicleDatesHint": "Ostrzeżenie na liście pojazdów pojawi się 30 dni przed terminem. Terminy zmieniają też mechanicy firmy.",
+  "vehicleLastInspection": "Ostatni przegląd techniczny",
+  "vehicleInspectionUntil": "Przegląd techniczny ważny do",
+  "vehicleInsuranceUntil": "Ubezpieczenie OC ważne do",
+  "vehicleTachographUntil": "Legalizacja tachografu do",
+  "vehicleTdtUntil": "Badanie TDT / UDT cysterny do",
+  "vehicleAdrUntil": "Świadectwo ADR pojazdu do",
+  "vehicleDateNone": "— nie podano —",
+  "vehicleDateClear": "Wyczyść",
+  "vehicleDatesTitle": "Terminy: {vehicle}",
+  "@vehicleDatesTitle": {"placeholders": {"vehicle": {"type": "String"}}},
+  "vehicleServiceAction": "Terminy przeglądów",
+  "vehicleOverdue": "Po terminie – {what}: {date}",
+  "@vehicleOverdue": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "vehicleDueSoon": "Wkrótce – {what}: {date}",
+  "@vehicleDueSoon": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}}
 }
