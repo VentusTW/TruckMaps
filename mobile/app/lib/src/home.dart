@@ -76,6 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Zmiana pojazdów na ekranie „Pojazdy” → planer odświeża listę.
   final _vehiclesChanged = ValueNotifier(0);
 
+  /// Wejście na ekran „Pojazdy” → świeża lista (np. pojazd właśnie trafił do serwisu).
+  final _vehiclesShown = ValueNotifier(0);
+
   /// Nieprzeczytane wiadomości i prośby administratora, które już pokazaliśmy.
   int _unread = 0;
   final _announced = <String>{};
@@ -85,6 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _vehiclesChanged.dispose();
+    _vehiclesShown.dispose();
     _inboxTimer?.cancel();
     super.dispose();
   }
@@ -199,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (_) => VehiclesScreen(
                 api: widget.session.api,
                 onChanged: () => _vehiclesChanged.value++,
+                refresh: _vehiclesShown,
               )),
       if (_company case final company?) ...[
         _Page(
@@ -279,6 +284,9 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
     void select(int index) {
       if (pages[index].id == 'inbox' && _selected != 'inbox') _inboxChanged();
+      // Stan pojazdów zmienia się poza tym ekranem (serwis, nawigacja innych kierowców).
+      if (pages[index].id == 'vehicles') _vehiclesShown.value++;
+      if (pages[index].id == 'route') _vehiclesChanged.value++;
       setState(() => _selected = pages[index].id);
       if (!wide) Navigator.of(context).maybePop();
     }
