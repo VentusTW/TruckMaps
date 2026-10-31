@@ -246,9 +246,22 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Numery domów tylko na ostatnich kilkuset metrach dojazdu do celu i odjazdu ze startu (pomoc przy nieregularnej numeracji); źródła: OSM `addr:housenumber`, w PL punkty adresowe z rejestru państwowego (GUGiK, dane otwarte)
 - [x] Planowanie trasy z kolorami ryzyka w aplikacji (ekran „Trasa”): mapa (flutter_map, kafelki OSM – działa też na Windows), start i cel z adresu, GPS albo dotknięcia mapy, punkty pośrednie, pojazd, godzina wyjazdu, omijanie trudnych dróg; trasa w kolorach oceny, znaki ograniczeń i zakazy ⛔ na mapie, lista ostrzeżeń, zakazy ruchu w czasie z przyciskiem wyjazdu bez postoju, koszt, alternatywy; okno z wyjaśnieniem, gdy trasy nie ma
 - [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
+  - [ ] silnik MapLibre GL zamiast kafelków obrazkowych, w planerze i w nawigacji; kafelki wektorowe z OSM generowane u nas (Planetiler → PMTiles / MBTiles, co tydzień, za darmo), te same do mapy offline
+  - [ ] własny styl (własne kolory i ikony, bez kopiowania cudzej marki): tarcze numerów dróg w kolorach znaków danego kraju (A4, S52, E77, DK 79, 44…), nazwy ulic, numery domów, budynki 3D, cieniowanie terenu, drzewa 3D (na koniec – tylko wygląd)
+  - [ ] widok w nawigacji: pochylenie (3D), obrót za kierunkiem jazdy, przybliżenie zależne od prędkości i odległości do manewru
 - [x] Nawigacja (pierwsza wersja): GPS (geolocator, także Windows), mapa podąża za pojazdem, pasek „zostało X km”, symulacja jazdy i pozycji z dotknięcia mapy, zjazd z trasy → po kilku pozycjach nowa trasa od pozycji (bez minionych punktów pośrednich) i nowy korytarz
 - [x] Nawigacja: manewry i komunikaty głosowe – manewry Valhalli w odpowiedzi trasy (w języku zapytania, także dla alternatyw), karta następnego manewru (strzałka, odległość, napis), zapowiedzi ok. 1 km / 300 m / tuż przed / „jedź prosto przez …”, wyciszanie; mowa z syntezatora systemu bez sieci (Android TextToSpeech, Windows System.Speech)
 - [ ] Nawigacja: głos na iOS (AVSpeechSynthesizer), zapowiedzi zależne od prędkości, pasy ruchu, dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
+- [ ] Ekran nawigacji w nowym układzie (wzór: zrzuty zapowiedzi TirNavi z 31.10.2026 – układ i pomysły, własny wygląd):
+  - [ ] półprzezroczyste ciemne karty z zaokrągleniami
+  - [ ] karta manewru: odległość, strzałka / rondo z numerem zjazdu, tarcza drogi, nazwa ulicy, kierunek z tablicy („Oświęcim”), **pasy ruchu** ze strzałkami (Valhalla – sprawdzić `turn_lanes` na naszych danych)
+  - [ ] „pigułka” z następną ulicą
+  - [ ] pasek postępu trasy ze zdarzeniami: zakazy, miejsca czerwone / pomarańczowe, zgłoszenia kierowców, fotoradary (OSM `highway=speed_camera`), parkingi pod przerwę
+  - [ ] lista nadchodzących zdarzeń z odległościami (2 km, 4 km, 6,6 km…)
+  - [ ] znak obecnego ograniczenia prędkości (z OSM / Valhalli, z uwzględnieniem limitów dla ciężarówek), zapowiedź zmiany („50 za 100 m”), aktualna prędkość z GPS, kolor przy przekroczeniu
+  - [ ] dolna karta: godzina przyjazdu (zielona; czerwona przy spóźnieniu na okno rozładunku ze zlecenia), km i minuty do celu
+  - [ ] okrągłe przyciski „+” (zgłoś, dodaj punkt) i „POI” (parkingi, stacje, MOP, myjnie)
+  - [ ] korki i czas „+2 min korka” – brak darmowych danych; później (DATEX II tam, gdzie dostępne, albo płatny dostawca)
 - [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
 - [x] Zgłoszenia od kierowców (`/api/reports`, tabela `driver_reports`): problemy na drodze (ograniczenie wysokości / masy ze znaku, zakaz dla ciężarówek, droga zamknięta, wąsko, uwaga) jednym dotknięciem – przytrzymanie mapy w planerze, przycisk „Zgłoś” w nawigacji (miejsce pojazdu); inni kierowcy potwierdzają albo oznaczają jako nieaktualne (zgłoszenie znika przy przewadze „nieaktualne”), to samo miejsce i rodzaj = potwierdzenie; limit 100 zgłoszeń na dobę; kto zgłosił, nie jest pokazywany; zgłoszenia na linii trasy w odpowiedzi planera, bez wpływu na ocenę
@@ -298,6 +311,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 
 ### Faza 4 – Pierwsze moduły płatne + Europa (miesiące 11–14)
 - [ ] M2 Czas pracy kierowcy: limity 561/2006, rozkład przerw wg preferencji, pauza tygodniowa poza kabiną
+  - [ ] na start wpis ręczny (początek jazdy, czas już przejechany), w nawigacji „do przerwy zostało …” i zapowiedź głosowa najbliższego parkingu
+  - [ ] **tachograf inteligentny G2 / G2V2** (rozporządzenie UE 2016/799 – interfejs ITS przez Bluetooth): odczyt bieżącej czynności, czasu jazdy i czasu do przerwy za zgodą kierowcy (parowanie, PIN); test na prawdziwym pojeździe, dokumentacja producentów (VDO DTCO 4.x, Stoneridge SE5000 Smart 2)
+  - [ ] starsze tachografy: wczytanie pliku `.ddd` z karty kierowcy; systemy flotowe (VDO TIS-Web, Webfleet…) – płatne, później
 - [ ] Zdarzenia drogowe z krajowych punktów dostępowych (DATEX II) → propozycja przerwy przed korkiem lub wypadkiem
 - [ ] Święta i zakazy ruchu w czasie, według danych państw:
   - [x] kalendarz świąt PL, DE (z landami), CZ, SK – z tekstu przepisów (Wielkanoc liczona), w rdzeniu (`core/timebans.py`)
@@ -310,6 +326,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - to samo przy ofertach w planerze zleceń (M7) i przy rozkładzie przerw (M2)
   - podział między rdzeń a moduły do ustalenia; bezpieczeństwo i legalność przejazdu najlepiej za darmo
 - [ ] M3 Parkingi i POI: wyszukiwanie, filtry, propozycje pod przerwę, zgłoszenia „pełny / są miejsca”
+  - [ ] parkingi przed miejscem obowiązkowej przerwy (z czasu pracy M2 / tachografu) na trasie, na pasku postępu i w zapowiedzi głosowej
 - [ ] M4 Opłaty drogowe i koszty:
   - profil pojazdu: klasa Euro, klasa CO₂ (DE), spalanie l/100 km (pusty/ładowny), AdBlue jako % spalania, własne ceny paliwa (opcjonalnie)
   - ceny ON per kraj z Weekly Oil Bulletin (KE, co tydzień, darmowe), kursy walut z EBC
@@ -346,6 +363,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 
 ### Faza 6 – Planer zleceń (miesiące 17–22)
 - [ ] M7 Planer: filtrowanie, ocena kursu, przeszukiwanie z przycinaniem na 2–6 kroków, zysk/dzień, ryzyko regionów
+- [ ] Zlecenia w nawigacji: zlecenie wpisane ręcznie albo przez dyspozytora (załadunek, rozładunek, okna czasowe, ładunek) → trasa z przerwami (M2), parkingi (M3), sprawdzenie, czy kierowca zdąży w okno rozładunku (kolor godziny przyjazdu); później zlecenia z giełd (M8)
 - [ ] Opłacalność każdej oferty (także pojedynczej, poza planem wielu kursów):
   - koszty liczone na **trasie wyznaczonej dla tego pojazdu** (ciężarówka może jechać inaczej niż osobówka, więc inne myto i km): dojazd na pusto do załadunku + kurs z ładunkiem
   - ≈ paliwo + AdBlue + myto per kraj + promy (z `CostProvider`; bez M4 – prosta stawka €/km z profilu) + czas kierowcy (€/dzień)
