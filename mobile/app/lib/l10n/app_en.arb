@@ -403,5 +403,6 @@
   "vehicleDatesTitle": "Due dates: {vehicle}",
   "vehicleServiceAction": "Inspection dates",
   "vehicleOverdue": "Overdue – {what}: {date}",
-  "vehicleDueSoon": "Due soon – {what}: {date}"
+  "vehicleDueSoon": "Due soon – {what}: {date}",
+  "vehicleInRepair": "in repair"
 }

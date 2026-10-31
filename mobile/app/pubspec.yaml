@@ -30,6 +30,8 @@ dependencies:
   # Pakiety modułów wbudowane w aplikację; dostęp do nich sprawdza serwer.
   module_hello:
     path: ../packages/module_hello
+  module_service:
+    path: ../packages/module_service
 
 dev_dependencies:
   flutter_test:

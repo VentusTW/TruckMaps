@@ -151,6 +151,8 @@ class VehicleProfile(Base):
     """Świadectwo dopuszczenia pojazdu do przewozu ADR ważne do."""
     trailer_id: Mapped[str | None] = mapped_column(String(36))
     """Podpięta naczepa (do ciągnika) albo przyczepa (do samochodu, autobusu, dostawczego)."""
+    in_repair: Mapped[bool] = mapped_column(default=False, server_default="false")
+    """W naprawie (moduł Serwis) – niedostępny do jazdy."""
     in_use_by: Mapped[str | None] = mapped_column(String(255))
     in_use_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """Kierowca jedzie nim (nawigacja) – do zwolnienia albo do tej chwili."""
@@ -322,6 +324,7 @@ class VehicleOut(VehicleData):
     """Naczepa / przyczepa: do którego pojazdu jest podpięta."""
     coupled_to_name: str | None = None
     in_use: bool = False
+    in_repair: bool = False
     """Pojazd: kierowca nim jedzie; naczepa / przyczepa: jest podpięta albo jej pojazd jedzie."""
 
 

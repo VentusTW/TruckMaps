@@ -191,8 +191,11 @@ String _title(Map<String, dynamic> v) {
   return plate.isEmpty ? '${v['name']}' : '${v['name']} · $plate';
 }
 
-String _inUseText(AppLocalizations l, Map<String, dynamic> v) =>
-    v['coupled_to_name'] != null ? l.vehicleCoupledTo('${v['coupled_to_name']}') : l.vehicleInUse;
+String _inUseText(AppLocalizations l, Map<String, dynamic> v) => v['in_repair'] == true
+    ? l.vehicleInRepair
+    : v['coupled_to_name'] != null
+        ? l.vehicleCoupledTo('${v['coupled_to_name']}')
+        : l.vehicleInUse;
 
 /// Stonowany czerwony dla pojazdów i naczep w użyciu.
 class _InUse extends StatelessWidget {
@@ -227,7 +230,7 @@ class _VehicleCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final company = v['company_id'] != null;
     final editable = v['can_edit'] != false;
-    final inUse = v['in_use'] == true;
+    final inUse = v['in_use'] == true || v['in_repair'] == true;
     final service = v['can_service'] == true;
     final urgent = mostUrgent(v);
     String n(Object? value) => value is num ? l.number(value) : '–';

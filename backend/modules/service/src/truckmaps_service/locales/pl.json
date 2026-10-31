@@ -1,0 +1,6 @@
+{
+  "service.order_not_found": "Nie znaleziono zlecenia.",
+  "service.vehicle_not_found": "Nie znaleziono pojazdu.",
+  "service.handle_forbidden": "Zlecenia prowadzą mechanicy, dyspozytorzy i właściciel firmy.",
+  "service.wrong_status": "Tego nie można zrobić przy obecnym stanie zlecenia."
+}

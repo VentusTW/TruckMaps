@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from truckmaps.sdk.auth import Auth
 from truckmaps.sdk.events import Event
 from truckmaps.sdk.extensions import ExtensionPoint
+from truckmaps.sdk.fleet import Fleet, Storage
 
 
 class ApiRegistry(Protocol):
@@ -50,4 +51,8 @@ class CoreContext(Protocol):
     auth: Auth
     events: EventBus
     extensions: Extensions
+    storage: Storage
+    """Sesja bazy danych dla endpointów modułu."""
+    fleet: Fleet
+    """Pojazdy widoczne dla użytkownika i jego rola przy nich."""
     logger: logging.Logger

@@ -14,6 +14,7 @@ from packaging.version import Version
 from truckmaps.core.auth import AuthService
 from truckmaps.core.events import InProcessEventBus
 from truckmaps.core.extensions import ExtensionRegistry, check_implementation
+from truckmaps.core.fleet import CoreFleet, CoreStorage
 from truckmaps.core.licensing import StaticLicensing
 from truckmaps.core.version import CORE_VERSION
 from truckmaps.sdk import Event, ExtensionPoint, Module
@@ -87,6 +88,8 @@ class ModuleContext:
     auth: AuthService
     events: _ModuleEvents
     extensions: _ModuleExtensions
+    storage: CoreStorage
+    fleet: CoreFleet
     logger: logging.Logger = field(repr=False)
 
 
@@ -151,6 +154,8 @@ class ModuleManager:
             auth=self._auth,
             events=_ModuleEvents(self._bus),
             extensions=_ModuleExtensions(self._extensions),
+            storage=CoreStorage(),
+            fleet=CoreFleet(),
             logger=logging.getLogger(f"truckmaps.module.{module_id}"),
         )
         try:
