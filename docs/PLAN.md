@@ -262,6 +262,17 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] dolna karta: godzina przyjazdu (zielona; czerwona przy spóźnieniu na okno rozładunku ze zlecenia), km i minuty do celu
   - [ ] okrągłe przyciski „+” (zgłoś, dodaj punkt) i „POI” (parkingi, stacje, MOP, myjnie)
   - [ ] korki i czas „+2 min korka” – brak darmowych danych; później (DATEX II tam, gdzie dostępne, albo płatny dostawca)
+  - [ ] tryb nocny mapy i kart (automatycznie po zmroku), flaga celu na mapie
+  - [ ] pionowy pasek trasy z boku ekranu: punkty pośrednie („VIA 1/2”), fotoradary, sygnalizacja świetlna, zdarzenia, opóźnienia, z odległościami
+  - [ ] w dolnej karcie także najbliższy punkt pośredni: nazwa, minuty i km („1/2 przy … – 3 min, 3,4 km”)
+  - [ ] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
+  - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
+  - [ ] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
+  - [ ] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
+- [ ] Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans, czas jazdy, godzina przyjazdu, opóźnienie), pojazd w nagłówku („Marek · 40 t · 4 m”), kraje i przejścia graniczne na trasie, zakazy ruchu w każdym kraju („Niemcy: zakaz do 22:00”, „brak danych” dla krajów bez kalendarza), przycisk „Rozpocznij jazdę”
+- [ ] Ekran zakazów kraju: najbliższe zakazy na 30 dni z datami i godzinami, zasady (dla jakich pojazdów, wybrane drogi), święta regionalne, wyjątki (przewóz kombinowany, żywność łatwo psująca się, pomoc drogowa…); ostrzeżenie na mapie „na trasie zakaz ruchu – sprawdź przed wyjazdem” ze szczegółami
+- [ ] Zgłoszenia kierowców – więcej rodzajów w siatce dużych przycisków: wypadek, zagrożenie na drodze, kontrola prędkości, policja, inspekcja i ważenie (ITD), fotoradar; zgłoszenia czasowe wygasają same (np. po 1–2 h bez potwierdzenia), pokazywane na pasku trasy i w zapowiedzi głosowej
+- [ ] Okres próbny modułów płatnych („Premium: pozostały 2 dni”) – z modułem licencji i sklepami
 - [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę
 - [x] Zgłoszenia od kierowców (`/api/reports`, tabela `driver_reports`): problemy na drodze (ograniczenie wysokości / masy ze znaku, zakaz dla ciężarówek, droga zamknięta, wąsko, uwaga) jednym dotknięciem – przytrzymanie mapy w planerze, przycisk „Zgłoś” w nawigacji (miejsce pojazdu); inni kierowcy potwierdzają albo oznaczają jako nieaktualne (zgłoszenie znika przy przewadze „nieaktualne”), to samo miejsce i rodzaj = potwierdzenie; limit 100 zgłoszeń na dobę; kto zgłosił, nie jest pokazywany; zgłoszenia na linii trasy w odpowiedzi planera, bez wpływu na ocenę
