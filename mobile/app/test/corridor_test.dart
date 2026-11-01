@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:truckmaps_app/src/navigation/corridor.dart';
@@ -7,6 +9,20 @@ const routeLine = '_gwj~A_qo_g@?_af@?_af@';
 const sideRoad = '_gwj~A_sv`g@_yF?';
 
 void main() {
+  test('najbliższy odcinek linii – ten sam co przy liczeniu odległości do każdego odcinka', () {
+    final random = math.Random(7);
+    final line = [for (var i = 0; i < 300; i++) LatLng(50 + random.nextDouble() * 0.2, 20 + random.nextDouble() * 0.3)];
+    for (var k = 0; k < 200; k++) {
+      final p = LatLng(50 + random.nextDouble() * 0.2, 20 + random.nextDouble() * 0.3);
+      var best = double.infinity;
+      for (var i = 0; i < line.length - 1; i++) {
+        best = math.min(best, distanceToSegment(p, line[i], line[i + 1]).$1);
+      }
+      expect(nearestOnLine(p, line).$1, closeTo(best, 0.5));
+    }
+  });
+
+
   test('polilinia 1e-6 zgodna z serwerem', () {
     final points = decodePolyline6(routeLine);
     expect(points, [const LatLng(50, 20.98), const LatLng(50, 21), const LatLng(50, 21.02)]);

@@ -13,10 +13,11 @@ from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
 from truckmaps.core.i18n import language, num, t
-from truckmaps.core.polyline import decode_polyline6
+from truckmaps.core.polyline import decode_polyline6, encode_polyline6
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import (
     END_STREET,
+    NODE_KINDS,
     Analysis,
     Level,
     RouteEdge,
@@ -378,7 +379,8 @@ class ValhallaRouter:
         self, points: list[tuple[float, float]], shape_match: str, vehicle: VehicleIn
     ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
         request = {
-            "shape": [{"lat": lat, "lon": lon} for lon, lat in points],
+            # Zakodowana linia zamiast listy punktów: kilka razy mniejsze zapytanie.
+            "encoded_polyline": encode_polyline6(points),
             "shape_match": shape_match,
             **costing(vehicle),
             "filters": {"attributes": [*EDGE_ATTRIBUTES, "shape"], "action": "include"},
@@ -499,7 +501,8 @@ def plan(
     ostrzeżenia (czego unika objazd).
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
-    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure), []
+    ways: dict[int, list[restrictions.Restriction]] = {}
+    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure, ways), []
     if best_analysis is None:
         return best, best_analysis, best_excluded, first.distance_km, []
     levels = AVOID_LEVELS if avoid_difficult else {IMPASSABLE}
@@ -522,7 +525,7 @@ def plan(
             candidate = router.route(stops, vehicle, exclude=excluded)
         except NoRouteFound:
             break
-        analysis = assess(db, candidate, vehicle, departure)
+        analysis = assess(db, candidate, vehicle, departure, ways)
         if analysis is None:
             break
         better = analysis.score < best_analysis.score and (
@@ -684,17 +687,24 @@ def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
 
 
 def assess(
-    db: Session, route: Route, vehicle: VehicleIn, departure: datetime | None = None
+    db: Session,
+    route: Route,
+    vehicle: VehicleIn,
+    departure: datetime | None = None,
+    ways: dict[int, list[restrictions.Restriction]] | None = None,
 ) -> Analysis | None:
-    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu."""
+    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu.
+
+    ``ways`` – wspólna pamięć ograniczeń dróg dla kolejnych wariantów tej samej trasy.
+    """
     if route.edges is None:
         return None
     return analyze(
         route.geometry,
         route.edges,
         vehicle,
-        restrictions.for_ways(db, (e.way_id for e in route.edges)),
-        restrictions.nodes_in_bbox(db, route.geometry),
+        restrictions.for_ways(db, (e.way_id for e in route.edges), ways),
+        restrictions.nodes_near_route(db, route.geometry, NODE_KINDS),
         departure,
     )
 

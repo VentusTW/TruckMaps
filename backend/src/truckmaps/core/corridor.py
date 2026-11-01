@@ -17,7 +17,14 @@ from sqlalchemy.orm import Session
 from truckmaps.core.db import get_session
 from truckmaps.core.i18n import t
 from truckmaps.core.polyline import decode_polyline6, encode_polyline6
-from truckmaps.core.restrictions import ROAD_CONTEXT, Kind, Restriction, distance_m
+from truckmaps.core.restrictions import (
+    QUERY_BATCH,
+    ROAD_CONTEXT,
+    Kind,
+    Restriction,
+    distance_m,
+    route_chunks,
+)
 from truckmaps.core.route_analysis import (
     Level,
     SegmentGrid,
@@ -31,9 +38,6 @@ from truckmaps.sdk import Principal
 
 CORRIDOR_VERSION = 1
 DEFAULT_BUFFER_M = 500.0
-# Trasa dzielona na kawałki – zapytanie o prostokąty wzdłuż trasy zamiast jednego wielkiego.
-QUERY_CHUNK_KM = 10.0
-QUERY_BATCH = 40
 # Pozycja dalej od trasy niż tyle = kierowca zjechał z trasy.
 OFF_ROUTE_M = 40.0
 # Pozycja bliżej drogi nieprzejezdnej niż tyle = kierowca na niej jest.
@@ -160,7 +164,7 @@ def _candidates(
 ) -> list[Restriction]:
     """Ograniczenia, których prostokąt nachodzi na pas wokół któregoś kawałka trasy."""
     boxes = []
-    for chunk in _route_chunks(route, QUERY_CHUNK_KM):
+    for chunk in route_chunks(route):
         lons, lats = [p[0] for p in chunk], [p[1] for p in chunk]
         margin_lat, margin_lon = buffer_m / 111_000, buffer_m / 111_000 / 0.5
         boxes.append(
@@ -178,17 +182,6 @@ def _candidates(
         ):
             found[restriction.id] = restriction
     return list(found.values())
-
-
-def _route_chunks(route: list[tuple[float, float]], max_km: float):
-    start, length = 0, 0.0
-    for i in range(1, len(route)):
-        length += distance_m(*route[i - 1], *route[i])
-        if length >= max_km * 1000:
-            yield route[start : i + 1]
-            start, length = i, 0.0
-    if start < len(route) - 1 or len(route) == 1:
-        yield route[start:]
 
 
 def build_router(current_user) -> APIRouter:

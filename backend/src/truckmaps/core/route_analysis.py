@@ -186,9 +186,9 @@ def analyze(
         findings += _edge_findings(
             edge, vehicle, way_restrictions.get(edge.way_id, []), near_end, moment
         )
-    findings += _bend_findings(points, edges, vehicle)
+    findings += _bend_findings(points, cumulative, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
-    return _summarize(points, findings)
+    return _summarize(points, cumulative, findings)
 
 
 def _edge_findings(
@@ -387,7 +387,7 @@ def _sign_value(raw: str) -> float | None:
     return None
 
 
-def _bend_findings(points, edges: list[RouteEdge], vehicle: VehicleIn):
+def _bend_findings(points, cumulative: list[float], edges: list[RouteEdge], vehicle: VehicleIn):
     """Ostre łuki wewnątrz dróg (skręty na skrzyżowaniach to manewry; ronda oceniane osobno)."""
     yellow_radius = min(max(0.9 * vehicle.length_m, 8.0), 20.0)
     orange_radius = min(max(0.6 * vehicle.length_m, 6.0), 12.0)
@@ -395,7 +395,6 @@ def _bend_findings(points, edges: list[RouteEdge], vehicle: VehicleIn):
     in_roundabout = {
         i for e in edges if e.roundabout for i in range(e.begin_index, e.end_index + 1)
     }
-    cumulative = _cumulative_m(points)
     for i in range(1, len(points) - 1):
         if i in junctions or i in in_roundabout:
             continue
@@ -417,11 +416,15 @@ def _bend_findings(points, edges: list[RouteEdge], vehicle: VehicleIn):
             )
 
 
+# Ograniczenia punktowe sprawdzane na trasie (np. bramki wysokości).
+NODE_KINDS = (Kind.HEIGHT, Kind.WEIGHT, Kind.WEIGHT_RATING)
+
+
 def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
     """Ograniczenia punktowe (np. bramki wysokości) leżące na linii trasy – tylko ostrzeżenie."""
     grid = SegmentGrid(points)
     for node in nodes:
-        if node.kind not in (Kind.HEIGHT, Kind.WEIGHT, Kind.WEIGHT_RATING) or node.lat is None:
+        if node.kind not in NODE_KINDS or node.lat is None:
             continue
         index = grid.nearest(node.lon, node.lat, NODE_MATCH_M)
         if index is None:
@@ -439,14 +442,13 @@ def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
             )
 
 
-def _summarize(points, findings: list[_Finding]) -> Analysis:
+def _summarize(points, cumulative: list[float], findings: list[_Finding]) -> Analysis:
     n = max(len(points) - 1, 0)
     levels = [Level.GREEN] * n
     for finding in findings:
         for i in range(finding.start, min(finding.end, n)):
             levels[i] = max(levels[i], finding.level)
 
-    cumulative = _cumulative_m(points)
     segments: list[Segment] = []
     score = 0.0
     for i, level in enumerate(levels):

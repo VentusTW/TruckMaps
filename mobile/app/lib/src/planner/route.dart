@@ -180,13 +180,13 @@ class PlannedRoute {
   final Cost? cost;
 
   /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia).
-  List<(List<LatLng>, String)> get coloredParts {
-    if (segments.isEmpty) return [(points, 'unknown')];
-    return [
-      for (final s in segments)
-        if (s.end < points.length) (points.sublist(s.start, s.end + 1), s.level),
-    ];
-  }
+  /// Kawałki linii trasy w kolorach oceny – liczone raz (mapa rysuje je przy każdej pozycji GPS).
+  late final List<(List<LatLng>, String)> coloredParts = segments.isEmpty
+      ? [(points, 'unknown')]
+      : [
+          for (final s in segments)
+            if (s.end < points.length) (points.sublist(s.start, s.end + 1), s.level),
+        ];
 
   String summary(AppLocalizations l) {
     final hours = durationMin ~/ 60, minutes = (durationMin % 60).round();
