@@ -62,6 +62,37 @@ class _VehicleDuplicatesScreenState extends State<VehicleDuplicatesScreen> {
     });
   }
 
+  /// Pojazd prywatny: prośba do właściciela o zgodę na zmiany w jego pojazdach.
+  Future<void> _askConsent(Map<String, dynamic> vehicle) async {
+    final l = context.l;
+    final note = TextEditingController();
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l.askPersonConsent),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: note,
+            maxLength: 300,
+            decoration: InputDecoration(labelText: l.askPersonConsentNote, border: const OutlineInputBorder()),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.send)),
+        ],
+      ),
+    );
+    final text = note.text.trim();
+    if (send != true || text.length < 3) return;
+    await _run(() => widget.api.post('/api/admin/accounts/${vehicle['owner_subject']}/access-requests', {
+          'scopes': ['vehicles'],
+          'note': text,
+        }));
+    if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(l.askPersonConsentSent)));
+  }
+
   Future<void> _assign(Map<String, dynamic> vehicle) async {
     final body = await showDialog<Map<String, String?>>(
       context: context,
@@ -115,13 +146,19 @@ class _VehicleDuplicatesScreenState extends State<VehicleDuplicatesScreen> {
               title: Text([v['name'], if (v['plate'] != null) v['plate']].join(' · ')),
               subtitle:
                   Text(v['company_name'] == null ? l.privateVehicle('${v['owner_subject']}') : '${v['company_name']}'),
-              secondary: v['company_id'] == null
-                  ? null
-                  : IconButton(
-                      tooltip: l.assign,
-                      onPressed: _busy ? null : () => _assign(v),
-                      icon: const Icon(Icons.swap_horiz),
-                    ),
+              secondary: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (v['company_id'] == null)
+                  IconButton(
+                    tooltip: l.askPersonConsent,
+                    onPressed: _busy ? null : () => _askConsent(v),
+                    icon: const Icon(Icons.mark_email_unread_outlined),
+                  ),
+                IconButton(
+                  tooltip: l.assign,
+                  onPressed: _busy ? null : () => _assign(v),
+                  icon: const Icon(Icons.swap_horiz),
+                ),
+              ]),
             ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
@@ -165,14 +202,15 @@ class _AssignDialogState extends State<_AssignDialog> {
       content: SizedBox(
         width: 420,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: true, label: Text(l.assignToCompany)),
-              ButtonSegment(value: false, label: Text(l.assignToMember)),
-            ],
-            selected: {_toCompany},
-            onSelectionChanged: (s) => setState(() => _toCompany = s.first),
-          ),
+          if (widget.vehicle['company_id'] != null)
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(value: true, label: Text(l.assignToCompany)),
+                ButtonSegment(value: false, label: Text(l.assignToMember)),
+              ],
+              selected: {_toCompany},
+              onSelectionChanged: (s) => setState(() => _toCompany = s.first),
+            ),
           const SizedBox(height: 12),
           TextField(
             controller: _value,

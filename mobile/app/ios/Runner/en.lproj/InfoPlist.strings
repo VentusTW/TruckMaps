@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps uses the camera to read the code and data from the vehicle registration certificate.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps reads vehicle data from the registration certificate photo you choose.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps uses your location for navigation and to check that you follow the planned route.";

@@ -1,6 +1,7 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import '../company/admin_access_screen.dart';
 import '../l10n.dart';
 import 'common.dart';
 import 'onboarding.dart';
@@ -176,14 +177,22 @@ class _AccountScreenState extends State<AccountScreen> {
         const SizedBox(height: 24),
         Text(l.accountSecurity, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
+        Wrap(spacing: 12, runSpacing: 8, children: [
+          OutlinedButton.icon(
             onPressed: _changePassword,
             icon: const Icon(Icons.lock_reset),
             label: Text(l.passwordChangeTitle),
           ),
-        ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute(
+                builder: (_) => Scaffold(
+                      appBar: AppBar(title: Text(l.adminAccessPersonalTitle)),
+                      body: AdminAccessScreen.personal(api: widget.api),
+                    ))),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            label: Text(l.adminAccessPersonalTitle),
+          ),
+        ]),
         const SizedBox(height: 24),
         FilledButton.tonalIcon(onPressed: widget.onLogout, icon: const Icon(Icons.logout), label: Text(l.logout)),
       ]),

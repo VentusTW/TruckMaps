@@ -171,8 +171,8 @@ void main() {
     // Informacja bez decyzji – przeczytana od razu; prośba czeka na decyzję.
     expect(requests.where((r) => r.$2 == '/api/me/messages/m0/read'), hasLength(1));
     expect(requests.where((r) => r.$2 == '/api/me/messages/m1/read'), isEmpty);
-    final card = tester.widget<Card>(
-        find.ancestor(of: find.text('Anna prosi o dostęp do zmian'), matching: find.byType(Card)));
+    final card =
+        tester.widget<Card>(find.ancestor(of: find.text('Anna prosi o dostęp do zmian'), matching: find.byType(Card)));
     expect(card.color, isNotNull);
 
     await tester.tap(find.text('Zgoda (1 godz.)'));
@@ -192,5 +192,77 @@ void main() {
     await tester.tap(find.byTooltip('Zgoda (1 godz.)'));
     await tester.pumpAndSettle();
     expect(find.textContaining('aktywny do'), findsOneWidget);
+  });
+
+  testWidgets('pojazdy prywatne: osoba udziela zgody na pojazdy, prośba w skrzynce idzie na /api/me', (tester) async {
+    final sent = <(String, String, Object?)>[];
+    var personal = <Map<String, dynamic>>[];
+    final client = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async {
+        final body = request.body.isEmpty ? null : jsonDecode(request.body);
+        sent.add((request.method, request.url.path, body));
+        switch ((request.method, request.url.path)) {
+          case ('GET', '/api/me/admin-access'):
+            return json({'grants': personal, 'changes': []});
+          case ('POST', '/api/me/admin-access'):
+            personal = [
+              {
+                ...grant('p1'),
+                'company_id': null,
+                'scopes': ['vehicles']
+              }
+            ];
+            return json(personal.first, 201);
+          case ('POST', '/api/me/admin-access/g4/accept'):
+            return json({
+              ...grant('g4'),
+              'company_id': null,
+              'scopes': ['vehicles']
+            });
+          case ('GET', '/api/me/messages'):
+            return json({
+              'unread': 1,
+              'items': [
+                {
+                  'id': 'm4',
+                  'kind': 'admin_access_request',
+                  'sender_name': 'Anna',
+                  'company_id': null,
+                  'grant_id': 'g4',
+                  'grant': {
+                    ...grant('g4', state: 'pending'),
+                    'company_id': null,
+                    'scopes': ['vehicles']
+                  },
+                  'data': {
+                    'scopes': ['vehicles'],
+                    'note': 'duble po VIN',
+                  },
+                  'created_at': '2026-10-30T10:00:00Z',
+                  'read': false,
+                },
+              ],
+            });
+        }
+        return http.Response('', 204);
+      }),
+    );
+    await tester.pumpWidget(localized(AdminAccessScreen.personal(api: client)));
+    await tester.pumpAndSettle();
+    expect(find.text('Dostęp administratora do moich pojazdów'), findsOneWidget);
+    await tester.tap(find.text('Udziel dostępu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dane firmy i stawki'), findsNothing); // tylko zakres „pojazdy”
+    await tester.tap(find.widgetWithText(FilledButton, 'Udziel dostępu'));
+    await tester.pumpAndSettle();
+    expect(sent.singleWhere((r) => r.$1 == 'POST').$3, containsPair('scopes', ['vehicles']));
+
+    await tester.pumpWidget(localized(InboxScreen(api: client, onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zgoda (1 godz.)'));
+    await tester.pumpAndSettle();
+    expect(sent.any((r) => r.$2 == '/api/me/admin-access/g4/accept'), isTrue);
   });
 }

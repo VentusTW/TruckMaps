@@ -450,5 +450,7 @@
   "registrationTorch": "Torch",
   "registrationEu": "Certificate from another EU country",
   "registrationEuHint": "Photo of the data page – text recognised on the phone, fields A, D.1, D.3, E, F.1, F.2, G, J, L, S.1 are read",
-  "adminScopeVehicles": "Vehicles (assignment, merging duplicates by VIN)"
+  "adminScopeVehicles": "Vehicles (assignment, merging duplicates by VIN)",
+  "adminAccessPersonalTitle": "Administrator access to my vehicles",
+  "adminAccessPersonalHint": "A TruckMaps administrator changes your private vehicles (merging duplicates by VIN, moving them to your company) only with your consent – usually for an hour. You can extend or withdraw consent at any time, and every change is in the log below."
 }

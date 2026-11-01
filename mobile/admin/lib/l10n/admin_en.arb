@@ -124,7 +124,7 @@
   "grantEndingText": "Change access for {company} ends in {minutes, plural, =1{1 minute} other{{minutes} minutes}}. Ask the owner for an extension or finish the changes.",
   "scopeVehicles": "vehicles (assignment, merging duplicates)",
   "duplicatesTitle": "Duplicate vehicles (VIN)",
-  "duplicatesHint": "Vehicles with the same VIN. Choose the vehicle that stays – missing data, couplings and repair history move to it and the duplicates are deleted. Only with each company's consent (scope “vehicles”), recorded in the company log. Private vehicles cannot be changed.",
+  "duplicatesHint": "Vehicles with the same VIN. Choose the vehicle that stays – missing data, couplings and repair history move to it and the duplicates are deleted. Only with each company's consent (scope “vehicles”), recorded in the company log. Private vehicles – with the owner's consent (ask for it with the button next to the vehicle).",
   "duplicatesEmpty": "No vehicles share a VIN.",
   "mergeInto": "Merge into selected",
   "merge": "Merge",
@@ -136,5 +136,9 @@
   "assignToMember": "To a company member",
   "assignCompanyId": "Company ID",
   "assignMemberSubject": "Member account ID",
-  "privateVehicle": "private ({owner})"
+  "privateVehicle": "private ({owner})",
+  "askPersonConsent": "Ask the owner for consent",
+  "askPersonConsentNote": "What and why (the owner will see it)",
+  "askPersonConsentSent": "Request sent – the owner will see it in the app inbox.",
+  "send": "Send"
 }
