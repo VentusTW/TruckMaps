@@ -1,0 +1,11 @@
+{
+  "load.vehicle_not_found": "Nie znaleziono pojazdu.",
+  "load.custom_size": "Podaj długość i szerokość ładunku.",
+  "load.too_wide": "Ładunek jest szerszy niż przestrzeń ładunkowa.",
+  "load.deck_unknown": "Podaj długość przestrzeni ładunkowej (albo miejsca paletowe w profilu pojazdu).",
+  "load.unplaced": "Nie zmieści się: {count} szt.",
+  "load.overweight": "Ładunek {weight} kg przekracza ładowność {payload} kg.",
+  "load.cog_front": "Środek ciężkości ładunku za bardzo z przodu ({share}% długości) – przesuń cięższe palety do tyłu, żeby nie przeciążyć siodła.",
+  "load.cog_back": "Środek ciężkości ładunku za bardzo z tyłu ({share}% długości) – przesuń cięższe palety do przodu, żeby nie odciążyć osi kierowanej.",
+  "load.no_front_wall": "Ładunek nie jest oparty o ścianę czołową – potrzeba więcej pasów (hamowanie)."
+}

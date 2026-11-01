@@ -16,7 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import DateTime, ForeignKey, String, func, or_, select
+from sqlalchemy import JSON, DateTime, ForeignKey, String, func, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.companies import (
@@ -174,6 +174,18 @@ class VehicleProfile(Base):
     tachograph_until: Mapped[date | None]
     """Legalizacja (sprawdzenie okresowe) tachografu ważna do."""
     insurance_until: Mapped[date | None]
+    ac_until: Mapped[date | None]
+    """Autocasco ważne do."""
+    ocp_until: Mapped[date | None]
+    """OC przewoźnika (OCP) ważne do – pojazdy z silnikiem."""
+    udt_until: Mapped[date | None]
+    """Dozór UDT urządzeń (HDS, winda załadowcza) ważny do."""
+    odometer_km: Mapped[int | None]
+    """Ostatni wpisany stan licznika."""
+    service_due_km: Mapped[int | None]
+    """Następny serwis przy tym stanie licznika."""
+    reminders_sent: Mapped[dict | None] = mapped_column(JSON)
+    """Terminy już przypomniane w skrzynce: pole → data albo przebieg serwisu."""
     tdt_until: Mapped[date | None]
     """Badanie zbiornika cysterny (TDT / UDT) ważne do."""
     adr_until: Mapped[date | None]
@@ -293,6 +305,15 @@ class ServiceDates(BaseModel):
     inspection_until: date | None = Field(default=None, description="Przegląd techniczny ważny do")
     tachograph_until: date | None = Field(default=None, description="Legalizacja tachografu do")
     insurance_until: date | None = Field(default=None, description="Ubezpieczenie OC ważne do")
+    ac_until: date | None = Field(default=None, description="Autocasco ważne do")
+    ocp_until: date | None = Field(default=None, description="OC przewoźnika (OCP) ważne do")
+    udt_until: date | None = Field(default=None, description="Dozór UDT (HDS, winda) ważny do")
+    odometer_km: int | None = Field(
+        default=None, ge=0, le=10_000_000, description="Stan licznika (pojazdy z silnikiem)"
+    )
+    service_due_km: int | None = Field(
+        default=None, ge=0, le=10_000_000, description="Następny serwis przy stanie licznika"
+    )
     tdt_until: date | None = Field(default=None, description="Badanie TDT / UDT cysterny do")
     adr_until: date | None = Field(default=None, description="Świadectwo ADR pojazdu do")
     atp_until: date | None = Field(default=None, description="Świadectwo ATP chłodni do")
@@ -363,6 +384,7 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
             self.consumption_empty = self.consumption_loaded = None
             self.adblue_percent = self.fuel_price = self.adblue_price = None
             self.cost_per_km = self.cost_per_hour = None
+            self.ocp_until = self.odometer_km = self.service_due_km = None
         if self.fuel_type not in (None, FuelType.DIESEL):
             self.adblue_percent = self.adblue_price = None
         if (
@@ -524,7 +546,9 @@ def build_router(current_user) -> APIRouter:
         if not _can_service(vehicle, roles, user):
             raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.vehicles_service_forbidden"))
         current = VehicleData.model_validate(vehicle, from_attributes=True)
-        cleaned = VehicleData.model_validate(current.model_dump() | data.model_dump())
+        # Pola, których klient nie wysłał (np. starsza wersja aplikacji), zostają bez zmian.
+        sent = data.model_dump(exclude_unset=True)
+        cleaned = VehicleData.model_validate(current.model_dump() | sent)
         for field in ServiceDates.model_fields:
             setattr(vehicle, field, getattr(cleaned, field))
         db.commit()

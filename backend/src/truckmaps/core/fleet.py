@@ -6,11 +6,12 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from truckmaps.core.companies import company_ids
+from truckmaps.core import inbox
+from truckmaps.core.companies import SERVICES_VEHICLES, CompanyMember, company_ids
 from truckmaps.core.db import get_session
 from truckmaps.core.vehicles import VehicleProfile, load_owned
 from truckmaps.sdk import Principal
-from truckmaps.sdk.fleet import PRIVATE, VehicleInfo
+from truckmaps.sdk.fleet import PRIVATE, CargoInfo, VehicleInfo
 
 
 def _info(vehicle: VehicleProfile, roles: dict) -> VehicleInfo:
@@ -27,6 +28,20 @@ def _info(vehicle: VehicleProfile, roles: dict) -> VehicleInfo:
 
 
 MergeHandler = Callable[[Session, str, str], None]
+
+
+def service_staff(db: Session, vehicle: VehicleProfile) -> list[str]:
+    """Właściciel, dyspozytorzy i mechanicy firmy pojazdu; pojazd prywatny – jego właściciel."""
+    if vehicle.company_id is None:
+        return [vehicle.owner_subject]
+    return list(
+        db.scalars(
+            select(CompanyMember.subject).where(
+                CompanyMember.company_id == vehicle.company_id,
+                CompanyMember.role.in_(SERVICES_VEHICLES),
+            )
+        )
+    )
 
 
 class CoreFleet:
@@ -70,6 +85,24 @@ class CoreFleet:
         if vehicle is not None:
             vehicle.last_inspection = day
             vehicle.inspection_until = valid_until
+
+    def cargo(self, db: Session, vehicle_id: str) -> CargoInfo:
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        if vehicle is None:
+            return CargoInfo(deck_length_m=None, payload_kg=None)
+        deck = round(vehicle.pallet_places / 33 * 13.6, 2) if vehicle.pallet_places else None
+        gvw = vehicle.gvw_t or vehicle.weight_t
+        payload = (gvw - vehicle.tare_t) * 1000 if vehicle.tare_t is not None else None
+        return CargoInfo(deck_length_m=deck, payload_kg=payload)
+
+    def staff(self, db: Session, vehicle_id: str) -> list[str]:
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        return [] if vehicle is None else service_staff(db, vehicle)
+
+    def notify(
+        self, db: Session, recipients: list[str], kind: str, data: dict, company_id: str | None
+    ) -> None:
+        inbox.send(db, recipients, kind, sender_name="", company_id=company_id, data=data)
 
 
 class CoreStorage:

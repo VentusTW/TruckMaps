@@ -1,0 +1,44 @@
+{
+  "_info": "Stawki myta za km dla ciężkich zestawów. Każdy kraj: waluta, data cennika, źródło i oficjalny kalkulator. Reguły sprawdzane po kolei – pierwsza pasująca daje stawkę; brak pasującej = kwota nieznana. Aktualizacja ręczna przy zmianie cennika operatora.",
+  "PL": {
+    "operator": "e-TOLL",
+    "currency": "PLN",
+    "valid_from": "2026-02-01",
+    "source": "https://www.gov.pl/web/finanse/zmiany-w-systemie-e-toll-od-1-lutego-2026-r",
+    "calculator": "https://etoll.gov.pl/",
+    "tolled": {"classes": ["motorway", "trunk"], "osm_toll": true},
+    "rules": [
+      {"min_gvw_t": 12, "euro": ["euro5", "euro6", "electric"], "motorway": 0.56, "other": 0.42}
+    ]
+  },
+  "DE": {
+    "operator": "Toll Collect",
+    "currency": "EUR",
+    "valid_from": "2024-07-01",
+    "source": "https://www.toll-collect.de/en/toll_collect/bezahlen/maut_tarife/p1745_mauttarife_07_2024.html",
+    "calculator": "https://www.toll-collect.de/",
+    "tolled": {"classes": ["motorway", "trunk", "primary"], "osm_toll": true},
+    "rules": [
+      {"min_gvw_t": 18.01, "min_axles": 5, "euro": ["euro6"], "co2": [1], "motorway": 0.348, "other": 0.348},
+      {"min_gvw_t": 18.01, "min_axles": 5, "euro": ["euro6"], "co2": [2], "motorway": 0.340, "other": 0.340},
+      {"min_gvw_t": 18.01, "min_axles": 5, "euro": ["euro6"], "co2": [3], "motorway": 0.332, "other": 0.332},
+      {"min_gvw_t": 18.01, "min_axles": 4, "max_axles": 4, "euro": ["euro6"], "co2": [1], "motorway": 0.324, "other": 0.324},
+      {"min_gvw_t": 18.01, "min_axles": 4, "max_axles": 4, "euro": ["euro6"], "co2": [2], "motorway": 0.318, "other": 0.318},
+      {"min_gvw_t": 18.01, "min_axles": 4, "max_axles": 4, "euro": ["euro6"], "co2": [3], "motorway": 0.310, "other": 0.310}
+    ]
+  },
+  "AT": {
+    "operator": "ASFINAG GO-Maut",
+    "currency": "EUR",
+    "valid_from": "2026-01-01",
+    "source": "https://www.go-maut.at/media/xj4k352b/go-maut-tarife-2026_streckenmaut_en.pdf",
+    "calculator": "https://www.go-maut.at/",
+    "tolled": {"classes": ["motorway", "trunk"], "osm_toll": true},
+    "rules": [
+      {"min_gvw_t": 3.51, "min_axles": 4, "euro": ["euro6"], "co2": [1], "motorway": 0.5171, "other": 0.5171}
+    ]
+  },
+  "CZ": {"operator": "MYTO CZ", "calculator": "https://myto.gov.cz/", "tolled": {"classes": ["motorway", "trunk"], "osm_toll": true}},
+  "SK": {"operator": "eMyto", "calculator": "https://www.emyto.sk/", "tolled": {"classes": ["motorway", "trunk"], "osm_toll": true}},
+  "HU": {"operator": "HU-GO", "calculator": "https://www.hu-go.hu/", "tolled": {"classes": ["motorway", "trunk"], "osm_toll": true}}
+}

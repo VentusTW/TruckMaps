@@ -166,6 +166,11 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   PositionCheck? _check;
   int _offRoute = 0;
 
+  /// Przejazd do statystyk pojazdu: tylko pozycje prawdziwe (GPS albo podane z góry), bez symulacji.
+  DateTime? _tripStart;
+  LatLng? _tripLast;
+  double _tripM = 0;
+
   /// Ile trasy przejechano przy ostatniej pozycji na trasie (do pominięcia minionych punktów).
   double _lastAlongM = 0;
   bool _recalculating = false;
@@ -199,7 +204,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _loadCorridor();
-    _listen(widget.source ?? _simulation);
+    _listen(widget.source ?? _simulation, real: widget.source != null);
     if (widget.source == null) _startGps();
   }
 
@@ -216,7 +221,35 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     _listen(gps);
   }
 
-  void _listen(PositionSource source) => _subscriptions.add(source.positions.listen(_onPosition));
+  void _listen(PositionSource source, {bool real = true}) => _subscriptions.add(source.positions.listen((position) {
+        if (real) _track(position);
+        _onPosition(position);
+      }));
+
+  /// Skok dalej niż 2 km między pozycjami to błąd GPS, nie jazda.
+  void _track(LatLng position) {
+    _tripStart ??= DateTime.now().toUtc();
+    if (_tripLast case final last?) {
+      final step = distanceM(last, position);
+      if (step < 2000) _tripM += step;
+    }
+    _tripLast = position;
+  }
+
+  /// Koniec nawigacji: przejazd od 0,5 km trafia do statystyk pojazdu (bez sieci – przepada).
+  void _saveTrip() {
+    final start = _tripStart;
+    if (start == null || _tripM < 500) return;
+    final cost = widget.request.route.cost;
+    widget.api.post('/api/vehicles/${widget.request.vehicleId}/trips', {
+      'started_at': start.toIso8601String(),
+      'ended_at': DateTime.now().toUtc().toIso8601String(),
+      'distance_km': double.parse((_tripM / 1000).toStringAsFixed(2)),
+      'planned_km': _route.distanceKm,
+      if (cost != null) 'cost_amount': cost.amount,
+      if (cost != null) 'cost_currency': cost.currency,
+    }).ignore();
+  }
 
   @override
   void dispose() {
@@ -228,6 +261,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     _player.dispose();
     _speaker.dispose();
     _blink.dispose();
+    _saveTrip();
     // Koniec jazdy: pojazd przestaje być „w użyciu” (bez sieci – serwer zwolni go sam po czasie).
     widget.api.post('/api/vehicles/${widget.request.vehicleId}/release', {}).ignore();
     super.dispose();

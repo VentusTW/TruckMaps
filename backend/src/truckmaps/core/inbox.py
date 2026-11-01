@@ -26,6 +26,8 @@ class Kind(StrEnum):
     EXTENSION_REQUEST = "admin_extension_request"
     ACCESS_CLOSED = "admin_access_closed"
     """Administrator skończył zmiany i zamknął dostęp."""
+    VEHICLE_DUE = "vehicle_due"
+    """Zbliża się albo minął termin pojazdu (przegląd, ubezpieczenie, serwis wg przebiegu)."""
 
 
 def _now() -> datetime:
@@ -44,19 +46,22 @@ class Message(Base):
     data: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """Powiadomienie e-mail wysłane (``mailer``)."""
 
 
 def send(
     db: Session,
     recipients: list[str],
-    kind: Kind,
+    kind: Kind | str,
     *,
     sender_name: str,
     company_id: str | None = None,
     grant_id: str | None = None,
     data: dict | None = None,
 ) -> None:
-    for recipient in recipients:
+    """``kind`` – ``Kind`` rdzenia albo rodzaj modułu (np. "service.order_new")."""
+    for recipient in dict.fromkeys(recipients):
         db.add(
             Message(
                 recipient=recipient,

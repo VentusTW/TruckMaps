@@ -16,13 +16,17 @@ from truckmaps.core import (
     corridor,
     currency,
     devlogin,
+    fuel_prices,
     geocoding,
     i18n,
     inbox,
+    mailer,
     passwords,
     releases,
+    reminders,
     reports,
     routing,
+    trips,
     vehicles,
 )
 from truckmaps.core.auth import AuthService, OidcProvider, TokenVerifier
@@ -61,10 +65,37 @@ def create_app(
         if database is not None and settings.exchange_rates_url:
             updater = currency.RateUpdater(database, settings.exchange_rates_url)
             updater.start()
+        prices = None
+        if database is not None and settings.fuel_prices_url:
+            prices = fuel_prices.PriceUpdater(database, settings.fuel_prices_url)
+            prices.start()
+        mail = None
+        currency.email_available = bool(settings.smtp_host)
+        if database is not None and settings.smtp_host:
+            smtp = mailer.SmtpSettings(
+                host=settings.smtp_host,
+                port=settings.smtp_port,
+                user=settings.smtp_user,
+                password=settings.smtp_password,
+                sender=settings.smtp_sender,
+                starttls=settings.smtp_starttls,
+            )
+            mail = mailer.MailSender(database, smtp)
+            mail.start()
+        reminder = None
+        if database is not None and settings.vehicle_reminders:
+            reminder = reminders.ReminderSender(database)
+            reminder.start()
         bus.publish(CoreReady(modules=manager.active))
         yield
         if updater:
             updater.stop()
+        if reminder:
+            reminder.stop()
+        if prices:
+            prices.stop()
+        if mail:
+            mail.stop()
 
     app = FastAPI(title="TruckMaps", version=CORE_VERSION, lifespan=lifespan)
     # Trasy i korytarze danych to duże odpowiedzi JSON – kompresja zmniejsza je kilkukrotnie.
@@ -121,6 +152,7 @@ def create_app(
     app.include_router(api.build_router(auth.current_user))
     app.include_router(companies.build_router(auth.current_user))
     app.include_router(vehicles.build_router(auth.current_user))
+    app.include_router(trips.build_router(auth.current_user))
     app.include_router(routing.build_router(auth.current_user))
     app.include_router(corridor.build_router(auth.current_user))
     app.include_router(reports.build_router(auth.current_user))

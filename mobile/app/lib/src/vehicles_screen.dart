@@ -6,6 +6,7 @@ import 'l10n.dart';
 import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_form.dart';
 import 'vehicles/vehicle_state.dart';
+import 'vehicles/vehicle_stats.dart';
 import 'vehicles/vehicles_table.dart';
 
 /// Profile pojazdów konta (prywatne i firmowe) – wymiary, według których liczona jest trasa.
@@ -86,6 +87,9 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     );
     if (saved != null && mounted) _reload();
   }
+
+  void _stats(Map<String, dynamic> vehicle) => Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => VehicleStatsScreen(api: widget.api, vehicle: vehicle)));
 
   Future<void> _delete(Map<String, dynamic> vehicle) async {
     final l = context.l;
@@ -195,6 +199,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 onEdit: () => _open(v),
                 onDelete: () => _delete(v),
                 onService: () => _service(v),
+                onStats: () => _stats(v),
                 coupling: couples.containsKey(v['kind'])
                     ? _CouplingSlot(
                         vehicle: v,
@@ -280,7 +285,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     VoidCallback? open(Map<String, dynamic> v) =>
         v['can_edit'] != false ? () => _open(v) : (v['can_service'] == true ? () => _service(v) : null);
     Widget actions(Map<String, dynamic> v) =>
-        _Actions(vehicle: v, onEdit: () => _open(v), onDelete: () => _delete(v), onService: () => _service(v));
+        _Actions(
+            vehicle: v,
+            onEdit: () => _open(v),
+            onDelete: () => _delete(v),
+            onService: () => _service(v),
+            onStats: () => _stats(v));
     Widget coupling(Map<String, dynamic> v) {
       if (!couples.containsKey(v['kind'])) return const Text('–');
       final trailer = byId[v['trailer_id']];
@@ -350,12 +360,18 @@ String _title(Map<String, dynamic> v) {
 
 class _VehicleCard extends StatelessWidget {
   const _VehicleCard(
-      {required this.vehicle, required this.onEdit, required this.onDelete, required this.onService, this.coupling});
+      {required this.vehicle,
+      required this.onEdit,
+      required this.onDelete,
+      required this.onService,
+      this.onStats,
+      this.coupling});
 
   final Map<String, dynamic> vehicle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onService;
+  final VoidCallback? onStats;
   final Widget? coupling;
 
   @override
@@ -369,6 +385,7 @@ class _VehicleCard extends StatelessWidget {
     final stateLabel = stateText(l, v);
     final service = v['can_service'] == true;
     final urgent = mostUrgent(v);
+    final kmLeft = serviceKmLeft(v);
     String n(Object? value) => value is num ? l.number(value) : '–';
     final kind = v['kind'] as String?;
     final summary = l.vehicleSummary(n(v['height_m']), n(v['width_m']), n(v['length_m']),
@@ -390,7 +407,7 @@ class _VehicleCard extends StatelessWidget {
               '$summary$tare$tank$seats$adr'),
           isThreeLine: true,
           onTap: editable ? onEdit : (service ? onService : null),
-          trailing: _Actions(vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService),
+          trailing: _Actions(vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService, onStats: onStats),
         ),
         if (urgent != null)
           Padding(
@@ -408,6 +425,21 @@ class _VehicleCard extends StatelessWidget {
               ),
             ]),
           ),
+        if (kmLeft != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              Icon(kmLeft < 0 ? Icons.error_outline : Icons.build_circle_outlined,
+                  size: 18, color: kmLeft < 0 ? scheme.error : scheme.tertiary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  kmLeft < 0 ? l.vehicleServiceKmOverdue(l.number(-kmLeft)) : l.vehicleServiceKmSoon(l.number(kmLeft)),
+                  style: TextStyle(color: kmLeft < 0 ? scheme.error : scheme.tertiary),
+                ),
+              ),
+            ]),
+          ),
         if (coupling != null) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), child: coupling),
       ]),
     );
@@ -416,12 +448,16 @@ class _VehicleCard extends StatelessWidget {
 
 /// Menu pojazdu: zmiana, terminy, usunięcie – według uprawnień; bez uprawnień kłódka.
 class _Actions extends StatelessWidget {
-  const _Actions({required this.vehicle, required this.onEdit, required this.onDelete, required this.onService});
+  const _Actions(
+      {required this.vehicle, required this.onEdit, required this.onDelete, required this.onService, this.onStats});
 
   final Map<String, dynamic> vehicle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onService;
+
+  /// Statystyki przejazdów – tylko pojazdy, które jeżdżą same (bez naczep i przyczep).
+  final VoidCallback? onStats;
 
   @override
   Widget build(BuildContext context) {
@@ -433,11 +469,14 @@ class _Actions extends StatelessWidget {
       onSelected: (action) => switch (action) {
         'edit' => onEdit(),
         'service' => onService(),
+        'stats' => onStats?.call(),
         _ => onDelete(),
       },
       itemBuilder: (context) => [
         if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
         if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
+        if (onStats != null && !towedKinds.contains(vehicle['kind']))
+          PopupMenuItem(value: 'stats', child: Text(l.vehicleStatsAction)),
         if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
       ],
     );

@@ -1,9 +1,11 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'account/common.dart';
 import 'company/admin_access_screen.dart';
 import 'l10n.dart';
+import 'vehicles/service_dates.dart';
 
 /// Skrzynka wiadomości: prośby administratora TruckMaps o dostęp (wyróżnione, z decyzją od razu),
 /// prośby o przedłużenie i informacje o zamknięciu dostępu. Tekst składa aplikacja z rodzaju
@@ -90,6 +92,21 @@ class _InboxScreenState extends State<InboxScreen> {
     );
   }
 
+  String _vehicleName(Map<String, dynamic> data) =>
+      [data['vehicle_name'], if (data['plate'] != null) data['plate']].join(' · ');
+
+  /// Przypomnienie o terminie pojazdu: data „ważny do” albo serwis według przebiegu.
+  String _dueText(AppLocalizations l, Map<String, dynamic> data) {
+    final overdue = data['overdue'] == true;
+    if (data['field'] == 'service_due_km') {
+      final left = (data['km_left'] as num? ?? 0).round();
+      return overdue ? l.vehicleServiceKmOverdue(l.number(-left)) : l.vehicleServiceKmSoon(l.number(left));
+    }
+    final day = parseDate(data['day']);
+    final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
+    return (overdue ? l.vehicleOverdue : l.vehicleDueSoon)(serviceDateLabel(l, '${data['field']}'), when);
+  }
+
   Widget _message(AppLocalizations l, Map<String, dynamic> message) {
     final theme = Theme.of(context);
     final actionable = _actionable(message);
@@ -110,6 +127,19 @@ class _InboxScreenState extends State<InboxScreen> {
           actionable ? l.inboxExtensionHint : _outcome(l, message)
         ),
       'admin_access_closed' => (l.inboxAccessClosed(admin), ''),
+      'service.order_new' => (
+          l.inboxServiceNew(_vehicleName(data)),
+          [
+            '„${data['description']}”',
+            l.inboxServiceReporter('${data['reporter_name']}'),
+            if (data['urgency'] == 'stopped') l.inboxServiceStopped,
+          ].join('\n')
+        ),
+      'service.order_done' => (l.inboxServiceDone(_vehicleName(data)), l.inboxServiceMechanic('${data['mechanic_name']}')),
+      'vehicle_due' => (
+          l.inboxVehicleDue(_vehicleName(data)),
+          _dueText(l, data)
+        ),
       _ => ('${message['kind']}', ''),
     };
     return Card(
@@ -119,7 +149,13 @@ class _InboxScreenState extends State<InboxScreen> {
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(actionable ? Icons.admin_panel_settings : Icons.mail_outline),
+            Icon(actionable
+                ? Icons.admin_panel_settings
+                : switch (message['kind']) {
+                    'vehicle_due' => Icons.event_note_outlined,
+                    'service.order_new' || 'service.order_done' => Icons.build_outlined,
+                    _ => Icons.mail_outline,
+                  }),
             const SizedBox(width: 8),
             Expanded(child: Text(title, style: theme.textTheme.titleSmall)),
             Text(when, style: theme.textTheme.bodySmall),

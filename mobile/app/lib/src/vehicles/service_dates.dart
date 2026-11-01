@@ -1,5 +1,6 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../l10n.dart';
@@ -10,11 +11,17 @@ const bodyKinds = {'combination', 'rigid', 'van', 'semitrailer', 'trailer'};
 /// Rodzaje z tachografem (dostawczy do 3,5 t go nie ma) – jak na serwerze.
 const tachographKinds = {'combination', 'rigid', 'tractor', 'bus'};
 
+/// Rodzaje bez silnika (naczepa, przyczepa) – bez licznika, spalania i OCP.
+const towedKinds = {'semitrailer', 'trailer'};
+
 /// Terminy przeglądów i badań (pola na serwerze), w kolejności na ekranie.
 const serviceDateKeys = [
   'last_inspection',
   'inspection_until',
   'insurance_until',
+  'ac_until',
+  'ocp_until',
+  'udt_until',
   'tachograph_until',
   'tdt_until',
   'adr_until',
@@ -29,10 +36,30 @@ const tachographDownloadDays = 90;
 /// Ile dni przed terminem pokazujemy ostrzeżenie.
 const dueSoonDays = 30;
 
+/// Ile km przed serwisem według przebiegu pokazujemy ostrzeżenie.
+const serviceSoonKm = 2000;
+
+/// Stan licznika i następny serwis (pola liczbowe obok terminów, tylko pojazdy z silnikiem).
+const mileageKeys = ['odometer_km', 'service_due_km'];
+
+String mileageLabel(AppLocalizations l, String key) =>
+    key == 'odometer_km' ? l.vehicleOdometer : l.vehicleServiceDueKm;
+
+/// Serwis według przebiegu: ile km zostało (ujemne – po terminie); `null`, gdy daleko albo brak danych.
+int? serviceKmLeft(Map<String, dynamic> vehicle) {
+  final odometer = vehicle['odometer_km'], due = vehicle['service_due_km'];
+  if (odometer is! num || due is! num) return null;
+  final left = (due - odometer).round();
+  return left > serviceSoonKm ? null : left;
+}
+
 String serviceDateLabel(AppLocalizations l, String key) => switch (key) {
       'last_inspection' => l.vehicleLastInspection,
       'inspection_until' => l.vehicleInspectionUntil,
       'insurance_until' => l.vehicleInsuranceUntil,
+      'ac_until' => l.vehicleAcUntil,
+      'ocp_until' => l.vehicleOcpUntil,
+      'udt_until' => l.vehicleUdtUntil,
       'tachograph_until' => l.vehicleTachographUntil,
       'tdt_until' => l.vehicleTdtUntil,
       'atp_until' => l.vehicleAtpUntil,
@@ -48,6 +75,7 @@ bool serviceDateApplies(String key, {required String kind, required String body,
       'atp_until' => bodyKinds.contains(kind) && body == 'reefer',
       'tdt_until' => bodyKinds.contains(kind) && body == 'tanker',
       'adr_until' => hazmat,
+      'ocp_until' => !towedKinds.contains(kind),
       _ => true,
     };
 
@@ -139,6 +167,17 @@ class ServiceDatesScreen extends StatefulWidget {
 
 class _ServiceDatesScreenState extends State<ServiceDatesScreen> {
   late final Map<String, DateTime?> _dates = {for (final k in serviceDateKeys) k: parseDate(widget.vehicle[k])};
+  late final Map<String, TextEditingController> _km = {
+    for (final k in mileageKeys) k: TextEditingController(text: '${widget.vehicle[k] ?? ''}'),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _km.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
   bool _busy = false;
   String? _error;
 
@@ -150,6 +189,8 @@ class _ServiceDatesScreenState extends State<ServiceDatesScreen> {
     try {
       final saved = await widget.api.put('/api/vehicles/${widget.vehicle['id']}/service', {
         for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
+        if (!towedKinds.contains(widget.vehicle['kind']))
+          for (final e in _km.entries) e.key: int.tryParse(e.value.text),
       });
       if (mounted) Navigator.of(context).pop(saved);
     } catch (error) {
@@ -182,6 +223,18 @@ class _ServiceDatesScreenState extends State<ServiceDatesScreen> {
               shortcut: serviceDateShortcut(l, key),
             ),
           ),
+        if (!towedKinds.contains(v['kind']))
+          for (final key in mileageKeys)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                controller: _km[key],
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                    labelText: mileageLabel(l, key), suffixText: 'km', border: const OutlineInputBorder(), isDense: true),
+              ),
+            ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),

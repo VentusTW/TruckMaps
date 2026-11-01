@@ -32,6 +32,9 @@ Map<String, dynamic> order(String status, {bool handle = true}) => {
       'can_handle': handle,
     };
 
+// Najmniejszy PNG 1×1 – do miniatury zdjęcia.
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 void main() {
   late List<(String, String, Object?)> requests;
   late Map<String, dynamic> current;
@@ -58,6 +61,31 @@ void main() {
               'parts': body['parts'],
               'inspection_until': body['inspection_until'],
             });
+          }
+          if (path.endsWith('/photos')) {
+            return json(
+                current = {
+                  ...current,
+                  'photos': [
+                    {'id': 'p1', 'stage': (body as Map)['stage'], 'created_at': '2026-11-01T08:00:00Z'}
+                  ],
+                },
+                201);
+          }
+          if (path == '/api/m/service/photos/p1') return json({'content_type': 'image/png', 'image': png});
+          if (path.endsWith('/protocol')) return json({'html': '<h1>Protokół</h1>', 'filename': '2026-11-01-KTA'});
+          if (path == '/api/m/service/costs') {
+            return json([
+              {
+                'vehicle_id': 'v1',
+                'vehicle_name': 'MAN TGX',
+                'vehicle_plate': 'KTA 12345',
+                'currency': 'PLN',
+                'orders': 2,
+                'parts_total': 1900.5,
+                'labour_hours': 3.5,
+              }
+            ]);
           }
           return json(null, 404);
         }),
@@ -147,5 +175,44 @@ void main() {
     await pump(tester, OrderScreen(api: api(), order: order('new', handle: false)));
     expect(find.text('Accept'), findsNothing);
     expect(find.text('Vehicle is off the road'), findsOneWidget);
+  });
+
+  testWidgets('zdjęcie usterki, protokół do druku i koszty napraw', (tester) async {
+    final opened = <String>[];
+    await pump(
+      tester,
+      OrderScreen(
+        api: api(),
+        order: order('new', handle: false),
+        photoPicker: () async => base64Decode(png),
+        htmlOpener: (html, name) async {
+          opened.add('$name:$html');
+          return true;
+        },
+      ),
+    );
+    await tester.tap(find.text('Add photo'));
+    await tester.pumpAndSettle();
+    final sent = requests.singleWhere((r) => r.$2.endsWith('/photos')).$3 as Map;
+    expect((sent['stage'], sent['image']), ('report', png));
+    expect(find.byType(Image), findsOneWidget);
+
+    await pump(
+        tester,
+        OrderScreen(
+            key: const ValueKey('done'),
+            api: api(),
+            order: order('done'),
+            htmlOpener: (html, name) async {
+              opened.add('$name:$html');
+              return true;
+            }));
+    await tester.tap(find.text('Printable protocol / PDF'));
+    await tester.pumpAndSettle();
+    expect(opened, ['2026-11-01-KTA:<h1>Protokół</h1>']);
+
+    await pump(tester, CostsScreen(api: api()));
+    expect(find.text('MAN TGX · KTA 12345'), findsOneWidget);
+    expect(find.text('Repairs: 2 · parts: 1,900.50 PLN · labour: 3.5 h'), findsOneWidget);
   });
 }

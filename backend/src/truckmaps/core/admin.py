@@ -40,6 +40,7 @@ from truckmaps.core.i18n import t
 from truckmaps.core.inbox import Kind, mark_read, send
 from truckmaps.core.releases import Release
 from truckmaps.core.reports import DriverReport
+from truckmaps.core.trips import move_trips
 from truckmaps.core.vehicles import VehicleProfile, _drop_broken_couplings
 from truckmaps.sdk import Principal
 
@@ -762,6 +763,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             holder.trailer_id = keep.id if holder.id != keep.id else None
         db.flush()
         _drop_broken_couplings(db, keep)
+        move_trips(db, keep.id, merged.id)
         for handler in request.app.state.modules.vehicle_merge_handlers:
             handler(db, keep.id, merged.id)
         summary = {"merged": [f"{merged.name} ({merged.id})", None], **filled}
