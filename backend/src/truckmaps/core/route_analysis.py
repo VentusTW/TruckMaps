@@ -111,6 +111,9 @@ class RouteEdge(BaseModel):
     state: str = ""
     end_s: float | None = None
     """Czas jazdy od startu trasy do końca odcinka [s]; ``None`` – brak danych."""
+    length_km: float = 0.0
+    toll: bool = False
+    """Droga płatna według OSM (``toll=yes``) – do szacowania myta."""
 
 
 class Segment(BaseModel):

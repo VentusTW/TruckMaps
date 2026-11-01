@@ -183,6 +183,36 @@ void main() {
     expect(changed, greaterThan(0));
   });
 
+  testWidgets('przypomnienia o terminach pojazdu w skrzynce', (tester) async {
+    Map<String, dynamic> due(String id, Map<String, dynamic> data) => {
+          'id': id,
+          'kind': 'vehicle_due',
+          'sender_name': '',
+          'company_id': null,
+          'grant_id': null,
+          'grant': null,
+          'data': {'vehicle_id': 'v1', 'vehicle_name': 'Zestaw', 'plate': 'KTA 12', ...data},
+          'created_at': '2026-11-01T06:00:00Z',
+          'read': false,
+        };
+    messages = [
+      due('m1', {'field': 'insurance_until', 'day': '2026-10-30', 'overdue': true}),
+      due('m2', {'field': 'service_due_km', 'km_left': 1500, 'overdue': false}),
+      {
+        ...due('m3', {'order_id': 'o1', 'description': 'Wycieka olej', 'reporter_name': 'Jan', 'urgency': 'stopped'}),
+        'kind': 'service.order_new',
+      },
+    ];
+    await tester.pumpWidget(localized(InboxScreen(api: api())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Termin pojazdu: Zestaw · KTA 12'), findsNWidgets(2));
+    expect(find.text('Nowe zgłoszenie usterki: Zestaw · KTA 12'), findsOneWidget);
+    expect(find.textContaining('zgłosił(a): Jan'), findsOneWidget);
+    expect(find.textContaining('Po terminie – Ubezpieczenie OC ważne do'), findsOneWidget);
+    expect(find.text('Wkrótce – serwis za 1500 km'), findsOneWidget);
+  });
+
   testWidgets('prośba czekająca na ekranie dostępu: zgoda albo odmowa', (tester) async {
     grants = [grant('g3', state: 'pending', requestedBy: 'Anna')];
     await tester.pumpWidget(localized(AdminAccessScreen(api: api(), companyId: 'c1')));

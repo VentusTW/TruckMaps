@@ -1,0 +1,11 @@
+{
+  "load.vehicle_not_found": "Vehicle not found.",
+  "load.custom_size": "Enter the length and width of the load.",
+  "load.too_wide": "The load is wider than the cargo space.",
+  "load.deck_unknown": "Enter the cargo space length (or pallet places in the vehicle profile).",
+  "load.unplaced": "Will not fit: {count} pcs.",
+  "load.overweight": "Load of {weight} kg exceeds the payload of {payload} kg.",
+  "load.cog_front": "The load's centre of gravity is too far forward ({share}% of the length) – move heavier pallets back so as not to overload the fifth wheel.",
+  "load.cog_back": "The load's centre of gravity is too far back ({share}% of the length) – move heavier pallets forward so the steering axle keeps its load.",
+  "load.no_front_wall": "The load does not rest against the front wall – more straps are needed (braking)."
+}

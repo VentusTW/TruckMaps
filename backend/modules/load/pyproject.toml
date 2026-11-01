@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "truckmaps-module-load"
+version = "0.1.0"
+description = "Moduł Plan załadunku TruckMaps – LDM, palety, środek ciężkości, mocowanie"
+requires-python = ">=3.12"
+dependencies = ["truckmaps-backend>=0.1,<1.0"]
+
+# Nazwa entry pointu musi być równa Module.id.
+[project.entry-points."truckmaps.modules"]
+load = "truckmaps_load.module:LoadModule"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/truckmaps_load"]

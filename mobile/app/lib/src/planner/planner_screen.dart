@@ -630,7 +630,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
         icon: const Icon(Icons.navigation_outlined),
         label: Text(l.navigateWithAlarm),
       ),
-      if (shown.cost != null) Text(l.costEstimate, style: theme.textTheme.bodySmall),
+      if (shown.cost != null) ...[
+        Text([l.costEstimate, if (shown.cost!.summaryParts(l) case final parts?) parts].join(' · '),
+            style: theme.textTheme.bodySmall),
+        for (final line in shown.cost!.countryLines(l)) Text(line, style: theme.textTheme.bodySmall),
+      ],
       const SizedBox(height: 8),
       Chip(
         avatar: CircleAvatar(backgroundColor: levelColor(shown.level), radius: 8),

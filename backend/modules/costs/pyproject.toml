@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "truckmaps-module-costs"
+version = "0.1.0"
+description = "Moduł Opłaty drogowe i koszty TruckMaps – paliwo po cenach w krajach i myto per kraj"
+requires-python = ">=3.12"
+dependencies = ["truckmaps-backend>=0.1,<1.0"]
+
+# Nazwa entry pointu musi być równa Module.id.
+[project.entry-points."truckmaps.modules"]
+costs = "truckmaps_costs.module:CostsModule"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/truckmaps_costs"]
