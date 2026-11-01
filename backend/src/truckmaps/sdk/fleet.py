@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol
 
 from sqlalchemy.orm import Session
@@ -45,6 +46,15 @@ class Fleet(Protocol):
 
     def set_repair_reported(self, db: Session, vehicle_id: str, reported: bool) -> None:
         """Zgłoszona usterka, pojazd może jechać (zapis razem z sesją modułu)."""
+        ...
+
+    def on_vehicles_merged(self, handler: Callable[[Session, str, str], None]) -> None:
+        """Administrator scala zdublowane pojazdy: ``handler(db, kept_id, merged_id)`` przenosi
+        dane modułu na zachowany pojazd – w tej samej sesji, przed usunięciem dubla."""
+        ...
+
+    def record_inspection(self, db: Session, vehicle_id: str, day: date, valid_until: date) -> None:
+        """Przegląd techniczny zrobiony w serwisie: ostatni przegląd i nowa ważność pojazdu."""
         ...
 
 

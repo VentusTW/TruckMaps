@@ -4,6 +4,7 @@ import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_form.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_state.dart';
@@ -308,6 +309,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Zmień'), findsNothing);
     expect(find.text('Terminy przeglądów'), findsOneWidget);
+
+    // Terminy ciągnika: pobranie danych z tachografu jednym przyciskiem (+90 dni), bez ATP (to nie chłodnia).
+    await tester.tap(find.text('Terminy przeglądów'));
+    await tester.pumpAndSettle();
+    expect(find.text('Świadectwo ATP chłodni do'), findsNothing);
+    expect(find.text('Koniec leasingu'), findsOneWidget);
+    await tester.tap(find.text('Pobrano dziś (+90 dni)'));
+    await tester.pumpAndSettle();
+    final due = DateUtils.dateOnly(DateTime.now()).add(const Duration(days: 90));
+    expect(find.text(DateFormat.yMd('pl').format(due)), findsOneWidget);
   });
 
   testWidgets('widok tabeli: zakładki, sortowanie, szukanie; wybór zapamiętany', (tester) async {
@@ -482,5 +493,53 @@ void main() {
     await open({...truck, 'kind': 'tractor'});
     expect(find.text('AdBlue (% spalania)'), findsOneWidget);
     expect(find.text('l/100 km'), findsNWidgets(2));
+  });
+
+  testWidgets('dowód: skan na żywo z aparatu (telefon) wypełnia formularz', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async => switch (request.url.path) {
+            '/api/vehicles/registration' => json({'name': 'DAF XF', 'kind': 'tractor', 'axle_count': 2}),
+            '/api/companies' => json([]),
+            _ => json({'currencies': [], 'per_eur': {}}),
+          }),
+    );
+    await tester.pumpWidget(localized(VehicleFormScreen(api: api, codeScanner: (_) async => 'KOD')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wczytaj z dowodu rejestracyjnego'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Skanuj kod aparatem'));
+    await tester.pumpAndSettle();
+    expect(find.text('DAF XF'), findsOneWidget);
+  });
+
+  testWidgets('dowód z innego kraju UE: tekst ze zdjęcia idzie na serwer', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Object? sent;
+    final api = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async {
+        if (request.url.path == '/api/vehicles/registration') {
+          sent = jsonDecode(request.body);
+          return json({'name': 'MERCEDES-BENZ ACTROS', 'vin': 'WDB9634031L123456'});
+        }
+        return json(request.url.path == '/api/companies' ? [] : {'currencies': [], 'per_eur': {}});
+      }),
+    );
+    await tester.pumpWidget(localized(VehicleFormScreen(api: api, textReader: () async => 'E WDB9634031L123456')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wczytaj z dowodu rejestracyjnego'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dowód z innego kraju UE'));
+    await tester.pumpAndSettle();
+    expect(sent, {'text': 'E WDB9634031L123456'});
+    expect(find.text('MERCEDES-BENZ ACTROS'), findsOneWidget);
   });
 }

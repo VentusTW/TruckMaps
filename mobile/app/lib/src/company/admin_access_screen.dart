@@ -7,7 +7,7 @@ import '../account/common.dart';
 import '../l10n.dart';
 
 /// Zakresy, w których właściciel może pozwolić administratorowi TruckMaps na zmiany.
-const adminScopes = ['company', 'bases'];
+const adminScopes = ['company', 'bases', 'vehicles'];
 
 /// Tyle trwa dostęp po zgodzie; dłużej – po przedłużeniu.
 const grantMinutes = 60;
@@ -16,6 +16,7 @@ const _durations = [30, 60, 120, 240, 480];
 String scopeLabel(AppLocalizations l, String scope) => switch (scope) {
       'company' => l.adminScopeCompany,
       'bases' => l.adminScopeBases,
+      'vehicles' => l.adminScopeVehicles,
       _ => scope,
     };
 

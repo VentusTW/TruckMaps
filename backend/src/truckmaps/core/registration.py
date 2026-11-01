@@ -9,6 +9,7 @@ nie zwracamy ani nie zapisujemy; zdjęcie też nie jest zapisywane.
 import base64
 import binascii
 import io
+import re
 
 from truckmaps.core.i18n import t
 
@@ -127,12 +128,9 @@ OLD = {"A": 5, "D1": 6, "D3": 10, "E": 11, "F1": 22, "F2": 23, "G": 25, "L": 28,
 
 
 def _number(value: str | None) -> float | None:
-    if not value:
-        return None
-    try:
-        return float(value.replace(",", ".").replace(" ", ""))
-    except ValueError:
-        return None
+    """Liczba z pola („18000”, „8100 kg”, „2,5”); brak liczby – ``None``."""
+    match = re.search(r"\d+(?:[.,]\d+)?", (value or "").replace(" ", ""))
+    return float(match.group(0).replace(",", ".")) if match else None
 
 
 def _kind(text: str, category: str, gvw_kg: float | None) -> str | None:
@@ -160,9 +158,9 @@ def _kind(text: str, category: str, gvw_kg: float | None) -> str | None:
     return None
 
 
-def vehicle_data(fields: list[str]) -> dict:
+def vehicle_data(fields: list[str], index: dict[str, int] | None = None) -> dict:
     """Pola profilu pojazdu z pól dowodu – tylko te, które dowód zawiera (bez wymiarów)."""
-    index = NEW if fields[0].startswith("XX") else OLD
+    index = index or (NEW if fields[0].startswith("XX") else OLD)
 
     def get(key: str) -> str:
         i = index.get(key)
@@ -192,3 +190,57 @@ def vehicle_data(fields: list[str]) -> dict:
         "production_year": int(year) if year and 1950 <= year <= 2100 else None,
     }
     return {key: value for key, value in data.items() if value not in (None, "")}
+
+
+# Dowody z krajów UE (dyrektywa 1999/37/WE) mają te same kody pól – tekst ze zdjęcia
+# (rozpoznany na telefonie) czytamy po kodach na początku linii: „E WMA06…”, „F.2: 18000”.
+EU_CODES = {
+    "A": "A",
+    "D.1": "D1",
+    "D.3": "D3",
+    "E": "E",
+    "F.1": "F1",
+    "F.2": "F2",
+    "G": "G",
+    "J": "J",
+    "L": "L",
+    "S.1": "S1",
+    "S.2": "S2",
+}
+_CODE_LINE = re.compile(
+    r"^\s*\(?(A|D\s*\.?\s*[13]|E|F\s*\.?\s*[12]|G|J|L|S\s*\.?\s*[12])\s*[.):]?\s+(.+)$"
+)
+_VIN = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+
+
+def text_fields(text: str) -> dict[str, str]:
+    """Pola dowodu z rozpoznanego tekstu (kod → wartość); pierwsze wystąpienie kodu wygrywa."""
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        match = _CODE_LINE.match(line.upper())
+        if not match:
+            continue
+        code = re.sub(r"\s+", "", match.group(1))
+        if len(code) == 2:  # „D1” bez kropki
+            code = f"{code[0]}.{code[1]}"
+        key = EU_CODES.get(code)
+        if key and key not in found:
+            found[key] = match.group(2).strip()
+    if "E" not in found and (vin := _VIN.search(text.upper().replace(" ", ""))):
+        found["E"] = vin.group(0)
+    return found
+
+
+def vehicle_data_from_text(text: str) -> dict:
+    """Pola profilu z tekstu dowodu dowolnego kraju UE (bez rodzaju z „rodzaju pojazdu”)."""
+    fields = text_fields(text)
+    if len(fields) < 2:
+        raise RegistrationError(t("registration.text_unreadable"))
+    order = ["A", "D1", "D3", "E", "F1", "F2", "G", "J", "L", "S1", "S2"]
+    values = [""] * 60
+    index = {key: i for i, key in enumerate(order, start=1)}
+    for key, value in fields.items():
+        values[index[key]] = (
+            re.sub(r"(?<=\d)[\s.](?=\d{3}\b)", "", value) if key[0] in "FGLS" else value
+        )
+    return vehicle_data(values, {**index, "kind": 0})

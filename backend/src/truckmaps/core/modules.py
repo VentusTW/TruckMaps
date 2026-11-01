@@ -14,7 +14,7 @@ from packaging.version import Version
 from truckmaps.core.auth import AuthService
 from truckmaps.core.events import InProcessEventBus
 from truckmaps.core.extensions import ExtensionRegistry, check_implementation
-from truckmaps.core.fleet import CoreFleet, CoreStorage
+from truckmaps.core.fleet import CoreFleet, CoreStorage, MergeHandler
 from truckmaps.core.licensing import StaticLicensing
 from truckmaps.core.version import CORE_VERSION
 from truckmaps.sdk import Event, ExtensionPoint, Module
@@ -110,6 +110,8 @@ class ModuleManager:
         self._extensions = extensions
         self._licensing = licensing
         self._enabled = enabled
+        self.vehicle_merge_handlers: list[MergeHandler] = []
+        """Moduły przenoszą swoje dane przy scalaniu pojazdów (``fleet.on_vehicles_merged``)."""
         self.statuses: dict[str, ModuleStatus] = {}
 
     @property
@@ -155,7 +157,7 @@ class ModuleManager:
             events=_ModuleEvents(self._bus),
             extensions=_ModuleExtensions(self._extensions),
             storage=CoreStorage(),
-            fleet=CoreFleet(),
+            fleet=CoreFleet(self.vehicle_merge_handlers),
             logger=logging.getLogger(f"truckmaps.module.{module_id}"),
         )
         try:

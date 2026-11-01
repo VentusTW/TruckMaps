@@ -163,5 +163,10 @@
   "registration.unreadable": "The code from the registration certificate could not be read.",
   "registration.no_code": "No Aztec code from a registration certificate was found in the photo. Take a sharp close-up without glare.",
   "registration.not_image": "This is not a photo (supported: JPG, PNG).",
-  "error.consumption_loaded_below_empty": "Consumption when loaded cannot be lower than when empty."
+  "error.consumption_loaded_below_empty": "Consumption when loaded cannot be lower than when empty.",
+  "registration.text_unreadable": "Could not read the data from the certificate text. Take a sharper photo or enter the data by hand.",
+  "error.admin_private_vehicle": "A private vehicle can only be changed by its owner, not by an administrator.",
+  "error.member_required": "A private vehicle can only be assigned to a company member.",
+  "error.merge_same": "Choose two different vehicles.",
+  "error.merge_vin": "Only vehicles with the same VIN can be merged."
 }

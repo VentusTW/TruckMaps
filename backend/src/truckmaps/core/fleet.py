@@ -1,6 +1,7 @@
 """Pojazdy dla modułów (``truckmaps.sdk.fleet.Fleet``) – widoczność jak w ``/api/vehicles``."""
 
 from collections.abc import Callable, Iterator
+from datetime import date
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -25,7 +26,17 @@ def _info(vehicle: VehicleProfile, roles: dict) -> VehicleInfo:
     )
 
 
+MergeHandler = Callable[[Session, str, str], None]
+
+
 class CoreFleet:
+    def __init__(self, merge_handlers: list[MergeHandler] | None = None) -> None:
+        # Wspólna lista całej aplikacji – program administratora wywołuje ją przy scalaniu.
+        self._merge_handlers = merge_handlers if merge_handlers is not None else []
+
+    def on_vehicles_merged(self, handler: MergeHandler) -> None:
+        self._merge_handlers.append(handler)
+
     def vehicles(self, db: Session, user: Principal) -> list[VehicleInfo]:
         roles = company_ids(db, user)
         query = select(VehicleProfile).where(
@@ -53,6 +64,12 @@ class CoreFleet:
         vehicle = db.get(VehicleProfile, vehicle_id)
         if vehicle is not None:
             vehicle.repair_reported = reported
+
+    def record_inspection(self, db: Session, vehicle_id: str, day: date, valid_until: date) -> None:
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        if vehicle is not None:
+            vehicle.last_inspection = day
+            vehicle.inspection_until = valid_until
 
 
 class CoreStorage:

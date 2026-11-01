@@ -7,14 +7,14 @@ Moduł korzysta tylko z SDK rdzenia: pojazdy widzi przez ``ctx.fleet``, bazę pr
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from importlib import resources
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import JSON, DateTime, String, Text, select
+from sqlalchemy import JSON, Date, DateTime, String, Text, select, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from truckmaps.sdk import SERVICE_ROLES, CoreContext, Module, Principal, VehicleInfo, i18n
@@ -62,6 +62,8 @@ class ServiceOrder(Base):
     odometer_km: Mapped[int | None]
     notes: Mapped[str | None] = mapped_column(Text)
     reject_reason: Mapped[str | None] = mapped_column(Text)
+    inspection_until: Mapped[date | None] = mapped_column(Date)
+    """Zrobiony przegląd techniczny – ważny do (przesuwa terminy pojazdu)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -87,6 +89,10 @@ class ProtocolIn(BaseModel):
     labour_hours: float | None = Field(default=None, ge=0, le=1000)
     odometer_km: int | None = Field(default=None, ge=0, le=10_000_000)
     notes: str = Field(default="", max_length=2000)
+    inspection_until: date | None = Field(
+        default=None,
+        description="Zrobiony przegląd techniczny – ważny do (przesuwa terminy pojazdu)",
+    )
 
 
 class RejectIn(BaseModel):
@@ -112,6 +118,7 @@ class OrderOut(BaseModel):
     odometer_km: int | None
     notes: str | None
     reject_reason: str | None
+    inspection_until: date | None = None
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
@@ -183,6 +190,17 @@ class ServiceModule(Module):
             fleet.set_in_repair(db, vehicle_id, in_repair)
             fleet.set_repair_reported(db, vehicle_id, bool(orders) and not in_repair)
 
+        def vehicles_merged(db: Session, kept_id: str, merged_id: str) -> None:
+            """Zlecenia zdublowanego pojazdu przechodzą na zachowany (z historią napraw)."""
+            db.execute(
+                update(ServiceOrder)
+                .where(ServiceOrder.vehicle_id == merged_id)
+                .values(vehicle_id=kept_id)
+            )
+            refresh_repair(db, kept_id)
+
+        fleet.on_vehicles_merged(vehicles_merged)
+
         def save(db: Session, order: ServiceOrder, vehicle: VehicleInfo) -> OrderOut:
             order.updated_at = _now()
             db.flush()
@@ -250,6 +268,15 @@ class ServiceModule(Module):
             order.odometer_km = data.odometer_km
             order.notes = data.notes.strip() or None
             order.completed_at = _now()
+            if data.inspection_until is not None:
+                if data.inspection_until <= order.completed_at.date():
+                    raise HTTPException(
+                        status.HTTP_422_UNPROCESSABLE_CONTENT, t("service.inspection_past")
+                    )
+                order.inspection_until = data.inspection_until
+                fleet.record_inspection(
+                    db, order.vehicle_id, order.completed_at.date(), data.inspection_until
+                )
             if order.mechanic is None:
                 order.mechanic, order.mechanic_name = user.subject, _name(user)
             return save(db, order, vehicle)

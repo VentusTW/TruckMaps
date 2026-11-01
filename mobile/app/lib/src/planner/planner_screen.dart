@@ -10,6 +10,7 @@ import '../navigation/corridor.dart' show distanceM;
 import '../navigation/navigation_screen.dart';
 import '../reports/report_sheet.dart';
 import '../vehicles/vehicle_form.dart';
+import '../vehicles/vehicle_state.dart' show vehicleHeadline;
 import 'place_field.dart';
 import 'route.dart';
 
@@ -480,6 +481,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       Row(children: [
         Expanded(
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _vehicleId,
             decoration: InputDecoration(labelText: l.vehicle, isDense: true, border: const OutlineInputBorder()),
             items: [
@@ -599,6 +601,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final l = context.l;
     return [
       const Divider(height: 32),
+      if (_vehicles.where((v) => v['id'] == _vehicleId).firstOrNull case final vehicle?)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(children: [
+            const Icon(Icons.local_shipping_outlined, size: 18),
+            const SizedBox(width: 6),
+            Expanded(child: Text(vehicleHeadline(l, vehicle), style: theme.textTheme.labelLarge)),
+          ]),
+        ),
       Text(shown.summary(l), style: theme.textTheme.titleMedium),
       const SizedBox(height: 8),
       FilledButton.icon(

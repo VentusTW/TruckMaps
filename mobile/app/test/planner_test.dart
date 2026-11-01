@@ -54,7 +54,9 @@ void main() {
     await pumpPlanner(tester, (request) async {
       switch (request.url.path) {
         case '/api/vehicles':
-          return json([{'id': 'v1', 'name': 'Zestaw 40 t'}]);
+          return json([
+            {'id': 'v1', 'name': 'MAN TGX', 'trailer_name': 'Firanka', 'gvw_t': 40, 'height_m': 4.0}
+          ]);
         case '/api/geocode/reverse':
           return json({'label': 'Tarnów, Rynek', 'lat': 50.0, 'lon': 21.0});
         case '/api/routes':
@@ -69,6 +71,7 @@ void main() {
     expect(sent?['vehicle_id'], 'v1');
     expect(sent?['avoid_difficult'], isTrue);
     expect(find.text('22 km · 0 h 31 min'), findsOneWidget);
+    expect(find.text('MAN TGX + Firanka · 40 t · 4 m'), findsOneWidget); // pojazd w nagłówku trasy
     expect(find.text('Uwaga: trudne miejsca na trasie'), findsOneWidget);
     expect(find.textContaining('Ostry zakręt'), findsOneWidget);
     expect(find.textContaining('Przyjazd ok.'), findsOneWidget);

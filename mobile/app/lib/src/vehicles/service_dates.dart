@@ -18,7 +18,13 @@ const serviceDateKeys = [
   'tachograph_until',
   'tdt_until',
   'adr_until',
+  'atp_until',
+  'tachograph_download_until',
+  'leasing_until',
 ];
+
+/// Dane z tachografu pojazdu pobiera się co najmniej co 90 dni.
+const tachographDownloadDays = 90;
 
 /// Ile dni przed terminem pokazujemy ostrzeżenie.
 const dueSoonDays = 30;
@@ -29,13 +35,17 @@ String serviceDateLabel(AppLocalizations l, String key) => switch (key) {
       'insurance_until' => l.vehicleInsuranceUntil,
       'tachograph_until' => l.vehicleTachographUntil,
       'tdt_until' => l.vehicleTdtUntil,
+      'atp_until' => l.vehicleAtpUntil,
+      'tachograph_download_until' => l.vehicleTachographDownloadUntil,
+      'leasing_until' => l.vehicleLeasingUntil,
       _ => l.vehicleAdrUntil,
     };
 
-/// Które terminy dotyczą pojazdu: tachograf – pojazdy z tachografem, TDT – cysterny, ADR – z ADR.
+/// Które terminy dotyczą pojazdu: tachograf – pojazdy z tachografem, TDT – cysterny, ATP – chłodnie, ADR – z ADR.
 bool serviceDateApplies(String key, {required String kind, required String body, required bool hazmat}) =>
     switch (key) {
-      'tachograph_until' => tachographKinds.contains(kind),
+      'tachograph_until' || 'tachograph_download_until' => tachographKinds.contains(kind),
+      'atp_until' => bodyKinds.contains(kind) && body == 'reefer',
       'tdt_until' => bodyKinds.contains(kind) && body == 'tanker',
       'adr_until' => hazmat,
       _ => true,
@@ -58,12 +68,22 @@ String isoDate(DateTime day) => DateFormat('yyyy-MM-dd').format(day);
 }
 
 /// Pole daty z kalendarzem i przyciskiem wyczyszczenia.
+/// Skrót przy terminie: pobranie danych z tachografu „dziś” → następne za 90 dni.
+({String label, DateTime Function() day})? serviceDateShortcut(AppLocalizations l, String key) =>
+    key == 'tachograph_download_until'
+        ? (
+            label: l.vehicleTachographDownloaded,
+            day: () => DateUtils.dateOnly(DateTime.now()).add(const Duration(days: tachographDownloadDays)),
+          )
+        : null;
+
 class DateField extends StatelessWidget {
-  const DateField({super.key, required this.label, required this.value, required this.onChanged});
+  const DateField({super.key, required this.label, required this.value, required this.onChanged, this.shortcut});
 
   final String label;
   final DateTime? value;
   final ValueChanged<DateTime?> onChanged;
+  final ({String label, DateTime Function() day})? shortcut;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +99,7 @@ class DateField extends StatelessWidget {
       if (chosen != null) onChanged(chosen);
     }
 
-    return InkWell(
+    final field = InkWell(
       onTap: pick,
       child: InputDecorator(
         decoration: InputDecoration(
@@ -93,6 +113,16 @@ class DateField extends StatelessWidget {
         child: Text(value == null ? l.vehicleDateNone : DateFormat.yMd(l.localeName).format(value!)),
       ),
     );
+    final quick = shortcut;
+    if (quick == null) return field;
+    return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+      field,
+      TextButton.icon(
+        onPressed: () => onChanged(quick.day()),
+        icon: const Icon(Icons.download_done_outlined, size: 18),
+        label: Text(quick.label),
+      ),
+    ]);
   }
 }
 
@@ -149,6 +179,7 @@ class _ServiceDatesScreenState extends State<ServiceDatesScreen> {
               label: serviceDateLabel(l, key),
               value: _dates[key],
               onChanged: (day) => setState(() => _dates[key] = day),
+              shortcut: serviceDateShortcut(l, key),
             ),
           ),
         if (_error != null)

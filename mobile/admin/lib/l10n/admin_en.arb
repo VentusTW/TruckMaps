@@ -121,5 +121,20 @@
   "grantCancelRequest": "Withdraw request",
   "grantExtensionSent": "Extension request sent to the owner.",
   "grantEndingTitle": "Access time is running out",
-  "grantEndingText": "Change access for {company} ends in {minutes, plural, =1{1 minute} other{{minutes} minutes}}. Ask the owner for an extension or finish the changes."
+  "grantEndingText": "Change access for {company} ends in {minutes, plural, =1{1 minute} other{{minutes} minutes}}. Ask the owner for an extension or finish the changes.",
+  "scopeVehicles": "vehicles (assignment, merging duplicates)",
+  "duplicatesTitle": "Duplicate vehicles (VIN)",
+  "duplicatesHint": "Vehicles with the same VIN. Choose the vehicle that stays – missing data, couplings and repair history move to it and the duplicates are deleted. Only with each company's consent (scope “vehicles”), recorded in the company log. Private vehicles cannot be changed.",
+  "duplicatesEmpty": "No vehicles share a VIN.",
+  "mergeInto": "Merge into selected",
+  "merge": "Merge",
+  "mergeTitle": "Merge vehicles",
+  "mergeQuestion": "Merge {count, plural, =1{1 vehicle} other{{count} vehicles}} into “{name}”? The duplicates will be deleted.",
+  "assign": "Assign",
+  "assignTitle": "Assign: {name}",
+  "assignToCompany": "To a company",
+  "assignToMember": "To a company member",
+  "assignCompanyId": "Company ID",
+  "assignMemberSubject": "Member account ID",
+  "privateVehicle": "private ({owner})"
 }

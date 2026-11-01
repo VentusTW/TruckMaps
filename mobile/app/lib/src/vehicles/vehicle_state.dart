@@ -40,6 +40,17 @@ String? stateText(AppLocalizations l, Map<String, dynamic> v) => switch (vehicle
       VehicleState.free => null,
     };
 
+/// Pojazd w nagłówku trasy: „MAN TGX + Firanka · 40 t · 4 m” (masa i wysokość, według których liczona jest trasa).
+String vehicleHeadline(AppLocalizations l, Map<String, dynamic> v) {
+  final name = [v['name'], if (v['trailer_name'] != null) v['trailer_name']].join(' + ');
+  final weight = v['gvw_t'] ?? v['weight_t'];
+  return [
+    name,
+    if (weight is num) l.vehicleHeadlineWeight(l.number(weight)),
+    if (v['height_m'] is num) l.vehicleHeadlineHeight(l.number(v['height_m'] as num)),
+  ].join(' · ');
+}
+
 /// Objaśnienie kolorów – tylko stany, które są na liście.
 class StateLegend extends StatelessWidget {
   const StateLegend({super.key, required this.states});

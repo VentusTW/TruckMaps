@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'company_dialog.dart';
 import 'l10n.dart';
 import 'sections.dart';
+import 'vehicle_duplicates.dart';
 
 const pageSize = 50;
 
@@ -88,6 +89,16 @@ class _ListScreenState extends State<ListScreen> {
             ),
           for (final filter in _section.filters) _filter(l, filter),
           IconButton(tooltip: l.refresh, onPressed: _reload, icon: const Icon(Icons.refresh)),
+          if (_section.id == 'vehicles' && widget.fullAdmin)
+            OutlinedButton.icon(
+              onPressed: () async {
+                await Navigator.of(context)
+                    .push(MaterialPageRoute<void>(builder: (_) => VehicleDuplicatesScreen(api: widget.api)));
+                _reload();
+              },
+              icon: const Icon(Icons.merge),
+              label: Text(l.duplicatesTitle),
+            ),
         ]),
         const SizedBox(height: 12),
         Expanded(

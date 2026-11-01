@@ -52,7 +52,12 @@ void main() {
           if (path == '/api/m/service/orders') return json(order('new'), 201);
           if (path.endsWith('/accept')) return json(current = order('accepted'));
           if (path.endsWith('/complete')) {
-            return json(current = {...order('done'), 'work_done': (body as Map)['work_done'], 'parts': body['parts']});
+            return json(current = {
+              ...order('done'),
+              'work_done': (body as Map)['work_done'],
+              'parts': body['parts'],
+              'inspection_until': body['inspection_until'],
+            });
           }
           return json(null, 404);
         }),
@@ -117,6 +122,11 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Uszczelka');
     await tester.enterText(find.widgetWithText(TextFormField, 'Price'), '120,5');
     await tester.enterText(find.widgetWithText(TextFormField, 'Labour'), '2,5');
+    await tester.ensureVisible(find.text('Roadworthiness test done'));
+    await tester.tap(find.text('Roadworthiness test done'));
+    await tester.pumpAndSettle();
+    expect(find.text('Test valid until'), findsOneWidget);
+    await tester.ensureVisible(find.text('Save'));
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -126,6 +136,9 @@ void main() {
       {'name': 'Uszczelka', 'quantity': 1.0, 'price': 120.5}
     ]);
     expect(protocol['labour_hours'], 2.5);
+    final until = DateTime.parse(protocol['inspection_until'] as String);
+    expect(until.difference(DateUtils.dateOnly(DateTime.now())).inDays, 365); // domyślnie rok
+    expect(find.textContaining('Roadworthiness test valid until'), findsOneWidget);
     expect(find.text('Done'), findsOneWidget);
     expect(find.text('Repair protocol'), findsOneWidget);
   });

@@ -365,3 +365,56 @@ def test_extension_is_capped(client, admins, company):
         datetime.fromisoformat(extended["expires_at"]) - datetime.now(UTC)
     ).total_seconds() / 3600
     assert 7.9 < hours <= 8
+
+
+TRACTOR = {
+    "name": "MAN TGX",
+    "kind": "tractor",
+    "height_m": 3.9,
+    "width_m": 2.55,
+    "length_m": 6.0,
+    "gvw_t": 18,
+    "axle_load_t": 11.5,
+    "axle_count": 2,
+    "vin": "WMA06XZZ1KM123456",
+}
+
+
+def test_vehicle_duplicates_merge_and_assign_need_grant(client, database, admins, company):
+    owner, boss = as_user("owner"), as_user("boss", mfa=True)
+    kept = client.post(
+        "/api/vehicles", json=TRACTOR | {"company_id": company}, headers=owner
+    ).json()
+    dubel = client.post(
+        "/api/vehicles",
+        json=TRACTOR | {"company_id": company, "name": "MAN", "plate": "WGM 1"},
+        headers=owner,
+    ).json()
+    private = client.post("/api/vehicles", json=TRACTOR, headers=as_user("solo")).json()
+
+    groups = client.get("/api/admin/vehicles/duplicates", headers=boss).json()
+    assert [len(g["vehicles"]) for g in groups] == [3]
+
+    merge = {"keep_id": kept["id"], "merge_id": dubel["id"]}
+    assert client.post("/api/admin/vehicles/merge", json=merge, headers=boss).status_code == 403
+    grant = {"scopes": ["vehicles"], "minutes": 60, "note": "duble"}
+    client.post(f"/api/companies/{company}/admin-access", json=grant, headers=owner)
+
+    calls = []
+    client.app.state.modules.vehicle_merge_handlers.append(lambda db, k, m: calls.append((k, m)))
+    merged = client.post("/api/admin/vehicles/merge", json=merge, headers=boss)
+    assert merged.status_code == 200
+    assert merged.json()["plate"] == "WGM 1"  # brakująca tablica z dubla
+    assert calls == [(kept["id"], dubel["id"])]  # moduły przenoszą swoje dane
+    assert client.get(f"/api/vehicles/{dubel['id']}", headers=owner).status_code == 404
+    log = client.get(f"/api/companies/{company}/admin-access", headers=owner).json()
+    assert log["changes"][0]["action"] == "vehicle.merge"
+
+    # Pojazdu prywatnego administrator nie zmienia; przypisanie – tylko członkowi firmy.
+    wrong = {"keep_id": kept["id"], "merge_id": private["id"]}
+    assert client.post("/api/admin/vehicles/merge", json=wrong, headers=boss).status_code == 403
+    url = f"/api/admin/vehicles/{kept['id']}/assign"
+    stranger = client.put(url, json={"owner_subject": "solo"}, headers=boss)
+    assert stranger.status_code == 422
+    assigned = client.put(url, json={"owner_subject": "owner"}, headers=boss).json()
+    assert (assigned["company_id"], assigned["owner_subject"]) == (None, "owner")
