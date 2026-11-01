@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../account/common.dart' show companyAllows;
 import '../l10n.dart';
+import 'registration_scan.dart';
 import 'service_dates.dart';
 
 /// Rodzaje naczep (te same co na serwerze).
@@ -51,6 +52,23 @@ IconData kindIcon(String? kind) => switch (kind) {
 /// Klasy emisji spalin (jak na serwerze).
 const emissionClasses = ['euro3', 'euro4', 'euro5', 'euro6', 'electric'];
 
+const fuelTypes = ['diesel', 'lng', 'cng', 'electric', 'hydrogen'];
+
+String fuelLabel(AppLocalizations l, String fuel) => switch (fuel) {
+      'lng' => 'LNG',
+      'cng' => 'CNG',
+      'electric' => l.fuelElectric,
+      'hydrogen' => l.fuelHydrogen,
+      _ => l.fuelDiesel,
+    };
+
+/// Jednostka paliwa: ON w litrach, gaz i wodór w kg, prąd w kWh.
+String fuelUnit(String? fuel) => switch (fuel) {
+      'lng' || 'cng' || 'hydrogen' => 'kg',
+      'electric' => 'kWh',
+      _ => 'l',
+    };
+
 String emissionLabel(AppLocalizations l, String value) =>
     value == 'electric' ? l.emissionElectric : l.emissionEuro(value.substring(4));
 
@@ -80,14 +98,22 @@ const _ranges = {
   'standing_places': (0.0, 200.0),
   'pallet_places': (1.0, 80.0),
   'production_year': (1950.0, 2100.0),
+  'consumption_empty': (0.1, 500.0),
+  'consumption_loaded': (0.1, 500.0),
+  'adblue_percent': (0.0, 15.0),
+  'fuel_price': (0.01, 1000.0),
+  'adblue_price': (0.01, 1000.0),
 };
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
 class VehicleFormScreen extends StatefulWidget {
-  const VehicleFormScreen({super.key, required this.api, this.vehicle});
+  const VehicleFormScreen({super.key, required this.api, this.vehicle, this.photoPicker = pickPhoto});
 
   final CoreApi api;
   final Map<String, dynamic>? vehicle;
+
+  /// Zdjęcie dowodu rejestracyjnego (w testach – podstawione).
+  final PhotoPicker photoPicker;
 
   @override
   State<VehicleFormScreen> createState() => _VehicleFormScreenState();
@@ -101,6 +127,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late bool _hazmat;
   late String _currency;
   String? _emission;
+  String? _fuel;
+  int? _co2;
   late final Map<String, DateTime?> _dates;
   String? _companyId;
   List<Map<String, dynamic>> _companies = const [];
@@ -138,8 +166,12 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'vin': TextEditingController(text: text('vin')),
       'production_year': TextEditingController(text: text('production_year')),
       'pallet_places': TextEditingController(text: text('pallet_places')),
+      for (final key in const ['consumption_empty', 'consumption_loaded', 'adblue_percent', 'fuel_price', 'adblue_price'])
+        key: TextEditingController(text: text(key)),
     };
     _emission = v['emission_class'] as String?;
+    _fuel = v['fuel_type'] as String?;
+    _co2 = (v['co2_class'] as num?)?.toInt();
     _dates = {for (final k in serviceDateKeys) k: parseDate(v[k])};
     _kind = v['kind'] as String? ?? (widget.vehicle == null ? 'tractor' : 'combination');
     if (widget.vehicle == null) _applyTypical(_kind, format: false);
@@ -197,6 +229,38 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     }
   }
 
+  /// Dane z kodu Aztec dowodu rejestracyjnego: rodzaj, nazwa, tablica, VIN, masy, osie, miejsca.
+  /// Wymiarów w dowodzie nie ma – zostają typowe dla rodzaju albo dotychczasowe.
+  Future<void> _fromRegistration() async {
+    final l = context.l;
+    final request = await askRegistration(context, picker: widget.photoPicker);
+    if (request == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final data = await widget.api.post('/api/vehicles/registration', request) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        final kind = data['kind'] as String?;
+        if (kind != null && vehicleKinds.contains(kind) && kind != _kind) {
+          _kind = kind;
+          if (!_editing) _applyTypical(kind);
+          if (bodyKinds.contains(_kind) && _trailer == 'none') _trailer = 'curtain';
+        }
+        for (final key in const ['name', 'plate', 'vin', 'production_year', 'axle_count', 'seats', 'standing_places']) {
+          if (data[key] != null) _fields[key]!.text = '${data[key]}';
+        }
+        for (final key in const ['gvw_t', 'tare_t', 'axle_load_t']) {
+          if (data[key] is num) _fields[key]!.text = l.number(data[key] as num);
+        }
+      });
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(l.registrationFilled)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   /// Nowy pojazd: po zmianie rodzaju typowe wymiary i masy tego rodzaju.
   void _applyTypical(String kind, {bool format = true}) {
     final t = _typical[kind];
@@ -231,7 +295,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     final to = _perEur[currency] ?? (currency == 'EUR' ? 1.0 : null);
     setState(() {
       if (from != null && to != null) {
-        for (final key in ['cost_per_km', 'cost_per_hour']) {
+        for (final key in ['cost_per_km', 'cost_per_hour', 'fuel_price', 'adblue_price']) {
           final value = _number(key);
           if (value != null) _fields[key]!.text = context.l.number(value / from * to);
         }
@@ -265,6 +329,10 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'vin': _fields['vin']!.text.trim(),
       'production_year': _number('production_year')?.round(),
       'emission_class': towedKinds.contains(_kind) ? null : _emission,
+      'fuel_type': towedKinds.contains(_kind) ? null : _fuel,
+      'co2_class': towedKinds.contains(_kind) ? null : _co2,
+      for (final key in ['consumption_empty', 'consumption_loaded', 'fuel_price']) key: _number(key),
+      for (final key in ['adblue_percent', 'adblue_price']) key: _hasAdBlue ? _number(key) : null,
       'pallet_places': bodyKinds.contains(_kind) && _trailer != 'tanker' ? _number('pallet_places')?.round() : null,
       for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
     };
@@ -279,6 +347,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// AdBlue tylko przy silniku Diesla (albo gdy napęd nie jest wybrany).
+  bool get _hasAdBlue => _fuel == null || _fuel == 'diesel';
 
   Widget _numberField(String key, String label, {String? suffix, bool required = true, bool integer = false}) =>
       TextFormField(
@@ -324,7 +395,17 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _fromRegistration,
+              icon: const Icon(Icons.document_scanner_outlined),
+              label: Text(l.registrationButton),
+            ),
+          ),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _kind,
             decoration: InputDecoration(labelText: l.vehicleKind, border: const OutlineInputBorder(), isDense: true),
             items: [
@@ -384,6 +465,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           if (hasBody) ...[
             section(l.vehicleBodySection),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _trailer,
               decoration: InputDecoration(labelText: l.vehicleBody, border: const OutlineInputBorder(), isDense: true),
               items: [
@@ -409,6 +491,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           if (motor) ...[
             section(l.vehicleEngine),
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               value: _emission,
               decoration: InputDecoration(labelText: l.vehicleEmission, border: const OutlineInputBorder(), isDense: true),
               items: [
@@ -417,6 +500,42 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               ],
               onChanged: (value) => setState(() => _emission = value),
             ),
+            const SizedBox(height: 12),
+            section(l.vehicleFuelSection, l.vehicleFuelHint),
+            row([
+              DropdownButtonFormField<String?>(
+                isExpanded: true,
+                value: _fuel,
+                decoration: InputDecoration(labelText: l.vehicleFuel, border: const OutlineInputBorder(), isDense: true),
+                items: [
+                  DropdownMenuItem(value: null, child: Text(l.vehicleDateNone)),
+                  for (final f in fuelTypes) DropdownMenuItem(value: f, child: Text(fuelLabel(l, f))),
+                ],
+                onChanged: (value) => setState(() => _fuel = value),
+              ),
+              DropdownButtonFormField<int?>(
+                isExpanded: true,
+                value: _co2,
+                decoration:
+                    InputDecoration(labelText: l.vehicleCo2Class, border: const OutlineInputBorder(), isDense: true),
+                items: [
+                  DropdownMenuItem(value: null, child: Text(l.vehicleDateNone)),
+                  for (var c = 1; c <= 5; c++) DropdownMenuItem(value: c, child: Text(l.vehicleCo2ClassValue(c))),
+                ],
+                onChanged: (value) => setState(() => _co2 = value),
+              ),
+            ]),
+            row([
+              _numberField('consumption_empty', l.vehicleConsumptionEmpty,
+                  suffix: '${fuelUnit(_fuel)}/100 km', required: false),
+              _numberField('consumption_loaded', l.vehicleConsumptionLoaded,
+                  suffix: '${fuelUnit(_fuel)}/100 km', required: false),
+              if (_hasAdBlue) _numberField('adblue_percent', l.vehicleAdBlue, suffix: '%', required: false),
+            ]),
+            row([
+              _numberField('fuel_price', l.vehicleFuelPrice, suffix: '$_currency/${fuelUnit(_fuel)}', required: false),
+              if (_hasAdBlue) _numberField('adblue_price', l.vehicleAdBluePrice, suffix: '$_currency/l', required: false),
+            ]),
           ],
           if (_kind != 'bus')
             SwitchListTile(
@@ -441,6 +560,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               _numberField('cost_per_km', l.vehicleCostPerKm, suffix: _currency, required: false),
               _numberField('cost_per_hour', l.vehicleCostPerHour, suffix: _currency, required: false),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _currency,
                 decoration:
                     InputDecoration(labelText: l.vehicleCurrency, border: const OutlineInputBorder(), isDense: true),
@@ -460,6 +580,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ],
           if (_companies.isNotEmpty) ...[
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               value: _companyId,
               decoration: InputDecoration(labelText: l.vehicleOwner, border: const OutlineInputBorder(), isDense: true),
               items: [

@@ -43,6 +43,10 @@ class Fleet(Protocol):
         """Pojazd „w naprawie” – niedostępny do jazdy (zapis razem z sesją modułu)."""
         ...
 
+    def set_repair_reported(self, db: Session, vehicle_id: str, reported: bool) -> None:
+        """Zgłoszona usterka, pojazd może jechać (zapis razem z sesją modułu)."""
+        ...
+
 
 class Storage(Protocol):
     @property

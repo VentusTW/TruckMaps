@@ -7,6 +7,8 @@ Każdy pojazd jest osobny; do ciągnika podpina się naczepę, do samochodu cię
 autobusu i dostawczego – przyczepę. Trasę liczy się dla pojazdu razem z podpiętą częścią.
 """
 
+import base64
+import binascii
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
@@ -27,6 +29,7 @@ from truckmaps.core.companies import (
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
+from truckmaps.core.registration import RegistrationError, decode_text, read_image, vehicle_data
 from truckmaps.sdk import Principal
 
 # Znaki i zakazy "dla samochodów ciężarowych" dotyczą pojazdów o DMC powyżej 3,5 t.
@@ -91,6 +94,16 @@ class EmissionClass(StrEnum):
     ELECTRIC = "electric"
 
 
+class FuelType(StrEnum):
+    """Napęd – jednostka spalania: ON w litrach, LNG / CNG / wodór w kg, prąd w kWh."""
+
+    DIESEL = "diesel"
+    LNG = "lng"
+    CNG = "cng"
+    ELECTRIC = "electric"
+    HYDROGEN = "hydrogen"
+
+
 BODY_KINDS = {
     VehicleKind.COMBINATION,
     VehicleKind.RIGID,
@@ -138,6 +151,16 @@ class VehicleProfile(Base):
     vin: Mapped[str | None] = mapped_column(String(17))
     production_year: Mapped[int | None]
     emission_class: Mapped[str | None] = mapped_column(String(10))
+    co2_class: Mapped[int | None]
+    """Klasa emisji CO₂ (1–5) – myto w Niemczech (Toll Collect) od 12.2023."""
+    fuel_type: Mapped[str | None] = mapped_column(String(10))
+    consumption_empty: Mapped[float | None]
+    consumption_loaded: Mapped[float | None]
+    """Spalanie na 100 km bez ładunku i z pełnym ładunkiem (jednostka według napędu)."""
+    adblue_percent: Mapped[float | None]
+    fuel_price: Mapped[float | None]
+    adblue_price: Mapped[float | None]
+    """Własne ceny (w walucie stawek); brak = ceny z modułu kosztów (M4)."""
     pallet_places: Mapped[int | None]
     last_inspection: Mapped[date | None]
     """Ostatni przegląd techniczny."""
@@ -153,6 +176,8 @@ class VehicleProfile(Base):
     """Podpięta naczepa (do ciągnika) albo przyczepa (do samochodu, autobusu, dostawczego)."""
     in_repair: Mapped[bool] = mapped_column(default=False, server_default="false")
     """W naprawie (moduł Serwis) – niedostępny do jazdy."""
+    repair_reported: Mapped[bool] = mapped_column(default=False, server_default="false")
+    """Zgłoszona usterka (moduł Serwis), pojazd jeszcze jeździ – do zamknięcia zlecenia."""
     in_use_by: Mapped[str | None] = mapped_column(String(255))
     in_use_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """Kierowca jedzie nim (nawigacja) – do zwolnienia albo do tej chwili."""
@@ -277,6 +302,25 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
     pallet_places: int | None = Field(
         default=None, ge=1, le=80, description="Miejsca paletowe (EUR) w zabudowie"
     )
+    co2_class: int | None = Field(
+        default=None, ge=1, le=5, description="Klasa emisji CO₂ (myto w Niemczech)"
+    )
+    fuel_type: FuelType | None = Field(default=None, description="Napęd (pojazdy z silnikiem)")
+    consumption_empty: float | None = Field(
+        default=None, gt=0, le=500, description="Spalanie bez ładunku na 100 km (l, kg albo kWh)"
+    )
+    consumption_loaded: float | None = Field(
+        default=None, gt=0, le=500, description="Spalanie z pełnym ładunkiem na 100 km"
+    )
+    adblue_percent: float | None = Field(
+        default=None, ge=0, le=15, description="AdBlue jako % spalania ON"
+    )
+    fuel_price: float | None = Field(
+        default=None, gt=0, le=1000, description="Własna cena paliwa za jednostkę (waluta stawek)"
+    )
+    adblue_price: float | None = Field(
+        default=None, gt=0, le=1000, description="Własna cena AdBlue za litr (waluta stawek)"
+    )
 
     @field_validator("plate")
     @classmethod
@@ -299,8 +343,18 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
         if self.kind not in BODY_KINDS or self.trailer_type == TrailerType.TANKER:
             self.pallet_places = None
         if not motor:
-            self.emission_class = None
+            self.emission_class = self.co2_class = self.fuel_type = None
+            self.consumption_empty = self.consumption_loaded = None
+            self.adblue_percent = self.fuel_price = self.adblue_price = None
             self.cost_per_km = self.cost_per_hour = None
+        if self.fuel_type not in (None, FuelType.DIESEL):
+            self.adblue_percent = self.adblue_price = None
+        if (
+            self.consumption_empty is not None
+            and self.consumption_loaded is not None
+            and self.consumption_loaded < self.consumption_empty
+        ):
+            raise ValueError(t("error.consumption_loaded_below_empty"))
         if self.kind not in TACHOGRAPH_KINDS:
             self.tachograph_until = None
         if self.trailer_type != TrailerType.TANKER:
@@ -325,7 +379,15 @@ class VehicleOut(VehicleData):
     coupled_to_name: str | None = None
     in_use: bool = False
     in_repair: bool = False
+    repair_reported: bool = False
     """Pojazd: kierowca nim jedzie; naczepa / przyczepa: jest podpięta albo jej pojazd jedzie."""
+
+
+class RegistrationIn(BaseModel):
+    """Dowód rejestracyjny: tekst zeskanowanego kodu Aztec albo zdjęcie (Base64)."""
+
+    code: str | None = Field(default=None, max_length=20_000)
+    image: str | None = Field(default=None, max_length=15_000_000)
 
 
 class CouplingIn(BaseModel):
@@ -371,6 +433,19 @@ def build_router(current_user) -> APIRouter:
         db.add(vehicle)
         db.commit()
         return vehicle_outs(db, [vehicle], roles, user)[0]
+
+    @router.post("/registration")
+    def registration(data: RegistrationIn, user: User) -> dict:
+        """Dane pojazdu z kodu Aztec dowodu rejestracyjnego – nic nie jest zapisywane."""
+        try:
+            code = data.code
+            if not code and data.image:
+                code = read_image(base64.b64decode(data.image.split(",")[-1]))
+            if not code:
+                raise RegistrationError(t("registration.no_code"))
+            return vehicle_data(decode_text(code))
+        except (RegistrationError, binascii.Error) as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
     @router.get("/{vehicle_id}")
     def get_vehicle(vehicle_id: str, user: User, db: Db) -> VehicleOut:

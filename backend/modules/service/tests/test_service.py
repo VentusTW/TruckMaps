@@ -86,7 +86,7 @@ def test_driver_reports_mechanic_repairs_with_protocol(client, fleet):
     order = report.json()
     assert (order["status"], order["reporter_name"], order["can_handle"]) == ("new", "Jan", False)
     vehicle = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()
-    assert vehicle["in_repair"] is True  # stoi – niedostępny od zgłoszenia
+    assert (vehicle["in_repair"], vehicle["repair_reported"]) == (True, False)  # stoi – w naprawie
 
     url = f"/api/m/service/orders/{order['id']}"
     assert client.post(f"{url}/accept", headers=as_user("jan")).status_code == 403
@@ -105,7 +105,7 @@ def test_driver_reports_mechanic_repairs_with_protocol(client, fleet):
     assert (done["status"], done["labour_hours"], len(done["parts"])) == ("done", 2.5, 2)
     assert done["completed_at"] is not None
     vehicle = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()
-    assert vehicle["in_repair"] is False
+    assert (vehicle["in_repair"], vehicle["repair_reported"]) == (False, False)
 
     history = client.get(
         "/api/m/service/orders", params={"vehicle_id": fleet}, headers=as_user("jan")
@@ -121,7 +121,7 @@ def test_reject_and_foreign_vehicle(client, fleet):
         headers=as_user("jan"),
     ).json()
     vehicle = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()
-    assert vehicle["in_repair"] is False  # może jechać do naprawy
+    assert (vehicle["in_repair"], vehicle["repair_reported"]) == (False, True)  # może jechać
 
     rejected = client.post(
         f"/api/m/service/orders/{order['id']}/reject",
@@ -129,6 +129,8 @@ def test_reject_and_foreign_vehicle(client, fleet):
         headers=as_user("olek"),
     ).json()
     assert rejected["status"] == "rejected"
+    vehicle = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()
+    assert vehicle["repair_reported"] is False
     open_orders = client.get(
         "/api/m/service/orders", params={"open_only": True}, headers=as_user("olek")
     ).json()

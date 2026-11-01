@@ -49,6 +49,11 @@ class CoreFleet:
         if vehicle is not None:
             vehicle.in_repair = in_repair
 
+    def set_repair_reported(self, db: Session, vehicle_id: str, reported: bool) -> None:
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        if vehicle is not None:
+            vehicle.repair_reported = reported
+
 
 class CoreStorage:
     @property
