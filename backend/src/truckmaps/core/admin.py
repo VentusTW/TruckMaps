@@ -40,7 +40,7 @@ from truckmaps.core.i18n import t
 from truckmaps.core.inbox import Kind, mark_read, send
 from truckmaps.core.releases import Release
 from truckmaps.core.reports import DriverReport
-from truckmaps.core.vehicles import VehicleProfile
+from truckmaps.core.vehicles import VehicleProfile, _drop_broken_couplings
 from truckmaps.sdk import Principal
 
 GRANT_MINUTES = 60
@@ -64,6 +64,8 @@ class Scope(StrEnum):
     COMPANY = "company"
     """Dane firmy i stawki."""
     BASES = "bases"
+    VEHICLES = "vehicles"
+    """Pojazdy firmy: przypisanie (do innej firmy albo członka) i scalanie dubli po VIN."""
 
 
 def _now() -> datetime:
@@ -155,6 +157,24 @@ class AccessGrant(Base):
 
 
 Minutes = Annotated[int, Field(ge=15, le=MAX_GRANT_MINUTES, description="Na ile minut")]
+
+
+class AssignIn(BaseModel):
+    """Nowy właściciel pojazdu: firma albo członek firmy (pojazd prywatny)."""
+
+    company_id: str | None = None
+    owner_subject: str | None = Field(default=None, max_length=255)
+
+
+class MergeIn(BaseModel):
+    keep_id: str
+    """Pojazd, który zostaje."""
+    merge_id: str
+    """Dubel – jego brakujące dane przechodzą na ``keep_id``, potem jest usuwany."""
+
+
+# Przy scalaniu nie przenosimy tożsamości ani stanu jazdy dubla.
+MERGE_SKIP = {"id", "owner_subject", "company_id", "in_use_by", "in_use_until", "created_at"}
 
 
 class GrantIn(BaseModel):
@@ -586,6 +606,135 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
                 "updated_at": v.updated_at,
             },
         )
+
+    def vehicle_row(v: VehicleProfile, company_name: str | None) -> dict:
+        return {
+            "id": v.id,
+            "name": v.name,
+            "plate": v.plate,
+            "vin": v.vin,
+            "kind": v.kind,
+            "owner_subject": v.owner_subject,
+            "company_id": v.company_id,
+            "company_name": company_name,
+            "updated_at": v.updated_at,
+        }
+
+    @router.get("/api/admin/vehicles/duplicates")
+    def vehicle_duplicates(account: Admin, db: Db) -> list[dict]:
+        """Pojazdy z tym samym numerem VIN – kandydaci do scalenia."""
+        vins = select(VehicleProfile.vin).where(VehicleProfile.vin.is_not(None))
+        vins = vins.group_by(VehicleProfile.vin).having(func.count() > 1)
+        rows = db.execute(
+            select(VehicleProfile, Company.name)
+            .outerjoin(Company, Company.id == VehicleProfile.company_id)
+            .where(VehicleProfile.vin.in_(vins))
+            .order_by(VehicleProfile.vin, VehicleProfile.created_at)
+        )
+        groups: dict[str, list[dict]] = {}
+        for vehicle, name in rows:
+            groups.setdefault(vehicle.vin, []).append(vehicle_row(vehicle, name))
+        return [{"vin": vin, "vehicles": items} for vin, items in groups.items()]
+
+    def company_vehicle(db: Session, vehicle_id: str) -> VehicleProfile:
+        """Pojazd firmy – prywatnych administrator nie zmienia (brak zgody właściciela)."""
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        if vehicle is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.vehicle_not_found"))
+        if vehicle.company_id is None:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.admin_private_vehicle"))
+        require_grant(db, vehicle.company_id, Scope.VEHICLES)
+        return vehicle
+
+    def is_member(db: Session, company_id: str, subject: str) -> bool:
+        return (
+            db.scalar(
+                select(CompanyMember.id).where(
+                    CompanyMember.company_id == company_id, CompanyMember.subject == subject
+                )
+            )
+            is not None
+        )
+
+    @router.put("/api/admin/vehicles/{vehicle_id}/assign")
+    def assign_vehicle(
+        vehicle_id: str, data: AssignIn, request: Request, account: FullAdmin, db: Db
+    ) -> dict:
+        """Przypisanie pojazdu firmy innej firmie albo członkowi firmy (za zgodą obu firm)."""
+        vehicle = company_vehicle(db, vehicle_id)
+        source = vehicle.company_id
+        if data.company_id is not None:
+            if data.company_id != source:
+                require_grant(db, data.company_id, Scope.VEHICLES)
+            changes = _apply(vehicle, {"company_id": data.company_id})
+        else:
+            # Pojazd prywatny – tylko dla członka firmy, z której wychodzi.
+            if not data.owner_subject or not is_member(db, source, data.owner_subject):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.member_required")
+                )
+            changes = _apply(vehicle, {"company_id": None, "owner_subject": data.owner_subject})
+        if "company_id" in changes:
+            vehicle.trailer_id = None
+            for holder in db.scalars(
+                select(VehicleProfile).where(VehicleProfile.trailer_id == vehicle.id)
+            ):
+                holder.trailer_id = None
+        _audit(
+            request, "vehicle.assign", source, {"vehicle": [vehicle.name, vehicle.name], **changes}
+        )
+        db.commit()
+        name = db.get(Company, vehicle.company_id).name if vehicle.company_id else None
+        return vehicle_row(vehicle, name)
+
+    @router.post("/api/admin/vehicles/merge")
+    def merge_vehicles(data: MergeIn, request: Request, account: FullAdmin, db: Db) -> dict:
+        """Scalenie dubla z tym samym VIN: brakujące dane, połączenia i dane modułów przechodzą
+        na zachowany pojazd, dubel jest usuwany; zgoda każdej firmy, w dzienniku obu."""
+        if data.keep_id == data.merge_id:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.merge_same"))
+        keep, merged = company_vehicle(db, data.keep_id), company_vehicle(db, data.merge_id)
+        if not keep.vin or keep.vin != merged.vin:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.merge_vin"))
+        filled = {}
+        for column in (c.key for c in VehicleProfile.__table__.columns):
+            if column in MERGE_SKIP:
+                continue
+            before, other = getattr(keep, column), getattr(merged, column)
+            if before is None and other is not None:
+                plain = other if isinstance(other, str | int | float | bool) else str(other)
+                filled[column] = [None, plain]
+                setattr(keep, column, other)
+        if keep.trailer_id == merged.id:
+            keep.trailer_id = None
+        for holder in db.scalars(
+            select(VehicleProfile).where(VehicleProfile.trailer_id == merged.id)
+        ):
+            holder.trailer_id = keep.id if holder.id != keep.id else None
+        db.flush()
+        _drop_broken_couplings(db, keep)
+        for handler in request.app.state.modules.vehicle_merge_handlers:
+            handler(db, keep.id, merged.id)
+        summary = {"merged": [f"{merged.name} ({merged.id})", None], **filled}
+        _audit(request, "vehicle.merge", keep.company_id, summary)
+        if merged.company_id != keep.company_id:
+            # Firma dubla też widzi scalenie we własnym dzienniku.
+            db.add(
+                AuditEntry(
+                    subject=account.subject,
+                    role=account.role,
+                    method="POST",
+                    path=str(request.url.path)[:500],
+                    status_code=200,
+                    action="vehicle.merge",
+                    company_id=merged.company_id,
+                    changes=summary,
+                )
+            )
+        db.delete(merged)
+        db.commit()
+        name = db.get(Company, keep.company_id).name if keep.company_id else None
+        return vehicle_row(keep, name)
 
     @router.get("/api/admin/reports")
     def reports(

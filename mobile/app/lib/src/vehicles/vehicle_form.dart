@@ -107,13 +107,25 @@ const _ranges = {
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
 class VehicleFormScreen extends StatefulWidget {
-  const VehicleFormScreen({super.key, required this.api, this.vehicle, this.photoPicker = pickPhoto});
+  const VehicleFormScreen(
+      {super.key,
+      required this.api,
+      this.vehicle,
+      this.photoPicker = pickPhoto,
+      this.codeScanner = scanCode,
+      this.textReader = readCertificateText});
 
   final CoreApi api;
   final Map<String, dynamic>? vehicle;
 
   /// Zdjęcie dowodu rejestracyjnego (w testach – podstawione).
   final PhotoPicker photoPicker;
+
+  /// Odczyt kodu na żywo z aparatu (w testach – podstawiony).
+  final CodeScanner codeScanner;
+
+  /// Tekst ze zdjęcia dowodu z innego kraju UE (w testach – podstawiony).
+  final TextReader textReader;
 
   @override
   State<VehicleFormScreen> createState() => _VehicleFormScreenState();
@@ -233,7 +245,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   /// Wymiarów w dowodzie nie ma – zostają typowe dla rodzaju albo dotychczasowe.
   Future<void> _fromRegistration() async {
     final l = context.l;
-    final request = await askRegistration(context, picker: widget.photoPicker);
+    final request = await askRegistration(context, picker: widget.photoPicker, scanner: widget.codeScanner, reader: widget.textReader);
     if (request == null || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -552,6 +564,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 label: serviceDateLabel(l, key),
                 value: _dates[key],
                 onChanged: (day) => setState(() => _dates[key] = day),
+                shortcut: serviceDateShortcut(l, key),
               ),
             ),
           if (motor) ...[

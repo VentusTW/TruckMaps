@@ -29,7 +29,13 @@ from truckmaps.core.companies import (
 from truckmaps.core.costs import CostRates
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
-from truckmaps.core.registration import RegistrationError, decode_text, read_image, vehicle_data
+from truckmaps.core.registration import (
+    RegistrationError,
+    decode_text,
+    read_image,
+    vehicle_data,
+    vehicle_data_from_text,
+)
 from truckmaps.sdk import Principal
 
 # Znaki i zakazy "dla samochodów ciężarowych" dotyczą pojazdów o DMC powyżej 3,5 t.
@@ -172,6 +178,11 @@ class VehicleProfile(Base):
     """Badanie zbiornika cysterny (TDT / UDT) ważne do."""
     adr_until: Mapped[date | None]
     """Świadectwo dopuszczenia pojazdu do przewozu ADR ważne do."""
+    atp_until: Mapped[date | None]
+    """Świadectwo ATP chłodni (przewóz żywności) ważne do."""
+    tachograph_download_until: Mapped[date | None]
+    """Pobranie danych z tachografu pojazdu – co najmniej co 90 dni."""
+    leasing_until: Mapped[date | None]
     trailer_id: Mapped[str | None] = mapped_column(String(36))
     """Podpięta naczepa (do ciągnika) albo przyczepa (do samochodu, autobusu, dostawczego)."""
     in_repair: Mapped[bool] = mapped_column(default=False, server_default="false")
@@ -284,6 +295,11 @@ class ServiceDates(BaseModel):
     insurance_until: date | None = Field(default=None, description="Ubezpieczenie OC ważne do")
     tdt_until: date | None = Field(default=None, description="Badanie TDT / UDT cysterny do")
     adr_until: date | None = Field(default=None, description="Świadectwo ADR pojazdu do")
+    atp_until: date | None = Field(default=None, description="Świadectwo ATP chłodni do")
+    tachograph_download_until: date | None = Field(
+        default=None, description="Najbliższe pobranie danych z tachografu (co 90 dni)"
+    )
+    leasing_until: date | None = Field(default=None, description="Koniec umowy leasingu")
 
 
 class VehicleData(VehicleIn, ServiceDates, CostRates):
@@ -356,7 +372,9 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
         ):
             raise ValueError(t("error.consumption_loaded_below_empty"))
         if self.kind not in TACHOGRAPH_KINDS:
-            self.tachograph_until = None
+            self.tachograph_until = self.tachograph_download_until = None
+        if self.trailer_type != TrailerType.REEFER:
+            self.atp_until = None
         if self.trailer_type != TrailerType.TANKER:
             self.tdt_until = None
         if not self.hazmat:
@@ -384,9 +402,12 @@ class VehicleOut(VehicleData):
 
 
 class RegistrationIn(BaseModel):
-    """Dowód rejestracyjny: tekst zeskanowanego kodu Aztec albo zdjęcie (Base64)."""
+    """Dowód rejestracyjny: tekst kodu Aztec (PL), zdjęcie (Base64) albo tekst dowodu (UE)."""
 
     code: str | None = Field(default=None, max_length=20_000)
+    text: str | None = Field(
+        default=None, max_length=20_000, description="Tekst rozpoznany ze zdjęcia dowodu"
+    )
     image: str | None = Field(default=None, max_length=15_000_000)
 
 
@@ -438,7 +459,12 @@ def build_router(current_user) -> APIRouter:
     def registration(data: RegistrationIn, user: User) -> dict:
         """Dane pojazdu z kodu Aztec dowodu rejestracyjnego – nic nie jest zapisywane."""
         try:
+            if data.text:
+                return vehicle_data_from_text(data.text)
             code = data.code
+            if code and ("\n" in code.strip() or not code.strip().isascii()):
+                # Wklejony tekst dowodu (kraj UE), nie kod Aztec.
+                return vehicle_data_from_text(code)
             if not code and data.image:
                 code = read_image(base64.b64decode(data.image.split(",")[-1]))
             if not code:

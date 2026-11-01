@@ -66,6 +66,13 @@ class ServiceTexts {
   String get partPrice => _t('Cena', 'Price');
   String get labourHours => _t('Czas pracy', 'Labour');
   String get odometer => _t('Przebieg', 'Odometer');
+  String get inspectionDone => _t('Zrobiono przegląd techniczny', 'Roadworthiness test done');
+  String get inspectionDoneHint => _t('Terminy pojazdu przesuną się same: ostatni przegląd – dziś, ważny do – wybrana data.',
+      'Vehicle dates move automatically: last test – today, valid until – the chosen date.');
+  String get inspectionUntil => _t('Przegląd ważny do', 'Test valid until');
+  String inspectionValid(DateTime day) =>
+      _t('Przegląd techniczny ważny do: ${_day(day)}', 'Roadworthiness test valid until: ${_day(day)}');
+  String _day(DateTime day) => DateFormat.yMd(locale.toLanguageTag()).format(day);
   String get notes => _t('Uwagi', 'Notes');
   String get numberInvalid => _t('Wpisz liczbę.', 'Enter a number.');
   String hours(String value) => _t('$value h', '$value h');

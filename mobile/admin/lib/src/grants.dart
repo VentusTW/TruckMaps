@@ -96,7 +96,7 @@ class _RequestDialogState extends State<RequestDialog> {
     try {
       await widget.api.post('/api/admin/companies/${widget.companyId}/access-requests', {
         'scopes': [
-          for (final s in const ['company', 'bases'])
+          for (final s in const ['company', 'bases', 'vehicles'])
             if (_scopes.contains(s)) s
         ],
         'note': _note.text.trim(),
@@ -116,7 +116,7 @@ class _RequestDialogState extends State<RequestDialog> {
         width: 420,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(l.requestHint),
-          for (final scope in const ['company', 'bases'])
+          for (final scope in const ['company', 'bases', 'vehicles'])
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: _scopes.contains(scope),

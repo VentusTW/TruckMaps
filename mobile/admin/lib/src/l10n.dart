@@ -19,6 +19,7 @@ extension Formats on AdminLocalizations {
   String scope(String scope) => switch (scope) {
         'company' => scopeCompany,
         'bases' => scopeBases,
+        'vehicles' => scopeVehicles,
         _ => scope,
       };
 

@@ -356,6 +356,7 @@ class _OrderScreenState extends State<OrderScreen> {
             if (o['labour_hours'] != null) Text('${t.labourHours}: ${t.hours('${o['labour_hours']}')}'),
             if (o['odometer_km'] != null) Text('${t.odometer}: ${o['odometer_km']} km'),
             if (o['notes'] != null) Text('${t.notes}: ${o['notes']}'),
+            if (DateTime.tryParse('${o['inspection_until']}') case final day?) Text(t.inspectionValid(day)),
             if (o['completed_at'] != null)
               Text(t.completed(DateTime.parse('${o['completed_at']}')), style: theme.textTheme.bodySmall),
           ],
@@ -396,6 +397,10 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
   final _odometer = TextEditingController();
   final _notes = TextEditingController();
   final List<(TextEditingController, TextEditingController, TextEditingController)> _parts = [];
+  bool _inspection = false;
+
+  /// Przegląd techniczny zwykle ważny rok.
+  DateTime _inspectionUntil = DateUtils.dateOnly(DateTime.now()).add(const Duration(days: 365));
 
   @override
   void dispose() {
@@ -420,6 +425,9 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
       'labour_hours': _parse(_hours.text),
       'odometer_km': _parse(_odometer.text)?.round(),
       'notes': _notes.text.trim(),
+      if (_inspection)
+        'inspection_until': '${_inspectionUntil.year.toString().padLeft(4, '0')}-'
+            '${_inspectionUntil.month.toString().padLeft(2, '0')}-${_inspectionUntil.day.toString().padLeft(2, '0')}',
     });
   }
 
@@ -503,6 +511,31 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
           ]),
           const SizedBox(height: 12),
           TextFormField(controller: _notes, maxLength: 2000, maxLines: 3, decoration: _field(t.notes)),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _inspection,
+            onChanged: (on) => setState(() => _inspection = on),
+            title: Text(t.inspectionDone),
+            subtitle: Text(t.inspectionDoneHint),
+          ),
+          if (_inspection)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available_outlined),
+              title: Text(t.inspectionUntil),
+              subtitle: Text(MaterialLocalizations.of(context).formatCompactDate(_inspectionUntil)),
+              onTap: () async {
+                final now = DateUtils.dateOnly(DateTime.now());
+                final chosen = await showDatePicker(
+                  context: context,
+                  initialDate: _inspectionUntil,
+                  firstDate: now.add(const Duration(days: 1)),
+                  lastDate: DateTime(now.year + 5),
+                );
+                if (chosen != null) setState(() => _inspectionUntil = chosen);
+              },
+            ),
+          const SizedBox(height: 12),
           FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save_outlined), label: Text(t.save)),
         ]),
       ),

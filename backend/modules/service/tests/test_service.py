@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
@@ -101,11 +103,19 @@ def test_driver_reports_mechanic_repairs_with_protocol(client, fleet):
         "labour_hours": 2.5,
         "odometer_km": 412000,
     }
+    today = date.today()
+    past = protocol | {"inspection_until": today.isoformat()}
+    assert client.post(f"{url}/complete", json=past, headers=as_user("marek")).status_code == 422
+    valid = (today + timedelta(days=365)).isoformat()
+    protocol |= {"inspection_until": valid}
     done = client.post(f"{url}/complete", json=protocol, headers=as_user("marek")).json()
     assert (done["status"], done["labour_hours"], len(done["parts"])) == ("done", 2.5, 2)
     assert done["completed_at"] is not None
+    assert done["inspection_until"] == valid
     vehicle = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()
     assert (vehicle["in_repair"], vehicle["repair_reported"]) == (False, False)
+    # Przegląd zrobiony w serwisie przesuwa terminy pojazdu.
+    assert (vehicle["last_inspection"], vehicle["inspection_until"]) == (today.isoformat(), valid)
 
     history = client.get(
         "/api/m/service/orders", params={"vehicle_id": fleet}, headers=as_user("jan")

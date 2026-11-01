@@ -1188,3 +1188,64 @@ def test_vehicle_fuel_profile(database):
         ).status_code
         == 422
     )
+
+
+def test_vehicle_more_dates_follow_the_kind(database):
+    client = make_client(database)
+    dates = {
+        "atp_until": "2027-05-01",
+        "tachograph_download_until": "2027-01-15",
+        "leasing_until": "2029-12-31",
+    }
+    reefer = client.post(
+        "/api/vehicles",
+        json=TRUCK | dates | {"kind": "rigid", "trailer_type": "reefer", "axle_count": 2},
+        headers=as_user("anna"),
+    ).json()
+    assert {k: reefer[k] for k in dates} == dates
+
+    # Plandeka bez ATP; dostawczy bez tachografu; leasing zostaje.
+    van = client.post(
+        "/api/vehicles",
+        json=TRUCK
+        | dates
+        | {"kind": "van", "gvw_t": 3.5, "weight_t": 3.5, "axle_count": 2, "axle_load_t": 2},
+        headers=as_user("anna"),
+    ).json()
+    assert (van["atp_until"], van["tachograph_download_until"]) == (None, None)
+    assert van["leasing_until"] == "2029-12-31"
+
+
+def test_registration_from_eu_certificate_text(database):
+    client = make_client(database)
+    text = """ZULASSUNGSBESCHEINIGUNG TEIL I
+A M-AB 1234
+D.1 MERCEDES-BENZ
+D.3 ACTROS
+E WDB9634031L123456
+F.1 18 000
+F.2 18.000 kg
+G 7950
+J N3
+L 2
+Name: Max Mustermann"""
+    response = client.post(
+        "/api/vehicles/registration", json={"text": text}, headers=as_user("anna")
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "MERCEDES-BENZ ACTROS",
+        "plate": "M-AB1234",
+        "vin": "WDB9634031L123456",
+        "kind": "rigid",
+        "gvw_t": 18.0,
+        "tare_t": 7.95,
+        "axle_count": 2,
+    }
+    # Wklejony tekst w polu kodu też jest rozpoznany.
+    pasted = client.post("/api/vehicles/registration", json={"code": text}, headers=as_user("anna"))
+    assert pasted.json()["vin"] == "WDB9634031L123456"
+    nothing = client.post(
+        "/api/vehicles/registration", json={"text": "zdjęcie kota"}, headers=as_user("anna")
+    )
+    assert nothing.status_code == 422
