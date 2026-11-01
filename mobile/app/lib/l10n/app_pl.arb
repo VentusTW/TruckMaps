@@ -517,5 +517,7 @@
   "registrationTorch": "Latarka",
   "registrationEu": "Dowód z innego kraju UE",
   "registrationEuHint": "Zdjęcie strony z danymi – tekst rozpoznawany na telefonie, czytane pola A, D.1, D.3, E, F.1, F.2, G, J, L, S.1",
-  "adminScopeVehicles": "Pojazdy (przypisanie, scalanie dubli po VIN)"
+  "adminScopeVehicles": "Pojazdy (przypisanie, scalanie dubli po VIN)",
+  "adminAccessPersonalTitle": "Dostęp administratora do moich pojazdów",
+  "adminAccessPersonalHint": "Administrator TruckMaps zmienia Twoje pojazdy prywatne (scalenie zdublowanych po VIN, przeniesienie do Twojej firmy) tylko po Twojej zgodzie – zwykle przez godzinę. Zgodę możesz przedłużyć albo cofnąć w każdej chwili, a każda zmiana jest w dzienniku poniżej."
 }

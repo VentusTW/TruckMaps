@@ -53,7 +53,10 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   Future<void> _decide(Map<String, dynamic> message, String action, [int? minutes]) async {
-    final path = '/api/companies/${message['company_id']}/admin-access/${message['grant_id']}/$action';
+    // Bez firmy – prośba o zgodę na pojazdy prywatne tej osoby.
+    final base =
+        message['company_id'] == null ? '/api/me/admin-access' : '/api/companies/${message['company_id']}/admin-access';
+    final path = '$base/${message['grant_id']}/$action';
     try {
       await widget.api.post(path, minutes == null ? null : {'minutes': minutes});
       if (!mounted) return;

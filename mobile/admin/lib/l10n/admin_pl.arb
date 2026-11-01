@@ -134,7 +134,7 @@
   "@grantEndingText": {"placeholders": {"company": {"type": "String"}, "minutes": {"type": "int"}}},
   "scopeVehicles": "pojazdy (przypisanie, scalanie dubli)",
   "duplicatesTitle": "Duble pojazdów (VIN)",
-  "duplicatesHint": "Pojazdy z tym samym numerem VIN. Wybierz pojazd, który zostaje – brakujące dane, połączenia i historia napraw przejdą na niego, a duble zostaną usunięte. Zmiana tylko za zgodą każdej firmy (zakres „pojazdy”), w dzienniku firmy. Pojazdów prywatnych nie zmieniasz.",
+  "duplicatesHint": "Pojazdy z tym samym numerem VIN. Wybierz pojazd, który zostaje – brakujące dane, połączenia i historia napraw przejdą na niego, a duble zostaną usunięte. Zmiana tylko za zgodą każdej firmy (zakres „pojazdy”), w dzienniku firmy. Pojazdy prywatne – za zgodą właściciela (poproś o nią przyciskiem przy pojeździe).",
   "duplicatesEmpty": "Brak pojazdów z tym samym VIN.",
   "mergeInto": "Scal w wybrany",
   "merge": "Scal",
@@ -149,5 +149,9 @@
   "assignCompanyId": "Identyfikator firmy",
   "assignMemberSubject": "Identyfikator konta członka firmy",
   "privateVehicle": "prywatny ({owner})",
-  "@privateVehicle": {"placeholders": {"owner": {"type": "String"}}}
+  "@privateVehicle": {"placeholders": {"owner": {"type": "String"}}},
+  "askPersonConsent": "Poproś właściciela o zgodę",
+  "askPersonConsentNote": "Co i dlaczego (zobaczy to właściciel)",
+  "askPersonConsentSent": "Prośba wysłana – właściciel zobaczy ją w skrzynce w aplikacji.",
+  "send": "Wyślij"
 }
