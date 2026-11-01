@@ -162,5 +162,6 @@
   "error.message_not_found": "Nie znaleziono wiadomości.",
   "registration.unreadable": "Nie udało się odczytać kodu z dowodu rejestracyjnego.",
   "registration.no_code": "Na zdjęciu nie znaleziono kodu Aztec z dowodu rejestracyjnego. Zrób zdjęcie z bliska, ostre i bez odblasków.",
-  "registration.not_image": "To nie jest zdjęcie (obsługiwane: JPG, PNG)."
+  "registration.not_image": "To nie jest zdjęcie (obsługiwane: JPG, PNG).",
+  "error.consumption_loaded_below_empty": "Spalanie z ładunkiem nie może być mniejsze niż bez ładunku."
 }

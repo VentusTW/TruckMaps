@@ -1143,3 +1143,48 @@ def test_registration_from_photo_and_errors(database):
     )
     assert broken.status_code == 422
     assert client.post("/api/vehicles/registration", json={"code": code}).status_code == 401
+
+
+def test_vehicle_fuel_profile(database):
+    client = make_client(database)
+    fuel = {
+        "co2_class": 1,
+        "fuel_type": "diesel",
+        "consumption_empty": 24,
+        "consumption_loaded": 32.5,
+        "adblue_percent": 5,
+        "fuel_price": 6.1,
+        "adblue_price": 3.2,
+        "cost_currency": "PLN",
+    }
+    tractor = TRUCK | {"kind": "tractor"}
+    created = client.post("/api/vehicles", json=tractor | fuel, headers=as_user("anna"))
+    assert created.status_code == 201
+    assert {k: created.json()[k] for k in fuel} == fuel
+
+    # LNG bez AdBlue; naczepa bez napędu i spalania.
+    lng = client.put(
+        f"/api/vehicles/{created.json()['id']}",
+        json=tractor | fuel | {"fuel_type": "lng"},
+        headers=as_user("anna"),
+    ).json()
+    assert (lng["fuel_type"], lng["adblue_percent"], lng["adblue_price"]) == ("lng", None, None)
+    trailer = client.post(
+        "/api/vehicles",
+        json=TRUCK | fuel | {"kind": "semitrailer", "axle_count": 3},
+        headers=as_user("anna"),
+    ).json()
+    assert all(trailer[k] is None for k in fuel if k != "cost_currency")
+
+    wrong = client.post(
+        "/api/vehicles",
+        json=tractor | fuel | {"consumption_loaded": 20},
+        headers=as_user("anna"),
+    )
+    assert wrong.status_code == 422
+    assert (
+        client.post(
+            "/api/vehicles", json=tractor | {"co2_class": 6}, headers=as_user("anna")
+        ).status_code
+        == 422
+    )

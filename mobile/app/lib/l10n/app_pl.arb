@@ -489,5 +489,19 @@
   "registrationCode": "Wklej tekst kodu (skaner 2D)",
   "registrationCodeHint": "Tekst odczytany z kodu Aztec",
   "registrationRead": "Wczytaj",
-  "registrationFilled": "Wczytano dane z dowodu. Sprawdź wysokość, szerokość i długość – dowód ich nie zawiera."
+  "registrationFilled": "Wczytano dane z dowodu. Sprawdź wysokość, szerokość i długość – dowód ich nie zawiera.",
+  "vehicleFuelSection": "Paliwo i spalanie",
+  "vehicleFuelHint": "Do wyliczania kosztu trasy (paliwo, AdBlue, myto). Bez własnych cen – ceny z modułu kosztów.",
+  "vehicleFuel": "Napęd",
+  "fuelDiesel": "olej napędowy (ON)",
+  "fuelElectric": "elektryczny",
+  "fuelHydrogen": "wodór",
+  "vehicleCo2Class": "Klasa CO₂ (myto w Niemczech)",
+  "vehicleCo2ClassValue": "klasa {value}",
+  "@vehicleCo2ClassValue": {"placeholders": {"value": {"type": "int"}}},
+  "vehicleConsumptionEmpty": "Spalanie bez ładunku",
+  "vehicleConsumptionLoaded": "Spalanie z ładunkiem",
+  "vehicleAdBlue": "AdBlue (% spalania)",
+  "vehicleFuelPrice": "Własna cena paliwa",
+  "vehicleAdBluePrice": "Własna cena AdBlue"
 }

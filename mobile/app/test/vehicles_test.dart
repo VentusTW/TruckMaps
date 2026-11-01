@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:truckmaps_app/src/vehicles/vehicle_form.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_state.dart';
 import 'package:truckmaps_app/src/vehicles/vehicles_table.dart';
 import 'package:truckmaps_app/src/vehicles_screen.dart';
@@ -51,7 +52,7 @@ void main() {
   var changes = 0;
   late ValueNotifier<int> shown;
 
-  Future<void> pump(WidgetTester tester, {VehiclesViewStore? store, Size size = const Size(1200, 1600)}) async {
+  Future<void> pump(WidgetTester tester, {VehiclesViewStore? store, Size size = const Size(1200, 2600)}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -116,8 +117,8 @@ void main() {
         return json(null, 404);
       }),
     );
-    await tester.pumpWidget(localized(VehiclesScreen(
-        api: api, onChanged: () => changes++, refresh: shown, viewStore: store ?? MemoryViewStore())));
+    await tester.pumpWidget(localized(
+        VehiclesScreen(api: api, onChanged: () => changes++, refresh: shown, viewStore: store ?? MemoryViewStore())));
     await tester.pumpAndSettle();
   }
 
@@ -436,5 +437,50 @@ void main() {
     final card = tester.widget<Card>(find.byType(Card).first);
     expect(card.color, Theme.of(tester.element(find.byType(Card).first)).colorScheme.errorContainer);
     expect(changes, 0); // samo odświeżenie nie powiadamia planera
+  });
+
+  testWidgets('paliwo i spalanie: jednostka według napędu, AdBlue tylko przy ON', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Map<String, dynamic>? saved;
+    final api = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async {
+        if (request.method == 'PUT') {
+          saved = (jsonDecode(request.body) as Map).cast<String, dynamic>();
+          return json(saved);
+        }
+        return json(request.url.path == '/api/companies' ? [] : {'currencies': [], 'per_eur': {}});
+      }),
+    );
+    Future<void> open(Map<String, dynamic> vehicle) async {
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(MaterialPageRoute<dynamic>(builder: (_) => VehicleFormScreen(api: api, vehicle: vehicle)));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.pumpWidget(localized(const SizedBox()));
+    await open({...truck, 'kind': 'tractor', 'fuel_type': 'lng', 'co2_class': 2, 'consumption_empty': 20});
+    expect(find.text('kg/100 km'), findsNWidgets(2));
+    expect(find.text('AdBlue (% spalania)'), findsNothing);
+    expect(find.text('klasa 2'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Spalanie z ładunkiem'), '27,5');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Własna cena paliwa'), '1,4');
+    await tester.ensureVisible(find.text('Zapisz'));
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+    expect(saved, containsPair('consumption_loaded', 27.5));
+    expect(saved, containsPair('fuel_price', 1.4));
+    expect(saved, containsPair('fuel_type', 'lng'));
+    expect(saved, containsPair('co2_class', 2));
+    expect(saved, containsPair('adblue_percent', null));
+
+    await open({...truck, 'kind': 'tractor'});
+    expect(find.text('AdBlue (% spalania)'), findsOneWidget);
+    expect(find.text('l/100 km'), findsNWidgets(2));
   });
 }

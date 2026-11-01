@@ -348,7 +348,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] M3 Parkingi i POI: wyszukiwanie, filtry, propozycje pod przerwę, zgłoszenia „pełny / są miejsca”
   - [ ] parkingi przed miejscem obowiązkowej przerwy (z czasu pracy M2 / tachografu) na trasie, na pasku postępu i w zapowiedzi głosowej
 - [ ] M4 Opłaty drogowe i koszty:
-  - profil pojazdu: klasa Euro, klasa CO₂ (DE), spalanie l/100 km (pusty/ładowny), AdBlue jako % spalania, własne ceny paliwa (opcjonalnie)
+  - [x] profil pojazdu: klasa Euro, klasa CO₂ 1–5 (myto DE), napęd (ON, LNG, CNG, prąd, wodór – jednostka l / kg / kWh), spalanie na 100 km bez ładunku i z ładunkiem (z ładunkiem ≥ bez), AdBlue jako % spalania (tylko ON), własne ceny paliwa i AdBlue w walucie stawek, przeliczane przy zmianie waluty (migracja 0024); tylko pojazdy z silnikiem
   - ceny ON per kraj z Weekly Oil Bulletin (KE, co tydzień, darmowe), kursy walut z EBC
   - km płatnych dróg per kraj z Valhalli (`trace_attributes`: toll, kraj, klasa drogi) × oficjalne taryfy (tabele z cenników operatorów, aktualizowane ręcznie)
   - wynik: rozbicie paliwo / AdBlue / myto per kraj / razem, €/km; dostarcza `CostProvider`, więc planer zleceń liczy zysk na prawdziwych kosztach

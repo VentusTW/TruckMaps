@@ -94,6 +94,16 @@ class EmissionClass(StrEnum):
     ELECTRIC = "electric"
 
 
+class FuelType(StrEnum):
+    """Napęd – jednostka spalania: ON w litrach, LNG / CNG / wodór w kg, prąd w kWh."""
+
+    DIESEL = "diesel"
+    LNG = "lng"
+    CNG = "cng"
+    ELECTRIC = "electric"
+    HYDROGEN = "hydrogen"
+
+
 BODY_KINDS = {
     VehicleKind.COMBINATION,
     VehicleKind.RIGID,
@@ -141,6 +151,16 @@ class VehicleProfile(Base):
     vin: Mapped[str | None] = mapped_column(String(17))
     production_year: Mapped[int | None]
     emission_class: Mapped[str | None] = mapped_column(String(10))
+    co2_class: Mapped[int | None]
+    """Klasa emisji CO₂ (1–5) – myto w Niemczech (Toll Collect) od 12.2023."""
+    fuel_type: Mapped[str | None] = mapped_column(String(10))
+    consumption_empty: Mapped[float | None]
+    consumption_loaded: Mapped[float | None]
+    """Spalanie na 100 km bez ładunku i z pełnym ładunkiem (jednostka według napędu)."""
+    adblue_percent: Mapped[float | None]
+    fuel_price: Mapped[float | None]
+    adblue_price: Mapped[float | None]
+    """Własne ceny (w walucie stawek); brak = ceny z modułu kosztów (M4)."""
     pallet_places: Mapped[int | None]
     last_inspection: Mapped[date | None]
     """Ostatni przegląd techniczny."""
@@ -282,6 +302,25 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
     pallet_places: int | None = Field(
         default=None, ge=1, le=80, description="Miejsca paletowe (EUR) w zabudowie"
     )
+    co2_class: int | None = Field(
+        default=None, ge=1, le=5, description="Klasa emisji CO₂ (myto w Niemczech)"
+    )
+    fuel_type: FuelType | None = Field(default=None, description="Napęd (pojazdy z silnikiem)")
+    consumption_empty: float | None = Field(
+        default=None, gt=0, le=500, description="Spalanie bez ładunku na 100 km (l, kg albo kWh)"
+    )
+    consumption_loaded: float | None = Field(
+        default=None, gt=0, le=500, description="Spalanie z pełnym ładunkiem na 100 km"
+    )
+    adblue_percent: float | None = Field(
+        default=None, ge=0, le=15, description="AdBlue jako % spalania ON"
+    )
+    fuel_price: float | None = Field(
+        default=None, gt=0, le=1000, description="Własna cena paliwa za jednostkę (waluta stawek)"
+    )
+    adblue_price: float | None = Field(
+        default=None, gt=0, le=1000, description="Własna cena AdBlue za litr (waluta stawek)"
+    )
 
     @field_validator("plate")
     @classmethod
@@ -304,8 +343,18 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
         if self.kind not in BODY_KINDS or self.trailer_type == TrailerType.TANKER:
             self.pallet_places = None
         if not motor:
-            self.emission_class = None
+            self.emission_class = self.co2_class = self.fuel_type = None
+            self.consumption_empty = self.consumption_loaded = None
+            self.adblue_percent = self.fuel_price = self.adblue_price = None
             self.cost_per_km = self.cost_per_hour = None
+        if self.fuel_type not in (None, FuelType.DIESEL):
+            self.adblue_percent = self.adblue_price = None
+        if (
+            self.consumption_empty is not None
+            and self.consumption_loaded is not None
+            and self.consumption_loaded < self.consumption_empty
+        ):
+            raise ValueError(t("error.consumption_loaded_below_empty"))
         if self.kind not in TACHOGRAPH_KINDS:
             self.tachograph_until = None
         if self.trailer_type != TrailerType.TANKER:
