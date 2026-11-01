@@ -35,6 +35,7 @@ void main() {
   late List<Map<String, dynamic>> vehicles;
   late List<(String, String, Map?)> requests;
   var changes = 0;
+  late ValueNotifier<int> shown;
 
   Future<void> pump(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1200, 1600);
@@ -86,11 +87,12 @@ void main() {
         return json(null, 404);
       }),
     );
-    await tester.pumpWidget(localized(VehiclesScreen(api: api, onChanged: () => changes++)));
+    await tester.pumpWidget(localized(VehiclesScreen(api: api, onChanged: () => changes++, refresh: shown)));
     await tester.pumpAndSettle();
   }
 
   setUp(() {
+    shown = ValueNotifier(0);
     vehicles = [truck];
     requests = [];
     changes = 0;
@@ -265,5 +267,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Zmień'), findsNothing);
     expect(find.text('Terminy przeglądów'), findsOneWidget);
+  });
+
+  testWidgets('wejście na ekran odświeża listę: pojazd w naprawie na czerwono', (tester) async {
+    await pump(tester);
+    expect(find.textContaining('w naprawie'), findsNothing);
+
+    vehicles = [
+      {...truck, 'in_repair': true}
+    ];
+    shown.value++;
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('w naprawie'), findsOneWidget);
+    final card = tester.widget<Card>(find.byType(Card).first);
+    expect(card.color, Theme.of(tester.element(find.byType(Card).first)).colorScheme.errorContainer);
+    expect(changes, 0); // samo odświeżenie nie powiadamia planera
   });
 }
