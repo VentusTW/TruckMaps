@@ -10,7 +10,7 @@ import re
 from collections.abc import Iterable
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Float, Index, String, Text, select
+from sqlalchemy import BigInteger, Float, Index, String, Text, and_, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base
@@ -173,33 +173,76 @@ def restrictions_from_tags(tags: dict[str, str]) -> list[tuple[Kind, float | Non
     return list(found.values()) + conditional
 
 
-def for_ways(db: Session, way_ids: Iterable[int]) -> dict[int, list[Restriction]]:
-    """Ograniczenia dla podanych dróg OSM, pogrupowane po identyfikatorze drogi."""
-    ids = list(set(way_ids))
-    result: dict[int, list[Restriction]] = {}
-    for start in range(0, len(ids), 1000):
+def for_ways(
+    db: Session, way_ids: Iterable[int], cache: dict[int, list[Restriction]] | None = None
+) -> dict[int, list[Restriction]]:
+    """Ograniczenia dla podanych dróg OSM, pogrupowane po identyfikatorze drogi.
+
+    ``cache`` – drogi pobrane wcześniej (także te bez ograniczeń); kolejne warianty tej samej
+    trasy mają w większości wspólne drogi, więc z bazy pobierane są tylko nowe.
+    """
+    cache = {} if cache is None else cache
+    ids = set(way_ids)
+    missing = [i for i in ids if i not in cache]
+    for start in range(0, len(missing), 1000):
+        chunk = missing[start : start + 1000]
+        for way_id in chunk:
+            cache[way_id] = []
         query = select(Restriction).where(
-            Restriction.osm_type == "way", Restriction.osm_id.in_(ids[start : start + 1000])
+            Restriction.osm_type == "way", Restriction.osm_id.in_(chunk)
         )
         for restriction in db.scalars(query):
-            result.setdefault(restriction.osm_id, []).append(restriction)
-    return result
+            cache[restriction.osm_id].append(restriction)
+    return {i: cache[i] for i in ids if cache[i]}
 
 
-def nodes_in_bbox(
-    db: Session, points: list[tuple[float, float]], margin_m: float = 50.0
+# Kawałki trasy do zapytań o otoczenie: prostokąt wokół całej długiej trasy obejmuje pół
+# kraju, a pas wokół kolejnych ~10 km – tylko to, co faktycznie leży przy drodze.
+QUERY_CHUNK_KM = 10.0
+QUERY_BATCH = 40
+
+
+def route_chunks(route: list[tuple[float, float]], max_km: float = QUERY_CHUNK_KM):
+    """Kawałki linii trasy po ok. ``max_km`` (sąsiednie mają wspólny punkt)."""
+    start, length = 0, 0.0
+    for i in range(1, len(route)):
+        length += distance_m(*route[i - 1], *route[i])
+        if length >= max_km * 1000:
+            yield route[start : i + 1]
+            start, length = i, 0.0
+    if start < len(route) - 1 or len(route) == 1:
+        yield route[start:]
+
+
+def nodes_near_route(
+    db: Session,
+    points: list[tuple[float, float]],
+    kinds: Iterable[str],
+    margin_m: float = 50.0,
 ) -> list[Restriction]:
-    """Ograniczenia punktowe w prostokącie obejmującym trasę (dokładne dopasowanie robi analiza)."""
-    if not points:
-        return []
-    margin = margin_m / 111_000
-    lons, lats = [p[0] for p in points], [p[1] for p in points]
-    query = select(Restriction).where(
-        Restriction.osm_type == "node",
-        Restriction.lat.between(min(lats) - margin, max(lats) + margin),
-        Restriction.lon.between(min(lons) - 2 * margin, max(lons) + 2 * margin),
-    )
-    return list(db.scalars(query))
+    """Ograniczenia punktowe podanych rodzajów w pasie wokół trasy (dokładne dopasowanie robi
+    analiza). Punkt ma prostokąt zerowy (``min_lat`` = ``lat``) – zapytanie trafia w indeks."""
+    margin_lat, margin_lon = margin_m / 111_000, margin_m / 111_000 / 0.5
+    boxes = []
+    for chunk in route_chunks(points):
+        lons, lats = [p[0] for p in chunk], [p[1] for p in chunk]
+        boxes.append(
+            and_(
+                Restriction.min_lat.between(min(lats) - margin_lat, max(lats) + margin_lat),
+                Restriction.min_lon.between(min(lons) - margin_lon, max(lons) + margin_lon),
+            )
+        )
+    found: dict[int, Restriction] = {}
+    kinds = list(kinds)
+    for start in range(0, len(boxes), QUERY_BATCH):
+        query = select(Restriction).where(
+            Restriction.osm_type == "node",
+            Restriction.kind.in_(kinds),
+            or_(*boxes[start : start + QUERY_BATCH]),
+        )
+        for restriction in db.scalars(query):
+            found[restriction.id] = restriction
+    return list(found.values())
 
 
 def distance_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:

@@ -73,14 +73,32 @@ double distanceM(LatLng a, LatLng b) {
 }
 
 /// Najbliższe miejsce na linii: odległość, indeks odcinka i ułamek na nim.
+///
+/// Wywoływane przy każdej pozycji GPS dla całej trasy: odcinek wybierany jest po kwadracie
+/// odległości w stopniach (bez obiektów i funkcji trygonometrycznych w pętli), dokładna
+/// odległość w metrach liczona jest raz – dla wybranego odcinka.
 (double, int, double) nearestOnLine(LatLng p, List<LatLng> line) {
   if (line.length == 1) return (distanceM(p, line.first), 0, 0);
-  var best = (double.infinity, 0, 0.0);
+  final scale = math.cos(_rad(p.latitude));
+  var bestD2 = double.infinity, bestI = 0;
+  var ax = (line[0].longitude - p.longitude) * scale, ay = line[0].latitude - p.latitude;
   for (var i = 0; i < line.length - 1; i++) {
-    final (distance, t) = distanceToSegment(p, line[i], line[i + 1]);
-    if (distance < best.$1) best = (distance, i, t);
+    final b = line[i + 1];
+    final bx = (b.longitude - p.longitude) * scale, by = b.latitude - p.latitude;
+    final dx = bx - ax, dy = by - ay;
+    final length2 = dx * dx + dy * dy;
+    final t = length2 == 0 ? 0.0 : (-(ax * dx + ay * dy) / length2).clamp(0.0, 1.0);
+    final x = ax + t * dx, y = ay + t * dy;
+    final d2 = x * x + y * y;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      bestI = i;
+    }
+    ax = bx;
+    ay = by;
   }
-  return best;
+  final (distance, t) = distanceToSegment(p, line[bestI], line[bestI + 1]);
+  return (distance, bestI, t);
 }
 
 class CorridorItem {

@@ -175,6 +175,26 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   bool _voice = true;
   late final Speaker _speaker = widget.speaker ?? systemSpeaker(_speechLanguage(Localizations.localeOf(context)));
 
+  /// Linie trasy i dróg nieprzejezdnych – budowane raz dla trasy i korytarza, nie przy każdej
+  /// pozycji GPS (mapa porównuje linie po zawartości, a trasa ma tysiące punktów).
+  List<Polyline> _lines = const [];
+  (PlannedRoute, Corridor?)? _linesFor;
+
+  List<Polyline> get _routeLines {
+    final key = (_route, _corridor);
+    if (_linesFor != key) {
+      _linesFor = key;
+      _lines = [
+        for (final item in _corridor?.items ?? <CorridorItem>[])
+          if (item.level == 'red' && item.line.length > 1)
+            Polyline(points: item.line, strokeWidth: 3, color: levelColor('red').withOpacity(0.6)),
+        for (final (points, level) in _route.coloredParts)
+          Polyline(points: points, strokeWidth: 6, color: levelColor(level), borderStrokeWidth: 2, borderColor: Colors.white),
+      ];
+    }
+    return _lines;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -363,12 +383,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
           ),
           children: [
             mapTiles(),
-            PolylineLayer(polylines: [
-              for (final item in _corridor?.items.where((i) => i.level == 'red') ?? <CorridorItem>[])
-                if (item.line.length > 1) Polyline(points: item.line, strokeWidth: 3, color: levelColor('red').withOpacity(0.6)),
-              for (final (points, level) in _route.coloredParts)
-                Polyline(points: points, strokeWidth: 6, color: levelColor(level), borderStrokeWidth: 2, borderColor: Colors.white),
-            ]),
+            PolylineLayer(polylines: _routeLines),
             MarkerLayer(markers: [
               Marker(point: widget.request.destination, width: 30, height: 30, child: const _Pin('B', Color(0xFFA32D2D))),
               if (_position != null)

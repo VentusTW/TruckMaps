@@ -1,11 +1,13 @@
 from fastapi.testclient import TestClient
 
+from truckmaps.core import restrictions
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.corridor import build_corridor, check_position
 from truckmaps.core.polyline import encode_polyline6
 from truckmaps.core.restrictions import Restriction
+from truckmaps.core.route_analysis import NODE_KINDS
 from truckmaps.core.vehicles import VehicleIn
 from truckmaps.sdk import Principal
 
@@ -102,3 +104,41 @@ def test_corridor_endpoint_is_compressed_and_scoped_to_vehicle_owner(database):
     assert other.status_code == 404
     bad = client.post("/api/corridor", json={**body, "route": "?"}, headers=anna)
     assert bad.status_code == 422
+
+
+def node(osm_id, kind, lon, lat):
+    return Restriction(
+        osm_type="node", osm_id=osm_id, kind=kind, value=3.5, raw="maxheight=3.5",
+        lat=lat, lon=lon, min_lat=lat, max_lat=lat, min_lon=lon, max_lon=lon,
+        source="osm", source_date="2026-10-29",
+    )  # fmt: skip
+
+
+def test_route_nodes_come_from_strip_along_route_not_whole_bounding_box(database):
+    # Trasa w kształcie litery L (ok. 30 km na wschód, potem 30 km na północ).
+    route = [(20.0 + i * 0.01, 50.0) for i in range(41)] + [
+        (20.4, 50.0 + i * 0.01) for i in range(1, 28)
+    ]
+    near_start, near_end = node(1, "height", 20.05, 50.0002), node(2, "height", 20.4002, 50.25)
+    # W prostokącie obejmującym całą trasę, ale daleko od drogi.
+    corner = node(3, "height", 20.05, 50.25)
+    other_kind = node(4, "road_width", 20.1, 50.0)
+    with database.session() as db:
+        db.add_all([near_start, near_end, corner, other_kind])
+        db.commit()
+        found = restrictions.nodes_near_route(db, route, NODE_KINDS)
+
+    assert sorted(r.osm_id for r in found) == [1, 2]
+
+
+def test_way_restrictions_cache_queries_only_new_ways(database):
+    with database.session() as db:
+        db.add(way(7, "height", 3.5, "maxheight=3.5", ROUTE[:2]))
+        db.commit()
+        cache: dict = {}
+        assert list(restrictions.for_ways(db, [7, 8], cache)) == [7]
+        db.query(Restriction).delete()
+        db.commit()
+        # Drogi 7 i 8 są już w pamięci – bez nowego zapytania; drogi 9 nie było wcześniej.
+        assert list(restrictions.for_ways(db, [7, 8, 9], cache)) == [7]
+        assert set(cache) == {7, 8, 9}
