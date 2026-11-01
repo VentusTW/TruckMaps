@@ -84,8 +84,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
       setState(() {
         _vehicles = list;
         // Wybrany pojazd zostaje, jeśli nadal jest na liście (np. po zmianie wymiarów).
-        if (!list.any((v) => v['id'] == _vehicleId)) {
-          _vehicleId = list.isEmpty ? null : list.first['id'] as String;
+        // Pojazd w naprawie jest wyłączony z użytku – planer wybiera inny.
+        final usable = [for (final v in list) if (v['in_repair'] != true) v];
+        if (!usable.any((v) => v['id'] == _vehicleId)) {
+          _vehicleId = usable.isEmpty ? null : usable.first['id'] as String;
         }
       });
     } catch (error) {
@@ -484,11 +486,14 @@ class _PlannerScreenState extends State<PlannerScreen> {
               for (final v in _vehicles)
                 DropdownMenuItem(
                   value: v['id'] as String,
+                  enabled: v['in_repair'] != true,
                   child: Text(
                       [
-                        v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
-                        if (v['trailer_name'] != null) '${v['trailer_name']}',
-                      ].join(' + '),
+                            v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
+                            if (v['trailer_name'] != null) '${v['trailer_name']}',
+                          ].join(' + ') +
+                          (v['in_repair'] == true ? ' · ${l.vehicleInRepair}' : ''),
+                      style: v['in_repair'] == true ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
                       overflow: TextOverflow.ellipsis),
                 ),
             ],

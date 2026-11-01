@@ -24,8 +24,9 @@ Color? stateColor(BuildContext context, VehicleState state) {
   };
 }
 
-/// Stonowane tło wiersza / kafelka w kolorze stanu.
+/// Tło wiersza / kafelka w kolorze stanu; w naprawie – wyraźnie na czerwono (wyłączony z użytku).
 Color? stateTint(BuildContext context, VehicleState state) {
+  if (state == VehicleState.repair) return Theme.of(context).colorScheme.errorContainer;
   final color = stateColor(context, state);
   return color == null ? null : Color.alphaBlend(color.withOpacity(0.14), Theme.of(context).colorScheme.surface);
 }

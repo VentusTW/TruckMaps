@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'account/account_screen.dart';
@@ -28,7 +30,8 @@ class HomeScreen extends StatefulWidget {
       required this.registry,
       required this.onLogout,
       this.onLanguage,
-      this.openUrl});
+      this.openUrl,
+      this.pageMemory});
 
   final Session session;
   final ModuleRegistry registry;
@@ -40,12 +43,48 @@ class HomeScreen extends StatefulWidget {
   /// Pobranie aktualizacji (testy podmieniają); zwykle przeglądarka systemowa.
   final ValueChanged<Uri>? openUrl;
 
+  /// Ostatnio używany ekran (testy podmieniają); zwykle magazyn systemu.
+  final PageMemory? pageMemory;
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Który ekran był otwarty ostatnio – po ponownym uruchomieniu aplikacja wraca do niego.
+abstract class PageMemory {
+  Future<String?> load();
+  Future<void> save(String pageId);
+}
+
+class SecurePageMemory implements PageMemory {
+  static const _key = 'truckmaps.lastPage';
+  final _storage = const FlutterSecureStorage();
+
+  @override
+  Future<String?> load() async {
+    try {
+      return await _storage.read(key: _key);
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> save(String pageId) async {
+    try {
+      await _storage.write(key: _key, value: pageId);
+    } on PlatformException {
+      // bez zapamiętania – następnym razem ekran startowy
+    } on MissingPluginException {
+      // jak wyżej
+    }
+  }
+}
+
 class _Page {
-  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0});
+  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0, this.start = false});
 
   /// Stały identyfikator: wybrany ekran zostaje wybrany, gdy menu zmienia się z rolą albo językiem.
   final String id;
@@ -56,6 +95,9 @@ class _Page {
 
   /// Liczba nowych (np. nieprzeczytane wiadomości) przy pozycji menu.
   final int badge;
+
+  /// Ekran startowy – bez przycisku w menu.
+  final bool start;
 }
 
 /// Ikona z licznikiem nowych.
@@ -65,7 +107,9 @@ Widget _badged(IconData icon, int count) =>
 class _HomeScreenState extends State<HomeScreen> {
   List<ModuleAccess> _modules = const [];
   String? _error;
-  String _selected = 'route';
+  /// Wybrany ekran; `null` – jeszcze nie wiadomo (wtedy ekran startowy, a bez niego pierwszy).
+  String? _selected;
+  late final PageMemory _memory = widget.pageMemory ?? SecurePageMemory();
 
   /// Ustawienia konta (`/api/me/settings`) i firmy użytkownika z jego rolą w każdej.
   Map<String, dynamic> _settings = const {};
@@ -76,6 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Zmiana pojazdów na ekranie „Pojazdy” → planer odświeża listę.
   final _vehiclesChanged = ValueNotifier(0);
 
+  /// Wejście na ekran „Pojazdy” → świeża lista (np. pojazd właśnie trafił do serwisu).
+  final _vehiclesShown = ValueNotifier(0);
+
   /// Nieprzeczytane wiadomości i prośby administratora, które już pokazaliśmy.
   int _unread = 0;
   final _announced = <String>{};
@@ -85,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _vehiclesChanged.dispose();
+    _vehiclesShown.dispose();
     _inboxTimer?.cancel();
     super.dispose();
   }
@@ -96,8 +144,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadAccount();
     _checkUpdates();
     _loadInbox();
+    _restorePage();
     // Prośba administratora ma dotrzeć bez ponownego uruchamiania aplikacji.
     _inboxTimer = Timer.periodic(const Duration(minutes: 1), (_) => _loadInbox());
+  }
+
+  Future<void> _restorePage() async {
+    final saved = await _memory.load();
+    if (saved != null && mounted && _selected == null) setState(() => _selected = saved);
+  }
+
+  void _open(String pageId) {
+    setState(() => _selected = pageId);
+    _memory.save(pageId);
   }
 
   /// Licznik nieprzeczytanych; nowa prośba administratora o dostęp – wyróżnione powiadomienie.
@@ -117,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
         duration: const Duration(seconds: 10),
         backgroundColor: Theme.of(context).colorScheme.tertiary,
         content: Text(l.inboxNewRequest),
-        action: SnackBarAction(label: l.inboxShow, onPressed: () => setState(() => _selected = 'inbox')),
+        action: SnackBarAction(label: l.inboxShow, onPressed: () => _open('inbox')),
       ));
     } catch (_) {
       // Skrzynka jest dodatkiem – bez niej aplikacja działa dalej.
@@ -199,6 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (_) => VehiclesScreen(
                 api: widget.session.api,
                 onChanged: () => _vehiclesChanged.value++,
+                refresh: _vehiclesShown,
               )),
       if (_company case final company?) ...[
         _Page(
@@ -239,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
       for (final access in _modules.where((m) => m.usable))
         for (final (i, entry) in access.module!.entries(module).indexed)
-          _Page('${access.id}/$i', entry.title, entry.icon, entry.builder),
+          _Page('${access.id}/$i', entry.title, entry.icon, entry.builder, start: entry.start),
       _Page(
           'inbox',
           l.menuInbox,
@@ -272,19 +332,28 @@ class _HomeScreenState extends State<HomeScreen> {
       return OnboardingScreen(api: widget.session.api, onDone: _loadAccount, onLogout: widget.onLogout);
     }
     final pages = _pages;
-    final selected = pages.indexWhere((page) => page.id == _selected).clamp(0, pages.length - 1);
+    // Ostatnio używany ekran; gdy go nie ma (pierwsze uruchomienie, moduł bez dostępu) – startowy.
+    var selected = pages.indexWhere((page) => page.id == _selected);
+    if (selected < 0) selected = pages.indexWhere((page) => page.start);
+    if (selected < 0) selected = 0;
     final wide = MediaQuery.sizeOf(context).width >= 720;
+    final inMenu = [for (final page in pages) if (!page.start) page];
     final menu = [
-      for (final page in pages) NavigationDrawerDestination(icon: _badged(page.icon, page.badge), label: Text(page.title)),
+      for (final page in inMenu) NavigationDrawerDestination(icon: _badged(page.icon, page.badge), label: Text(page.title)),
     ];
     void select(int index) {
-      if (pages[index].id == 'inbox' && _selected != 'inbox') _inboxChanged();
-      setState(() => _selected = pages[index].id);
+      final id = inMenu[index].id;
+      if (id == 'inbox' && _selected != 'inbox') _inboxChanged();
+      // Stan pojazdów zmienia się poza tym ekranem (serwis, nawigacja innych kierowców).
+      if (id == 'vehicles') _vehiclesShown.value++;
+      if (id == 'route') _vehiclesChanged.value++;
+      _open(id);
       if (!wide) Navigator.of(context).maybePop();
     }
 
+    final current = inMenu.indexOf(pages[selected]);
     final drawer = NavigationDrawer(
-      selectedIndex: selected,
+      selectedIndex: current < 0 ? null : current,
       onDestinationSelected: select,
       children: [
         Padding(
@@ -309,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
           tooltip: context.l.menuInbox,
           onPressed: () {
             if (_selected != 'inbox') _inboxChanged();
-            setState(() => _selected = 'inbox');
+            _open('inbox');
           },
           icon: _badged(Icons.mail_outline, _unread),
         ),

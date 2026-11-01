@@ -49,6 +49,7 @@ void main() {
   late List<Map<String, dynamic>> vehicles;
   late List<(String, String, Map?)> requests;
   var changes = 0;
+  late ValueNotifier<int> shown;
 
   Future<void> pump(WidgetTester tester, {VehiclesViewStore? store, Size size = const Size(1200, 1600)}) async {
     tester.view.physicalSize = size;
@@ -115,12 +116,13 @@ void main() {
         return json(null, 404);
       }),
     );
-    await tester.pumpWidget(
-        localized(VehiclesScreen(api: api, onChanged: () => changes++, viewStore: store ?? MemoryViewStore())));
+    await tester.pumpWidget(localized(VehiclesScreen(
+        api: api, onChanged: () => changes++, refresh: shown, viewStore: store ?? MemoryViewStore())));
     await tester.pumpAndSettle();
   }
 
   setUp(() {
+    shown = ValueNotifier(0);
     vehicles = [truck];
     requests = [];
     changes = 0;
@@ -418,5 +420,21 @@ void main() {
     expect(find.text('WMA06XZZ1KM123456'), findsOneWidget);
     expect(find.text('18,5'), findsOneWidget);
     expect(find.textContaining('Sprawdź wysokość'), findsOneWidget);
+  });
+
+  testWidgets('wejście na ekran odświeża listę: pojazd w naprawie na czerwono', (tester) async {
+    await pump(tester);
+    expect(find.textContaining('w naprawie'), findsNothing);
+
+    vehicles = [
+      {...truck, 'in_repair': true}
+    ];
+    shown.value++;
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('w naprawie'), findsNWidgets(2)); // kafelek + objaśnienie kolorów
+    final card = tester.widget<Card>(find.byType(Card).first);
+    expect(card.color, Theme.of(tester.element(find.byType(Card).first)).colorScheme.errorContainer);
+    expect(changes, 0); // samo odświeżenie nie powiadamia planera
   });
 }

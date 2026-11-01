@@ -7,7 +7,10 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/main.dart';
 import 'package:truckmaps_app/src/auth.dart';
+import 'package:truckmaps_app/src/home.dart';
 import 'package:truckmaps_app/src/planner/planner_screen.dart';
+
+import 'localized.dart';
 
 http.Response json(Object body) => http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
@@ -21,6 +24,7 @@ Session session(Map<String, Object> responses) {
 
 void main() {
   setUp(() => mapTiles = () => const SizedBox());
+  pageMemoryTests();
 
   testWidgets('bez zapisanej sesji – ekran logowania', (tester) async {
     await tester.pumpWidget(
@@ -49,17 +53,17 @@ void main() {
       }),
     ));
     await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));  // moduły wczytane → powitanie z serwera
 
-    expect(find.text('Wyznacz trasę'), findsOneWidget);  // pierwszy ekran: planer trasy
+    // Bez zapamiętanego ekranu – ekran startowy (Powitanie), który nie ma przycisku w menu.
+    expect(find.text('Witaj w TruckMaps!'), findsOneWidget);
+    expect(find.text('Powitanie'), findsOneWidget);  // tylko tytuł ekranu
     expect(find.text('Anna Kowalska'), findsOneWidget);
 
     await tester.tap(find.text('Pojazdy'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Zestaw 40 t'), findsWidgets);
-
-    await tester.tap(find.text('Powitanie'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Witaj w TruckMaps!'), findsOneWidget);
+    expect(find.text('Powitanie'), findsNothing);
 
     await tester.tap(find.text('Moduły'));
     await tester.pump(const Duration(seconds: 1));
@@ -108,4 +112,43 @@ class MemoryStore implements SessionStore {
 
   @override
   Future<void> clear() async => tokens = null;
+}
+
+class FakePageMemory implements PageMemory {
+  FakePageMemory(this.saved);
+
+  String? saved;
+
+  @override
+  Future<String?> load() async => saved;
+
+  @override
+  Future<void> save(String pageId) async => saved = pageId;
+}
+
+void pageMemoryTests() {
+  testWidgets('aplikacja wraca do ostatnio używanego ekranu i go zapamiętuje', (tester) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final memory = FakePageMemory('vehicles');
+    await tester.pumpWidget(localized(HomeScreen(
+      session: session({
+        '/api/vehicles': [
+          {'id': 'v1', 'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
+           'gvw_t': 40, 'axle_load_t': 11.5, 'company_id': null, 'can_edit': true},
+        ],
+        '/api/me/modules': [],
+      }),
+      registry: modules,
+      onLogout: () {},
+      pageMemory: memory,
+    )));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Zestaw 40 t'), findsWidgets);
+
+    await tester.tap(find.text('Konto'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(memory.saved, 'account');
+  });
 }

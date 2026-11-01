@@ -13,13 +13,20 @@ import 'vehicles/vehicles_table.dart';
 /// Widok kafelków (przeciąganie naczep na pojazd) albo tabeli z zakładkami – wybór zapamiętany na urządzeniu.
 class VehiclesScreen extends StatefulWidget {
   const VehiclesScreen(
-      {super.key, required this.api, this.onChanged, this.viewStore = const SecureVehiclesViewStore()});
+      {super.key,
+      required this.api,
+      this.onChanged,
+      this.refresh,
+      this.viewStore = const SecureVehiclesViewStore()});
 
   final CoreApi api;
   final VehiclesViewStore viewStore;
 
   /// Po każdej zmianie listy (np. planer odświeża wybór pojazdu).
   final VoidCallback? onChanged;
+
+  /// Sygnał „pobierz listę od nowa” (np. wejście na ekran).
+  final Listenable? refresh;
 
   @override
   State<VehiclesScreen> createState() => _VehiclesScreenState();
@@ -33,6 +40,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   @override
   void initState() {
     super.initState();
+    widget.refresh?.addListener(_refresh);
     widget.viewStore.readTable().then((table) {
       if (mounted && table != _table) setState(() => _table = table);
     });
@@ -41,6 +49,20 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   void _setTable(bool table) {
     setState(() => _table = table);
     widget.viewStore.writeTable(table);
+  }
+
+  @override
+  void dispose() {
+    widget.refresh?.removeListener(_refresh);
+    super.dispose();
+  }
+
+  /// Świeża lista bez powiadamiania innych ekranów (nic się tu nie zmieniło).
+  void _refresh() {
+    final vehicles = widget.api.get('/api/vehicles');
+    setState(() {
+      _vehicles = vehicles;
+    });
   }
 
   void _reload() {
