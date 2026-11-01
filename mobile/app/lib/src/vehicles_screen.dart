@@ -5,13 +5,18 @@ import 'package:intl/intl.dart';
 import 'l10n.dart';
 import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_form.dart';
+import 'vehicles/vehicle_state.dart';
+import 'vehicles/vehicles_table.dart';
 
 /// Profile pojazdów konta (prywatne i firmowe) – wymiary, według których liczona jest trasa.
 /// Dodawanie, zmiana i usuwanie; pojazd firmy zmieniają właściciel i dyspozytorzy.
+/// Widok kafelków (przeciąganie naczep na pojazd) albo tabeli z zakładkami – wybór zapamiętany na urządzeniu.
 class VehiclesScreen extends StatefulWidget {
-  const VehiclesScreen({super.key, required this.api, this.onChanged});
+  const VehiclesScreen(
+      {super.key, required this.api, this.onChanged, this.viewStore = const SecureVehiclesViewStore()});
 
   final CoreApi api;
+  final VehiclesViewStore viewStore;
 
   /// Po każdej zmianie listy (np. planer odświeża wybór pojazdu).
   final VoidCallback? onChanged;
@@ -22,6 +27,21 @@ class VehiclesScreen extends StatefulWidget {
 
 class _VehiclesScreenState extends State<VehiclesScreen> {
   late Future<dynamic> _vehicles = widget.api.get('/api/vehicles');
+  bool _table = false;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.viewStore.readTable().then((table) {
+      if (mounted && table != _table) setState(() => _table = table);
+    });
+  }
+
+  void _setTable(bool table) {
+    setState(() => _table = table);
+    widget.viewStore.writeTable(table);
+  }
 
   void _reload() {
     final vehicles = widget.api.get('/api/vehicles');
@@ -89,14 +109,14 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           if (fitting.isEmpty)
             Padding(padding: const EdgeInsets.all(24), child: Text(l.couplingNone(kindLabel(l, couples[vehicle['kind']])))),
           for (final t in fitting)
-            _InUse(
-              inUse: _busy(t, vehicle),
+            ColoredBox(
+              color: (_busy(t, vehicle) ? stateTint(context, vehicleState(t)) : null) ?? Colors.transparent,
               child: SimpleDialogOption(
                 onPressed: _busy(t, vehicle) ? null : () => Navigator.pop(context, t),
                 child: ListTile(
                   leading: Icon(kindIcon(t['kind'] as String?)),
                   title: Text(_title(t)),
-                  subtitle: Text(_busy(t, vehicle) ? _inUseText(l, t) : trailerLabel(l, '${t['trailer_type']}')),
+                  subtitle: Text(_busy(t, vehicle) ? stateText(l, t) ?? '' : trailerLabel(l, '${t['trailer_type']}')),
                 ),
               ),
             ),
@@ -134,9 +154,19 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final vehicles = (snapshot.data as List<dynamic>).cast<Map<String, dynamic>>();
           if (vehicles.isEmpty) return Center(child: Text(l.vehiclesEmpty));
-          final motors = [for (final v in vehicles) if (isDrivable(v)) v];
           final trailers = [for (final v in vehicles) if (!isDrivable(v)) v];
           final byId = {for (final v in vehicles) v['id']: v};
+          final shown = [for (final v in vehicles) if (matchesVehicle(v, _query)) v];
+          final shownMotors = [for (final v in shown) if (isDrivable(v)) v];
+          final shownTrailers = [for (final v in shown) if (!isDrivable(v)) v];
+          final empty = _query.trim().isEmpty ? null : l.vehiclesNoMatch;
+          final states = {for (final v in shown) vehicleState(v)}..remove(VehicleState.free);
+          if (_table) {
+            return Column(children: [
+              _toolbar(l, states),
+              Expanded(child: _tables(l, shownMotors, shownTrailers, trailers, byId, empty)),
+            ]);
+          }
 
           Widget motorCard(Map<String, dynamic> v) => _VehicleCard(
                 vehicle: v,
@@ -169,19 +199,124 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 if (items.isEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(empty)),
                 for (final item in items) Padding(padding: const EdgeInsets.only(bottom: 8), child: card(item)),
               ];
-          final motorList = section(l.vehiclesMotor, motors, motorCard, l.vehiclesMotorEmpty);
-          final trailerList = section(l.vehiclesTowed, trailers, trailerCard, l.vehiclesTowedEmpty);
+          final motorList = section(l.vehiclesMotor, shownMotors, motorCard, empty ?? l.vehiclesMotorEmpty);
+          final trailerList = section(l.vehiclesTowed, shownTrailers, trailerCard, empty ?? l.vehiclesTowedEmpty);
           const padding = EdgeInsets.fromLTRB(12, 4, 12, 88);
           // Szeroki ekran: samochody po lewej, naczepy i przyczepy po prawej (przeciąganie na pojazd).
           if (MediaQuery.sizeOf(context).width >= 900) {
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: ListView(padding: padding, children: motorList)),
-              Expanded(child: ListView(padding: padding, children: trailerList)),
+            return Column(children: [
+              _toolbar(l, states),
+              Expanded(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: ListView(padding: padding, children: motorList)),
+                  Expanded(child: ListView(padding: padding, children: trailerList)),
+                ]),
+              ),
             ]);
           }
-          return ListView(padding: padding, children: [...motorList, ...trailerList]);
+          return Column(children: [
+            _toolbar(l, states),
+            Expanded(child: ListView(padding: padding, children: [...motorList, ...trailerList])),
+          ]);
         },
       ),
+    );
+  }
+
+  /// Wybór widoku, wyszukiwanie po nazwie albo tablicy i objaśnienie kolorów.
+  Widget _toolbar(AppLocalizations l, Set<VehicleState> states) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(value: false, icon: const Icon(Icons.grid_view), label: Text(l.vehiclesViewCards)),
+              ButtonSegment(value: true, icon: const Icon(Icons.table_rows_outlined), label: Text(l.vehiclesViewTable)),
+            ],
+            selected: {_table},
+            showSelectedIcon: false,
+            onSelectionChanged: (selected) => _setTable(selected.first),
+          ),
+          SizedBox(
+            width: 280,
+            child: TextField(
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search),
+                hintText: l.vehiclesSearch,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+          ),
+          if (states.isNotEmpty) StateLegend(states: states),
+        ]),
+      );
+
+  /// Tabela w dwóch zakładkach: pojazdy z napędem oraz naczepy i przyczepy.
+  Widget _tables(AppLocalizations l, List<Map<String, dynamic>> motors, List<Map<String, dynamic>> towed,
+      List<Map<String, dynamic>> trailers, Map<Object?, Map<String, dynamic>> byId, String? empty) {
+    VoidCallback? open(Map<String, dynamic> v) =>
+        v['can_edit'] != false ? () => _open(v) : (v['can_service'] == true ? () => _service(v) : null);
+    Widget actions(Map<String, dynamic> v) =>
+        _Actions(vehicle: v, onEdit: () => _open(v), onDelete: () => _delete(v), onService: () => _service(v));
+    Widget coupling(Map<String, dynamic> v) {
+      if (!couples.containsKey(v['kind'])) return const Text('–');
+      final trailer = byId[v['trailer_id']];
+      if (trailer == null) return TextButton(onPressed: () => _chooseTrailer(v, trailers), child: Text(l.couplingAdd));
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(_title(trailer)),
+        IconButton(tooltip: l.couplingRemove, onPressed: () => _couple(v, null), icon: const Icon(Icons.link_off)),
+      ]);
+    }
+
+    Widget table(List<Map<String, dynamic>> items, {required bool isTowed, required String none}) => items.isEmpty
+        ? Center(child: Text(empty ?? none))
+        : VehiclesTable(
+            vehicles: items,
+            towed: isTowed,
+            byId: byId,
+            onOpen: open,
+            actions: actions,
+            coupling: coupling,
+          );
+    final scheme = Theme.of(context).colorScheme;
+    Tab tab(IconData icon, String text) => Tab(
+          height: 44,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Flexible(child: Text(text, overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+    return DefaultTabController(
+      length: 2,
+      child: Column(children: [
+        // Zakładki jako wyraźne przyciski: wybrana wypełniona kolorem.
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(color: scheme.surfaceVariant, borderRadius: BorderRadius.circular(12)),
+          child: TabBar(
+            indicatorSize: TabBarIndicatorSize.tab,
+            indicator: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(9)),
+            labelColor: scheme.onPrimary,
+            unselectedLabelColor: scheme.onSurfaceVariant,
+            labelStyle: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+            dividerColor: Colors.transparent,
+            tabs: [
+              tab(Icons.local_shipping_outlined, '${l.vehiclesMotor} (${motors.length})'),
+              tab(Icons.rv_hookup, '${l.vehiclesTowed} (${towed.length})'),
+            ],
+          ),
+        ),
+        Expanded(
+          // Bez przesuwania zakładek palcem – tabela przewija się w bok.
+          child: TabBarView(physics: const NeverScrollableScrollPhysics(), children: [
+            table(motors, isTowed: false, none: l.vehiclesMotorEmpty),
+            table(towed, isTowed: true, none: l.vehiclesTowedEmpty),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -189,28 +324,6 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 String _title(Map<String, dynamic> v) {
   final plate = '${v['plate'] ?? ''}';
   return plate.isEmpty ? '${v['name']}' : '${v['name']} · $plate';
-}
-
-String _inUseText(AppLocalizations l, Map<String, dynamic> v) => v['in_repair'] == true
-    ? l.vehicleInRepair
-    : v['coupled_to_name'] != null
-        ? l.vehicleCoupledTo('${v['coupled_to_name']}')
-        : l.vehicleInUse;
-
-/// Stonowany czerwony dla pojazdów i naczep w użyciu.
-class _InUse extends StatelessWidget {
-  const _InUse({required this.inUse, required this.child});
-
-  final bool inUse;
-  final Widget child;
-
-  static Color tint(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Color.alphaBlend(scheme.error.withOpacity(0.10), scheme.surface);
-  }
-
-  @override
-  Widget build(BuildContext context) => inUse ? ColoredBox(color: tint(context), child: child) : child;
 }
 
 class _VehicleCard extends StatelessWidget {
@@ -230,7 +343,8 @@ class _VehicleCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final company = v['company_id'] != null;
     final editable = v['can_edit'] != false;
-    final inUse = v['in_use'] == true || v['in_repair'] == true;
+    final state = vehicleState(v);
+    final stateLabel = stateText(l, v);
     final service = v['can_service'] == true;
     final urgent = mostUrgent(v);
     String n(Object? value) => value is num ? l.number(value) : '–';
@@ -244,30 +358,17 @@ class _VehicleCard extends StatelessWidget {
         : '';
     final seats = v['seats'] is num ? ' · ${l.vehicleSeatsSummary(n(v['seats']), n(v['standing_places'] ?? 0))}' : '';
     return Card(
-      color: inUse ? _InUse.tint(context) : null,
+      color: stateTint(context, state),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
-          leading: Icon(kindIcon(kind), color: inUse ? scheme.error : null),
+          leading: Icon(kindIcon(kind), color: stateColor(context, state)),
           title: Text(_title(v)),
           subtitle: Text('${kindLabel(l, kind)} · ${company ? l.vehicleOfCompany : l.vehiclePrivate}'
-              '${inUse ? ' · ${_inUseText(l, v)}' : ''}\n'
+              '${stateLabel != null ? ' · $stateLabel' : ''}\n'
               '$summary$tare$tank$seats$adr'),
           isThreeLine: true,
           onTap: editable ? onEdit : (service ? onService : null),
-          trailing: editable || service
-              ? PopupMenuButton<String>(
-                  onSelected: (action) => switch (action) {
-                    'edit' => onEdit(),
-                    'service' => onService(),
-                    _ => onDelete(),
-                  },
-                  itemBuilder: (context) => [
-                    if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
-                    if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
-                    if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
-                  ],
-                )
-              : Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline)),
+          trailing: _Actions(vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService),
         ),
         if (urgent != null)
           Padding(
@@ -287,6 +388,36 @@ class _VehicleCard extends StatelessWidget {
           ),
         if (coupling != null) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), child: coupling),
       ]),
+    );
+  }
+}
+
+/// Menu pojazdu: zmiana, terminy, usunięcie – według uprawnień; bez uprawnień kłódka.
+class _Actions extends StatelessWidget {
+  const _Actions({required this.vehicle, required this.onEdit, required this.onDelete, required this.onService});
+
+  final Map<String, dynamic> vehicle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onService;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    final editable = vehicle['can_edit'] != false;
+    final service = vehicle['can_service'] == true;
+    if (!editable && !service) return Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline));
+    return PopupMenuButton<String>(
+      onSelected: (action) => switch (action) {
+        'edit' => onEdit(),
+        'service' => onService(),
+        _ => onDelete(),
+      },
+      itemBuilder: (context) => [
+        if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
+        if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
+        if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
+      ],
     );
   }
 }

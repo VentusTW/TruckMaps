@@ -168,16 +168,20 @@ class ServiceModule(Module):
             return order, vehicle
 
         def refresh_repair(db: Session, vehicle_id: str) -> None:
-            """W naprawie: naprawa trwa albo zgłoszono, że pojazd stoi (do zamknięcia zlecenia)."""
-            orders = db.scalars(
-                select(ServiceOrder).where(
-                    ServiceOrder.vehicle_id == vehicle_id, ServiceOrder.status.in_(list(OPEN))
+            """W naprawie: naprawa trwa albo zgłoszono, że pojazd stoi (do zamknięcia zlecenia).
+            Inne otwarte zlecenie – usterka zgłoszona, pojazd jeszcze jeździ."""
+            orders = list(
+                db.scalars(
+                    select(ServiceOrder).where(
+                        ServiceOrder.vehicle_id == vehicle_id, ServiceOrder.status.in_(list(OPEN))
+                    )
                 )
             )
             in_repair = any(
                 o.status == Status.IN_PROGRESS or o.urgency == "stopped" for o in orders
             )
             fleet.set_in_repair(db, vehicle_id, in_repair)
+            fleet.set_repair_reported(db, vehicle_id, bool(orders) and not in_repair)
 
         def save(db: Session, order: ServiceOrder, vehicle: VehicleInfo) -> OrderOut:
             order.updated_at = _now()

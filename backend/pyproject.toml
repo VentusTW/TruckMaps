@@ -17,6 +17,8 @@ dependencies = [
     "sqlalchemy>=2.0.30",
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
+    "zxing-cpp>=2.2",
+    "pillow>=10",
 ]
 
 [project.optional-dependencies]

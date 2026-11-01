@@ -1,3 +1,4 @@
+import base64
 import json
 
 import httpx
@@ -1049,3 +1050,96 @@ def test_actual_weight_defaults_to_gvw(database):
     assert (with_tare["tare_t"], with_tare["weight_t"]) == (7.5, 18)
     heavy = client.post("/api/vehicles", json=body | {"gvw_t": 18, "tare_t": 20}, headers=anna)
     assert heavy.status_code == 422
+
+
+def _aztec_payload(fields: list[str]) -> str:
+    """Tekst kodu Aztec dowodu: długość + NRV2E (same literały, bez kompresji) w Base64."""
+    data = "|".join(fields).encode("utf-16-le")
+    stream = bytearray()
+    for start in range(0, len(data), 8):
+        chunk = data[start : start + 8]
+        stream.append(0xFF)  # 8 bitów „literał”
+        stream += chunk
+    return base64.b64encode(len(data).to_bytes(4, "little") + stream).decode()
+
+
+def _certificate(**values: str) -> list[str]:
+    fields = [""] * 67
+    fields[0] = "XXC1"
+    for index, value in {7: "WGM 12345", 8: "MAN", 12: "TGX 18.510", 13: "WMA06XZZ1KM123456",
+                         39: "18000", 41: "8100", 44: "2", 54: "CIĄGNIK SIODŁOWY", 56: "2021",
+                         58: "112", 16: "KOWALSKI", 20: "12345678901"}.items():  # fmt: skip
+        fields[index] = value
+    for index, value in values.items():
+        fields[int(index[1:])] = value
+    return fields
+
+
+def test_nrv2e_copies_matches():
+    from truckmaps.core.registration import nrv2e_decompress
+
+    # Literały „A”, „B”, potem powtórzenie z odległości 2 o długości 4.
+    assert nrv2e_decompress(bytes([0xDC, 0x41, 0x42, 0x03]), 6) == b"ABABAB"
+
+
+def test_registration_reads_vehicle_fields_only(database):
+    client = make_client(database)
+    code = _aztec_payload(_certificate())
+    response = client.post(
+        "/api/vehicles/registration", json={"code": code}, headers=as_user("anna")
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "MAN TGX 18.510",
+        "plate": "WGM12345",
+        "vin": "WMA06XZZ1KM123456",
+        "kind": "tractor",
+        "gvw_t": 18.0,
+        "tare_t": 8.1,
+        "axle_count": 2,
+        "axle_load_t": 11.4,
+        "production_year": 2021,
+    }
+    assert "KOWALSKI" not in response.text and "12345678901" not in response.text
+
+    bus = _aztec_payload(_certificate(f54="AUTOBUS", f52="50", f53="20"))
+    data = client.post(
+        "/api/vehicles/registration", json={"code": bus}, headers=as_user("anna")
+    ).json()
+    assert (data["kind"], data["seats"], data["standing_places"]) == ("bus", 49, 20)
+
+
+def test_registration_from_photo_and_errors(database):
+    import io
+
+    import zxingcpp
+    from PIL import Image
+
+    client = make_client(database)
+    code = _aztec_payload(_certificate())
+    image = zxingcpp.write_barcode_to_image(
+        zxingcpp.create_barcode(code, zxingcpp.BarcodeFormat.Aztec)
+    )
+    photo = io.BytesIO()
+    Image.fromarray(image).resize((600, 600), Image.NEAREST).save(photo, "PNG")
+    response = client.post(
+        "/api/vehicles/registration",
+        json={"image": base64.b64encode(photo.getvalue()).decode()},
+        headers=as_user("anna"),
+    )
+    assert response.json()["vin"] == "WMA06XZZ1KM123456"
+
+    blank = io.BytesIO()
+    Image.new("L", (200, 200), 255).save(blank, "PNG")
+    empty = client.post(
+        "/api/vehicles/registration",
+        json={"image": base64.b64encode(blank.getvalue()).decode()},
+        headers=as_user("anna"),
+    )
+    assert empty.status_code == 422
+    assert "Aztec" in empty.json()["detail"]
+    broken = client.post(
+        "/api/vehicles/registration", json={"code": "abc"}, headers=as_user("anna")
+    )
+    assert broken.status_code == 422
+    assert client.post("/api/vehicles/registration", json={"code": code}).status_code == 401

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../account/common.dart' show companyAllows;
 import '../l10n.dart';
+import 'registration_scan.dart';
 import 'service_dates.dart';
 
 /// Rodzaje naczep (te same co na serwerze).
@@ -84,10 +85,13 @@ const _ranges = {
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
 class VehicleFormScreen extends StatefulWidget {
-  const VehicleFormScreen({super.key, required this.api, this.vehicle});
+  const VehicleFormScreen({super.key, required this.api, this.vehicle, this.photoPicker = pickPhoto});
 
   final CoreApi api;
   final Map<String, dynamic>? vehicle;
+
+  /// Zdjęcie dowodu rejestracyjnego (w testach – podstawione).
+  final PhotoPicker photoPicker;
 
   @override
   State<VehicleFormScreen> createState() => _VehicleFormScreenState();
@@ -194,6 +198,38 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       });
     } catch (_) {
       // Bez listy firm i walut formularz działa dalej (pojazd prywatny, waluta jak była).
+    }
+  }
+
+  /// Dane z kodu Aztec dowodu rejestracyjnego: rodzaj, nazwa, tablica, VIN, masy, osie, miejsca.
+  /// Wymiarów w dowodzie nie ma – zostają typowe dla rodzaju albo dotychczasowe.
+  Future<void> _fromRegistration() async {
+    final l = context.l;
+    final request = await askRegistration(context, picker: widget.photoPicker);
+    if (request == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final data = await widget.api.post('/api/vehicles/registration', request) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        final kind = data['kind'] as String?;
+        if (kind != null && vehicleKinds.contains(kind) && kind != _kind) {
+          _kind = kind;
+          if (!_editing) _applyTypical(kind);
+          if (bodyKinds.contains(_kind) && _trailer == 'none') _trailer = 'curtain';
+        }
+        for (final key in const ['name', 'plate', 'vin', 'production_year', 'axle_count', 'seats', 'standing_places']) {
+          if (data[key] != null) _fields[key]!.text = '${data[key]}';
+        }
+        for (final key in const ['gvw_t', 'tare_t', 'axle_load_t']) {
+          if (data[key] is num) _fields[key]!.text = l.number(data[key] as num);
+        }
+      });
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(l.registrationFilled)));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -324,7 +360,17 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _fromRegistration,
+              icon: const Icon(Icons.document_scanner_outlined),
+              label: Text(l.registrationButton),
+            ),
+          ),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _kind,
             decoration: InputDecoration(labelText: l.vehicleKind, border: const OutlineInputBorder(), isDense: true),
             items: [
@@ -384,6 +430,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           if (hasBody) ...[
             section(l.vehicleBodySection),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               value: _trailer,
               decoration: InputDecoration(labelText: l.vehicleBody, border: const OutlineInputBorder(), isDense: true),
               items: [
@@ -409,6 +456,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           if (motor) ...[
             section(l.vehicleEngine),
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               value: _emission,
               decoration: InputDecoration(labelText: l.vehicleEmission, border: const OutlineInputBorder(), isDense: true),
               items: [
@@ -441,6 +489,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               _numberField('cost_per_km', l.vehicleCostPerKm, suffix: _currency, required: false),
               _numberField('cost_per_hour', l.vehicleCostPerHour, suffix: _currency, required: false),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _currency,
                 decoration:
                     InputDecoration(labelText: l.vehicleCurrency, border: const OutlineInputBorder(), isDense: true),
@@ -460,6 +509,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ],
           if (_companies.isNotEmpty) ...[
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               value: _companyId,
               decoration: InputDecoration(labelText: l.vehicleOwner, border: const OutlineInputBorder(), isDense: true),
               items: [

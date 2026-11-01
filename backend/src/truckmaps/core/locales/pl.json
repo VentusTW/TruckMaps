@@ -159,5 +159,8 @@
   "admin.not_found": "Nie znaleziono konta administratora {subject}.",
   "error.grant_not_pending": "Ta prośba została już rozpatrzona.",
   "error.grant_not_active": "Dostęp nie jest aktywny (wygasł albo został zamknięty).",
-  "error.message_not_found": "Nie znaleziono wiadomości."
+  "error.message_not_found": "Nie znaleziono wiadomości.",
+  "registration.unreadable": "Nie udało się odczytać kodu z dowodu rejestracyjnego.",
+  "registration.no_code": "Na zdjęciu nie znaleziono kodu Aztec z dowodu rejestracyjnego. Zrób zdjęcie z bliska, ostre i bez odblasków.",
+  "registration.not_image": "To nie jest zdjęcie (obsługiwane: JPG, PNG)."
 }
