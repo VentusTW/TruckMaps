@@ -22,6 +22,7 @@ class HelloModule extends TruckMapsModule {
   List<ModuleEntry> entries(ModuleContext context) => [
         ModuleEntry(
           title: pick(context.locale, {'pl': 'Powitanie', 'en': 'Greeting'}),
+          start: true,
           icon: Icons.waving_hand_outlined,
           builder: (_) => GreetingScreen(api: context.api),
         ),

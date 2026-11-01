@@ -19,11 +19,15 @@ String pick(Locale locale, Map<String, String> texts) =>
 
 /// Ekran modułu w menu powłoki.
 class ModuleEntry {
-  const ModuleEntry({required this.title, required this.icon, required this.builder});
+  const ModuleEntry({required this.title, required this.icon, required this.builder, this.start = false});
 
   final String title;
   final IconData icon;
   final WidgetBuilder builder;
+
+  /// Ekran startowy: otwiera się, gdy nie wiadomo, którego ekranu użytkownik używał ostatnio;
+  /// nie ma własnego przycisku w menu.
+  final bool start;
 }
 
 /// Pakiet modułu w aplikacji. [id] musi być taki sam jak identyfikator modułu na
