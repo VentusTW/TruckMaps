@@ -20,9 +20,10 @@ i nie są sprawdzane – planer o nich przypomina.
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from functools import lru_cache
+from typing import Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from truckmaps.core.i18n import Msg, t
 from truckmaps.core.restrictions import distance_m
@@ -344,6 +345,84 @@ def check_route(route, vehicle: VehicleIn, departure: datetime) -> TimeBanCheck:
                 break
             later += step
     return result
+
+
+# Kraje znane, bez ogólnego zakazu ruchu ciężarówek w czasie.
+NO_BAN_COUNTRIES = frozenset({"LT"})
+
+
+class CountryOnRoute(BaseModel):
+    """Kraj na trasie, po kolei, z przejściem granicznym i zakazami w czasie przejazdu."""
+
+    country: str
+    name: str
+    km: float = Field(description="Wjazd do kraju (km od startu); 0 – kraj startu")
+    lon: float
+    lat: float
+    border: bool = Field(description="Wjazd przez granicę (nie start trasy)")
+    enter_at: datetime = Field(description="Wjazd z postojami w czasie zakazów, bez przerw")
+    bans: Literal["ban", "free", "not_applicable", "no_ban", "no_data"]
+    """ban – zakaz w czasie przejazdu; free – bez zakazu w czasie przejazdu; not_applicable –
+    zakazy nie dotyczą pojazdu; no_ban – kraj bez ogólnego zakazu; no_data – brak kalendarza."""
+    summary: str = Field(description="Np. „zakaz do 22:00”, „brak danych”")
+
+
+def countries_on_route(
+    route, vehicle: VehicleIn, departure: datetime, check: TimeBanCheck
+) -> list[CountryOnRoute]:
+    """Kraje na trasie (kolejne odcinki w tym samym kraju łączone) z podsumowaniem zakazów."""
+    edges = [e for e in route.edges or [] if e.country]
+    if not edges or not route.geometry:
+        return []
+    total_s = next((e.end_s for e in reversed(edges) if e.end_s), None) or 1.0
+    scale = route.duration_min * 60 / total_s if route.duration_min else 1.0
+    cumulative = [0.0]
+    for (lon1, lat1), (lon2, lat2) in zip(route.geometry, route.geometry[1:], strict=False):
+        cumulative.append(cumulative[-1] + distance_m(lon1, lat1, lon2, lat2))
+
+    found: list[CountryOnRoute] = []
+    previous_end_s = 0.0
+    for edge in edges:
+        begin_s = previous_end_s
+        previous_end_s = edge.end_s or previous_end_s
+        if found and found[-1].country == edge.country.upper():
+            continue
+        code = edge.country.upper()
+        index = min(edge.begin_index, len(route.geometry) - 1)
+        km = round(cumulative[index] / 1000, 1)
+        waited = sum(b.wait_min for b in check.bans if b.verified and b.km < km)
+        lon, lat = route.geometry[index]
+        name = t(f"country.{code}")
+        found.append(
+            CountryOnRoute(
+                country=code,
+                name=code if name == f"country.{code}" else name,
+                km=km if found else 0.0,
+                lon=lon,
+                lat=lat,
+                border=bool(found),
+                enter_at=departure + timedelta(seconds=begin_s * scale, minutes=waited),
+                bans="no_data",
+                summary="",
+            )
+        )
+    for i, place in enumerate(found):
+        end_km = found[i + 1].km if i + 1 < len(found) else float("inf")
+        hits = [b for b in check.bans if b.country == place.country and place.km <= b.km < end_km]
+        if hits:
+            ban = hits[0]
+            place.bans = "ban"
+            until = f"{ban.ends_at.astimezone(ZONES[place.country]):%H:%M}"
+            place.summary = t("ban.until" if ban.verified else "ban.until_check", time=until)
+        elif place.country in NO_BAN_COUNTRIES:
+            place.bans, place.summary = "no_ban", t("ban.status_no_ban")
+        elif place.country not in ZONES:
+            place.bans, place.summary = "no_data", t("ban.status_no_data")
+        elif not applies(place.country, vehicle):
+            place.bans, place.summary = "not_applicable", t("ban.status_not_applicable")
+        else:
+            place.bans, place.summary = "free", t("ban.status_free")
+    return found
 
 
 def _next_step(moment: datetime, step: timedelta) -> datetime:

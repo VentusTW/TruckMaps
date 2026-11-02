@@ -77,6 +77,42 @@ void main() {
     expect(find.textContaining('Przyjazd ok.'), findsOneWidget);
   });
 
+  testWidgets('ograniczenie zgłoszone przez kierowców: znak „ominięto” i objazd', (tester) async {
+    await pumpPlanner(tester, (request) async {
+      switch (request.url.path) {
+        case '/api/vehicles':
+          return json([
+            {'id': 'v1', 'name': 'MAN TGX', 'gvw_t': 40, 'height_m': 4.0}
+          ]);
+        case '/api/geocode/reverse':
+          return json({'label': 'Tarnów', 'lat': 50.0, 'lon': 21.0});
+        case '/api/routes':
+          return json({
+            ...route,
+            'avoided_warnings': [
+              {
+                'level': 'orange',
+                'kind': 'reported',
+                'message': 'Ograniczenie masy rzeczywistej 3,5 t, pojazd 40 t – zgłoszenie innych kierowców',
+                'km': 2.1,
+                'lat': 50.0023,
+                'lon': 20.9874,
+                'limit': '3,5 t',
+              },
+            ],
+          });
+      }
+      return json(null, 404);
+    });
+
+    await tapMapTwice(tester);
+
+    expect(find.text('3,5 t'), findsOneWidget); // znak na mapie
+    expect(find.text('ominięto'), findsOneWidget);
+    expect(find.text('Ominięte – trasa jedzie objazdem'), findsOneWidget);
+    expect(find.textContaining('zgłoszenie innych kierowców'), findsOneWidget);
+  });
+
   testWidgets('brak trasy – okno z wyjaśnieniem serwera', (tester) async {
     await pumpPlanner(tester, (request) async {
       switch (request.url.path) {

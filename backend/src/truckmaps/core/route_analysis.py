@@ -135,6 +135,21 @@ class RouteWarning(BaseModel):
     """Wartość ograniczenia do znaku na mapie, np. "4,05 m", "30 t", "zakaz"."""
 
 
+REPORTED = "reported"
+"""Rodzaj ostrzeżenia: ograniczenie zgłoszone przez kierowców (nie z mapy)."""
+
+
+@dataclass
+class ReportedLimit:
+    """Ograniczenie ze znaku zgłoszone przez kierowców i przypisane do drogi OSM."""
+
+    id: str
+    restriction: Restriction
+    permanent: bool
+    """Potwierdzone przez kilku kierowców – jak dane z mapy (czerwone)."""
+    confirmations: int
+
+
 class Analysis(BaseModel):
     level: str
     score: float
@@ -163,6 +178,7 @@ def analyze(
     way_restrictions: dict[int, list[Restriction]],
     node_restrictions: list[Restriction],
     departure: datetime | None = None,
+    reported: dict[int, list[ReportedLimit]] | None = None,
 ) -> Analysis:
     """Ocena trasy dla pojazdu.
 
@@ -186,12 +202,35 @@ def analyze(
                 timebans.ZONES.get(edge.country, timebans.HOME_ZONE)
             )
             begin_s = edge.end_s
-        findings += _edge_findings(
-            edge, vehicle, way_restrictions.get(edge.way_id, []), near_end, moment
-        )
+        on_way = way_restrictions.get(edge.way_id, [])
+        findings += _edge_findings(edge, vehicle, on_way, near_end, moment)
+        findings += _reported_findings(edge, vehicle, (reported or {}).get(edge.way_id, []), on_way)
     findings += _bend_findings(points, cumulative, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
     return _summarize(points, cumulative, findings)
+
+
+def _reported_findings(
+    edge: RouteEdge, vehicle: VehicleIn, limits: list[ReportedLimit], on_way: list[Restriction]
+):
+    """Ograniczenia zgłoszone przez kierowców; gdy mapa ma już to samo na tej drodze – mapa."""
+    mapped = {r.kind for r in on_way}
+    for limit in limits:
+        if limit.restriction.kind in mapped:
+            continue
+        found = _compare(limit.restriction, vehicle)
+        if found is None or found[0] < Level.ORANGE:
+            continue
+        key = "route.reported_permanent" if limit.permanent else "route.reported"
+        yield _Finding(
+            Level.RED if limit.permanent else Level.ORANGE,
+            REPORTED,
+            t(key, message=found[1], count=limit.confirmations),
+            edge.begin_index,
+            edge.end_index,
+            key=limit.id,
+            limit=_limit_label(limit.restriction),
+        )
 
 
 def _edge_findings(

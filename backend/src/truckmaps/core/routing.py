@@ -18,6 +18,7 @@ from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import (
     END_STREET,
     NODE_KINDS,
+    REPORTED,
     Analysis,
     Level,
     RouteEdge,
@@ -180,6 +181,9 @@ class RouteResponse(Route):
     time_bans: timebans.TimeBanCheck | None = Field(
         default=None, description="Zakazy ruchu w czasie na trasie, postoje i przyjazd"
     )
+    countries: list[timebans.CountryOnRoute] = Field(
+        default=[], description="Kraje i przejścia graniczne na trasie z zakazami ruchu w czasie"
+    )
     destination_points: list[reports.ReportOut] = Field(
         default=[], description="Punkty dostawy zgłoszone przez kierowców przy celu (brama, rampa…)"
     )
@@ -317,6 +321,32 @@ class ValhallaRouter:
             return located
         except (httpx.HTTPError, ValueError, KeyError):
             return []
+
+    def streets_near(
+        self, points: list[tuple[float, float]], radius_m: float
+    ) -> list[list[tuple[int, str, float]]] | None:
+        """Drogi OSM w promieniu od punktów (lon, lat): (way_id, nazwa, odległość), najbliższe
+        najpierw – dowolne, nie tylko dla ciężarówek. ``None`` – wyszukiwanie niedostępne."""
+        request = {
+            "locations": [{"lat": lat, "lon": lon, "radius": radius_m} for lon, lat in points],
+            "costing": "auto",
+            "verbose": True,
+        }
+        try:
+            response = self._http.post(f"{self._url}/locate", json=request)
+            response.raise_for_status()
+            found = []
+            for location in response.json():
+                ways: dict[int, tuple[int, str, float]] = {}
+                for edge in location.get("edges") or []:
+                    info = edge.get("edge_info") or {}
+                    way_id, distance = info.get("way_id"), float(edge.get("distance", 0.0))
+                    if way_id and (way_id not in ways or distance < ways[way_id][2]):
+                        ways[way_id] = (way_id, ", ".join(info.get("names") or []), distance)
+                found.append(sorted(ways.values(), key=lambda w: w[2]))
+            return found
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            return None
 
     def _parse_trip(self, trip: dict, vehicle: VehicleIn) -> Route:
         geometry: list[tuple[float, float]] = []
@@ -507,6 +537,7 @@ def plan(
     ostrzeżenia (czego unika objazd).
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
+    reports.assign_ways(db, getattr(router, "streets_near", None), first.geometry)
     ways: dict[int, list[restrictions.Restriction]] = {}
     best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure, ways), []
     if best_analysis is None:
@@ -520,7 +551,7 @@ def plan(
     # wciąż jest nieprzejezdny (objazd trafił w ten sam problem kawałek obok).
     current, current_analysis = best, best_analysis
     for round_ in range(IMPASSABLE_ROUNDS):
-        blocked = bool(_impassable(best_analysis))
+        blocked = bool(_must_avoid(best_analysis))
         if round_ >= AVOID_ROUNDS and not blocked:
             break
         points = _avoid_points(current, current_analysis.warnings, stops, levels)
@@ -538,7 +569,9 @@ def plan(
             candidate.distance_km <= max_km or blocked
         )
         if better:
-            difficult += [w for w in best_analysis.warnings if w.level in levels]
+            difficult += [
+                w for w in best_analysis.warnings if w.level in levels or w.kind == REPORTED
+            ]
             best, best_analysis, best_excluded = candidate, analysis, list(excluded)
         elif not blocked:
             break
@@ -713,6 +746,7 @@ def assess(
         restrictions.for_ways(db, (e.way_id for e in route.edges), ways),
         restrictions.nodes_near_route(db, route.geometry, NODE_KINDS),
         departure,
+        reports.road_limits(db, (e.way_id for e in route.edges)),
     )
 
 
@@ -855,7 +889,7 @@ def _avoid_points(
     """
     points = []
     for warning in warnings:
-        if warning.level not in levels:
+        if warning.level not in levels and warning.kind != REPORTED:
             continue
         span = list(range(warning.index, max(warning.end_index, warning.index + 1)))
         step = max(len(span) // 4, 1)
@@ -869,6 +903,12 @@ def _avoid_points(
 
 def _impassable(analysis: Analysis) -> list[RouteWarning]:
     return [w for w in analysis.warnings if w.level == IMPASSABLE]
+
+
+def _must_avoid(analysis: Analysis) -> list[RouteWarning]:
+    """Miejsca omijane zawsze i bez limitu objazdu: nieprzejezdne i zgłoszone przez kierowców
+    ograniczenia (gdy objazdu nie ma, niepotwierdzone zgłoszenie zostaje ostrzeżeniem)."""
+    return [w for w in analysis.warnings if w.level == IMPASSABLE or w.kind == REPORTED]
 
 
 class _Recording:
@@ -885,6 +925,10 @@ class _Recording:
 
     def locate(self, stops, vehicle):
         return self._inner.locate(stops, vehicle)
+
+    def streets_near(self, points, radius_m):
+        inner = getattr(self._inner, "streets_near", None)
+        return inner(points, radius_m) if inner else None
 
 
 def build_router(current_user) -> APIRouter:
@@ -983,6 +1027,7 @@ def build_router(current_user) -> APIRouter:
             cost=cost(route.distance_km, route.duration_min, route.edges),
             departure=departure,
             time_bans=bans,
+            countries=timebans.countries_on_route(route, vehicle, departure, bans),
             destination_points=reports.near_destination(
                 db, data.destination.lat, data.destination.lon, user
             ),
