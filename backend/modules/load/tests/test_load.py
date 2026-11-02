@@ -4,13 +4,14 @@ from importlib import resources
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
-from truckmaps_load.module import Item, LoadModule, PlanIn, plan
+from truckmaps_load.module import Item, LoadModule, PlanIn, _lay, _rows, axle_loads, plan, supports
 
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Base, Database
 from truckmaps.sdk import Principal, i18n
+from truckmaps.sdk.fleet import CargoInfo
 
 # Teksty modułu bez uruchamiania aplikacji (plan liczony wprost).
 for language in ("pl", "en"):
@@ -104,3 +105,84 @@ def test_plan_endpoint_uses_vehicle_profile():
         "/api/m/load/plan", json=body, headers={"Authorization": "Bearer user-obcy"}
     )
     assert other.status_code == 404
+
+
+SEMITRAILER = CargoInfo(
+    deck_length_m=13.6, payload_kg=32_000, kind="semitrailer", axle_count=3, axle_load_t=9,
+    tare_kg=7_000, gvw_kg=39_000, height_m=4.0,
+)  # fmt: skip
+
+
+def test_heavy_short_load_is_moved_back_so_the_fifth_wheel_is_not_overloaded():
+    heavy = make([{"kind": "industrial", "count": 10, "weight_kg": 2000, "height_m": 1.1}])
+    # Przy ścianie czołowej 20 t w pierwszych 5 m przeciąża siodło (limit 12 t).
+    laid, _, _ = _lay(_rows(heavy, 2.48), 0.0, 13.6)
+    assert axle_loads(laid, supports(SEMITRAILER, 13.6))[0].over
+    result = plan(heavy, 13.6, 2.48, 32_000, SEMITRAILER)
+    kingpin, axles = result.axles
+    assert (kingpin.name, axles.name) == ("kingpin", "trailer_axles")
+    assert not kingpin.over and not axles.over and result.fits
+    assert result.adjusted and result.offset_m == pytest.approx(3.25, abs=0.06)
+    assert any("odsunięty od ściany czołowej" in w for w in result.warnings)
+    assert result.inner_height_m == 2.7 and result.placed[0].height_m == 1.1
+
+
+def test_normal_load_stays_at_the_front_wall():
+    result = plan(
+        make([{"kind": "euro", "count": 33, "weight_kg": 700}]), 13.6, 2.48, 32_000, SEMITRAILER
+    )
+    assert (result.adjusted, result.offset_m, result.placed[0].x_m) == (False, 0.0, 0.0)
+    # 23,1 t ładunku ze środkiem 6,6 m od ściany i 7 t masy własnej naczepy (35% na siodle).
+    assert [round(a.load_kg) for a in result.axles] == [10967, 19133]
+
+
+def test_rigid_front_axle_and_stack_too_high():
+    rigid = CargoInfo(
+        deck_length_m=7.2, payload_kg=8_000, kind="rigid", axle_count=2, axle_load_t=11.5,
+        tare_kg=10_000, gvw_kg=18_000, height_m=3.4,
+    )  # fmt: skip
+    data = make([{"kind": "euro", "count": 6, "weight_kg": 1000, "stack": 2, "height_m": 1.2}])
+    result = plan(data, 7.2, 2.45, 8_000, rigid)
+    assert [a.name for a in result.axles] == ["front_axle", "rear_axles"]
+    assert any("wyższy niż przestrzeń" in w for w in result.warnings)  # 2,4 m przy 2,2 m
+
+
+def test_dragged_layout_is_checked_without_rearranging():
+    database = Database(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(database.engine)
+    app = create_app(
+        Settings(dev_grant_all=True),
+        modules=[LoadModule()],
+        token_verifier=Verifier(),
+        database=database,
+    )
+    client = TestClient(app)
+    headers = {"Authorization": "Bearer user-ola"}
+    trailer = {
+        "name": "Naczepa", "kind": "semitrailer", "height_m": 4.0, "width_m": 2.55,
+        "length_m": 13.6, "gvw_t": 39, "tare_t": 7, "axle_load_t": 9, "axle_count": 3,
+        "trailer_type": "curtain", "pallet_places": 33,
+    }  # fmt: skip
+    vehicle = client.post("/api/vehicles", json=trailer, headers=headers).json()
+    items = [{"kind": "industrial", "count": 10, "weight_kg": 2000}]
+    body = {"vehicle_id": vehicle["id"], "items": items}
+    planned = client.post("/api/m/load/plan", json=body, headers=headers).json()
+    assert planned["adjusted"] and not any(a["over"] for a in planned["axles"])
+
+    # Kierowca przeciąga wszystko do ściany czołowej – siodło przeciążone, bez przestawiania.
+    first = min(p["x_m"] for p in planned["placed"])
+    dragged = [p | {"x_m": round(p["x_m"] - first, 2)} for p in planned["placed"]]
+    checked = client.post(
+        "/api/m/load/plan/check", json=body | {"placed": dragged}, headers=headers
+    ).json()
+    assert checked["axles"][0]["over"] and not checked["fits"] and not checked["adjusted"]
+    assert any("Przekroczony nacisk: siodło" in w for w in checked["warnings"])
+    overlap = dragged[:1] + [dragged[1] | {"y_m": dragged[0]["y_m"]}] + dragged[2:]
+    checked = client.post(
+        "/api/m/load/plan/check", json=body | {"placed": overlap}, headers=headers
+    ).json()
+    assert any("nachodzi" in w for w in checked["warnings"])

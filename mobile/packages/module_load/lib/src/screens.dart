@@ -2,6 +2,7 @@ import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'deck_view.dart';
 import 'texts.dart';
 
 const _base = '/api/m/load';
@@ -24,8 +25,9 @@ class _Item {
   final stop = TextEditingController(text: '1');
   final length = TextEditingController();
   final width = TextEditingController();
+  final height = TextEditingController();
 
-  List<TextEditingController> get all => [count, weight, stack, stop, length, width];
+  List<TextEditingController> get all => [count, weight, stack, stop, length, width, height];
 
   Map<String, dynamic> json() => {
         'kind': kind,
@@ -35,6 +37,7 @@ class _Item {
         'stop': _parse(stop.text)?.round() ?? 1,
         if (kind == 'custom') 'length_m': _parse(length.text),
         if (kind == 'custom') 'width_m': _parse(width.text),
+        if (_parse(height.text) != null) 'height_m': _parse(height.text),
       };
 }
 
@@ -59,6 +62,28 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
   bool _busy = false;
   String? _error;
   Map<String, dynamic>? _plan;
+  bool _checking = false;
+
+  Map<String, dynamic> _body() => {
+        'vehicle_id': _vehicleId,
+        'items': [for (final i in _items) i.json()],
+        if (_parse(_deck.text) != null) 'deck_length_m': _parse(_deck.text),
+        'front_wall': _frontWall,
+        'mats': _mats,
+      };
+
+  /// Ręczne ułożenie (przeciągnięte palety): serwer liczy naciski i ostrzeżenia od nowa.
+  Future<void> _check(List<Map<String, dynamic>> placed) async {
+    setState(() => _checking = true);
+    try {
+      final plan = await widget.api.post('$_base/plan/check', {..._body(), 'placed': placed});
+      if (mounted) setState(() => _plan = plan as Map<String, dynamic>);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -75,13 +100,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
       _error = null;
     });
     try {
-      final plan = await widget.api.post('$_base/plan', {
-        'vehicle_id': _vehicleId,
-        'items': [for (final i in _items) i.json()],
-        if (_parse(_deck.text) != null) 'deck_length_m': _parse(_deck.text),
-        'front_wall': _frontWall,
-        'mats': _mats,
-      });
+      final plan = await widget.api.post('$_base/plan', _body());
       if (mounted) setState(() => _plan = plan as Map<String, dynamic>);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -168,6 +187,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
                         (item.stop, t.stop, null, true),
                         if (item.kind == 'custom') (item.length, t.length, 'm', true),
                         if (item.kind == 'custom') (item.width, t.width, 'm', true),
+                        (item.height, t.height, 'm', false),
                       ])
                         SizedBox(
                           width: 150,
@@ -176,7 +196,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: numbers,
                             decoration: _field(label, suffix: suffix),
-                            validator: check ? required : null,
+                            validator: check ? required : (text) => (text ?? '').trim().isEmpty ? null : required(text),
                           ),
                         ),
                     ]),
@@ -205,7 +225,10 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
               icon: const Icon(Icons.calculate_outlined),
               label: Text(t.calculate),
             ),
-            if (_plan case final plan?) ...[const SizedBox(height: 16), PlanResult(plan: plan)],
+            if (_plan case final plan?) ...[
+              const SizedBox(height: 16),
+              PlanResult(plan: plan, onMoved: _check, onRearrange: _busy ? null : _calculate, checking: _checking),
+            ],
           ]),
         );
       },
@@ -213,25 +236,43 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
   }
 }
 
-/// Wynik planu: podsumowanie, ostrzeżenia i widok z góry (przód – po lewej).
-class PlanResult extends StatelessWidget {
-  const PlanResult({super.key, required this.plan});
+/// Wynik planu: podsumowanie, naciski na osie, ostrzeżenia i widoki z góry i z boku
+/// (przód – po lewej) z przybliżaniem, przesuwaniem obrazu i przeciąganiem palet.
+class PlanResult extends StatefulWidget {
+  const PlanResult({super.key, required this.plan, this.onMoved, this.onRearrange, this.checking = false});
 
   final Map<String, dynamic> plan;
+
+  /// Palety przeciągnięte – nowe ułożenie do sprawdzenia; `null` – bez przeciągania.
+  final ValueChanged<List<Map<String, dynamic>>>? onMoved;
+
+  /// „Ułóż automatycznie” – plan od nowa bez przekroczeń.
+  final VoidCallback? onRearrange;
+  final bool checking;
+
+  @override
+  State<PlanResult> createState() => _PlanResultState();
+}
+
+class _PlanResultState extends State<PlanResult> {
+  bool _moving = false;
 
   @override
   Widget build(BuildContext context) {
     final t = LoadTexts.of(context);
     final theme = Theme.of(context);
+    final plan = widget.plan;
     final fits = plan['fits'] == true;
     final payload = plan['payload_kg'] as num?;
     final cog = plan['cog_m'] as num?;
+    final axles = (plan['axles'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(fits ? Icons.check_circle_outline : Icons.error_outline,
             color: fits ? theme.colorScheme.primary : theme.colorScheme.error),
         const SizedBox(width: 8),
-        Text(fits ? t.fits : t.notFits, style: theme.textTheme.titleMedium),
+        Expanded(child: Text(fits ? t.fits : t.notFits, style: theme.textTheme.titleMedium)),
+        if (widget.checking) const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
       ]),
       const SizedBox(height: 4),
       Text(t.summary(t.number(plan['ldm'] as num), t.number(plan['used_length_m'] as num),
@@ -239,55 +280,42 @@ class PlanResult extends StatelessWidget {
       Text(t.weightLine(t.number(plan['weight_kg'] as num), payload == null ? null : t.number(payload))),
       Text(t.strapsLine(plan['straps'] as int)),
       if (cog != null) Text(t.cog(t.number(cog))),
+      for (final axle in axles)
+        Text(
+          t.axleLine(t.axle(axle['name'] as String), t.tonnes((axle['load_kg'] as num).toDouble()),
+              axle['limit_kg'] == null ? null : t.tonnes((axle['limit_kg'] as num).toDouble())),
+          style: TextStyle(color: axle['over'] == true ? theme.colorScheme.error : null),
+        ),
       for (final warning in (plan['warnings'] as List<dynamic>? ?? const []))
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text('⚠ $warning', style: TextStyle(color: theme.colorScheme.error)),
         ),
       const SizedBox(height: 12),
-      Text(t.front, style: theme.textTheme.bodySmall),
-      AspectRatio(
-        aspectRatio: (plan['deck_length_m'] as num) / (plan['deck_width_m'] as num),
-        child: CustomPaint(painter: DeckPainter(plan, theme.colorScheme)),
-      ),
+      Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        if (widget.onMoved != null)
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(value: false, icon: const Icon(Icons.pan_tool_outlined), label: Text(t.moveView)),
+              ButtonSegment(value: true, icon: const Icon(Icons.open_with), label: Text(t.moveItems)),
+            ],
+            selected: {_moving},
+            onSelectionChanged: (value) => setState(() => _moving = value.first),
+          ),
+        if (widget.onRearrange != null)
+          OutlinedButton.icon(
+            onPressed: widget.onRearrange,
+            icon: const Icon(Icons.auto_fix_high_outlined),
+            label: Text(t.rearrange),
+          ),
+      ]),
       const SizedBox(height: 8),
+      Text(_moving ? t.moveItemsHint : t.moveViewHint, style: theme.textTheme.bodySmall),
+      Text(t.front, style: theme.textTheme.bodySmall),
+      DeckView(plan: plan, moving: _moving && widget.onMoved != null, onMoved: widget.onMoved ?? (_) {}),
+      const SizedBox(height: 8),
+      Text(t.heightHint, style: theme.textTheme.bodySmall),
       Text(t.disclaimer, style: theme.textTheme.bodySmall),
     ]);
   }
-}
-
-/// Przestrzeń ładunkowa z góry: palety w kolorach rozładunków, numer rozładunku na palecie.
-class DeckPainter extends CustomPainter {
-  DeckPainter(this.plan, this.colors);
-
-  final Map<String, dynamic> plan;
-  final ColorScheme colors;
-
-  static const _stops = [Colors.blue, Colors.orange, Colors.green, Colors.purple, Colors.teal, Colors.brown];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = size.width / (plan['deck_length_m'] as num);
-    canvas.drawRect(Offset.zero & size, Paint()..color = colors.surfaceVariant);
-    canvas.drawRect(
-        Offset.zero & size,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..color = colors.outline);
-    for (final p in (plan['placed'] as List<dynamic>).cast<Map<String, dynamic>>()) {
-      final rect = Rect.fromLTWH((p['x_m'] as num) * scale, (p['y_m'] as num) * scale,
-              (p['length_m'] as num) * scale, (p['width_m'] as num) * scale)
-          .deflate(1);
-      final stop = p['stop'] as int;
-      canvas.drawRect(rect, Paint()..color = _stops[(stop - 1) % _stops.length].withOpacity(0.7));
-      final label = TextPainter(
-        text: TextSpan(text: '$stop', style: TextStyle(color: colors.onPrimary, fontSize: 10)),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      label.paint(canvas, rect.center - Offset(label.width / 2, label.height / 2));
-    }
-  }
-
-  @override
-  bool shouldRepaint(DeckPainter oldDelegate) => oldDelegate.plan != plan;
 }

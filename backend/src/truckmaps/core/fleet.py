@@ -93,7 +93,16 @@ class CoreFleet:
         deck = round(vehicle.pallet_places / 33 * 13.6, 2) if vehicle.pallet_places else None
         gvw = vehicle.gvw_t or vehicle.weight_t
         payload = (gvw - vehicle.tare_t) * 1000 if vehicle.tare_t is not None else None
-        return CargoInfo(deck_length_m=deck, payload_kg=payload)
+        return CargoInfo(
+            deck_length_m=deck,
+            payload_kg=payload,
+            kind=vehicle.kind,
+            axle_count=vehicle.axle_count,
+            axle_load_t=vehicle.axle_load_t,
+            tare_kg=vehicle.tare_t * 1000 if vehicle.tare_t is not None else None,
+            gvw_kg=gvw * 1000,
+            height_m=vehicle.height_m,
+        )
 
     def staff(self, db: Session, vehicle_id: str) -> list[str]:
         vehicle = db.get(VehicleProfile, vehicle_id)
