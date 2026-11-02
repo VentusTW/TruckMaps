@@ -572,5 +572,8 @@
   "bansExceptions": "Exceptions",
   "bansHint": "Bans under national rules (local time). Exceptions depend on the load – check before departure.",
   "bansOnRoute": "Traffic ban on the route – check before departure",
-  "bansShowCountry": "Bans: {country}"
+  "bansShowCountry": "Bans: {country}",
+  "menuWelcome": "Welcome",
+  "menuMap": "Map",
+  "guestLocked": "Other features after signing in."
 }
