@@ -211,6 +211,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Profile kosztów: stawki €/km i €/h jazdy w pojeździe, domyślne w firmie (brakującą stawkę pojazdu bierze z firmy); przy trasie i alternatywach „≈ koszt, szacunkowo” liczony przez gniazdo `COST_PROVIDER` (moduł M4 podmieni je na paliwo i myto per kraj); bez stawek koszt nie jest zgadywany
 - [x] Zmiana waluty: waluta konta (ustawienie w planerze) i firmy (PLN, EUR, CZK, HUF, RON i inne z kursów EBC), stawki pojazdu i firmy wpisywane w swojej walucie, koszt trasy i alternatyw w wybranej walucie; kursy EBC pobierane w tle co 6 h i trzymane w bazie z datą kursu (bez kursu koszt zostaje w walucie stawek); wewnętrznie kwota + kod waluty, gniazdo `COST_PROVIDER` liczy w walucie profilu
 - [ ] Kwoty w obcej walucie z przeliczeniem obok (myto, paliwo za granicą – razem z modułem M4) i oferty giełd w wybranej walucie
+  - [x] paliwo, AdBlue i myto w każdym kraju także w walucie kraju obok kwoty w walucie kosztów („myto ≈ 14 € (56 zł)”): myto prosto z cennika operatora, paliwo przeliczone po kursie EBC (`CostPart.local_amount` / `local_currency`); bez kursu – tylko kwota główna
+  - [ ] oferty giełd w wybranej walucie – z modułem M8
 - [x] Import OSM Polski → Valhalla
 - [x] Kraje sąsiednie (DE, CZ, SK, LT): mapy łączone narzędziem osmium (najnowsza wersja obiektów przy granicach), dane tras budowane etapami z ponawianiem w wolumenie Dockera i podmieniane bez przerwy w działaniu; ograniczenia (1,4 mln) i parkingi (9,9 tys.) dla 5 krajów; wyszukiwarka: zrzut Photon dla Europy, wybór krajów w Pythonie (9 min zamiast godzin w Photon)
 - [x] `pobieraj.exe`: pobieranie dużych danych poza sesją (wznawianie, ponawianie, kilka połączeń naraz, MD5, pomijanie niezmienionych plików, `infra/data/pobrane.json`)
@@ -259,29 +261,39 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Nawigacja (pierwsza wersja): GPS (geolocator, także Windows), mapa podąża za pojazdem, pasek „zostało X km”, symulacja jazdy i pozycji z dotknięcia mapy, zjazd z trasy → po kilku pozycjach nowa trasa od pozycji (bez minionych punktów pośrednich) i nowy korytarz
 - [x] Nawigacja: manewry i komunikaty głosowe – manewry Valhalli w odpowiedzi trasy (w języku zapytania, także dla alternatyw), karta następnego manewru (strzałka, odległość, napis), zapowiedzi ok. 1 km / 300 m / tuż przed / „jedź prosto przez …”, wyciszanie; mowa z syntezatora systemu bez sieci (Android TextToSpeech, Windows System.Speech)
 - [ ] Nawigacja: głos na iOS (AVSpeechSynthesizer), zapowiedzi zależne od prędkości, pasy ruchu, dopasowanie pozycji do drogi, praca w tle i przy wygaszonym ekranie, mapa offline
+  - [x] głos na iOS: `AppDelegate.swift` obsługuje kanał `truckmaps/speech` (AVSpeechSynthesizer, mowa przy wyciszonym dzwonku, ściszanie muzyki) – bez buildu na iOS (brak macOS)
+  - [x] zapowiedzi zależne od prędkości (prędkość z kolejnych pozycji): przy 50 km/h ok. 1 km / 300 m, szybciej wcześniej (do 1,6 km / 480 m), wolno później (najmniej połowa)
+  - [x] pasy ruchu z Valhalli (`turn_lanes`, maska kierunków → strzałki, pas do jazdy wyróżniony) – na naszych danych jeszcze nie sprawdzone (Valhalla nie działała)
+  - [x] dopasowanie pozycji do drogi: na trasie znacznik pojazdu stoi na linii trasy (bez skakania obok jezdni)
+  - [ ] praca w tle i przy wygaszonym ekranie (usługa pierwszoplanowa z powiadomieniem na Androidzie, tryb tła na iOS), mapa offline
 - [ ] Ekran nawigacji w nowym układzie (wzór: zrzuty zapowiedzi TirNavi z 31.10.2026 – układ i pomysły, własny wygląd):
-  - [ ] półprzezroczyste ciemne karty z zaokrągleniami
-  - [ ] karta manewru: odległość, strzałka / rondo z numerem zjazdu, tarcza drogi, nazwa ulicy, kierunek z tablicy („Oświęcim”), **pasy ruchu** ze strzałkami (Valhalla – sprawdzić `turn_lanes` na naszych danych)
-  - [ ] „pigułka” z następną ulicą
-  - [ ] pasek postępu trasy ze zdarzeniami: zakazy, miejsca czerwone / pomarańczowe, zgłoszenia kierowców, fotoradary (OSM `highway=speed_camera`), parkingi pod przerwę
-  - [ ] lista nadchodzących zdarzeń z odległościami (2 km, 4 km, 6,6 km…)
-  - [ ] znak obecnego ograniczenia prędkości (z OSM / Valhalli, z uwzględnieniem limitów dla ciężarówek), zapowiedź zmiany („50 za 100 m”), aktualna prędkość z GPS, kolor przy przekroczeniu
-  - [ ] dolna karta: godzina przyjazdu (zielona; czerwona przy spóźnieniu na okno rozładunku ze zlecenia), km i minuty do celu
-  - [ ] okrągłe przyciski „+” (zgłoś, dodaj punkt) i „POI” (parkingi, stacje, MOP, myjnie)
+  - [x] półprzezroczyste ciemne karty z zaokrągleniami
+  - [x] karta manewru: odległość, strzałka / rondo z numerem zjazdu, tarcza drogi, nazwa ulicy, kierunek z tablicy („Oświęcim”), **pasy ruchu** ze strzałkami (Valhalla – sprawdzić `turn_lanes` na naszych danych)
+  - [x] „pigułka” z następną ulicą
+  - [x] pasek postępu trasy ze zdarzeniami: zakazy, miejsca czerwone / pomarańczowe, zgłoszenia kierowców, fotoradary (OSM `highway=speed_camera`); parkingi pod przerwę – z modułem M2/M3
+  - [x] lista nadchodzących zdarzeń z odległościami (2 km, 4 km, 6,6 km…)
+  - [x] znak obecnego ograniczenia prędkości (z OSM / Valhalli, z uwzględnieniem limitów dla ciężarówek), zapowiedź zmiany („50 za 100 m”), aktualna prędkość z GPS, kolor przy przekroczeniu
+    - limit dla ciężarówek powyżej 3,5 t tylko tam, gdzie pewny: PL 80 (autostrada, ekspresowa) / 70, DE 80 / 60; bez znaku poza autostradą nie zgadujemy (teren zabudowany); inne kraje – wartość ze znaku
+  - [x] dolna karta: godzina przyjazdu (zielona; czerwona przy spóźnieniu na okno rozładunku ze zlecenia), km i minuty do celu – okno rozładunku (`NavigationRequest.deadline`) poda zlecenie, gdy będzie
+  - [x] okrągłe przyciski „+” (zgłoś, dodaj punkt) i „POI” (parkingi, stacje, MOP, myjnie)
   - [ ] korki i czas „+2 min korka” – brak darmowych danych; później (DATEX II tam, gdzie dostępne, albo płatny dostawca)
-  - [ ] tryb nocny mapy i kart (automatycznie po zmroku), flaga celu na mapie
-  - [ ] pionowy pasek trasy z boku ekranu: punkty pośrednie („VIA 1/2”), fotoradary, sygnalizacja świetlna, zdarzenia, opóźnienia, z odległościami
-  - [ ] w dolnej karcie także najbliższy punkt pośredni: nazwa, minuty i km („1/2 przy … – 3 min, 3,4 km”)
-  - [ ] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
+  - [x] tryb nocny mapy i kart (automatycznie po zmroku), flaga celu na mapie
+  - [x] pionowy pasek trasy z boku ekranu: punkty pośrednie („VIA 1/2”), fotoradary, sygnalizacja świetlna, zdarzenia, opóźnienia, z odległościami
+  - [x] w dolnej karcie także najbliższy punkt pośredni: nazwa, minuty i km („1/2 przy … – 3 min, 3,4 km”)
+  - [x] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
+    - tabela `road_points` (migracja 0033), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
+    - zapowiedź głosowa ok. 500 m przed fotoradarem, pomiarem odcinkowym, przejazdem kolejowym, zakazem, trudnym miejscem i zgłoszeniem kierowcy
   - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
-  - [ ] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
-  - [ ] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
+  - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
+  - [x] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
 - [x] Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans, czas jazdy, godzina przyjazdu, opóźnienie), pojazd w nagłówku („Marek · 40 t · 4 m”), kraje i przejścia graniczne na trasie, zakazy ruchu w każdym kraju („Niemcy: zakaz do 22:00”, „brak danych” dla krajów bez kalendarza), przycisk „Rozpocznij jazdę”
   - [x] pojazd w nagłówku wyniku trasy w planerze: „MAN TGX + Firanka · 40 t · 4 m” (nazwa z naczepą, DMC, wysokość)
   - [x] ekran „Przegląd trasy” (`planner/route_review.dart`) między planerem a nawigacją: warianty na mapie z etykietą km i czasu (dotknięcie wybiera), podsumowanie – dystans, czas jazdy, przyjazd, opóźnienie (postój w czasie zakazów; dla alternatyw „liczone tylko dla trasy proponowanej”), kraje z przejściami granicznymi (km, godzina wjazdu, znacznik kodu kraju na mapie), zakazy w każdym kraju i „Rozpocznij jazdę”
   - [x] serwer: `countries` w odpowiedzi `/api/routes` (`timebans.countries_on_route`) – kraje po kolei z odcinków Valhalli, wjazd z postojami, stan zakazów: `ban` („zakaz do 22:00”, niepewny – „możliwy zakaz… – sprawdź”), `free`, `not_applicable`, `no_ban` (LT), `no_data` (kraj bez kalendarza – „brak danych”); nazwy krajów w `core/locales`
-- [ ] Ekran zakazów kraju: najbliższe zakazy na 30 dni z datami i godzinami, zasady (dla jakich pojazdów, wybrane drogi), święta regionalne, wyjątki (przewóz kombinowany, żywność łatwo psująca się, pomoc drogowa…); ostrzeżenie na mapie „na trasie zakaz ruchu – sprawdź przed wyjazdem” ze szczegółami
-- [ ] Zgłoszenia kierowców – więcej rodzajów w siatce dużych przycisków: wypadek, zagrożenie na drodze, kontrola prędkości, policja, inspekcja i ważenie (ITD), fotoradar; zgłoszenia czasowe wygasają same (np. po 1–2 h bez potwierdzenia), pokazywane na pasku trasy i w zapowiedzi głosowej
+- [x] Ekran zakazów kraju: najbliższe zakazy na 30 dni z datami i godzinami, zasady (dla jakich pojazdów, wybrane drogi), święta regionalne, wyjątki (przewóz kombinowany, żywność łatwo psująca się, pomoc drogowa…); ostrzeżenie na mapie „na trasie zakaz ruchu – sprawdź przed wyjazdem” ze szczegółami
+  - `GET /api/timebans/{kraj}` (PL, DE, CZ, SK, LT): dni i godziny z tego samego kalendarza co sprawdzanie trasy, których dróg dotyczą, kogo, wyjątki, święta regionalne DE z landami; ekran „Zakazy ruchu” w menu i przyciski „Zakazy: DE” przy zakazach na trasie
+- [x] Zgłoszenia kierowców – więcej rodzajów w siatce dużych przycisków: wypadek, zagrożenie na drodze, kontrola prędkości, policja, inspekcja i ważenie (ITD), fotoradar; zgłoszenia czasowe wygasają same (np. po 1–2 h bez potwierdzenia), pokazywane na pasku trasy i w zapowiedzi głosowej
+  - wypadek, zagrożenie, kontrola prędkości, policja, ITD i ważenie, fotoradar; czasowe znikają po 1–2 h bez potwierdzenia (`expires_at`), potwierdzenie liczy czas od nowa
 - [ ] Okres próbny modułów płatnych („Premium: pozostały 2 dni”) – z modułem licencji i sklepami
 - [x] **Alarm czerwony** (miganie, dźwięk, wibracja) liczony lokalnie z korytarza – bez sieci, to samo sprawdzenie co na serwerze (`check_position`)
   - planowanie nigdy nie prowadzi przez miejsce nieprzejezdne dla pojazdu (omijane bez limitu objazdu); czerwony pojawia się dopiero w nawigacji, gdy kierowca zjedzie z trasy w taką drogę

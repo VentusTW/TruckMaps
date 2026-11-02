@@ -14,6 +14,7 @@ from truckmaps.core import (
     api,
     companies,
     corridor,
+    country_bans,
     currency,
     devlogin,
     fuel_prices,
@@ -155,6 +156,7 @@ def create_app(
     app.include_router(trips.build_router(auth.current_user))
     app.include_router(routing.build_router(auth.current_user))
     app.include_router(corridor.build_router(auth.current_user))
+    app.include_router(country_bans.build_router(auth.current_user))
     app.include_router(reports.build_router(auth.current_user))
     app.include_router(releases.build_router(auth.current_user))
     app.include_router(currency.build_router(auth.current_user))

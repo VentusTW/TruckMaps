@@ -68,6 +68,12 @@ class Maneuver {
     this.alert,
     this.pre,
     this.post,
+    this.streetNames = const [],
+    this.exitNumber,
+    this.toward = const [],
+    this.branch = const [],
+    this.roundaboutExit,
+    this.lanes = const [],
   });
 
   factory Maneuver.fromJson(Map<String, dynamic> json) => Maneuver(
@@ -79,6 +85,15 @@ class Maneuver {
         km: _d(json['km']),
         lengthKm: _d(json['length_km']),
         point: LatLng(_d(json['lat']), _d(json['lon'])),
+        streetNames: _strings(json['street_names']),
+        exitNumber: json['exit_number'] as String?,
+        toward: _strings(json['toward']),
+        branch: _strings(json['branch']),
+        roundaboutExit: json['roundabout_exit'] as int?,
+        lanes: [
+          for (final lane in (json['lanes'] as List<dynamic>? ?? []))
+            Lane(_strings((lane as Map)['directions']), active: lane['active'] == true),
+        ],
       );
 
   /// Rodzaj manewru Valhalli (1–3 start, 4–6 cel, 9–16 skręty, 26–27 rondo…).
@@ -91,7 +106,61 @@ class Maneuver {
   final double lengthKm;
   final LatLng point;
 
+  /// Ulica / droga za manewrem, np. „DK94”, „ul. Krakowska”.
+  final List<String> streetNames;
+
+  /// Z tablicy: numer zjazdu, kierunki („Oświęcim”) i numery dróg („A4”).
+  final String? exitNumber;
+  final List<String> toward;
+  final List<String> branch;
+
+  /// Który zjazd z ronda.
+  final int? roundaboutExit;
+  final List<Lane> lanes;
+
   bool get arrival => type >= 4 && type <= 6;
+}
+
+List<String> _strings(dynamic value) => [for (final v in (value as List<dynamic>? ?? [])) '$v'];
+
+/// Pas ruchu przed manewrem: strzałki (through, left, slight_right…) i czy to pas do jazdy.
+class Lane {
+  const Lane(this.directions, {this.active = false});
+
+  final List<String> directions;
+  final bool active;
+}
+
+/// Ograniczenie prędkości na kawałku trasy (indeksy punktów linii trasy).
+class SpeedLimit {
+  const SpeedLimit(this.start, this.end, this.kmh, {this.posted});
+
+  final int start;
+  final int end;
+  final int kmh;
+
+  /// Ze znaku; `null` – tylko limit krajowy dla ciężarówek.
+  final int? posted;
+}
+
+/// Punkt z OSM na trasie: przejazd kolejowy, fotoradar, sygnalizacja, pomiar odcinkowy,
+/// zakaz wyprzedzania (te dwa – odcinki z [endKm]).
+class RoadEvent {
+  const RoadEvent(this.kind, this.km, this.point, {this.endKm, this.speedKmh});
+
+  factory RoadEvent.fromJson(Map<String, dynamic> json) => RoadEvent(
+        json['kind'] as String,
+        _d(json['km']),
+        LatLng(_d(json['lat']), _d(json['lon'])),
+        endKm: (json['end_km'] as num?)?.toDouble(),
+        speedKmh: (json['speed_kmh'] as num?)?.toDouble(),
+      );
+
+  final String kind;
+  final double km;
+  final double? endKm;
+  final LatLng point;
+  final double? speedKmh;
 }
 
 /// Zgłoszenie kierowcy: punkt dostawy (brama, rampa…) albo problem na drodze.
@@ -141,7 +210,8 @@ class Segment {
 
 /// Część kosztu z modułu kosztów: paliwo, AdBlue albo myto w jednym kraju.
 class CostPart {
-  const CostPart(this.kind, this.amount, {this.country = '', this.km, this.unknown = false});
+  const CostPart(this.kind, this.amount,
+      {this.country = '', this.km, this.unknown = false, this.localAmount, this.localCurrency});
 
   final String kind;
   final double amount;
@@ -151,12 +221,24 @@ class CostPart {
   /// Myto: płatne drogi są, ale stawki dla pojazdu nie znamy.
   final bool unknown;
 
+  /// Kwota w walucie kraju (np. myto w zł przy koszcie w euro) – pokazywana obok.
+  final double? localAmount;
+  final String? localCurrency;
+
+  String money(AppLocalizations l, String currency) {
+    final main = l.money(amount, currency);
+    if (localAmount == null || localCurrency == null) return main;
+    return l.costWithLocal(main, l.money(localAmount!, localCurrency!));
+  }
+
   factory CostPart.fromJson(Map<String, dynamic> json) => CostPart(
         json['kind'] as String,
         _d(json['amount']),
         country: json['country'] as String? ?? '',
         km: (json['km'] as num?)?.toDouble(),
         unknown: json['unknown'] == true,
+        localAmount: (json['local_amount'] as num?)?.toDouble(),
+        localCurrency: json['local_currency'] as String?,
       );
 }
 
@@ -212,10 +294,10 @@ class Cost {
         l.costCountryLine(country, [
           for (final part in parts.where((p) => p.country == country))
             switch (part.kind) {
-              'fuel' => l.costFuelItem(l.money(part.amount, currency)),
-              'adblue' => l.costAdBluePart(l.money(part.amount, currency)),
+              'fuel' => l.costFuelItem(part.money(l, currency)),
+              'adblue' => l.costAdBluePart(part.money(l, currency)),
               'toll' when part.unknown => l.costTollUnknown(km(part.km)),
-              'toll' => l.costTollItem(l.money(part.amount, currency), km(part.km)),
+              'toll' => l.costTollItem(part.money(l, currency), km(part.km)),
               _ => '',
             },
         ].where((text) => text.isNotEmpty).join(', ')),
@@ -235,6 +317,8 @@ class PlannedRoute {
     required this.warnings,
     this.maneuvers = const [],
     this.cost,
+    this.speedLimits = const [],
+    this.roadEvents = const [],
   });
 
   factory PlannedRoute.fromJson(Map<String, dynamic> json) {
@@ -256,6 +340,13 @@ class PlannedRoute {
         for (final m in (json['maneuvers'] as List<dynamic>? ?? [])) Maneuver.fromJson(m as Map<String, dynamic>),
       ],
       cost: Cost.fromJson(json['cost']),
+      speedLimits: [
+        for (final s in (json['speed_limits'] as List<dynamic>? ?? []))
+          SpeedLimit(s['start_index'] as int, s['end_index'] as int, s['kmh'] as int, posted: s['posted'] as int?),
+      ],
+      roadEvents: [
+        for (final e in (json['road_events'] as List<dynamic>? ?? [])) RoadEvent.fromJson(e as Map<String, dynamic>),
+      ],
     );
   }
 
@@ -267,6 +358,10 @@ class PlannedRoute {
   final List<RoutePlace> warnings;
   final List<Maneuver> maneuvers;
   final Cost? cost;
+
+  /// Ograniczenia prędkości i punkty z OSM – tylko w trasie wybranej (nie w alternatywach).
+  final List<SpeedLimit> speedLimits;
+  final List<RoadEvent> roadEvents;
 
   /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia).
   /// Kawałki linii trasy w kolorach oceny – liczone raz (mapa rysuje je przy każdej pozycji GPS).
@@ -336,6 +431,7 @@ class RouteResult {
     this.arrival,
     this.waitMin = 0,
     this.freeDeparture,
+    this.banCountries = const [],
     this.departure,
     this.countries = const [],
     this.avoidedWarnings = const [],
@@ -368,6 +464,7 @@ class RouteResult {
       waitMin: bans?['wait_min'] as int? ?? 0,
       freeDeparture:
           bans?['free_departure'] == null ? null : DateTime.parse(bans!['free_departure'] as String).toLocal(),
+      banCountries: {for (final b in (bans?['bans'] as List<dynamic>? ?? [])) '${(b as Map)['country']}'}.toList(),
       departure: json['departure'] == null ? null : DateTime.parse(json['departure'] as String).toLocal(),
       countries: [
         for (final c in (json['countries'] as List<dynamic>? ?? []))
@@ -395,6 +492,9 @@ class RouteResult {
 
   /// Najbliższy wyjazd bez postoju w czasie zakazów ruchu.
   final DateTime? freeDeparture;
+
+  /// Kraje, w których trasa trafia na zakaz ruchu (do ekranu zakazów kraju).
+  final List<String> banCountries;
 
   /// Wyjazd, dla którego liczono trasę i zakazy.
   final DateTime? departure;

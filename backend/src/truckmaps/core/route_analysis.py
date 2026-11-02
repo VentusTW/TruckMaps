@@ -114,6 +114,8 @@ class RouteEdge(BaseModel):
     length_km: float = 0.0
     toll: bool = False
     """Droga płatna według OSM (``toll=yes``) – do szacowania myta."""
+    speed_limit: int | None = None
+    """Ograniczenie prędkości ze znaku [km/h]; ``None`` – nieznane."""
 
 
 class Segment(BaseModel):

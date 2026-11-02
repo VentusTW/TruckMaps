@@ -20,6 +20,7 @@ class RouteReviewScreen extends StatefulWidget {
     required this.destination,
     this.vehicleHeadline,
     this.via = const [],
+    this.viaNames = const [],
     this.avoidDifficult = true,
     this.alternative,
   });
@@ -29,6 +30,7 @@ class RouteReviewScreen extends StatefulWidget {
   final String vehicleId;
   final LatLng destination;
   final List<LatLng> via;
+  final List<String> viaNames;
   final bool avoidDifficult;
 
   /// Np. „MAN TGX + Firanka · 40 t · 4 m”.
@@ -63,7 +65,11 @@ class _RouteReviewScreenState extends State<RouteReviewScreen> {
             route: _shown,
             destination: widget.destination,
             via: widget.via,
+            viaNames: widget.viaNames,
             avoidDifficult: widget.avoidDifficult,
+            // Zgłoszenia i zakazy są policzone dla trasy proponowanej, nie dla alternatyw.
+            reports: _alternative == null ? _result.driverReports : const [],
+            bans: _alternative == null ? _result.timeBans : const [],
           ),
         ),
       ));

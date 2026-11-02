@@ -56,6 +56,10 @@ class CostPart(BaseModel):
     """Myto: są płatne drogi, ale stawki dla tego pojazdu nie znamy (kwota 0)."""
     source: str | None = None
     """Myto: cennik operatora (adres), z którego wzięto stawkę."""
+    local_amount: float | None = None
+    local_currency: str | None = None
+    """Kwota w walucie kraju (np. myto w PLN przy koszcie w EUR) – do pokazania obok;
+    brak, gdy waluta kraju jest walutą profilu albo nie ma kursu."""
 
 
 class CostProfile(BaseModel):

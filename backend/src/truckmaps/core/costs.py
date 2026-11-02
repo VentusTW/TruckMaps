@@ -181,6 +181,11 @@ def _cost_vehicle(vehicle) -> CostVehicle | None:
     )
 
 
+def _rounded(part: CostPart) -> CostPart:
+    local = None if part.local_amount is None else round(part.local_amount, 2)
+    return part.model_copy(update={"amount": round(part.amount, 2), "local_amount": local})
+
+
 def estimate(
     extensions: ExtensionRegistry,
     rates: _Rates | None,
@@ -212,7 +217,7 @@ def estimate(
         fuel=round(fuel, 2) if counted else None,
         adblue=round(adblue, 2) if adblue else None,
         consumption=profile.consumption if counted else None,
-        parts=[p.model_copy(update={"amount": round(p.amount, 2)}) for p in parts],
+        parts=[_rounded(p) for p in parts],
         fuel_prices_day=profile.diesel_prices_day if counted else None,
         source=rates.source,
         rates_currencies=rates.currencies,

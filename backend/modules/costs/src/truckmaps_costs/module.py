@@ -23,6 +23,44 @@ from truckmaps.sdk import (
 # Klasy dróg Valhalli, które liczymy jak autostrady i drogi ekspresowe (stawka „motorway”).
 FAST_ROADS = {"motorway", "trunk"}
 
+# Waluta kraju (paliwo i myto płacone na miejscu); kraje strefy euro – EUR.
+COUNTRY_CURRENCY = {
+    "PL": "PLN", "CZ": "CZK", "HU": "HUF", "RO": "RON", "BG": "BGN", "SE": "SEK",
+    "DK": "DKK", "CH": "CHF", "NO": "NOK", "GB": "GBP", "UA": "UAH",
+}  # fmt: skip
+EURO_COUNTRIES = {
+    "AT", "BE", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT", "LV", "LT", "LU",
+    "MT", "NL", "PT", "SK", "SI", "ES",
+}  # fmt: skip
+
+
+def country_currency(country: str) -> str | None:
+    return COUNTRY_CURRENCY.get(country) or ("EUR" if country in EURO_COUNTRIES else None)
+
+
+def convert(amount: float, source: str, target: str, per_eur: dict[str, float]) -> float | None:
+    """Przeliczenie po kursach EBC (waluta → ile za 1 €); brak kursu – ``None``."""
+    if source == target:
+        return amount
+    if source not in per_eur or target not in per_eur:
+        return None
+    return amount / per_eur[source] * per_eur[target]
+
+
+def _local(part: CostPart, country: str, profile: CostProfile, native: float | None = None):
+    """Kwota części także w walucie kraju (obok kwoty w walucie profilu)."""
+    local = country_currency(country)
+    if local is None or local == profile.currency or part.unknown:
+        return part
+    amount = (
+        native
+        if native is not None
+        else convert(part.amount, profile.currency, local, profile.per_eur)
+    )
+    if amount is None:
+        return part
+    return part.model_copy(update={"local_amount": amount, "local_currency": local})
+
 
 def load_tariffs() -> dict:
     text = (resources.files("truckmaps_costs") / "tariffs.json").read_text("utf-8")
@@ -47,6 +85,9 @@ class Toll:
     amount: float | None
     """W walucie profilu; ``None`` – stawki dla pojazdu nie znamy."""
     source: str | None
+    native: float | None = None
+    """W walucie cennika operatora."""
+    native_currency: str | None = None
 
 
 def toll(country: CountryDistance, profile: CostProfile, tariffs: dict) -> Toll | None:
@@ -68,12 +109,10 @@ def toll(country: CountryDistance, profile: CostProfile, tariffs: dict) -> Toll 
     if rule is None:
         return Toll(fast, other, None, tariff.get("calculator"))
     native = fast * rule["motorway"] + other * rule["other"]
-    rates = profile.per_eur
-    source, target = tariff["currency"], profile.currency
-    if source != target and (source not in rates or target not in rates):
+    amount = convert(native, tariff["currency"], profile.currency, profile.per_eur)
+    if amount is None:
         return Toll(fast, other, None, tariff.get("calculator"))
-    amount = native if source == target else native / rates[source] * rates[target]
-    return Toll(fast, other, amount, tariff.get("source"))
+    return Toll(fast, other, amount, tariff.get("source"), native, tariff["currency"])
 
 
 class TollAndFuelCosts:
@@ -100,26 +139,28 @@ class TollAndFuelCosts:
             price = profile.fuel_price or profile.diesel_prices.get(country.country)
             if profile.consumption and price:
                 litres = km * profile.consumption / 100
-                parts.append(
-                    CostPart(kind="fuel", amount=litres * price, country=country.country, km=km)
-                )
+                fuel = CostPart(kind="fuel", amount=litres * price, country=country.country, km=km)
+                parts.append(_local(fuel, country.country, profile))
                 if profile.adblue_percent and profile.adblue_price:
                     adblue = litres * profile.adblue_percent / 100 * profile.adblue_price
-                    parts.append(
-                        CostPart(kind="adblue", amount=adblue, country=country.country, km=km)
-                    )
+                    part = CostPart(kind="adblue", amount=adblue, country=country.country, km=km)
+                    parts.append(_local(part, country.country, profile))
             found = toll(country, profile, self._tariffs)
             if found is not None:
-                parts.append(
-                    CostPart(
-                        kind="toll",
-                        amount=found.amount or 0.0,
-                        country=country.country,
-                        km=round(found.km_fast + found.km_other, 1),
-                        unknown=found.amount is None,
-                        source=found.source,
-                    )
+                part = CostPart(
+                    kind="toll",
+                    amount=found.amount or 0.0,
+                    country=country.country,
+                    km=round(found.km_fast + found.km_other, 1),
+                    unknown=found.amount is None,
+                    source=found.source,
                 )
+                native = (
+                    found.native
+                    if found.native_currency == country_currency(country.country)
+                    else None
+                )
+                parts.append(_local(part, country.country, profile, native))
         return parts
 
 

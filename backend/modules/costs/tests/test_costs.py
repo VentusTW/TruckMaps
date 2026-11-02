@@ -57,6 +57,11 @@ def test_fuel_by_country_prices_and_tolls_per_country(provider):
     tolls = by_kind(parts, "toll")
     # PL: tylko autostrada (0,56 zł/km), droga wojewódzka bez opłat; zł → euro po kursie.
     assert (tolls["PL"].km, tolls["PL"].amount) == (100, pytest.approx(100 * 0.56 / 4))
+    # Obok kwoty w euro – w walucie kraju: myto z cennika w zł, paliwo przeliczone po kursie.
+    assert (tolls["PL"].local_amount, tolls["PL"].local_currency) == (pytest.approx(56), "PLN")
+    assert fuel["PL"].local_amount == pytest.approx(120 * 0.3 * 1.5 * 4)
+    assert fuel["DE"].local_amount is None  # euro jak w profilu
+    assert tolls["CZ"].local_amount is None  # kwota nieznana; CZK bez kursu
     # DE: autostrada i droga krajowa (Bundesstraße).
     assert tolls["DE"].amount == pytest.approx(230 * 0.348)
     # CZ: płatne km bez kwoty – stawki nie znamy, kalkulator operatora.

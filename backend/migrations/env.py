@@ -12,6 +12,7 @@ from truckmaps.core import (  # noqa: F401  (rejestrują tabele w Base.metadata)
     parkings,
     reports,
     restrictions,
+    road_points,
     trips,
     vehicles,
 )
