@@ -4,7 +4,6 @@ Revision ID: 0032
 Revises: 0027, 0031
 """
 
-
 revision = "0032"
 down_revision = ("0027", "0031")
 branch_labels = None
