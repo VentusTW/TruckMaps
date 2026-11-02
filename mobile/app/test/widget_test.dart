@@ -34,6 +34,24 @@ void main() {
     expect(find.text('Zaloguj się e-mailem'), findsOneWidget);
   });
 
+  testWidgets('bez logowania – menu widoczne, ale tylko powitanie i mapa do otwarcia', (tester) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+        TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore()), locale: const Locale('pl')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Pojazdy'));
+    await tester.pumpAndSettle();
+    expect(find.text('Zaloguj się e-mailem'), findsOneWidget);  // wyłączone – bez zmiany ekranu
+
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Zaloguj się e-mailem'), findsNothing);
+    expect(find.text('Pozostałe funkcje po zalogowaniu.'), findsOneWidget);
+  });
+
   testWidgets('po zalogowaniu – pojazdy, moduły z dostępem i „Kup moduł”', (tester) async {
     tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;

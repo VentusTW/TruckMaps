@@ -677,5 +677,8 @@
   "bansHint": "Zakazy według przepisów państw (godziny czasu lokalnego). Wyjątki zależą od ładunku – sprawdź przed wyjazdem.",
   "bansOnRoute": "Na trasie zakaz ruchu – sprawdź przed wyjazdem",
   "bansShowCountry": "Zakazy: {country}",
-  "@bansShowCountry": {"placeholders": {"country": {"type": "String"}}}
+  "@bansShowCountry": {"placeholders": {"country": {"type": "String"}}},
+  "menuWelcome": "Powitanie",
+  "menuMap": "Mapa",
+  "guestLocked": "Pozostałe funkcje po zalogowaniu."
 }

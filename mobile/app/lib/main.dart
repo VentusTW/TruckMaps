@@ -7,7 +7,7 @@ import 'package:module_service/module_service.dart';
 import 'src/auth.dart';
 import 'src/home.dart';
 import 'src/l10n.dart';
-import 'src/login.dart';
+import 'src/guest.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');
@@ -81,7 +81,12 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
     return MaterialApp(
       title: 'TruckMaps',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF1B6E3A), useMaterial3: true),
+      theme: ThemeData(
+        colorSchemeSeed: const Color(0xFF1B6E3A),
+        useMaterial3: true,
+        // Panel menu – beżowy.
+        navigationDrawerTheme: const NavigationDrawerThemeData(backgroundColor: Color(0xFFF5F0E1)),
+      ),
       // Język telefonu / systemu, jeśli aplikacja go ma; inaczej polski.
       locale: _language ?? widget.locale,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -95,7 +100,7 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       home: _restoring
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : session == null
-              ? LoginScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start)
+              ? GuestScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start)
               : HomeScreen(
                   session: session,
                   registry: modules,
