@@ -32,6 +32,14 @@ void main() {
       baseUrl: 'http://serwer.test',
       token: 't',
       client: MockClient((request) async {
+        if (request.url.path == '/api/reports/streets') {
+          return http.Response.bytes(
+              utf8.encode(jsonEncode([
+                {'way_id': 5, 'name': 'Tuchowska', 'distance_m': 5},
+                {'way_id': 2, 'name': 'Ostrogskich', 'distance_m': 12},
+              ])),
+              200);
+        }
         final body = jsonDecode(request.body) as Map;
         sent.add(body);
         return http.Response.bytes(utf8.encode(jsonEncode(saved(body))), 201);
@@ -86,6 +94,25 @@ void main() {
 
     expect(sent.single['note'], 'pn–pt 6–14');
     expect(result()?.message, 'Godziny przyjęć: pn–pt 6–14');
+  });
+
+  testWidgets('ograniczenie masy – wartość ze znaku i wybór ulicy przy skrzyżowaniu', (tester) async {
+    await open(tester);
+
+    await tester.tap(find.text('Ograniczenie masy'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '3,5');
+    await tester.tap(find.widgetWithText(FilledButton, 'Zgłoś'));
+    await tester.pumpAndSettle();
+    expect(sent, isEmpty);
+    expect(find.text('Wybierz ulicę, na której stoi znak.'), findsOneWidget);
+
+    await tester.tap(find.text('Ostrogskich'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Zgłoś'));
+    await tester.pumpAndSettle();
+
+    expect(sent.single, {'kind': 'weight_limit', 'lat': 50.01, 'lon': 21.02, 'value': 3.5, 'way_id': 2});
   });
 
   test('punkty dostawy i zgłoszenia na trasie z odpowiedzi planera', () {
