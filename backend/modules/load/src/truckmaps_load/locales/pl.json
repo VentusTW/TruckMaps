@@ -7,5 +7,17 @@
   "load.overweight": "Ładunek {weight} kg przekracza ładowność {payload} kg.",
   "load.cog_front": "Środek ciężkości ładunku za bardzo z przodu ({share}% długości) – przesuń cięższe palety do tyłu, żeby nie przeciążyć siodła.",
   "load.cog_back": "Środek ciężkości ładunku za bardzo z tyłu ({share}% długości) – przesuń cięższe palety do przodu, żeby nie odciążyć osi kierowanej.",
-  "load.no_front_wall": "Ładunek nie jest oparty o ścianę czołową – potrzeba więcej pasów (hamowanie)."
+  "load.no_front_wall": "Ładunek nie jest oparty o ścianę czołową – potrzeba więcej pasów (hamowanie).",
+  "load.axle_over": "Przekroczony nacisk: {axle} {load} kg przy dopuszczalnych {limit} kg – przesuń ładunek albo zmniejsz masę.",
+  "load.axle_kingpin": "siodło (sworzeń naczepy)",
+  "load.axle_trailer_axles": "osie naczepy",
+  "load.axle_front_axle": "oś przednia",
+  "load.axle_rear_axles": "osie tylne",
+  "load.axle_drawbar_front": "przednia oś przyczepy",
+  "load.adjusted": "Ładunek przestawiony tak, żeby nie przekroczyć nacisków na osie.",
+  "load.gap_front": "Ładunek odsunięty od ściany czołowej o {gap} m – zablokuj go z przodu (belka, poduszka) albo dodaj pasy.",
+  "load.too_high": "Stos wyższy niż przestrzeń ładunkowa (ok. {height} m).",
+  "load.outside": "Poza przestrzenią ładunkową: {count} szt.",
+  "load.overlap": "Ładunek nachodzi na siebie – rozsuń palety.",
+  "load.bad_item": "Nieznana pozycja ładunku."
 }

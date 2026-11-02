@@ -39,6 +39,15 @@ class CargoInfo:
     """Z miejsc paletowych (33 palety EUR = 13,6 m); ``None`` – nie wiadomo."""
     payload_kg: float | None
     """DMC − masa własna; ``None`` – brak masy własnej."""
+    kind: str = ""
+    """Rodzaj pojazdu (semitrailer, rigid, trailer, van, combination) – do nacisków na osie."""
+    axle_count: int | None = None
+    axle_load_t: float | None = None
+    """Dopuszczalny nacisk pojedynczej osi z profilu."""
+    tare_kg: float | None = None
+    gvw_kg: float | None = None
+    height_m: float | None = None
+    """Wysokość całkowita pojazdu – z niej szacunkowa wysokość przestrzeni ładunkowej."""
 
 
 class Fleet(Protocol):

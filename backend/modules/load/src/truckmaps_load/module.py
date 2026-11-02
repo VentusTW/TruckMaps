@@ -1,15 +1,24 @@
-"""Plan załadunku (M12): LDM, masa, czy się mieści, rozmieszczenie palet i mocowanie.
+"""Plan załadunku (M12): LDM, masa, naciski na osie, rozmieszczenie palet i mocowanie.
 
 Palety układamy rzędami od ściany czołowej; ładunek ostatniego rozładunku idzie na przód,
 pierwszego – przy drzwiach. W rzędzie wybieramy ułożenie, które zajmuje najmniej długości
 (np. palety EUR 3 wzdłuż w rzędzie 1,2 m – 33 na 13,6 m; przemysłowe 2 w poprzek w rzędzie
-1,0 m – 26). Mocowanie: liczba pasów przy mocowaniu przez docisk (top-over) wg uproszczonego
-wzoru EN 12195-1. To pomoc, nie certyfikat – za zabezpieczenie ładunku odpowiadają
-ładujący i kierowca.
+1,0 m – 26).
+
+Naciski: przestrzeń ładunkowa jako belka na dwóch podporach (siodło i zespół osi naczepy,
+oś przednia i tylna solówki…), z masą własną rozłożoną typowo. Gdy ułożenie od ściany
+czołowej przeciąża podporę, plan przestawia rzędy w obrębie rozładunku (cięższe bliżej
+środka ciężkości osi) albo odsuwa ładunek od ściany – wybiera ułożenie bez przekroczeń,
+najbliżej ściany czołowej. Ręczne ułożenie (przeciągnięte palety) sprawdza ``/plan/check``.
+
+Mocowanie: liczba pasów przy mocowaniu przez docisk (top-over) wg uproszczonego wzoru
+EN 12195-1. To pomoc, nie certyfikat – za rozmieszczenie i zabezpieczenie ładunku
+odpowiadają ładujący i kierowca.
 """
 
 import json
 import math
+from dataclasses import dataclass
 from importlib import resources
 from typing import Annotated, Literal
 
@@ -18,6 +27,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from truckmaps.sdk import CoreContext, Module, Principal, i18n
+from truckmaps.sdk.fleet import CargoInfo
 from truckmaps.sdk.i18n import t
 
 LDM_WIDTH_M = 2.4
@@ -29,19 +39,33 @@ SAFETY = 1.1
 C_FORWARD, C_SIDE, C_BACK = 0.8, 0.5, 0.5
 FRICTION = {"none": 0.3, "mat": 0.6}
 """Tarcie palety o podłogę: bez maty (drewno – sklejka) i z matą antypoślizgową."""
-# Rozsądny środek ciężkości ładunku (część długości od ściany czołowej): z przodu przeciąża
-# siodło / przednią oś, z tyłu odciąża oś kierowaną ciągnika.
+# Rozsądny środek ciężkości ładunku (część długości od ściany czołowej) – gdy naciski nieznane.
 COG_MIN, COG_MAX = 0.35, 0.6
 
 PALLETS = {"euro": (1.2, 0.8), "industrial": (1.2, 1.0), "half": (0.8, 0.6)}
 # Typowa przestrzeń ładunkowa, gdy pojazd nie ma jej w profilu: (długość, szerokość) [m].
 DECKS = {"semitrailer": (13.6, 2.48), "combination": (13.6, 2.48)}
+# Wysokość podłogi nad jezdnią – przestrzeń ładunkowa = wysokość pojazdu − podłoga − dach.
+FLOOR_M = {"semitrailer": 1.2, "combination": 1.2, "trailer": 1.1, "rigid": 1.1, "van": 0.6}
+ROOF_M = 0.1
+# Wysokość sztuki do widoku z boku, gdy jej nie podano (paleta z towarem).
+DEFAULT_HEIGHT_M = 1.2
+KINGPIN_LIMIT_KG = 12_000
+"""Typowy dopuszczalny nacisk siodła ciągnika – gdy nie znamy ciągnika."""
+TRACTOR_TARE_KG = 8_000
+"""Masa ciągnika w masie własnej zestawu (rodzaj „combination”) – reszta to naczepa."""
+# Dopuszczalny nacisk zespołu osi (dyrektywa 96/53/WE, rozstaw 1,3–1,8 m).
+GROUP_LIMIT_KG = {1: 10_000, 2: 18_000, 3: 24_000}
+STEER_AXLE_KG = 7_500
+STEP_M = 0.05
+"""Krok przesuwania ładunku przy szukaniu ułożenia bez przekroczeń."""
 
 
 class Item(BaseModel):
     kind: Literal["euro", "industrial", "half", "custom"] = "euro"
     length_m: float | None = Field(default=None, gt=0, le=14, description="Tylko „custom”")
     width_m: float | None = Field(default=None, gt=0, le=2.6, description="Tylko „custom”")
+    height_m: float | None = Field(default=None, gt=0, le=3.5, description="Wysokość sztuki")
     count: int = Field(ge=1, le=100)
     weight_kg: float = Field(gt=0, le=30_000, description="Masa jednej sztuki")
     stack: int = Field(default=1, ge=1, le=3, description="Ile sztuk w stosie")
@@ -70,6 +94,16 @@ class Placed(BaseModel):
     width_m: float
     weight_kg: float
     stop: int
+    pieces: int = 1
+    """Sztuk w stosie."""
+    height_m: float = DEFAULT_HEIGHT_M
+    """Wysokość stosu."""
+    height_known: bool = False
+    """``False`` – wysokość szacunkowa (sztuki bez podanej wysokości)."""
+
+
+class CheckIn(PlanIn):
+    placed: list[Placed] = Field(min_length=1, max_length=400)
 
 
 class Row(BaseModel):
@@ -79,9 +113,20 @@ class Row(BaseModel):
     straps: int
 
 
+class Axle(BaseModel):
+    name: Literal["kingpin", "trailer_axles", "front_axle", "rear_axles", "drawbar_front"]
+    x_m: float
+    """Położenie od ściany czołowej (oś przednia solówki – przed przestrzenią: wartość ujemna)."""
+    load_kg: float
+    """Nacisk z masą własną i ładunkiem."""
+    limit_kg: float | None
+    over: bool
+
+
 class PlanOut(BaseModel):
     deck_length_m: float
     deck_width_m: float
+    inner_height_m: float | None
     ldm: float
     used_length_m: float
     weight_kg: float
@@ -95,8 +140,83 @@ class PlanOut(BaseModel):
     straps: int
     cog_m: float | None
     """Środek ciężkości ładunku od ściany czołowej."""
+    axles: list[Axle]
+    """Naciski na podpory (puste, gdy nie znamy pojazdu)."""
+    offset_m: float
+    """Odstęp ładunku od ściany czołowej."""
+    adjusted: bool
+    """Plan przestawił ładunek, żeby nie przekroczyć nacisków."""
     warnings: list[str]
     estimated: Literal[True] = True
+
+
+@dataclass(frozen=True)
+class Support:
+    name: str
+    x: float
+    limit: float | None
+    tare: float
+    """Część masy własnej przypadająca na tę podporę [kg]."""
+
+
+def supports(cargo: CargoInfo | None, deck_length: float) -> list[Support]:
+    """Dwie podpory przestrzeni ładunkowej (typowa geometria pojazdu)."""
+    if cargo is None or not cargo.kind or cargo.axle_count is None:
+        return []
+    axle_kg = (cargo.axle_load_t or 0) * 1000 or None
+
+    def group(count: int) -> float | None:
+        legal = GROUP_LIMIT_KG.get(count, 24_000)
+        return min(legal, axle_kg * count) if axle_kg else legal
+
+    tare = cargo.tare_kg
+    if cargo.kind in ("semitrailer", "combination"):
+        axles = cargo.axle_count if cargo.kind == "semitrailer" else max(1, cargo.axle_count - 2)
+        trailer_tare = tare if cargo.kind == "semitrailer" else (
+            max(0.0, tare - TRACTOR_TARE_KG) if tare is not None else None
+        )  # fmt: skip
+        trailer_tare = trailer_tare if trailer_tare is not None else 7000.0
+        return [
+            Support("kingpin", 1.6, KINGPIN_LIMIT_KG, trailer_tare * 0.35),
+            Support(
+                "trailer_axles", round(deck_length * 0.7, 2), group(axles), trailer_tare * 0.65
+            ),
+        ]
+    if cargo.kind == "rigid":
+        rear = max(1, cargo.axle_count - 1)
+        own = tare if tare is not None else 0.0
+        return [
+            Support("front_axle", -1.2, min(STEER_AXLE_KG, axle_kg or STEER_AXLE_KG), own * 0.6),
+            Support("rear_axles", round(deck_length * 0.55, 2), group(rear), own * 0.4),
+        ]
+    if cargo.kind == "trailer":
+        front = max(1, cargo.axle_count // 2)
+        rear = max(1, cargo.axle_count - front)
+        own = tare if tare is not None else 0.0
+        return [
+            Support("drawbar_front", round(deck_length * 0.15, 2), group(front), own * 0.5),
+            Support("rear_axles", round(deck_length * 0.85, 2), group(rear), own * 0.5),
+        ]  # fmt: skip
+    return []
+
+
+def axle_loads(placed: list[Placed], points: list[Support]) -> list[Axle]:
+    if len(points) != 2:
+        return []
+    a, b = points
+    rear = sum(p.weight_kg * (p.x_m + p.length_m / 2 - a.x) / (b.x - a.x) for p in placed)
+    front = sum(p.weight_kg for p in placed) - rear
+    return [
+        Axle(
+            name=s.name, x_m=s.x, load_kg=round(s.tare + load), limit_kg=s.limit,
+            over=s.limit is not None and s.tare + load > s.limit + 0.5,
+        )
+        for s, load in ((a, front), (b, rear))
+    ]  # fmt: skip
+
+
+def _overload(axles: list[Axle]) -> float:
+    return sum(max(0.0, a.load_kg - a.limit_kg) for a in axles if a.limit_kg is not None)
 
 
 def _footprint(item: Item) -> tuple[float, float]:
@@ -120,85 +240,212 @@ def _row_layout(length: float, width: float, deck_width: float) -> tuple[float, 
     return along, across, per_row
 
 
-def _straps(weight_kg: float, data: PlanIn) -> int:
+def _straps(weight_kg: float, data: PlanIn, front_wall: bool) -> int:
     """Pasy na rząd przy mocowaniu przez docisk (pionowo, sin α = 1), wg EN 12195-1."""
     mu = FRICTION["mat" if data.mats else "none"]
     force = data.strap_daN * 10  # daN → N
     needed = 0.0
-    for c in [C_SIDE, C_BACK] + ([] if data.front_wall else [C_FORWARD]):
+    for c in [C_SIDE, C_BACK] + ([] if front_wall else [C_FORWARD]):
         if c > mu:
             needed = max(needed, SAFETY * weight_kg * G * (c - mu) / (2 * mu * force))
     return max(1, math.ceil(needed - 1e-9))
 
 
-def plan(data: PlanIn, deck_length: float, deck_width: float, payload: float | None) -> PlanOut:
-    # Ostatni rozładunek z przodu: najpierw najwyższe numery rozładunku.
+@dataclass
+class _Row:
+    stop: int
+    length: float
+    pieces: list[Placed]
+    """Sztuki rzędu z ``x_m`` = 0."""
+
+    @property
+    def weight(self) -> float:
+        return sum(p.weight_kg for p in self.pieces)
+
+
+def _rows(data: PlanIn, deck_width: float) -> list[_Row]:
+    """Rzędy po kolei od przodu: ostatni rozładunek pierwszy."""
     order = sorted(range(len(data.items)), key=lambda i: -data.items[i].stop)
-    placed: list[Placed] = []
-    rows: list[Row] = []
-    x = 0.0
-    unplaced = 0
+    rows: list[_Row] = []
     for index in order:
         item = data.items[index]
         length, width = _footprint(item)
         along, across, per_row = _row_layout(length, width, deck_width)
         stacks = math.ceil(item.count / item.stack)
+        piece_m = item.height_m or DEFAULT_HEIGHT_M
         left = item.count
         for start in range(0, stacks, per_row):
-            in_row = min(per_row, stacks - start)
-            if x + along > deck_length + 1e-6:
-                unplaced += left
-                break
-            row_weight = 0.0
-            for k in range(in_row):
-                pieces = min(item.stack, left)
-                left -= pieces
-                weight = pieces * item.weight_kg
-                row_weight += weight
-                placed.append(
+            pieces = []
+            for k in range(min(per_row, stacks - start)):
+                count = min(item.stack, left)
+                left -= count
+                pieces.append(
                     Placed(
-                        item=index, x_m=round(x, 3), y_m=round(k * across, 3),
-                        length_m=along, width_m=across, weight_kg=weight, stop=item.stop,
+                        item=index, x_m=0, y_m=round(k * across, 3), length_m=along,
+                        width_m=across, weight_kg=count * item.weight_kg, stop=item.stop,
+                        pieces=count, height_m=round(count * piece_m, 2),
+                        height_known=item.height_m is not None,
                     )
                 )  # fmt: skip
-            rows.append(Row(x_m=round(x, 3), length_m=along, weight_kg=row_weight, straps=0))
-            x += along
-    rows = [r.model_copy(update={"straps": _straps(r.weight_kg, data)}) for r in rows]
+            rows.append(_Row(item.stop, along, pieces))
+    return rows
+
+
+def _lay(rows: list[_Row], offset: float, deck_length: float) -> tuple[list[Placed], int, float]:
+    """Rzędy jeden za drugim od ``offset``: (sztuki, nie zmieszczone sztuki, koniec ładunku)."""
+    placed, unplaced, x = [], 0, offset
+    for row in rows:
+        if x + row.length > deck_length + 1e-6:
+            unplaced += sum(p.pieces for p in row.pieces)
+            continue
+        placed += [p.model_copy(update={"x_m": round(x, 3)}) for p in row.pieces]
+        x += row.length
+    return placed, unplaced, x
+
+
+def _variants(rows: list[_Row]) -> list[list[_Row]]:
+    """Kolejność rzędów: jak w planie, w każdym rozładunku cięższe z przodu albo z tyłu."""
+    by_stop: dict[int, list[_Row]] = {}
+    for row in rows:
+        by_stop.setdefault(row.stop, []).append(row)
+    stops = list(by_stop)
+    heavy_front = [r for s in stops for r in sorted(by_stop[s], key=lambda r: -r.weight)]
+    heavy_back = [r for s in stops for r in sorted(by_stop[s], key=lambda r: r.weight)]
+    return [rows, heavy_front, heavy_back]
+
+
+def arrange(
+    rows: list[_Row], deck_length: float, points: list[Support]
+) -> tuple[list[Placed], int, float, float, bool]:
+    """Ułożenie bez przekroczeń nacisków, najbliżej ściany czołowej.
+
+    Zwraca (sztuki, nie zmieszczone, koniec ładunku, odstęp od ściany, czy przestawiono)."""
+    placed, unplaced, end = _lay(rows, 0.0, deck_length)
+    if not points or _overload(axle_loads(placed, points)) == 0:
+        return placed, unplaced, end, 0.0, False
+    best = None
+    for rank, variant in enumerate(_variants(rows)):
+        used = _lay(variant, 0.0, deck_length)[2]
+        steps = int(max(0.0, deck_length - used) / STEP_M + 1e-9)
+        for step in range(steps + 1):
+            offset = step * STEP_M
+            laid = _lay(variant, offset, deck_length)
+            score = (round(_overload(axle_loads(laid[0], points))), laid[1], offset, rank)
+            if best is None or score < best[0]:
+                best = (score, laid, offset, rank)
+    _, (placed, unplaced, end), offset, rank = best
+    return placed, unplaced, end, round(offset, 2), rank > 0 or offset > 0
+
+
+def evaluate(
+    placed: list[Placed], unplaced: int, data: PlanIn, deck_length: float, deck_width: float,
+    cargo: CargoInfo | None, offset: float = 0.0, adjusted: bool = False,
+) -> PlanOut:  # fmt: skip
+    """Masa, naciski, pasy i ostrzeżenia dla podanego ułożenia (z planu albo przeciągniętego)."""
+    payload = cargo.payload_kg if cargo else None
+    points = supports(cargo, deck_length)
+    front_wall = data.front_wall and offset < STEP_M
+    # Rzędy: sztuki zaczynające się w tym samym miejscu (po przeciągnięciu – każda osobno).
+    by_x: dict[float, list[Placed]] = {}
+    for p in placed:
+        by_x.setdefault(round(p.x_m, 2), []).append(p)
+    rows = [
+        Row(
+            x_m=x, length_m=max(p.length_m for p in ps), weight_kg=sum(p.weight_kg for p in ps),
+            straps=_straps(sum(p.weight_kg for p in ps), data, front_wall),
+        )
+        for x, ps in sorted(by_x.items())
+    ]  # fmt: skip
     weight = sum(p.weight_kg for p in placed)
-    total = sum(i.count * i.weight_kg for i in data.items)
+    total = sum(i.count * i.weight_kg for i in data.items)  # także sztuki niezmieszczone
     cog = sum((p.x_m + p.length_m / 2) * p.weight_kg for p in placed) / weight if weight else None
+    axles = axle_loads(placed, points)
+    end = max((p.x_m + p.length_m for p in placed), default=0.0)
+    inner = None
+    if cargo and cargo.height_m:
+        inner = round(cargo.height_m - FLOOR_M.get(cargo.kind, 1.1) - ROOF_M, 2)
     warnings = []
     if unplaced:
         warnings.append(t("load.unplaced", count=unplaced))
     if payload is not None and total > payload:
         warnings.append(t("load.overweight", weight=round(total), payload=round(payload)))
-    if cog is not None and cog < COG_MIN * deck_length:
-        warnings.append(t("load.cog_front", share=round(cog / deck_length * 100)))
-    if cog is not None and cog > COG_MAX * deck_length:
-        warnings.append(t("load.cog_back", share=round(cog / deck_length * 100)))
+    for axle in axles:
+        if axle.over:
+            warnings.append(
+                t("load.axle_over", axle=t(f"load.axle_{axle.name}"),
+                  load=round(axle.load_kg), limit=round(axle.limit_kg or 0))
+            )  # fmt: skip
+    if not axles and cog is not None:
+        # Bez danych o osiach – jak dotąd: tylko środek ciężkości.
+        if cog < COG_MIN * deck_length:
+            warnings.append(t("load.cog_front", share=round(cog / deck_length * 100)))
+        if cog > COG_MAX * deck_length:
+            warnings.append(t("load.cog_back", share=round(cog / deck_length * 100)))
+    if adjusted and not any(a.over for a in axles):
+        warnings.append(t("load.adjusted"))
+    if offset >= STEP_M:
+        warnings.append(t("load.gap_front", gap=offset))
     if not data.front_wall:
         warnings.append(t("load.no_front_wall"))
+    if inner is not None and any(p.height_m > inner + 1e-6 and p.height_known for p in placed):
+        warnings.append(t("load.too_high", height=inner))
+    outside = [
+        p for p in placed
+        if p.x_m < -1e-6 or p.y_m < -1e-6 or p.x_m + p.length_m > deck_length + 1e-6
+        or p.y_m + p.width_m > deck_width + 1e-6
+    ]  # fmt: skip
+    if outside:
+        warnings.append(t("load.outside", count=len(outside)))
+    if _overlaps(placed):
+        warnings.append(t("load.overlap"))
+    ok_axles = not any(a.over for a in axles)
     return PlanOut(
         deck_length_m=deck_length,
         deck_width_m=deck_width,
-        ldm=round(x * deck_width / LDM_WIDTH_M, 2),
-        used_length_m=round(x, 2),
+        inner_height_m=inner,
+        ldm=round(end * deck_width / LDM_WIDTH_M, 2),
+        used_length_m=round(end, 2),
         weight_kg=round(total, 1),
         payload_kg=payload,
-        fits=not unplaced and (payload is None or total <= payload),
+        fits=not unplaced and (payload is None or total <= payload) and ok_axles and not outside,
         placed=placed,
         unplaced=unplaced,
         rows=rows,
         straps=sum(r.straps for r in rows),
         cog_m=round(cog, 2) if cog is not None else None,
+        axles=axles,
+        offset_m=offset,
+        adjusted=adjusted,
         warnings=warnings,
     )
+
+
+def _overlaps(placed: list[Placed]) -> bool:
+    for i, a in enumerate(placed):
+        for b in placed[i + 1 :]:
+            if (
+                a.x_m < b.x_m + b.length_m - 1e-3 and b.x_m < a.x_m + a.length_m - 1e-3
+                and a.y_m < b.y_m + b.width_m - 1e-3 and b.y_m < a.y_m + a.width_m - 1e-3
+            ):  # fmt: skip
+                return True
+    return False
+
+
+def plan(
+    data: PlanIn, deck_length: float, deck_width: float, payload: float | None,
+    cargo: CargoInfo | None = None,
+) -> PlanOut:  # fmt: skip
+    if cargo is None:
+        cargo = CargoInfo(deck_length_m=deck_length, payload_kg=payload)
+    rows = _rows(data, deck_width)
+    placed, unplaced, _, offset, adjusted = arrange(rows, deck_length, supports(cargo, deck_length))
+    return evaluate(placed, unplaced, data, deck_length, deck_width, cargo, offset, adjusted)
 
 
 class LoadModule(Module):
     id = "load"
     name = "Plan załadunku"
-    version = "0.1.0"
+    version = "0.2.0"
     requires_core = ">=0.1,<1.0"
 
     def register(self, ctx: CoreContext) -> None:
@@ -210,18 +457,37 @@ class LoadModule(Module):
         User = Annotated[Principal, Depends(ctx.auth.current_user)]
         Db = Annotated[Session, Depends(ctx.storage.session)]
 
-        @router.post("/plan")
-        def make_plan(data: PlanIn, user: User, db: Db) -> PlanOut:
-            """Plan dla pojazdu widocznego dla użytkownika (wymiary i ładowność z profilu)."""
+        def deck(data: PlanIn, user: Principal, db: Session):
             vehicle = ctx.fleet.vehicle(db, user, data.vehicle_id)
             if vehicle is None:
                 raise HTTPException(status.HTTP_404_NOT_FOUND, t("load.vehicle_not_found"))
             cargo = ctx.fleet.cargo(db, vehicle.id)
-            deck = DECKS.get(vehicle.kind)
-            length = data.deck_length_m or cargo.deck_length_m or (deck and deck[0])
-            width = data.deck_width_m or (deck and deck[1]) or 2.45
+            typical = DECKS.get(vehicle.kind)
+            length = data.deck_length_m or cargo.deck_length_m or (typical and typical[0])
+            width = data.deck_width_m or (typical and typical[1]) or 2.45
             if not length:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("load.deck_unknown"))
-            return plan(data, length, width, cargo.payload_kg)
+            return length, width, cargo
+
+        @router.post("/plan")
+        def make_plan(data: PlanIn, user: User, db: Db) -> PlanOut:
+            """Plan dla pojazdu widocznego dla użytkownika (wymiary, ładowność i osie z profilu)."""
+            length, width, cargo = deck(data, user, db)
+            return plan(data, length, width, cargo.payload_kg, cargo)
+
+        @router.post("/plan/check")
+        def check_plan(data: CheckIn, user: User, db: Db) -> PlanOut:
+            """Sprawdzenie ułożenia przeciągniętego przez użytkownika (bez przestawiania)."""
+            length, width, cargo = deck(data, user, db)
+            for p in data.placed:
+                if p.item >= len(data.items):
+                    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("load.bad_item"))
+            # Ile sztuk z pozycji nie ma na planie (np. przeciągnięte poza – usunięte).
+            shown = sum(p.pieces for p in data.placed)
+            unplaced = max(0, sum(i.count for i in data.items) - shown)
+            offset = min((p.x_m for p in data.placed), default=0.0)
+            return evaluate(
+                data.placed, unplaced, data, length, width, cargo, round(max(0, offset), 2)
+            )
 
         ctx.api.include_router(router)

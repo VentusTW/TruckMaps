@@ -7,5 +7,17 @@
   "load.overweight": "Load of {weight} kg exceeds the payload of {payload} kg.",
   "load.cog_front": "The load's centre of gravity is too far forward ({share}% of the length) – move heavier pallets back so as not to overload the fifth wheel.",
   "load.cog_back": "The load's centre of gravity is too far back ({share}% of the length) – move heavier pallets forward so the steering axle keeps its load.",
-  "load.no_front_wall": "The load does not rest against the front wall – more straps are needed (braking)."
+  "load.no_front_wall": "The load does not rest against the front wall – more straps are needed (braking).",
+  "load.axle_over": "Axle load exceeded: {axle} {load} kg, {limit} kg allowed – move the load or reduce the weight.",
+  "load.axle_kingpin": "fifth wheel (kingpin)",
+  "load.axle_trailer_axles": "trailer axles",
+  "load.axle_front_axle": "front axle",
+  "load.axle_rear_axles": "rear axles",
+  "load.axle_drawbar_front": "trailer front axle",
+  "load.adjusted": "The load was rearranged so as not to exceed the axle loads.",
+  "load.gap_front": "The load is {gap} m away from the front wall – block it at the front (beam, airbag) or add straps.",
+  "load.too_high": "A stack is higher than the cargo space (about {height} m).",
+  "load.outside": "Outside the cargo space: {count} pcs.",
+  "load.overlap": "Pieces overlap – move the pallets apart.",
+  "load.bad_item": "Unknown load item."
 }
