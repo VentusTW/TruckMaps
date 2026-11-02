@@ -4,11 +4,19 @@ from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import costs, fuel_prices, parkings, reports, restrictions, timebans
+from truckmaps.core import (
+    costs,
+    fuel_prices,
+    parkings,
+    reports,
+    restrictions,
+    road_points,
+    timebans,
+)
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
@@ -42,6 +50,7 @@ EDGE_ATTRIBUTES = [
     "edge.names",
     "edge.length",
     "edge.toll",
+    "edge.speed_limit",
     "node.elapsed_time",
     "node.admin_index",
     "admin.country_code",
@@ -97,6 +106,74 @@ class RouteRequest(BaseModel):
     )
 
 
+# Kierunki pasa ruchu Valhalli (maska bitowa ``turnlanes.h``) → nazwy dla aplikacji.
+LANE_DIRECTIONS = {
+    2: "through", 4: "sharp_left", 8: "left", 16: "slight_left", 32: "slight_right",
+    64: "right", 128: "sharp_right", 256: "reverse", 512: "merge_left", 1024: "merge_right",
+}  # fmt: skip
+
+
+class Lane(BaseModel):
+    directions: list[str] = Field(description="Strzałki na pasie, np. ['left', 'through']")
+    active: bool = Field(description="Pas do jazdy przy tym manewrze")
+
+
+def _lanes(raw: list[dict] | None) -> list[Lane]:
+    lanes = []
+    for lane in raw or []:
+        mask = int(lane.get("directions") or 0)
+        directions = [name for bit, name in LANE_DIRECTIONS.items() if mask & bit]
+        active = bool(lane.get("active") or lane.get("valid"))
+        lanes.append(Lane(directions=directions or ["through"], active=active))
+    return lanes
+
+
+def _sign(m: dict, key: str) -> list[str]:
+    return [e["text"] for e in m.get("sign", {}).get(key, []) if e.get("text")]
+
+
+class SpeedLimit(BaseModel):
+    """Ograniczenie prędkości na kawałku trasy (indeksy punktów ``geometry``)."""
+
+    start_index: int
+    end_index: int
+    kmh: int
+    posted: int | None = Field(description="Ze znaku (OSM); brak – tylko limit dla ciężarówek")
+
+
+# Limity dla ciężarówek powyżej 3,5 t DMC (autostrada / ekspresowa, poza obszarem zabudowanym)
+# w krajach, w których są pewne. Gdzie indziej – tylko wartość ze znaku.
+HGV_LIMITS = {"PL": (80, 70), "DE": (80, 60)}
+FAST_ROADS = {"motorway", "trunk"}
+
+
+def speed_limits(edges: list[RouteEdge] | None, vehicle: VehicleIn) -> list[SpeedLimit]:
+    """Ograniczenia na trasie: ze znaku, dla ciężarówek najwyżej limit krajowy."""
+    found: list[SpeedLimit] = []
+    for edge in edges or []:
+        posted = edge.speed_limit if edge.speed_limit and edge.speed_limit < 250 else None
+        kmh = posted
+        if vehicle.is_hgv and vehicle.kind != "bus" and edge.country in HGV_LIMITS:
+            fast, other = HGV_LIMITS[edge.country]
+            if edge.road_class in FAST_ROADS:
+                kmh = min(posted or fast, fast)
+            elif posted is not None:
+                # Bez znaku poza autostradą nie zgadujemy (w terenie zabudowanym jest 50).
+                kmh = min(posted, other)
+        if kmh is None:
+            continue
+        last = found[-1] if found else None
+        if last and (last.kmh, last.posted, last.end_index) == (kmh, posted, edge.begin_index):
+            last.end_index = edge.end_index
+        else:
+            found.append(
+                SpeedLimit(
+                    start_index=edge.begin_index, end_index=edge.end_index, kmh=kmh, posted=posted
+                )
+            )
+    return found
+
+
 class Maneuver(BaseModel):
     """Manewr z komunikatami do wyświetlenia i do głosu (Valhalla, w języku zapytania)."""
 
@@ -106,6 +183,11 @@ class Maneuver(BaseModel):
     pre: str | None = Field(default=None, description="Komunikat tuż przed manewrem")
     post: str | None = Field(default=None, description="Po manewrze, np. „Jedź prosto 400 m”")
     street_names: list[str] = []
+    exit_number: str | None = Field(default=None, description="Numer zjazdu z tablicy")
+    toward: list[str] = Field(default=[], description="Kierunki z tablicy, np. „Oświęcim”")
+    branch: list[str] = Field(default=[], description="Numery dróg z tablicy, np. „A4”")
+    roundabout_exit: int | None = Field(default=None, description="Który zjazd z ronda")
+    lanes: list[Lane] = Field(default=[], description="Pasy ruchu przed manewrem (gdy znane)")
     km: float = Field(description="Gdzie na trasie zaczyna się manewr (km od startu)")
     length_km: float = Field(description="Odcinek od manewru do następnego")
     lat: float
@@ -186,6 +268,13 @@ class RouteResponse(Route):
     driver_reports: list[reports.ReportOut] = Field(
         default=[], description="Problemy na drodze zgłoszone przez kierowców, na linii trasy"
     )
+    speed_limits: list[SpeedLimit] = Field(
+        default=[], description="Ograniczenia prędkości na trasie (dla ciężarówek – limit krajowy)"
+    )
+    road_events: list[road_points.RoadEvent] = Field(
+        default=[],
+        description="Przejazdy kolejowe, fotoradary, światła, odcinkowy pomiar, zakaz wyprzedzania",
+    )
 
 
 class NoRouteFound(Exception):
@@ -218,6 +307,11 @@ def _maneuvers(leg: dict, start_km: float) -> list[Maneuver]:
                 pre=m.get("verbal_pre_transition_instruction"),
                 post=m.get("verbal_post_transition_instruction"),
                 street_names=m.get("street_names", []),
+                exit_number=(_sign(m, "exit_number_elements") or [None])[0],
+                toward=_sign(m, "exit_toward_elements"),
+                branch=_sign(m, "exit_branch_elements"),
+                roundabout_exit=m.get("roundabout_exit_count"),
+                lanes=_lanes(m.get("lanes")),
                 km=round(km, 3),
                 length_km=m.get("length", 0.0),
                 lat=lat,
@@ -273,6 +367,7 @@ class ValhallaRouter:
             **costing(vehicle),
             "units": "kilometers",
             "directions_type": "instructions",
+            "turn_lanes": True,
             "language": VALHALLA_LANGUAGES.get(language(), "en-US"),
         }
         if exclude:
@@ -407,6 +502,7 @@ class ValhallaRouter:
                     names=edge.get("names", []),
                     length_km=edge.get("length", 0.0),
                     toll=edge.get("toll", False),
+                    speed_limit=_int(edge.get("speed_limit")),
                     **_admin(admins, edge.get("end_node", {})),
                 )
                 for edge in body.get("edges", [])
@@ -417,6 +513,11 @@ class ValhallaRouter:
         if not edges or max(e.end_index for e in edges) >= len(matched_shape):
             return None
         return edges, matched_shape
+
+
+def _int(value) -> int | None:
+    """Liczba z odpowiedzi Valhalli; tekst (np. "unlimited") – brak."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _admin(admins: list[dict], node: dict) -> dict:
@@ -987,6 +1088,30 @@ def build_router(current_user) -> APIRouter:
                 db, data.destination.lat, data.destination.lon, user
             ),
             driver_reports=reports.along_route(db, route.geometry, user),
+            speed_limits=speed_limits(route.edges, vehicle),
+            road_events=road_points.along_route(db, route.geometry),
         )
+
+    @router.get("/parkings")
+    def nearby_parkings(
+        lat: Annotated[float, Query(ge=-90, le=90)],
+        lon: Annotated[float, Query(ge=-180, le=180)],
+        _user: Annotated[Principal, Depends(current_user)],
+        db: Annotated[Session, Depends(get_session)],
+        radius_km: Annotated[float, Query(gt=0, le=50)] = 20,
+    ) -> list[ParkingOut]:
+        """Parkingi dla ciężarówek i MOP-y w pobliżu (przycisk „POI” w nawigacji)."""
+        return [
+            ParkingOut(
+                name=parking.name,
+                kind=parking.kind,
+                kind_label=parkings.kind_label(parking.kind),
+                lat=parking.lat,
+                lon=parking.lon,
+                distance_m=round(distance),
+                hgv_capacity=parking.hgv_capacity,
+            )
+            for parking, distance in parkings.nearest(db, lat, lon, radius_km * 1000, limit=15)
+        ]
 
     return router

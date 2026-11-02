@@ -89,7 +89,7 @@ try {
         Step "Ograniczenia i parkingi" {
             $previous = Backup-Tables
             $pbf = Join-Path $data "valhalla\region.osm.pbf"
-            foreach ($import in "import_restrictions.py", "import_parkings.py") {
+            foreach ($import in "import_restrictions.py", "import_parkings.py", "import_road_points.py") {
                 & $python -u (Join-Path $root "data_pipeline\$import") $pbf | Out-Host
                 if ($LASTEXITCODE -ne 0) {
                     Restore-Tables

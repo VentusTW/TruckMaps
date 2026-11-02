@@ -11,6 +11,8 @@ import '../navigation/navigation_screen.dart';
 import '../reports/report_sheet.dart';
 import '../vehicles/vehicle_form.dart';
 import '../vehicles/vehicle_state.dart' show vehicleHeadline;
+import 'clusters.dart';
+import 'country_bans_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
 
@@ -269,7 +271,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 borderColor: Colors.white,
               ),
         ]),
-        MarkerLayer(markers: [
+        // Ograniczenia, zakazy i zgłoszenia: na małym przybliżeniu skupione w koła z liczbą.
+        ClusteredMarkerLayer(markers: [
           if (shown != null)
             for (final w in shown.warnings.where((w) => w.limit != null || w.level == 'orange' || w.level == 'red'))
               _placeMarker(w),
@@ -278,6 +281,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (result != null)
             for (final report in [...result.destinationPoints, ...result.driverReports]) _reportMarker(report),
           for (final report in _myReports) _reportMarker(report),
+        ]),
+        MarkerLayer(markers: [
           if (_start != null) _stopMarker(_start!.point, 'A', const Color(0xFF185FA5), stop: -1),
           if (_end != null) _stopMarker(_end!.point, 'B', const Color(0xFFA32D2D), stop: -2),
           for (final (i, via) in _via.indexed)
@@ -623,7 +628,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       route: shown,
                       destination: _end!.point,
                       via: [for (final v in _via) v.point],
+                      viaNames: [for (final v in _via) v.label],
                       avoidDifficult: _avoid,
+                      // Zgłoszenia i zakazy są policzone dla trasy głównej, nie dla alternatyw.
+                      reports: identical(shown, result.route) ? result.driverReports : const [],
+                      bans: identical(shown, result.route) ? result.timeBans : const [],
                     ),
                   ),
                 )),
@@ -645,7 +654,18 @@ class _PlannerScreenState extends State<PlannerScreen> {
       if (result.timeBans.isNotEmpty || result.arrival != null) ...[
         const SizedBox(height: 12),
         Text(l.timeBansTitle, style: theme.textTheme.titleSmall),
+        if (result.timeBans.isNotEmpty)
+          Text(l.bansOnRoute, style: theme.textTheme.bodySmall?.copyWith(color: levelColor('red'))),
         for (final ban in result.timeBans) _placeTile(ban, leading: const Text('⛔', style: TextStyle(fontSize: 18))),
+        Wrap(spacing: 8, children: [
+          for (final country in result.banCountries)
+            TextButton.icon(
+              icon: const Icon(Icons.event_busy_outlined, size: 18),
+              label: Text(l.bansShowCountry(country)),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => CountryBansScreen(api: widget.api, country: country))),
+            ),
+        ]),
         if (result.arrival != null)
           Text(
               result.waitMin > 0

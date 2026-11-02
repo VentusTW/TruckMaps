@@ -4,6 +4,7 @@ from truckmaps.core import reports
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
+from truckmaps.core.parkings import TruckParking
 from truckmaps.core.routing import Route
 from truckmaps.sdk import Principal
 
@@ -143,3 +144,43 @@ def test_daily_limit(database, monkeypatch):
         point = RAMP | {"lat": 52.0 + i / 100}
         assert client.post("/api/reports", json=point, headers=as_user("anna")).status_code == 201
     assert client.post("/api/reports", json=RAMP, headers=as_user("anna")).status_code == 429
+
+
+def test_nearby_parkings_for_poi_button(database):
+    with database.session() as db:
+        db.add_all(
+            [
+                TruckParking(osm_type="node", osm_id=i, kind=kind, name=name, lat=lat, lon=20.0,
+                             source="osm", source_date="2026-11-01")
+                for i, (kind, name, lat) in enumerate(
+                    [("rest_area", "MOP Wola", 52.01), ("truck_parking", None, 52.3)]
+                )
+            ]
+        )  # fmt: skip
+        db.commit()
+    client = make_client(database)
+    found = client.get(
+        "/api/routes/parkings", params={"lat": 52.0, "lon": 20.0}, headers=as_user("anna")
+    ).json()
+    assert [(p["name"], p["kind"], p["distance_m"]) for p in found] == [
+        ("MOP Wola", "rest_area", 1112)
+    ]
+
+
+def test_temporary_reports_expire_unless_confirmed(database):
+    client = make_client(database)
+    police = {"kind": "police", "lat": 52.0, "lon": 20.0}
+    camera = {"kind": "speed_camera", "lat": 52.003, "lon": 20.0}
+    created = client.post("/api/reports", json=police, headers=as_user("anna")).json()
+    assert created["expires_at"] is not None and created["label"] == "Policja"
+    client.post("/api/reports", json=camera, headers=as_user("anna"))
+    # Dwie godziny bez potwierdzenia: policja znika, fotoradar zostaje.
+    with database.session() as db:
+        for report in db.scalars(reports.select(reports.DriverReport)):
+            report.confirmed_at -= reports.timedelta(hours=2)
+        db.commit()
+    params = {"lat": 52.0, "lon": 20.0}
+    kinds = [
+        r["kind"] for r in client.get("/api/reports", params=params, headers=as_user("bob")).json()
+    ]
+    assert kinds == ["speed_camera"]

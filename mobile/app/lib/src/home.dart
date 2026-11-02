@@ -16,6 +16,7 @@ import 'company/members_screen.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
+import 'planner/country_bans_screen.dart';
 import 'planner/planner_screen.dart';
 import 'updates.dart';
 import 'vehicles_screen.dart';
@@ -260,6 +261,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 onChanged: () => _vehiclesChanged.value++,
                 refresh: _vehiclesShown,
               )),
+      _Page('bans', l.menuBans, Icons.block_outlined,
+          (_) => CountryBansScreen(api: widget.session.api, standalone: false)),
       if (_company case final company?) ...[
         _Page(
             'company',

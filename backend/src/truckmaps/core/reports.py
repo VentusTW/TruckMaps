@@ -26,7 +26,9 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    and_,
     func,
+    or_,
     select,
 )
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -62,6 +64,13 @@ class ReportKind(StrEnum):
     ROAD_CLOSED = "road_closed"
     NARROW = "narrow"
     OTHER = "other"
+    ACCIDENT = "accident"
+    HAZARD = "hazard"
+    SPEED_CHECK = "speed_check"
+    POLICE = "police"
+    INSPECTION = "inspection"
+    """Inspekcja transportu drogowego (ITD / BAG) i ważenie."""
+    SPEED_CAMERA = "speed_camera"
 
 
 DELIVERY_KINDS = {
@@ -72,6 +81,14 @@ DELIVERY_KINDS = {
     ReportKind.HOURS,
 }
 NEEDS_NOTE = {ReportKind.HOURS, ReportKind.OTHER}
+# Zgłoszenia czasowe wygasają same, gdy nikt ich nie potwierdzi (potwierdzenie liczy od nowa).
+LIFETIME = {
+    ReportKind.ACCIDENT: timedelta(hours=2),
+    ReportKind.HAZARD: timedelta(hours=2),
+    ReportKind.SPEED_CHECK: timedelta(hours=1),
+    ReportKind.POLICE: timedelta(hours=1),
+    ReportKind.INSPECTION: timedelta(hours=2),
+}
 NEEDS_VALUE = {ReportKind.HEIGHT_LIMIT, ReportKind.WEIGHT_LIMIT}
 
 
@@ -137,6 +154,9 @@ class ReportOut(BaseModel):
     value: float | None
     score: int
     confirmed_at: datetime
+    expires_at: datetime | None = Field(
+        default=None, description="Zgłoszenie czasowe znika wtedy bez potwierdzenia"
+    )
     mine: bool = False
     distance_m: float | None = None
     km: float | None = Field(default=None, description="Miejsce na trasie (problemy na drodze)")
@@ -166,15 +186,39 @@ def to_out(report: DriverReport, user: Principal | None = None, **extra) -> Repo
         value=report.value,
         score=report.score,
         confirmed_at=report.confirmed_at,
+        expires_at=_expires(report),
         mine=user is not None and report.subject == user.subject,
         **extra,
+    )
+
+
+def _expires(report: DriverReport) -> datetime | None:
+    lifetime = LIFETIME.get(ReportKind(report.kind))
+    if lifetime is None:
+        return None
+    confirmed = report.confirmed_at
+    return (confirmed if confirmed.tzinfo else confirmed.replace(tzinfo=UTC)) + lifetime
+
+
+def active():
+    """Warunek: zgłoszenie widoczne (bez przewagi „nieaktualne”, czasowe – niewygasłe)."""
+    now = _now()
+    return and_(
+        DriverReport.score > HIDE_SCORE,
+        or_(
+            DriverReport.kind.not_in([k.value for k in LIFETIME]),
+            *[
+                and_(DriverReport.kind == kind.value, DriverReport.confirmed_at >= now - lifetime)
+                for kind, lifetime in LIFETIME.items()
+            ],
+        ),
     )
 
 
 def _in_box(lat: float, lon: float, radius_m: float):
     margin = radius_m / 111_000
     return select(DriverReport).where(
-        DriverReport.score > HIDE_SCORE,
+        active(),
         DriverReport.lat.between(lat - margin, lat + margin),
         DriverReport.lon.between(lon - 2 * margin, lon + 2 * margin),
     )
@@ -210,7 +254,7 @@ def along_route(
     lons, lats = [p[0] for p in geometry], [p[1] for p in geometry]
     margin = ON_ROUTE_M / 111_000
     query = select(DriverReport).where(
-        DriverReport.score > HIDE_SCORE,
+        active(),
         DriverReport.kind.not_in([k.value for k in DELIVERY_KINDS]),
         DriverReport.lat.between(min(lats) - margin, max(lats) + margin),
         DriverReport.lon.between(min(lons) - 2 * margin, max(lons) + 2 * margin),

@@ -92,7 +92,7 @@ void main() {
 
     positions.controller.add(const LatLng(50.0001, 20.99));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.textContaining('Na trasie – zostało'), findsOneWidget);
+    expect(find.byTooltip('Zakończ nawigację'), findsOneWidget);  // dolna karta zamiast paska „na trasie”
     expect(find.text('Skręć w prawo.'), findsOneWidget);  // następny manewr
     expect(speaker.spoken, ['Jedź na wschód.']);
 
@@ -116,6 +116,56 @@ void main() {
     await tester.pump();
     // Koniec nawigacji: przejazd (ok. 2 km według pozycji) idzie do statystyk pojazdu.
     expect(requests, containsAll(['/api/vehicles/v1/trips', '/api/vehicles/v1/release']));
+  });
+
+  testWidgets('karta manewru z tablicą i pasami, znak prędkości, zdarzenia na trasie', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final client = MockClient((request) async =>
+        request.url.path == '/api/corridor' ? json({'route': routeLine, 'items': []}) : json({}));
+    final positions = FakePositions();
+    final signed = PlannedRoute.fromJson({
+      'distance_km': 2.9,
+      'duration_min': 4.0,
+      'geometry': [[20.98, 50.0], [21.0, 50.0], [21.02, 50.0]],
+      'analysis': null,
+      'maneuvers': [
+        {'type': 1, 'instruction': 'Jedź na wschód.', 'km': 0.0, 'length_km': 1.5, 'lat': 50.0, 'lon': 20.98},
+        {
+          'type': 20, 'instruction': 'Zjedź w prawo.', 'km': 1.5, 'length_km': 1.0, 'lat': 50.0, 'lon': 21.0,
+          'exit_number': '42', 'toward': ['Oświęcim'], 'branch': ['A4'],
+          'lanes': [{'directions': ['through'], 'active': false}, {'directions': ['right'], 'active': true}],
+        },
+        {'type': 26, 'instruction': 'Wjedź na rondo.', 'km': 2.5, 'length_km': 0.4, 'lat': 50.0, 'lon': 21.01,
+         'street_names': ['Krakowska'], 'roundabout_exit': 2},
+        {'type': 4, 'instruction': 'Dotarłeś do celu.', 'km': 2.9, 'length_km': 0.0, 'lat': 50.0, 'lon': 21.02},
+      ],
+      'speed_limits': [{'start_index': 0, 'end_index': 2, 'kmh': 70, 'posted': 90}],
+      'road_events': [{'kind': 'level_crossing', 'km': 1.0, 'lat': 50.0, 'lon': 20.994}],
+    });
+    await tester.pumpWidget(localized(
+      NavigationScreen(
+        api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
+        request: NavigationRequest(vehicleId: 'v1', route: signed, destination: const LatLng(50, 21.02)),
+        source: positions,
+        alarmSound: false,
+        speaker: FakeSpeaker(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 100));
+    positions.controller.add(const LatLng(50.0001, 20.99));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Zjazd 42'), findsOneWidget);
+    expect(find.text('A4'), findsOneWidget);
+    expect(find.text('Kierunek: Oświęcim'), findsOneWidget);
+    expect(find.text('Potem: Krakowska'), findsOneWidget);
+    expect(find.text('70'), findsOneWidget);  // limit dla ciężarówek niższy niż znak 90
+    expect(find.byTooltip('Ograniczenie prędkości dla ciężarówek (przepisy kraju)'), findsOneWidget);
+    expect(find.text('Przejazd kolejowy'), findsOneWidget);  // lista nadchodzących zdarzeń
+    expect(find.byTooltip('Parkingi i MOP-y w pobliżu'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   test('pozycja w symulacji jazdy po trasie', () {

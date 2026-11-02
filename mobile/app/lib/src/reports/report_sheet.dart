@@ -7,6 +7,7 @@ import '../planner/route.dart';
 
 /// Rodzaje zgłoszeń (te same co na serwerze): punkty dostawy i problemy na drodze.
 const deliveryKinds = ['gate', 'ramp', 'office', 'waiting_area', 'hours'];
+const trafficKinds = ['accident', 'hazard', 'speed_check', 'police', 'inspection', 'speed_camera'];
 const roadKinds = ['height_limit', 'weight_limit', 'no_trucks', 'road_closed', 'narrow', 'other'];
 
 /// Rodzaje, które potrzebują tekstu (godziny przyjęć, uwaga) albo wartości ze znaku.
@@ -24,6 +25,12 @@ String reportLabel(AppLocalizations l, String kind) => switch (kind) {
       'no_trucks' => l.reportNoTrucks,
       'road_closed' => l.reportRoadClosed,
       'narrow' => l.reportNarrow,
+      'accident' => l.reportAccident,
+      'hazard' => l.reportHazard,
+      'speed_check' => l.reportSpeedCheck,
+      'police' => l.reportPolice,
+      'inspection' => l.reportInspection,
+      'speed_camera' => l.reportSpeedCamera,
       _ => l.reportOther,
     };
 
@@ -38,6 +45,12 @@ IconData reportIcon(String kind) => switch (kind) {
       'no_trucks' => Icons.do_not_disturb_on_outlined,
       'road_closed' => Icons.block,
       'narrow' => Icons.compress,
+      'accident' => Icons.car_crash_outlined,
+      'hazard' => Icons.warning_amber_rounded,
+      'speed_check' => Icons.speed,
+      'police' => Icons.local_police_outlined,
+      'inspection' => Icons.scale,
+      'speed_camera' => Icons.photo_camera_outlined,
       _ => Icons.campaign_outlined,
     };
 
@@ -116,8 +129,8 @@ class _ReportSheetState extends State<ReportSheet> {
     final l = context.l;
     final theme = Theme.of(context);
     final groups = widget.deliveryFirst
-        ? [(l.reportDeliveryTitle, deliveryKinds), (l.reportRoadTitle, roadKinds)]
-        : [(l.reportRoadTitle, roadKinds), (l.reportDeliveryTitle, deliveryKinds)];
+        ? [(l.reportDeliveryTitle, deliveryKinds), (l.reportRoadTitle, [...trafficKinds, ...roadKinds])]
+        : [(l.reportRoadTitle, [...trafficKinds, ...roadKinds]), (l.reportDeliveryTitle, deliveryKinds)];
     final kind = _kind;
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
@@ -129,14 +142,28 @@ class _ReportSheetState extends State<ReportSheet> {
             const SizedBox(height: 12),
             Text(title, style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
+            // Siatka dużych przycisków – do dotknięcia w kabinie, bez celowania.
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final k in kinds)
-                ActionChip(
-                  avatar: Icon(reportIcon(k), size: 18),
-                  label: Text(reportLabel(l, k)),
-                  onPressed: _busy ? null : () => _choose(k),
+                SizedBox(
+                  width: 108,
+                  height: 84,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(6)),
+                    onPressed: _busy ? null : () => _choose(k),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(reportIcon(k), size: 28),
+                      const SizedBox(height: 4),
+                      Text(reportLabel(l, k),
+                          textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(fontSize: 12)),
+                    ]),
+                  ),
                 ),
             ]),
+            if (identical(kinds, groups.first.$2) && !widget.deliveryFirst) ...[
+              const SizedBox(height: 4),
+              Text(l.reportTemporaryHint, style: theme.textTheme.bodySmall),
+            ],
           ]
         else ...[
           const SizedBox(height: 12),

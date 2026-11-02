@@ -9,11 +9,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
+import '../planner/clusters.dart';
+import '../planner/place_field.dart' show Place;
 import '../planner/planner_screen.dart' show mapTiles;
 import '../planner/route.dart';
 import '../reports/report_sheet.dart';
 import 'corridor.dart';
 import 'guidance.dart';
+import 'nav_widgets.dart';
+import 'route_events.dart';
 import 'speech.dart';
 
 /// Skąd nawigacja bierze pozycję: GPS albo symulacja (testy, pokaz bez jazdy).
@@ -106,6 +110,7 @@ LatLng? pointAlong(List<LatLng> line, double alongM) {
   return null;
 }
 
+
 /// Dane trasy do nawigacji (z planera).
 class NavigationRequest {
   const NavigationRequest({
@@ -113,18 +118,44 @@ class NavigationRequest {
     required this.route,
     required this.destination,
     this.via = const [],
+    this.viaNames = const [],
     this.avoidDifficult = true,
+    this.reports = const [],
+    this.bans = const [],
+    this.deadline,
   });
 
   final String vehicleId;
   final PlannedRoute route;
   final LatLng destination;
   final List<LatLng> via;
+  final List<String> viaNames;
   final bool avoidDifficult;
+
+  /// Zgłoszenia kierowców i zakazy ruchu na tej trasie (z odpowiedzi planera).
+  final List<DriverReport> reports;
+  final List<RoutePlace> bans;
+
+  /// Koniec okna rozładunku (ze zlecenia) – godzina przyjazdu na czerwono, gdy później.
+  final DateTime? deadline;
 }
 
 /// Ile kolejnych pozycji poza trasą (nie na drodze czerwonej), zanim trasa jest przeliczana.
 const offRouteFixes = 3;
+
+/// Zapowiedź głosowa zdarzeń na trasie (fotoradar, przejazd kolejowy, zgłoszenia, zakazy).
+const _spokenKinds = {'speed_camera', 'average_speed', 'level_crossing', 'ban', 'red', 'orange'};
+const eventVoiceM = 500.0;
+
+enum MapTheme { auto, day, night }
+
+/// Mapa nocą: odwrócone jasności kafelków w szarościach (bez osobnego stylu mapy).
+const _nightTiles = ColorFilter.matrix([
+  -0.2126, -0.7152, -0.0722, 0, 235, //
+  -0.2126, -0.7152, -0.0722, 0, 235,
+  -0.2126, -0.7152, -0.0722, 0, 245,
+  0, 0, 0, 1, 0,
+]);
 
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({
@@ -134,6 +165,7 @@ class NavigationScreen extends StatefulWidget {
     this.source,
     this.alarmSound = true,
     this.speaker,
+    this.clock,
   });
 
   final CoreApi api;
@@ -146,6 +178,9 @@ class NavigationScreen extends StatefulWidget {
   /// Głos podany z góry (testy); zwykle syntezator mowy systemu w języku aplikacji.
   final Speaker? speaker;
 
+  /// Zegar podany z góry (testy prędkości i trybu nocnego).
+  final DateTime Function()? clock;
+
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
 }
@@ -154,12 +189,15 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   final _map = MapController();
   final _simulation = SimulatedPositions();
   final _player = AudioPlayer();
-  late final _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+  late final AnimationController _blink;
   GpsPositions? _gps;
   final List<StreamSubscription<LatLng>> _subscriptions = [];
 
   late PlannedRoute _route = widget.request.route;
   late List<LatLng> _via = widget.request.via;
+  late List<String> _viaNames = widget.request.viaNames;
+  late List<DriverReport> _reports = widget.request.reports;
+  late List<RoutePlace> _bans = widget.request.bans;
   Corridor? _corridor;
   String? _corridorError;
   LatLng? _position;
@@ -178,7 +216,16 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   bool _follow = true;
   Guidance? _guidance;
   bool _voice = true;
-  late final Speaker _speaker = widget.speaker ?? systemSpeaker(_speechLanguage(Localizations.localeOf(context)));
+  MapTheme _theme = MapTheme.auto;
+  final _speedMeter = SpeedMeter();
+  double? _speedKmh;
+  final _eventsSpoken = <(String, int)>{};
+  // Tworzony przy pierwszym komunikacie (potrzebny język z kontekstu), zamykany tylko, gdy powstał.
+  Speaker? _speakerOrNull;
+  Speaker get _speaker =>
+      _speakerOrNull ??= widget.speaker ?? systemSpeaker(_speechLanguage(Localizations.localeOf(context)));
+
+  DateTime _now() => widget.clock?.call() ?? DateTime.now();
 
   /// Linie trasy i dróg nieprzejezdnych – budowane raz dla trasy i korytarza, nie przy każdej
   /// pozycji GPS (mapa porównuje linie po zawartości, a trasa ma tysiące punktów).
@@ -200,9 +247,30 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     return _lines;
   }
 
+  /// Zdarzenia i ograniczenia prędkości – liczone raz dla trasy.
+  late List<NavEvent> _events;
+  late SpeedLimits _limits;
+  late double _lengthM;
+
+  void _prepareRoute() {
+    _lengthM = cumulativeM(_route.points).last;
+    _limits = SpeedLimits(_route.points, _route.speedLimits);
+    _events = navEvents(
+      route: _route,
+      lengthM: _lengthM,
+      reports: _reports,
+      bans: _bans,
+      via: _via,
+      destination: widget.request.destination,
+      alongOf: _alongOf,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _prepareRoute();
     _loadCorridor();
     _listen(widget.source ?? _simulation, real: widget.source != null);
     if (widget.source == null) _startGps();
@@ -259,7 +327,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     _gps?.dispose();
     _simulation.dispose();
     _player.dispose();
-    _speaker.dispose();
+    _speakerOrNull?.dispose();
     _blink.dispose();
     _saveTrip();
     // Koniec jazdy: pojazd przestaje być „w użyciu” (bez sieci – serwer zwolni go sam po czasie).
@@ -291,9 +359,11 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     final corridor = _corridor;
     final check = corridor?.check(position);
     final wasAlarm = _check?.alarm != null;
+    final speed = _speedMeter.add(position, _now());
     setState(() {
       _position = position;
       _check = check;
+      _speedKmh = speed;
       if (check?.alongM case final along?) _lastAlongM = along;
       if (check == null || check.onRoute || check.alarm != null) {
         _offRoute = 0;
@@ -309,6 +379,14 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     if (_offRoute >= offRouteFixes && !_recalculating) _recalculate(position);
   }
 
+  /// Pozycja na mapie: na trasie – dopasowana do linii trasy (bez skakania obok drogi).
+  LatLng? get _shownPosition {
+    final along = _check?.alongM;
+    final route = _corridor?.route;
+    if (_check?.onRoute == true && along != null && route != null) return pointAlong(route, along) ?? _position;
+    return _position;
+  }
+
   /// Zgłoszenie w miejscu pojazdu jednym dotknięciem; przy celu najpierw punkty dostawy.
   Future<void> _report(LatLng position) async {
     final nearEnd = distanceM(position, widget.request.destination) < 500;
@@ -318,7 +396,15 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
 
   /// Komunikaty głosowe przy tej pozycji na trasie (najwyżej raz każdy).
   void _announce(double alongM) {
-    final texts = _guidance?.announce(alongM, context.l) ?? const [];
+    final l = context.l;
+    final texts = [..._guidance?.announce(alongM, l, speedKmh: _speedKmh) ?? const <String>[]];
+    for (final e in upcoming(_events, alongM, withinM: eventVoiceM, signals: false)) {
+      final spoken = _spokenKinds.contains(e.kind) || e.kind.startsWith('report:');
+      if (spoken && e.alongM > alongM && _eventsSpoken.add((e.kind, e.alongM.round()))) {
+        final label = eventLabel(l, e);
+        texts.add(l.voiceIn(Guidance.spoken(l, e.alongM - alongM), label[0].toLowerCase() + label.substring(1)));
+      }
+    }
     if (_voice && texts.isNotEmpty) _speaker.speak(texts.join(' '));
   }
 
@@ -343,25 +429,36 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     await _player.stop();
   }
 
-  /// Zjazd z trasy (nie na drogę nieprzejezdną): nowa trasa od pozycji do celu.
-  Future<void> _recalculate(LatLng position) async {
+  /// Zjazd z trasy (nie na drogę nieprzejezdną): nowa trasa od pozycji do celu; [stop] –
+  /// nowy przystanek (parking, MOP) przed pozostałymi punktami pośrednimi.
+  Future<void> _recalculate(LatLng position, {Place? stop}) async {
     setState(() => _recalculating = true);
     // Punkty pośrednie już minięte nie są potrzebne w nowej trasie.
-    final remaining = [for (final via in _via) if (_alongOf(via) > _lastAlongM) via];
+    final remaining = <(LatLng, String)>[
+      if (stop != null) (stop.point, stop.label),
+      for (final (i, via) in _via.indexed)
+        if (_alongOf(via) > _lastAlongM) (via, i < _viaNames.length ? _viaNames[i] : ''),
+    ];
     try {
       final body = await widget.api.post('/api/routes', {
         'origin': {'lat': position.latitude, 'lon': position.longitude},
         'destination': {'lat': widget.request.destination.latitude, 'lon': widget.request.destination.longitude},
-        'via': [for (final v in remaining) {'lat': v.latitude, 'lon': v.longitude}],
+        'via': [for (final (v, _) in remaining) {'lat': v.latitude, 'lon': v.longitude}],
         'vehicle_id': widget.request.vehicleId,
         'avoid_difficult': widget.request.avoidDifficult,
       }) as Map<String, dynamic>;
+      final result = RouteResult.fromJson(body);
       setState(() {
-        _route = RouteResult.fromJson(body).route;
-        _via = remaining;
+        _route = result.route;
+        _reports = result.driverReports;
+        _bans = result.timeBans;
+        _via = [for (final (v, _) in remaining) v];
+        _viaNames = [for (final (_, name) in remaining) name];
         _offRoute = 0;
         _lastAlongM = 0;
-        _notice = context.l.rerouted;
+        _eventsSpoken.clear();
+        _prepareRoute();
+        _notice = stop != null ? context.l.navStopAdded(stop.label) : context.l.rerouted;
       });
       await _loadCorridor();
     } catch (error) {
@@ -372,6 +469,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   }
 
   double _alongOf(LatLng point) {
+    if (_route.points.length < 2) return 0;
     final (_, segment, t) = nearestOnLine(point, _route.points);
     var along = 0.0;
     for (var i = 0; i < segment; i++) {
@@ -380,30 +478,79 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     return along + t * distanceM(_route.points[segment], _route.points[segment + 1]);
   }
 
+  /// „+”: zgłoszenie albo nowy przystanek (parking, MOP) w miejscu pojazdu.
+  Future<void> _more() async {
+    final position = _position;
+    if (position == null) return;
+    final l = context.l;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.campaign_outlined),
+            title: Text(l.navReportAction),
+            onTap: () => Navigator.pop(context, 'report'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.add_location_alt_outlined),
+            title: Text(l.navAddStop),
+            onTap: () => Navigator.pop(context, 'stop'),
+          ),
+        ]),
+      ),
+    );
+    if (!mounted) return;
+    if (choice == 'report') await _report(position);
+    if (choice == 'stop') await _poi();
+  }
+
+  /// „POI”: parkingi dla ciężarówek i MOP-y w pobliżu; „Jedź tutaj” – przystanek na trasie.
+  Future<void> _poi() async {
+    final position = _position;
+    if (position == null) return;
+    final stop = await showModalBottomSheet<Place>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => PoiSheet(api: widget.api, position: position),
+    );
+    if (stop != null && mounted) await _recalculate(_position ?? position, stop: stop);
+  }
+
+  bool get _night => switch (_theme) {
+        MapTheme.night => true,
+        MapTheme.day => false,
+        MapTheme.auto => isDark(_now(), _position ?? widget.request.destination),
+      };
+
   @override
   Widget build(BuildContext context) {
     final check = _check;
     final alarm = check?.alarm;
     final l = context.l;
+    final along = check?.alongM ?? _lastAlongM;
+    final next = alarm == null && check?.alongM != null ? _guidance?.next(along) : null;
+    final then = next == null ? null : _guidance?.after(next.maneuver);
+    final lengthM = _corridor?.lengthM ?? _lengthM;
+    final remainingM = (lengthM - along).clamp(0.0, double.infinity);
+    final remainingMin = lengthM > 0 ? _route.durationMin * remainingM / lengthM : _route.durationMin;
+    final arrival = _now().add(Duration(seconds: (remainingMin * 60).round()));
+    final deadline = widget.request.deadline;
+    final ahead = upcoming(_events, along, withinM: 10000, signals: false)
+        .where((e) => e.kind != 'destination' && (check?.alongM != null))
+        .take(3)
+        .toList();
+    final nextVia = _events.where((e) => e.kind == 'via' && e.alongM > along).firstOrNull;
+    final showStatus = _corridorError != null ||
+        _corridor == null ||
+        check == null ||
+        !check.onRoute ||
+        _notice != null ||
+        _recalculating;
+    final position = _shownPosition;
     return Scaffold(
-      appBar: AppBar(title: Text(l.navigationTitle), actions: [
-        IconButton(
-          tooltip: _voice ? l.voiceOn : l.voiceOff,
-          icon: Icon(_voice ? Icons.volume_up_outlined : Icons.volume_off_outlined),
-          onPressed: () {
-            setState(() => _voice = !_voice);
-            if (!_voice) _speaker.stop();
-          },
-        ),
-        IconButton(
-          tooltip: _follow ? l.followingVehicle : l.backToVehicle,
-          icon: Icon(_follow ? Icons.gps_fixed : Icons.gps_not_fixed),
-          onPressed: () {
-            setState(() => _follow = true);
-            if (_position != null) _map.move(_position!, 16);
-          },
-        ),
-      ]),
       body: Stack(children: [
         FlutterMap(
           mapController: _map,
@@ -416,13 +563,34 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
             },
           ),
           children: [
-            mapTiles(),
+            if (_night) ColorFiltered(colorFilter: _nightTiles, child: mapTiles()) else mapTiles(),
             PolylineLayer(polylines: _routeLines),
+            ClusteredMarkerLayer(color: navPanelColor, markers: [
+              for (final e in _events)
+                if (e.kind != 'traffic_signals' && e.kind != 'destination')
+                  Marker(
+                    point: e.point,
+                    width: 26,
+                    height: 26,
+                    child: CircleAvatar(
+                      backgroundColor: navPanelColor,
+                      child: Icon(eventIcon(e), size: 15, color: eventColor(e)),
+                    ),
+                  ),
+            ]),
             MarkerLayer(markers: [
-              Marker(point: widget.request.destination, width: 30, height: 30, child: const _Pin('B', Color(0xFFA32D2D))),
-              if (_position != null)
+              Marker(
+                point: widget.request.destination,
+                width: 34,
+                height: 34,
+                child: const CircleAvatar(
+                  backgroundColor: navPanelColor,
+                  child: Icon(Icons.sports_score, color: Colors.white, size: 20),
+                ),
+              ),
+              if (position != null)
                 Marker(
-                  point: _position!,
+                  point: position,
                   width: 26,
                   height: 26,
                   child: DecoratedBox(
@@ -438,34 +606,128 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
             SimpleAttributionWidget(source: Text(l.mapAttribution)),
           ],
         ),
-        Positioned(
-          left: 12,
-          right: 12,
-          top: 12,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (check?.alongM case final along? when alarm == null)
-              if (_guidance?.next(along) case final next?) _ManeuverCard(next: next),
-            _StatusBanner(
-              check: check,
-              corridor: _corridor,
-              corridorError: _corridorError,
-              recalculating: _recalculating,
-              notice: _notice,
-            ),
-          ]),
+        SafeArea(
+          child: LayoutBuilder(builder: (context, size) {
+            final wide = size.maxWidth >= 700;
+            final tall = size.maxHeight >= 640;
+            final cardWidth = wide ? 420.0 : size.maxWidth - 88;
+            return Stack(children: [
+              Positioned(
+                left: 12,
+                top: 12,
+                width: cardWidth,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (next != null) ManeuverPanel(next: next),
+                  if (then != null) ...[
+                    const SizedBox(height: 6),
+                    NextStreetPill(maneuver: then),
+                  ],
+                  if (showStatus) ...[
+                    const SizedBox(height: 6),
+                    _StatusBanner(
+                      check: check,
+                      corridor: _corridor,
+                      corridorError: _corridorError,
+                      recalculating: _recalculating,
+                      notice: _notice,
+                    ),
+                  ],
+                  if (ahead.isNotEmpty && tall) ...[
+                    const SizedBox(height: 6),
+                    UpcomingList(events: ahead, alongM: along),
+                  ],
+                ]),
+              ),
+              Positioned(
+                right: 12,
+                top: 12,
+                child: Column(children: [
+                  RoundButton(
+                    tooltip: _voice ? l.voiceOn : l.voiceOff,
+                    icon: _voice ? Icons.volume_up_outlined : Icons.volume_off_outlined,
+                    size: 44,
+                    onPressed: () {
+                      setState(() => _voice = !_voice);
+                      if (!_voice) _speaker.stop();
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  RoundButton(
+                    tooltip: _follow ? l.followingVehicle : l.backToVehicle,
+                    icon: _follow ? Icons.gps_fixed : Icons.gps_not_fixed,
+                    size: 44,
+                    onPressed: () {
+                      setState(() => _follow = true);
+                      if (_position != null) _map.move(_position!, 16);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  RoundButton(
+                    tooltip: switch (_theme) {
+                      MapTheme.auto => l.navThemeAuto,
+                      MapTheme.day => l.navThemeDay,
+                      MapTheme.night => l.navThemeNight,
+                    },
+                    icon: switch (_theme) {
+                      MapTheme.auto => Icons.brightness_auto_outlined,
+                      MapTheme.day => Icons.light_mode_outlined,
+                      MapTheme.night => Icons.dark_mode_outlined,
+                    },
+                    size: 44,
+                    onPressed: () => setState(() => _theme = MapTheme.values[(_theme.index + 1) % 3]),
+                  ),
+                  if (tall && check?.alongM != null) ...[
+                    const SizedBox(height: 8),
+                    RouteStrip(events: _events, alongM: along, height: wide ? 300 : 200),
+                  ],
+                ]),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                        SpeedPanel(
+                          limit: check?.alongM == null ? null : _limits.at(along),
+                          change: check?.alongM == null ? null : _limits.nextChange(along),
+                          speedKmh: _speedKmh,
+                        ),
+                        const SizedBox(height: 8),
+                        _simulationControls(),
+                      ]),
+                    ),
+                    if (_position != null)
+                      Column(mainAxisSize: MainAxisSize.min, children: [
+                        RoundButton(tooltip: l.navPoi, icon: Icons.local_parking, onPressed: _poi),
+                        const SizedBox(height: 8),
+                        RoundButton(tooltip: l.navMore, icon: Icons.add, onPressed: _more),
+                      ]),
+                  ]),
+                  const SizedBox(height: 8),
+                  BottomPanel(
+                    arrival: arrival,
+                    remainingM: remainingM,
+                    remainingMin: remainingMin,
+                    late: deadline != null && arrival.isAfter(deadline),
+                    nextVia: nextVia == null
+                        ? null
+                        : (
+                            nextVia.index ?? 1,
+                            _via.length,
+                            lengthM > 0 ? _route.durationMin * (nextVia.alongM - along) / lengthM : 0,
+                            nextVia.alongM - along,
+                          ),
+                    onEnd: () => Navigator.of(context).maybePop(),
+                    progress: RouteProgress(alongM: along, lengthM: lengthM, events: _events),
+                  ),
+                ]),
+              ),
+            ]);
+          }),
         ),
-        Positioned(left: 12, bottom: 24, child: _simulationControls()),
-        if (_position != null)
-          Positioned(
-            right: 12,
-            bottom: 24,
-            child: FloatingActionButton.extended(
-              heroTag: 'report',
-              onPressed: () => _report(_position!),
-              icon: const Icon(Icons.campaign_outlined),
-              label: Text(l.reportButton),
-            ),
-          ),
         if (alarm != null)
           Positioned.fill(
             child: AnimatedBuilder(
@@ -501,21 +763,22 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
 
   Widget _simulationControls() {
     final l = context.l;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Tooltip(message: l.simulationHint, child: const Icon(Icons.science_outlined, size: 18)),
-          const SizedBox(width: 8),
-          for (final speed in [60.0, 600.0])
-            TextButton(
-              onPressed: () => setState(() => _simulation.drive(_route.points, fromM: _lastAlongM, speedKmh: speed)),
-              child: Text(speed < 100 ? l.simulationDrive : l.simulationFast),
-            ),
-          if (_simulation.driving)
-            TextButton(onPressed: () => setState(_simulation.stopDriving), child: Text(l.simulationStop)),
-        ]),
-      ),
+    return NavPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Tooltip(message: l.simulationHint, child: const Icon(Icons.science_outlined, size: 18, color: Colors.white70)),
+        const SizedBox(width: 4),
+        for (final speed in [60.0, 600.0])
+          TextButton(
+            onPressed: () => setState(() => _simulation.drive(_route.points, fromM: _lastAlongM, speedKmh: speed)),
+            child: Text(speed < 100 ? l.simulationDrive : l.simulationFast, style: const TextStyle(color: navAccent)),
+          ),
+        if (_simulation.driving)
+          TextButton(
+            onPressed: () => setState(_simulation.stopDriving),
+            child: Text(l.simulationStop, style: const TextStyle(color: navAccent)),
+          ),
+      ]),
     );
   }
 }
@@ -541,88 +804,81 @@ class _StatusBanner extends StatelessWidget {
     final corridor = this.corridor;
     final l = context.l;
     final (color, text) = switch ((check, corridor)) {
-      _ when corridorError != null => (Colors.orange.shade800, corridorError!),
-      (_, null) => (Colors.grey.shade700, l.loadingCorridor),
-      (null, _) => (const Color(0xFF185FA5), l.waitingForPosition),
+      _ when corridorError != null => (const Color(0xE0E65100), corridorError!),
+      (_, null) => (navPanelColor, l.loadingCorridor),
+      (null, _) => (navPanelColor, l.waitingForPosition),
       (final c?, final k?) when c.onRoute =>
-        (const Color(0xFF3B6D11), l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
-      (final c?, _) when c.alarm != null => (const Color(0xFFD62828), c.alarm!.message),
-      _ => (Colors.orange.shade800, recalculating ? l.offRouteRecalculating : l.offRoute),
+        (const Color(0xE03B6D11), l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
+      (final c?, _) when c.alarm != null => (const Color(0xF0D62828), c.alarm!.message),
+      _ => (const Color(0xE0E65100), recalculating ? l.offRouteRecalculating : l.offRoute),
     };
-    return Card(
+    return NavPanel(
       color: color,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-          if (notice != null)
-            Text(notice!, style: const TextStyle(color: Colors.white70)),
-        ]),
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(text, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        if (notice != null) Text(notice!, style: const TextStyle(color: Colors.white70)),
+      ]),
     );
   }
 }
 
-/// Następny manewr: strzałka, odległość i napis (np. „300 m · Skręć w prawo w DK94”).
-class _ManeuverCard extends StatelessWidget {
-  const _ManeuverCard({required this.next});
+/// Parkingi dla ciężarówek i MOP-y w promieniu 20 km; wybór zwraca przystanek.
+class PoiSheet extends StatefulWidget {
+  const PoiSheet({super.key, required this.api, required this.position});
 
-  final NextManeuver next;
+  final CoreApi api;
+  final LatLng position;
+
+  @override
+  State<PoiSheet> createState() => _PoiSheetState();
+}
+
+class _PoiSheetState extends State<PoiSheet> {
+  late final Future<dynamic> _parkings = widget.api
+      .get('/api/routes/parkings?lat=${widget.position.latitude}&lon=${widget.position.longitude}');
 
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    return Card(
-      color: const Color(0xFF1F2A33),
+    return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          Icon(maneuverIcon(next.maneuver.type), color: Colors.white, size: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(Guidance.display(l, next.distanceM),
-                  style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
-              Text(next.maneuver.instruction, style: const TextStyle(color: Colors.white, fontSize: 16)),
-            ]),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(l.navPoiTitle, style: Theme.of(context).textTheme.titleMedium),
+          Text(l.navPoiHint, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          FutureBuilder<dynamic>(
+            future: _parkings,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return Text('${snapshot.error}');
+              if (!snapshot.hasData) return const LinearProgressIndicator();
+              final items = (snapshot.data as List<dynamic>).cast<Map<String, dynamic>>();
+              if (items.isEmpty) return Text(l.navPoiEmpty);
+              return ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+                child: ListView(shrinkWrap: true, children: [
+                  for (final p in items)
+                    ListTile(
+                      leading: Icon(p['kind'] == 'truck_parking' ? Icons.local_parking : Icons.local_cafe_outlined),
+                      title: Text('${p['name'] ?? p['kind_label']}'),
+                      subtitle: Text([
+                        if (p['name'] != null) '${p['kind_label']}',
+                        '${l.km((p['distance_m'] as num) / 1000)} km',
+                        if (p['hgv_capacity'] != null) l.navPoiCapacity(p['hgv_capacity'] as int),
+                      ].join(' · ')),
+                      trailing: Text(l.navPoiGo, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                      onTap: () => Navigator.pop(
+                        context,
+                        Place('${p['name'] ?? p['kind_label']}',
+                            LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())),
+                      ),
+                    ),
+                ]),
+              );
+            },
           ),
         ]),
       ),
     );
   }
-}
-
-/// Strzałka do rodzaju manewru Valhalli.
-IconData maneuverIcon(int type) => switch (type) {
-      >= 1 && <= 3 => Icons.navigation_outlined,
-      >= 4 && <= 6 => Icons.flag_outlined,
-      9 => Icons.turn_slight_right,
-      10 => Icons.turn_right,
-      11 => Icons.turn_sharp_right,
-      12 => Icons.u_turn_right,
-      13 => Icons.u_turn_left,
-      14 => Icons.turn_sharp_left,
-      15 => Icons.turn_left,
-      16 => Icons.turn_slight_left,
-      18 || 20 => Icons.ramp_right,
-      19 || 21 => Icons.ramp_left,
-      23 => Icons.fork_right,
-      24 => Icons.fork_left,
-      25 => Icons.merge,
-      26 || 27 => Icons.roundabout_right,
-      28 || 29 => Icons.directions_boat_outlined,
-      _ => Icons.straight,
-    };
-
-class _Pin extends StatelessWidget {
-  const _Pin(this.label, this.color);
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-        child: Center(child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-      );
 }
