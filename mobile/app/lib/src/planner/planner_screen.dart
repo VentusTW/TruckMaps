@@ -7,7 +7,6 @@ import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
 import '../navigation/corridor.dart' show distanceM;
-import '../navigation/navigation_screen.dart';
 import '../reports/report_sheet.dart';
 import '../vehicles/vehicle_form.dart';
 import '../vehicles/vehicle_state.dart' show vehicleHeadline;
@@ -15,6 +14,7 @@ import 'clusters.dart';
 import 'country_bans_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
+import 'route_review.dart';
 
 /// Podkład mapy: kafelki OSM jak w planerze w przeglądarce (testy podmieniają na puste).
 Widget Function() mapTiles = () => TileLayer(
@@ -278,6 +278,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
               _placeMarker(w),
           if (result != null)
             for (final ban in result.timeBans) _placeMarker(ban),
+          if (result != null && _alternative == null)
+            for (final w in result.avoidedWarnings) _placeMarker(w, avoided: true),
           if (result != null)
             for (final report in [...result.destinationPoints, ...result.driverReports]) _reportMarker(report),
           for (final report in _myReports) _reportMarker(report),
@@ -452,17 +454,37 @@ class _PlannerScreenState extends State<PlannerScreen> {
     );
   }
 
-  Marker _placeMarker(RoutePlace place) {
+  /// Znak na mapie; pod spodem dopisek „ominięto” (objazd) albo „zgłoszenie kierowców”.
+  Marker _placeMarker(RoutePlace place, {bool avoided = false}) {
     final ban = place.level == 'ban';
+    final note = avoided ? context.l.avoidedMark : (place.reported ? context.l.reportedMark : null);
+    final sign = ban
+        ? const Text('⛔', style: TextStyle(fontSize: 22))
+        : SizedBox(width: 40, height: 40, child: _sign(place, dashed: avoided));
     return Marker(
       point: place.point,
-      width: ban ? 28 : 40,
-      height: ban ? 28 : 40,
+      width: ban ? 28 : (note == null ? 40 : 120),
+      height: ban ? 28 : (note == null ? 40 : 58),
       child: Tooltip(
         message: place.message,
-        child: ban
-            ? const Text('⛔', style: TextStyle(fontSize: 22))
-            : DecoratedBox(
+        child: note == null
+            ? sign
+            : Column(mainAxisSize: MainAxisSize.min, children: [
+                sign,
+                Container(
+                  margin: const EdgeInsets.only(top: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(4)),
+                  child: Text(note, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                ),
+              ]),
+      ),
+    );
+  }
+
+  Widget _sign(RoutePlace place, {bool dashed = false}) => Opacity(
+        opacity: dashed ? 0.85 : 1,
+        child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
@@ -473,9 +495,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                       style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
                 ),
               ),
-      ),
-    );
-  }
+      );
 
   Widget _buildPanel({ScrollController? scroll}) {
     final theme = Theme.of(context);
@@ -621,23 +641,23 @@ class _PlannerScreenState extends State<PlannerScreen> {
         onPressed: _end == null || _vehicleId == null
             ? null
             : () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => NavigationScreen(
+                  builder: (_) => RouteReviewScreen(
                     api: widget.api,
-                    request: NavigationRequest(
-                      vehicleId: _vehicleId!,
-                      route: shown,
-                      destination: _end!.point,
-                      via: [for (final v in _via) v.point],
-                      viaNames: [for (final v in _via) v.label],
-                      avoidDifficult: _avoid,
-                      // Zgłoszenia i zakazy są policzone dla trasy głównej, nie dla alternatyw.
-                      reports: identical(shown, result.route) ? result.driverReports : const [],
-                      bans: identical(shown, result.route) ? result.timeBans : const [],
-                    ),
+                    result: result,
+                    vehicleId: _vehicleId!,
+                    vehicleHeadline: _vehicles
+                        .where((v) => v['id'] == _vehicleId)
+                        .map((v) => vehicleHeadline(l, v))
+                        .firstOrNull,
+                    destination: _end!.point,
+                    via: [for (final v in _via) v.point],
+                    viaNames: [for (final v in _via) v.label],
+                    avoidDifficult: _avoid,
+                    alternative: _alternative,
                   ),
                 )),
-        icon: const Icon(Icons.navigation_outlined),
-        label: Text(l.navigateWithAlarm),
+        icon: const Icon(Icons.fact_check_outlined),
+        label: Text(l.routeReviewOpen),
       ),
       if (shown.cost != null) ...[
         Text([l.costEstimate, if (shown.cost!.summaryParts(l) case final parts?) parts].join(' · '),
@@ -693,6 +713,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
         const SizedBox(height: 12),
         Text(l.driverReportsTitle, style: theme.textTheme.titleSmall),
         for (final report in result.driverReports) _reportTile(report),
+      ],
+      if (result.avoidedWarnings.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(l.avoidedTitle, style: theme.textTheme.titleSmall),
+        for (final w in result.avoidedWarnings)
+          _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: levelColor(w.level))),
       ],
       if (shown.warnings.isNotEmpty) ...[
         const SizedBox(height: 12),

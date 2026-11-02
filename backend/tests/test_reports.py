@@ -5,7 +5,8 @@ from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.parkings import TruckParking
-from truckmaps.core.routing import Route
+from truckmaps.core.route_analysis import RouteEdge
+from truckmaps.core.routing import NoRouteFound, Route
 from truckmaps.sdk import Principal
 
 TRUCK = {
@@ -184,3 +185,110 @@ def test_temporary_reports_expire_unless_confirmed(database):
         r["kind"] for r in client.get("/api/reports", params=params, headers=as_user("bob")).json()
     ]
     assert kinds == ["speed_camera"]
+
+
+# Prosto przez ulicę z ograniczeniem (droga OSM 2) albo objazdem (droga 3).
+STREET_POINT = {"lat": 52.30, "lon": 19.0}
+
+
+class StreetRouter(FakeRouter):
+    """Trasa przez ulicę ``2``; z wykluczeniami – objazd drogą ``3`` (gdy ``detour``)."""
+
+    def __init__(self, detour=True):
+        self.detour = detour
+        self.located = []
+
+    def streets_near(self, points, radius_m):
+        self.located += points
+        return [[(2, "Ostrogskich", 3.0), (5, "Tuchowska", 30.0)] for _ in points]
+
+    def route(self, stops, vehicle, exclude=None, alternates=0) -> Route:
+        start, end = (stops[0].lon, stops[0].lat), (stops[-1].lon, stops[-1].lat)
+        if exclude and not self.detour:
+            raise NoRouteFound
+        way, middle, km = (3, (19.0, 52.6), 330.0) if exclude else (2, (19.0, 52.3), 310.4)
+        geometry = [start, middle, end]
+        edges = [
+            RouteEdge(way_id=1, begin_index=0, end_index=1, road_class="primary"),
+            RouteEdge(way_id=way, begin_index=1, end_index=2, road_class="primary"),
+        ]
+        return Route(distance_km=km, duration_min=245.0, geometry=geometry, edges=edges)
+
+
+def plan_route(client, user="anna"):
+    headers = as_user(user)
+    vehicle_id = client.post("/api/vehicles", json=TRUCK, headers=headers).json()["id"]
+    body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id}
+    return client.post("/api/routes", json=body, headers=headers)
+
+
+WEIGHT_3_5 = {"kind": "weight_limit", "value": 3.5, **STREET_POINT}
+
+
+def test_reported_weight_limit_is_always_avoided_and_shown_as_sign(database):
+    router = StreetRouter()
+    client = make_client(database, router)
+    client.post("/api/reports", json=WEIGHT_3_5, headers=as_user("anna"))
+
+    route = plan_route(client).json()
+
+    assert route["distance_km"] == 330.0  # objazd, mimo że dłuższy
+    (avoided,) = route["avoided_warnings"]
+    assert (avoided["kind"], avoided["level"], avoided["limit"]) == ("reported", "orange", "3,5 t")
+    assert "zgłoszenie innych kierowców" in avoided["message"]
+    assert router.located == [(19.0, 52.30)]  # droga przypisana raz, przy pierwszej trasie
+    plan_route(client, "bob")
+    assert router.located == [(19.0, 52.30)]
+
+
+def test_unconfirmed_report_without_detour_stays_a_warning(database):
+    client = make_client(database, StreetRouter(detour=False))
+    client.post("/api/reports", json=WEIGHT_3_5, headers=as_user("anna"))
+
+    route = plan_route(client).json()
+
+    assert route["distance_km"] == 310.4
+    assert [(w["kind"], w["level"]) for w in route["analysis"]["warnings"]] == [
+        ("reported", "orange")
+    ]
+
+
+def test_limit_confirmed_by_several_drivers_is_permanent(database):
+    client = make_client(database, StreetRouter(detour=False))
+    for user in ("anna", "bob", "celina"):
+        report = client.post("/api/reports", json=WEIGHT_3_5, headers=as_user(user)).json()
+    assert (report["score"], report["permanent"]) == (3, True)
+
+    # Na stałe – jak dane z mapy: zestaw 40 t nie przejedzie, a objazdu nie ma.
+    response = plan_route(client)
+    assert response.status_code == 422
+    assert "potwierdzone przez kierowców (3)" in response.json()["detail"]
+
+    # Lekki pojazd (inny kierowca) jedzie dalej.
+    light = TRUCK | {"name": "Bus", "weight_t": 3.0, "gvw_t": 3.5, "height_m": 2.8}
+    headers = as_user("dawid")
+    vehicle_id = client.post("/api/vehicles", json=light, headers=headers).json()["id"]
+    body = {"origin": POZNAN, "destination": WARSAW, "vehicle_id": vehicle_id}
+    assert client.post("/api/routes", json=body, headers=headers).status_code == 200
+
+
+def test_street_choice_when_report_is_at_a_junction(database):
+    class JunctionRouter(StreetRouter):
+        def streets_near(self, points, radius_m):
+            self.located += points
+            return [[(5, "Tuchowska", 5.3), (2, "Ostrogskich", 11.6), (6, "Tuchowska", 16.6)]]
+
+    router = JunctionRouter()
+    client = make_client(database, router)
+    anna = as_user("anna")
+
+    streets = client.get("/api/reports/streets", params=STREET_POINT, headers=anna).json()
+    assert [(s["way_id"], s["name"]) for s in streets] == [(5, "Tuchowska"), (2, "Ostrogskich")]
+
+    # Bez wyboru ulicy przy skrzyżowaniu zgłoszenie nie blokuje żadnej drogi (to może być główna).
+    client.post("/api/reports", json=WEIGHT_3_5, headers=anna)
+    assert plan_route(client).json()["distance_km"] == 310.4
+
+    # Kierowca wybrał Ostrogskich – objazd.
+    client.post("/api/reports", json=WEIGHT_3_5 | {"lat": 52.31, "way_id": 2}, headers=anna)
+    assert plan_route(client, "bob").json()["distance_km"] == 330.0

@@ -9,6 +9,7 @@ from truckmaps.core.routing import Route
 from truckmaps.core.timebans import (
     applies,
     check_route,
+    countries_on_route,
     de_holidays,
     easter,
     pl_summer,
@@ -156,3 +157,32 @@ def test_no_bans_on_a_working_day():
 
     assert (result.bans, result.wait_min) == ([], 0)
     assert result.arrival - local("2026-10-28T08:00") == timedelta(hours=6)
+
+
+def test_countries_on_route_with_borders_and_bans():
+    route = route_through(
+        ("PL", "", "motorway", 2), ("DE", "SN", "motorway", 2), ("FR", "", "motorway", 1)
+    )
+    departure = local("2026-10-31T15:00")
+    check = check_route(route, TRUCK, departure)
+
+    found = countries_on_route(route, TRUCK, departure, check)
+
+    assert [(c.country, c.name, c.border, c.bans, c.summary) for c in found] == [
+        ("PL", "Polska", False, "free", "bez zakazu w czasie przejazdu"),
+        ("DE", "Niemcy", True, "ban", "zakaz do 22:00"),
+        ("FR", "Francja", True, "no_data", "brak danych"),
+    ]
+    assert found[1].km > 0 and found[1].enter_at == local("2026-10-31T17:00")
+    # Po postoju w Niemczech do 22:00 i 2 h jazdy – Francja o północy.
+    assert found[2].enter_at == local("2026-11-01T00:00")
+
+
+def test_countries_without_rules_or_for_light_vehicles():
+    route = route_through(("LT", "", "motorway", 1), ("PL", "", "motorway", 1))
+    departure = local("2026-11-01T10:00")
+    check = check_route(route, SOLO_10T, departure)
+
+    found = countries_on_route(route, SOLO_10T, departure, check)
+
+    assert [c.bans for c in found] == ["no_ban", "not_applicable"]

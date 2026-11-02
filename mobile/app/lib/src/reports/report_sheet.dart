@@ -14,6 +14,9 @@ const roadKinds = ['height_limit', 'weight_limit', 'no_trucks', 'road_closed', '
 const _needsNote = {'hours', 'other'};
 const _needsValue = {'height_limit', 'weight_limit'};
 
+/// Ograniczenia ze znaku, które planer omija – kierowca wybiera ulicę, której dotyczą.
+const _roadLimits = {'height_limit', 'weight_limit', 'no_trucks'};
+
 String reportLabel(AppLocalizations l, String kind) => switch (kind) {
       'gate' => l.reportGate,
       'ramp' => l.reportRamp,
@@ -82,6 +85,10 @@ class _ReportSheetState extends State<ReportSheet> {
   bool _busy = false;
   String? _error;
 
+  /// Ulice przy miejscu zgłoszenia (`way_id`, nazwa); `null` – jeszcze nie pobrane.
+  List<(int, String)>? _streets;
+  int? _wayId;
+
   @override
   void dispose() {
     _text.dispose();
@@ -89,14 +96,31 @@ class _ReportSheetState extends State<ReportSheet> {
   }
 
   void _choose(String kind) {
-    if (_needsNote.contains(kind) || _needsValue.contains(kind)) {
+    if (_needsNote.contains(kind) || _needsValue.contains(kind) || _roadLimits.contains(kind)) {
       setState(() {
         _kind = kind;
         _error = null;
         _text.clear();
       });
+      if (_roadLimits.contains(kind) && _streets == null) _loadStreets();
     } else {
       _send(kind);
+    }
+  }
+
+  Future<void> _loadStreets() async {
+    try {
+      final p = widget.point;
+      final list = await widget.api.get('/api/reports/streets?lat=${p.latitude}&lon=${p.longitude}') as List<dynamic>;
+      final streets = [for (final s in list.cast<Map<String, dynamic>>()) (s['way_id'] as int, s['name'] as String)];
+      if (mounted) {
+        setState(() {
+          _streets = streets;
+          if (streets.length == 1) _wayId = streets.single.$1;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _streets = const []); // bez wyboru – serwer przypisze ulicę sam
     }
   }
 
@@ -104,6 +128,8 @@ class _ReportSheetState extends State<ReportSheet> {
     final text = _text.text.trim();
     final value = double.tryParse(text.replaceAll(',', '.'));
     if (_needsValue.contains(kind) && value == null) return setState(() => _error = context.l.reportValueHint);
+    final mustPick = _roadLimits.contains(kind) && (_streets?.length ?? 0) > 1 && _wayId == null;
+    if (mustPick) return setState(() => _error = context.l.reportStreetPick);
     setState(() {
       _busy = true;
       _error = null;
@@ -115,6 +141,7 @@ class _ReportSheetState extends State<ReportSheet> {
         'lon': widget.point.longitude,
         if (_needsNote.contains(kind)) 'note': text,
         if (_needsValue.contains(kind)) 'value': value,
+        if (_roadLimits.contains(kind) && _wayId != null) 'way_id': _wayId,
       });
       if (mounted) Navigator.of(context).pop(DriverReport.fromJson(body as Map<String, dynamic>));
     } catch (error) {
@@ -167,7 +194,8 @@ class _ReportSheetState extends State<ReportSheet> {
           ]
         else ...[
           const SizedBox(height: 12),
-          TextField(
+          if (_needsNote.contains(kind) || _needsValue.contains(kind))
+            TextField(
             controller: _text,
             autofocus: true,
             keyboardType: _needsValue.contains(kind)
@@ -186,6 +214,22 @@ class _ReportSheetState extends State<ReportSheet> {
             ),
             onSubmitted: (_) => _send(kind),
           ),
+          if (_roadLimits.contains(kind)) ...[
+            Text(l.reportStreetQuestion, style: theme.textTheme.labelLarge),
+            const SizedBox(height: 4),
+            if (_streets == null)
+              const LinearProgressIndicator()
+            else
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final (wayId, name) in _streets!)
+                  ChoiceChip(
+                    label: Text(name.isEmpty ? l.reportStreetUnnamed : name),
+                    selected: _wayId == wayId,
+                    onSelected: (_) => setState(() => _wayId = wayId),
+                  ),
+              ]),
+            Text(l.reportStreetHint, style: theme.textTheme.bodySmall),
+          ],
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
             TextButton(onPressed: _busy ? null : () => setState(() => _kind = null), child: Text(l.back)),
             const SizedBox(width: 8),

@@ -25,7 +25,14 @@ double _d(dynamic value) => (value as num).toDouble();
 
 /// Miejsce na trasie z komunikatem (ostrzeżenie oceny albo zakaz ruchu w czasie).
 class RoutePlace {
-  RoutePlace({required this.level, required this.message, required this.km, required this.point, this.limit});
+  RoutePlace({
+    required this.level,
+    required this.message,
+    required this.km,
+    required this.point,
+    this.limit,
+    this.kind,
+  });
 
   factory RoutePlace.fromJson(Map<String, dynamic> json, {String? level}) => RoutePlace(
         level: level ?? json['level'] as String,
@@ -33,6 +40,7 @@ class RoutePlace {
         km: _d(json['km']),
         point: LatLng(_d(json['lat']), _d(json['lon'])),
         limit: json['limit'] as String?,
+        kind: json['kind'] as String?,
       );
 
   final String level;
@@ -42,6 +50,11 @@ class RoutePlace {
 
   /// Wartość do znaku na mapie, np. "4,05 m".
   final String? limit;
+
+  /// Rodzaj ostrzeżenia z oceny trasy, np. `reported` – ograniczenie zgłoszone przez kierowców.
+  final String? kind;
+
+  bool get reported => kind == 'reported';
 }
 
 /// Manewr z komunikatami w języku zapytania (Valhalla): napis, zapowiedź, tuż przed, po.
@@ -366,6 +379,46 @@ class PlannedRoute {
   }
 }
 
+/// Kraj na trasie z wjazdem (przejście graniczne) i zakazami ruchu w czasie przejazdu.
+class CountryOnRoute {
+  CountryOnRoute({
+    required this.country,
+    required this.name,
+    required this.km,
+    required this.point,
+    required this.border,
+    required this.bans,
+    required this.summary,
+    this.enterAt,
+  });
+
+  factory CountryOnRoute.fromJson(Map<String, dynamic> json) => CountryOnRoute(
+        country: json['country'] as String,
+        name: json['name'] as String,
+        km: (json['km'] as num).toDouble(),
+        point: LatLng((json['lat'] as num).toDouble(), (json['lon'] as num).toDouble()),
+        border: json['border'] as bool? ?? false,
+        bans: json['bans'] as String? ?? 'no_data',
+        summary: json['summary'] as String? ?? '',
+        enterAt: json['enter_at'] == null ? null : DateTime.parse(json['enter_at'] as String).toLocal(),
+      );
+
+  final String country;
+  final String name;
+  final double km;
+  final LatLng point;
+
+  /// Wjazd przez granicę (`false` – kraj startu).
+  final bool border;
+
+  /// `ban`, `free`, `not_applicable`, `no_ban` albo `no_data` (kraj bez kalendarza zakazów).
+  final String bans;
+
+  /// Np. „zakaz do 22:00”, „brak danych” – w języku zapytania.
+  final String summary;
+  final DateTime? enterAt;
+}
+
 /// Odpowiedź planera (`POST /api/routes`).
 class RouteResult {
   RouteResult({
@@ -379,6 +432,9 @@ class RouteResult {
     this.waitMin = 0,
     this.freeDeparture,
     this.banCountries = const [],
+    this.departure,
+    this.countries = const [],
+    this.avoidedWarnings = const [],
   });
 
   factory RouteResult.fromJson(Map<String, dynamic> json) {
@@ -409,6 +465,15 @@ class RouteResult {
       freeDeparture:
           bans?['free_departure'] == null ? null : DateTime.parse(bans!['free_departure'] as String).toLocal(),
       banCountries: {for (final b in (bans?['bans'] as List<dynamic>? ?? [])) '${(b as Map)['country']}'}.toList(),
+      departure: json['departure'] == null ? null : DateTime.parse(json['departure'] as String).toLocal(),
+      countries: [
+        for (final c in (json['countries'] as List<dynamic>? ?? []))
+          CountryOnRoute.fromJson(c as Map<String, dynamic>),
+      ],
+      avoidedWarnings: [
+        for (final w in (json['avoided_warnings'] as List<dynamic>? ?? []))
+          RoutePlace.fromJson(w as Map<String, dynamic>),
+      ],
     );
   }
 
@@ -430,4 +495,13 @@ class RouteResult {
 
   /// Kraje, w których trasa trafia na zakaz ruchu (do ekranu zakazów kraju).
   final List<String> banCountries;
+
+  /// Wyjazd, dla którego liczono trasę i zakazy.
+  final DateTime? departure;
+
+  /// Kraje trasy proponowanej, po kolei, z przejściami granicznymi i zakazami.
+  final List<CountryOnRoute> countries;
+
+  /// Trudne miejsca ominięte objazdem (np. ograniczenie zgłoszone przez kierowców) – znaki na mapie.
+  final List<RoutePlace> avoidedWarnings;
 }
