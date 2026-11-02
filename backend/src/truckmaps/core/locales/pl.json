@@ -165,7 +165,6 @@
   "registration.not_image": "To nie jest zdjęcie (obsługiwane: JPG, PNG).",
   "error.consumption_loaded_below_empty": "Spalanie z ładunkiem nie może być mniejsze niż bez ładunku.",
   "registration.text_unreadable": "Nie udało się odczytać danych z tekstu dowodu. Zrób ostrzejsze zdjęcie albo wpisz dane ręcznie.",
-  "error.admin_private_vehicle": "Pojazdu prywatnego administrator nie zmienia – tylko jego właściciel.",
   "error.member_required": "Pojazd prywatny można przypisać tylko członkowi firmy.",
   "error.merge_same": "Wybierz dwa różne pojazdy.",
   "error.merge_vin": "Scalać można tylko pojazdy z tym samym numerem VIN.",
@@ -206,5 +205,16 @@
   "country.RS": "Serbia",
   "country.GR": "Grecja",
   "route.reported": "{message} – zgłoszenie innych kierowców (potwierdzeń: {count}), brak w danych mapy",
-  "route.reported_permanent": "{message} – potwierdzone przez kierowców ({count})"
+  "route.reported_permanent": "{message} – potwierdzone przez kierowców ({count})",
+  "error.admin_private_owner": "Pojazd prywatny można przypisać tylko firmie, do której należy jego właściciel.",
+  "error.person_scope": "Osoba prywatna udziela zgody tylko na zmiany w swoich pojazdach.",
+  "error.no_email": "Konto logowania nie ma adresu e-mail – powiadomień e-mail nie da się włączyć.",
+  "email.subject": "TruckMaps: {title}",
+  "email.body": "{title}\n\nSzczegóły znajdziesz w skrzynce w aplikacji TruckMaps.\n\nPowiadomienia e-mail wyłączysz w aplikacji: Konto → Powiadomienia e-mail.",
+  "inbox.generic": "Nowa wiadomość w skrzynce",
+  "inbox.admin_access_request": "Administrator prosi o dostęp do zmian",
+  "inbox.admin_extension_request": "Administrator prosi o przedłużenie dostępu",
+  "inbox.admin_access_closed": "Administrator zakończył zmiany i zamknął dostęp",
+  "inbox.vehicle_due": "Termin pojazdu: {vehicle_name}",
+  "error.trip_times": "Koniec przejazdu musi być po jego początku, najwyżej 48 godz. później."
 }

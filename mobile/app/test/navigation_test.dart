@@ -113,6 +113,9 @@ void main() {
     expect(requests.where((p) => p == '/api/corridor').length, 2);
 
     await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    // Koniec nawigacji: przejazd (ok. 2 km według pozycji) idzie do statystyk pojazdu.
+    expect(requests, containsAll(['/api/vehicles/v1/trips', '/api/vehicles/v1/release']));
   });
 
   test('pozycja w symulacji jazdy po trasie', () {

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:http/testing.dart';
+import 'package:truckmaps_app/src/vehicles/service_dates.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_form.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_state.dart';
 import 'package:truckmaps_app/src/vehicles/vehicles_table.dart';
@@ -393,6 +394,15 @@ void main() {
     expect(matchesVehicle(truck, 'xyz'), isFalse);
     expect(nextServiceDate({'insurance_until': '2027-01-10', 'inspection_until': '2026-12-01'})?.day,
         DateTime(2026, 12, 1));
+  });
+
+  test('serwis według przebiegu: ostrzeżenie 2000 km wcześniej, ujemne po terminie', () {
+    expect(serviceKmLeft({'odometer_km': 410000, 'service_due_km': 420000}), isNull);
+    expect(serviceKmLeft({'odometer_km': 418500, 'service_due_km': 420000}), 1500);
+    expect(serviceKmLeft({'odometer_km': 420300, 'service_due_km': 420000}), -300);
+    expect(serviceKmLeft({'service_due_km': 420000}), isNull);
+    expect(serviceDateApplies('ocp_until', kind: 'semitrailer', body: 'curtain', hazmat: false), isFalse);
+    expect(serviceDateApplies('ocp_until', kind: 'tractor', body: 'none', hazmat: false), isTrue);
   });
 
   testWidgets('kolory stanu: niebieski podpięta, żółty zgłoszona usterka, czerwony w naprawie', (tester) async {

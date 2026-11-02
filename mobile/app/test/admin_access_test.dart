@@ -171,8 +171,8 @@ void main() {
     // Informacja bez decyzji – przeczytana od razu; prośba czeka na decyzję.
     expect(requests.where((r) => r.$2 == '/api/me/messages/m0/read'), hasLength(1));
     expect(requests.where((r) => r.$2 == '/api/me/messages/m1/read'), isEmpty);
-    final card = tester.widget<Card>(
-        find.ancestor(of: find.text('Anna prosi o dostęp do zmian'), matching: find.byType(Card)));
+    final card =
+        tester.widget<Card>(find.ancestor(of: find.text('Anna prosi o dostęp do zmian'), matching: find.byType(Card)));
     expect(card.color, isNotNull);
 
     await tester.tap(find.text('Zgoda (1 godz.)'));
@@ -181,6 +181,36 @@ void main() {
     expect(find.text('Zgoda (1 godz.)'), findsNothing);
     expect(find.textContaining('aktywny do'), findsOneWidget);
     expect(changed, greaterThan(0));
+  });
+
+  testWidgets('przypomnienia o terminach pojazdu w skrzynce', (tester) async {
+    Map<String, dynamic> due(String id, Map<String, dynamic> data) => {
+          'id': id,
+          'kind': 'vehicle_due',
+          'sender_name': '',
+          'company_id': null,
+          'grant_id': null,
+          'grant': null,
+          'data': {'vehicle_id': 'v1', 'vehicle_name': 'Zestaw', 'plate': 'KTA 12', ...data},
+          'created_at': '2026-11-01T06:00:00Z',
+          'read': false,
+        };
+    messages = [
+      due('m1', {'field': 'insurance_until', 'day': '2026-10-30', 'overdue': true}),
+      due('m2', {'field': 'service_due_km', 'km_left': 1500, 'overdue': false}),
+      {
+        ...due('m3', {'order_id': 'o1', 'description': 'Wycieka olej', 'reporter_name': 'Jan', 'urgency': 'stopped'}),
+        'kind': 'service.order_new',
+      },
+    ];
+    await tester.pumpWidget(localized(InboxScreen(api: api())));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Termin pojazdu: Zestaw · KTA 12'), findsNWidgets(2));
+    expect(find.text('Nowe zgłoszenie usterki: Zestaw · KTA 12'), findsOneWidget);
+    expect(find.textContaining('zgłosił(a): Jan'), findsOneWidget);
+    expect(find.textContaining('Po terminie – Ubezpieczenie OC ważne do'), findsOneWidget);
+    expect(find.text('Wkrótce – serwis za 1500 km'), findsOneWidget);
   });
 
   testWidgets('prośba czekająca na ekranie dostępu: zgoda albo odmowa', (tester) async {
@@ -192,5 +222,77 @@ void main() {
     await tester.tap(find.byTooltip('Zgoda (1 godz.)'));
     await tester.pumpAndSettle();
     expect(find.textContaining('aktywny do'), findsOneWidget);
+  });
+
+  testWidgets('pojazdy prywatne: osoba udziela zgody na pojazdy, prośba w skrzynce idzie na /api/me', (tester) async {
+    final sent = <(String, String, Object?)>[];
+    var personal = <Map<String, dynamic>>[];
+    final client = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async {
+        final body = request.body.isEmpty ? null : jsonDecode(request.body);
+        sent.add((request.method, request.url.path, body));
+        switch ((request.method, request.url.path)) {
+          case ('GET', '/api/me/admin-access'):
+            return json({'grants': personal, 'changes': []});
+          case ('POST', '/api/me/admin-access'):
+            personal = [
+              {
+                ...grant('p1'),
+                'company_id': null,
+                'scopes': ['vehicles']
+              }
+            ];
+            return json(personal.first, 201);
+          case ('POST', '/api/me/admin-access/g4/accept'):
+            return json({
+              ...grant('g4'),
+              'company_id': null,
+              'scopes': ['vehicles']
+            });
+          case ('GET', '/api/me/messages'):
+            return json({
+              'unread': 1,
+              'items': [
+                {
+                  'id': 'm4',
+                  'kind': 'admin_access_request',
+                  'sender_name': 'Anna',
+                  'company_id': null,
+                  'grant_id': 'g4',
+                  'grant': {
+                    ...grant('g4', state: 'pending'),
+                    'company_id': null,
+                    'scopes': ['vehicles']
+                  },
+                  'data': {
+                    'scopes': ['vehicles'],
+                    'note': 'duble po VIN',
+                  },
+                  'created_at': '2026-10-30T10:00:00Z',
+                  'read': false,
+                },
+              ],
+            });
+        }
+        return http.Response('', 204);
+      }),
+    );
+    await tester.pumpWidget(localized(AdminAccessScreen.personal(api: client)));
+    await tester.pumpAndSettle();
+    expect(find.text('Dostęp administratora do moich pojazdów'), findsOneWidget);
+    await tester.tap(find.text('Udziel dostępu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dane firmy i stawki'), findsNothing); // tylko zakres „pojazdy”
+    await tester.tap(find.widgetWithText(FilledButton, 'Udziel dostępu'));
+    await tester.pumpAndSettle();
+    expect(sent.singleWhere((r) => r.$1 == 'POST').$3, containsPair('scopes', ['vehicles']));
+
+    await tester.pumpWidget(localized(InboxScreen(api: client, onChanged: () {})));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zgoda (1 godz.)'));
+    await tester.pumpAndSettle();
+    expect(sent.any((r) => r.$2 == '/api/me/admin-access/g4/accept'), isTrue);
   });
 }

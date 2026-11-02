@@ -41,10 +41,21 @@ String grantStateLabel(AppLocalizations l, Map<String, dynamic>? grant) {
 /// Administrator widzi dane zawsze, ale zmienia je wyłącznie po zgodzie właściciela, przez
 /// określony czas (zwykle godzinę); każda jego zmiana jest w dzienniku poniżej.
 class AdminAccessScreen extends StatefulWidget {
-  const AdminAccessScreen({super.key, required this.api, required this.companyId});
+  const AdminAccessScreen({super.key, required this.api, required String companyId})
+      : path = '/api/companies/$companyId/admin-access',
+        scopes = adminScopes,
+        personal = false;
+
+  /// Zgoda osoby na zmiany administratora w jej pojazdach prywatnych (ekran „Konto”).
+  const AdminAccessScreen.personal({super.key, required this.api})
+      : path = '/api/me/admin-access',
+        scopes = const ['vehicles'],
+        personal = true;
 
   final CoreApi api;
-  final String companyId;
+  final String path;
+  final List<String> scopes;
+  final bool personal;
 
   @override
   State<AdminAccessScreen> createState() => _AdminAccessScreenState();
@@ -54,7 +65,7 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
   late Future<dynamic> _access = widget.api.get(_path);
   Timer? _ticker;
 
-  String get _path => '/api/companies/${widget.companyId}/admin-access';
+  String get _path => widget.path;
 
   @override
   void initState() {
@@ -88,7 +99,8 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
   }
 
   Future<void> _grant() async {
-    final grant = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => const _GrantDialog());
+    final grant =
+        await showDialog<Map<String, dynamic>>(context: context, builder: (_) => _GrantDialog(scopes: widget.scopes));
     if (grant != null && mounted) await _call(() => widget.api.post(_path, grant));
   }
 
@@ -125,13 +137,15 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
           final grants = (data['grants'] as List<dynamic>).cast<Map<String, dynamic>>();
           final changes = (data['changes'] as List<dynamic>).cast<Map<String, dynamic>>();
           return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 88), children: [
-            Text(l.adminAccessTitle, style: theme.textTheme.titleSmall),
-            Text(l.adminAccessHint, style: theme.textTheme.bodySmall),
-            if (grants.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminAccessNone)),
+            Text(widget.personal ? l.adminAccessPersonalTitle : l.adminAccessTitle, style: theme.textTheme.titleSmall),
+            Text(widget.personal ? l.adminAccessPersonalHint : l.adminAccessHint, style: theme.textTheme.bodySmall),
+            if (grants.isEmpty)
+              Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminAccessNone)),
             for (final grant in grants) _grantTile(l, grant),
             const SizedBox(height: 24),
             Text(l.adminChangesTitle, style: theme.textTheme.titleSmall),
-            if (changes.isEmpty) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminChangesNone)),
+            if (changes.isEmpty)
+              Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminChangesNone)),
             for (final change in changes) _changeTile(l, change),
           ]);
         },
@@ -229,7 +243,9 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
 
 /// Zakres, czas i notatka dostępu, którego właściciel udziela sam.
 class _GrantDialog extends StatefulWidget {
-  const _GrantDialog();
+  const _GrantDialog({required this.scopes});
+
+  final List<String> scopes;
 
   @override
   State<_GrantDialog> createState() => _GrantDialogState();
@@ -237,7 +253,7 @@ class _GrantDialog extends StatefulWidget {
 
 class _GrantDialogState extends State<_GrantDialog> {
   final _note = TextEditingController();
-  final _scopes = <String>{'company'};
+  late final _scopes = <String>{widget.scopes.first};
   int _minutes = grantMinutes;
 
   @override
@@ -256,7 +272,7 @@ class _GrantDialogState extends State<_GrantDialog> {
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(l.adminGrantHint),
-            for (final scope in adminScopes)
+            for (final scope in widget.scopes)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _scopes.contains(scope),
@@ -270,7 +286,8 @@ class _GrantDialogState extends State<_GrantDialog> {
               onChanged: (value) => setState(() => _minutes = value ?? _minutes),
             ),
             const SizedBox(height: 16),
-            TextField(controller: _note, maxLength: 300, decoration: field(l.adminGrantNote, hint: l.adminGrantNoteHint)),
+            TextField(
+                controller: _note, maxLength: 300, decoration: field(l.adminGrantNote, hint: l.adminGrantNoteHint)),
           ]),
         ),
       ),
@@ -280,7 +297,10 @@ class _GrantDialogState extends State<_GrantDialog> {
           onPressed: _scopes.isEmpty
               ? null
               : () => Navigator.pop(context, {
-                    'scopes': [for (final s in adminScopes) if (_scopes.contains(s)) s],
+                    'scopes': [
+                      for (final s in widget.scopes)
+                        if (_scopes.contains(s)) s
+                    ],
                     'minutes': _minutes,
                     'note': _note.text.trim(),
                   }),

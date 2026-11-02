@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:truckmaps_app/src/l10n.dart';
 import 'package:truckmaps_app/src/planner/place_field.dart';
 import 'package:truckmaps_app/src/planner/route.dart';
@@ -43,6 +44,33 @@ void main() {
     expect(result.waitMin, 240);
     expect(result.issues, ['Trudny dojazd do celu']);
     expect(result.freeDeparture, isNotNull);
+  });
+
+  test('koszt: paliwo i AdBlue ze spalania pojazdu, rozbicie na kraje', () async {
+    await initializeDateFormatting('pl');
+    final pl = lookupAppLocalizations(const Locale('pl'));
+    final cost = Cost.fromJson({'amount': 235.29, 'currency': 'EUR', 'fuel': 139.5, 'adblue': 2.79, 'consumption': 30});
+    expect(cost!.summaryParts(pl), 'w tym paliwo ≈ 140 EUR (30/100 km), AdBlue ≈ 3 EUR');
+    expect(Cost.fromJson({'amount': 93.0, 'currency': 'EUR'})!.summaryParts(pl), isNull);
+    final m4 = Cost.fromJson({
+      'amount': 300.0,
+      'currency': 'EUR',
+      'fuel': 190.0,
+      'consumption': 30,
+      'fuel_prices_day': '2026-10-26',
+      'parts': [
+        {'kind': 'fuel', 'amount': 53.4, 'country': 'PL', 'km': 100},
+        {'kind': 'toll', 'amount': 13.2, 'country': 'PL', 'km': 100},
+        {'kind': 'fuel', 'amount': 137.9, 'country': 'DE', 'km': 200},
+        {'kind': 'toll', 'amount': 0, 'country': 'CZ', 'km': 50, 'unknown': true},
+      ],
+    })!;
+    expect(m4.countryLines(pl), [
+      'PL: paliwo ≈ 53 EUR, myto ≈ 13 EUR (100 km)',
+      'DE: paliwo ≈ 138 EUR',
+      'CZ: myto – 50 km płatnych dróg, kwota w kalkulatorze operatora',
+      'ceny ON z biuletynu KE z 26.10.2026',
+    ]);
   });
 
   test('współrzędne GPS w polu adresu', () {

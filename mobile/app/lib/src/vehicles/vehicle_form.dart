@@ -26,7 +26,6 @@ String trailerLabel(AppLocalizations l, String type) => switch (type) {
 const vehicleKinds = ['tractor', 'rigid', 'van', 'bus', 'semitrailer', 'trailer'];
 
 /// Naczepy i przyczepy to wyposażenie floty – trasę liczy się dla pozostałych.
-const towedKinds = {'semitrailer', 'trailer'};
 /// Co do czego można podpiąć: do ciągnika naczepę, do solówki, autobusu i dostawczego przyczepę.
 const couples = {'tractor': 'semitrailer', 'rigid': 'trailer', 'bus': 'trailer', 'van': 'trailer'};
 
@@ -103,6 +102,8 @@ const _ranges = {
   'adblue_percent': (0.0, 15.0),
   'fuel_price': (0.01, 1000.0),
   'adblue_price': (0.01, 1000.0),
+  'odometer_km': (0.0, 10000000.0),
+  'service_due_km': (0.0, 10000000.0),
 };
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
@@ -178,7 +179,14 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'vin': TextEditingController(text: text('vin')),
       'production_year': TextEditingController(text: text('production_year')),
       'pallet_places': TextEditingController(text: text('pallet_places')),
-      for (final key in const ['consumption_empty', 'consumption_loaded', 'adblue_percent', 'fuel_price', 'adblue_price'])
+      for (final key in const [
+        'consumption_empty',
+        'consumption_loaded',
+        'adblue_percent',
+        'fuel_price',
+        'adblue_price',
+        ...mileageKeys,
+      ])
         key: TextEditingController(text: text(key)),
     };
     _emission = v['emission_class'] as String?;
@@ -347,6 +355,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       for (final key in ['adblue_percent', 'adblue_price']) key: _hasAdBlue ? _number(key) : null,
       'pallet_places': bodyKinds.contains(_kind) && _trailer != 'tanker' ? _number('pallet_places')?.round() : null,
       for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
+      for (final key in mileageKeys) key: towedKinds.contains(_kind) ? null : _number(key)?.round(),
     };
     try {
       final saved = _editing
@@ -567,6 +576,11 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                 shortcut: serviceDateShortcut(l, key),
               ),
             ),
+          if (motor)
+            row([
+              for (final key in mileageKeys)
+                _numberField(key, mileageLabel(l, key), suffix: 'km', required: false, integer: true),
+            ]),
           if (motor) ...[
             section(l.vehicleCosts, l.vehicleCostsHint),
             row([

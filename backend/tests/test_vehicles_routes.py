@@ -1216,6 +1216,42 @@ def test_vehicle_more_dates_follow_the_kind(database):
     assert van["leasing_until"] == "2029-12-31"
 
 
+def test_insurance_dates_and_service_by_mileage(database):
+    client = make_client(database)
+    extra = {
+        "ac_until": "2027-03-01",
+        "ocp_until": "2027-04-01",
+        "udt_until": "2027-06-30",
+        "odometer_km": 412_000,
+        "service_due_km": 420_000,
+    }
+    truck = client.post("/api/vehicles", json=TRUCK | extra, headers=as_user("anna")).json()
+    assert {k: truck[k] for k in extra} == extra
+
+    # Naczepa: bez licznika i OCP; autocasco i UDT (winda) zostają.
+    trailer = client.post(
+        "/api/vehicles", json=TRUCK | extra | {"kind": "semitrailer"}, headers=as_user("anna")
+    ).json()
+    assert (trailer["ocp_until"], trailer["odometer_km"], trailer["service_due_km"]) == (
+        None,
+        None,
+        None,
+    )
+    assert (trailer["ac_until"], trailer["udt_until"]) == ("2027-03-01", "2027-06-30")
+
+    # Same terminy: wysłane pola się zmieniają, pominięte zostają.
+    saved = client.put(
+        f"/api/vehicles/{truck['id']}/service",
+        json={"odometer_km": 419_500},
+        headers=as_user("anna"),
+    ).json()
+    assert (saved["odometer_km"], saved["service_due_km"], saved["ocp_until"]) == (
+        419_500,
+        420_000,
+        "2027-04-01",
+    )
+
+
 def test_registration_from_eu_certificate_text(database):
     client = make_client(database)
     text = """ZULASSUNGSBESCHEINIGUNG TEIL I

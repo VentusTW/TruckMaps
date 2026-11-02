@@ -1,6 +1,7 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import '../company/admin_access_screen.dart';
 import '../l10n.dart';
 import 'common.dart';
 import 'onboarding.dart';
@@ -38,6 +39,7 @@ class _AccountScreenState extends State<AccountScreen> {
   late final _name = TextEditingController(text: widget.settings['display_name'] as String? ?? '');
   late String? _currency = widget.settings['currency'] as String?;
   late String? _language = widget.settings['language'] as String?;
+  late bool _email = widget.settings['email_notifications'] == true;
   List<String> _currencies = const [];
   bool _busy = false;
 
@@ -91,6 +93,11 @@ class _AccountScreenState extends State<AccountScreen> {
     final previous = _currency;
     setState(() => _currency = currency);
     if (!await _put({'currency': currency}) && mounted) setState(() => _currency = previous);
+  }
+
+  Future<void> _changeEmail(bool on) async {
+    setState(() => _email = on);
+    if (!await _put({'email_notifications': on}) && mounted) setState(() => _email = !on);
   }
 
   Future<void> _open(Widget form) async {
@@ -159,6 +166,18 @@ class _AccountScreenState extends State<AccountScreen> {
           padding: const EdgeInsets.only(top: 4, bottom: 16),
           child: Text(l.accountCurrencyHint, style: theme.textTheme.bodySmall),
         ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _email,
+          onChanged: _busy || (widget.settings['email_available'] != true && !_email) ? null : _changeEmail,
+          title: Text(l.accountEmailNotifications),
+          subtitle: Text(widget.settings['email_available'] != true
+              ? l.accountEmailUnavailable
+              : widget.settings['email'] == null
+                  ? l.accountEmailMissing
+                  : l.accountEmailTo('${widget.settings['email']}')),
+        ),
+        const SizedBox(height: 16),
         Text(l.accountCompanies, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         Wrap(spacing: 12, runSpacing: 8, children: [
@@ -176,14 +195,22 @@ class _AccountScreenState extends State<AccountScreen> {
         const SizedBox(height: 24),
         Text(l.accountSecurity, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
+        Wrap(spacing: 12, runSpacing: 8, children: [
+          OutlinedButton.icon(
             onPressed: _changePassword,
             icon: const Icon(Icons.lock_reset),
             label: Text(l.passwordChangeTitle),
           ),
-        ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute(
+                builder: (_) => Scaffold(
+                      appBar: AppBar(title: Text(l.adminAccessPersonalTitle)),
+                      body: AdminAccessScreen.personal(api: widget.api),
+                    ))),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+            label: Text(l.adminAccessPersonalTitle),
+          ),
+        ]),
         const SizedBox(height: 24),
         FilledButton.tonalIcon(onPressed: widget.onLogout, icon: const Icon(Icons.logout), label: Text(l.logout)),
       ]),

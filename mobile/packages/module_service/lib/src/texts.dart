@@ -76,6 +76,27 @@ class ServiceTexts {
   String get notes => _t('Uwagi', 'Notes');
   String get numberInvalid => _t('Wpisz liczbę.', 'Enter a number.');
   String hours(String value) => _t('$value h', '$value h');
+  String get currency => _t('Waluta cen części', 'Currency of part prices');
+  String get photos => _t('Zdjęcia', 'Photos');
+  String get addPhoto => _t('Dodaj zdjęcie', 'Add photo');
+  String get printProtocol => _t('Protokół do druku / PDF', 'Printable protocol / PDF');
+  String get protocolOpenFailed =>
+      _t('Nie udało się otworzyć protokołu w przeglądarce.', 'Could not open the protocol in the browser.');
+  String get costs => _t('Koszty napraw', 'Repair costs');
+  String get costsHint => _t('Zakończone naprawy pojazdów, które obsługujesz: części według protokołów i czas pracy.',
+      'Completed repairs of the vehicles you look after: parts from the protocols and labour time.');
+  String get costsEmpty => _t('Brak zakończonych napraw.', 'No completed repairs.');
+  String costsLine(int orders, String parts, String hours) =>
+      _t('Naprawy: $orders · części: $parts · praca: $hours h', 'Repairs: $orders · parts: $parts · labour: $hours h');
+  String number(double value) => NumberFormat.decimalPattern(locale.toLanguageTag()).format(value);
+  String amount(double value, String? currency) => [
+        NumberFormat.decimalPatternDigits(locale: locale.toLanguageTag(), decimalDigits: 2).format(value),
+        if (currency != null) currency,
+      ].join(' ');
+  String newOrder(String vehicle) => _t('Nowe zgłoszenie usterki: $vehicle', 'New fault report: $vehicle');
+  String orderDone(String vehicle) => _t('Naprawa zakończona: $vehicle', 'Repair completed: $vehicle');
+  String reportedByShort(String name) => _t('zgłosił(a): $name', 'reported by $name');
+  String mechanicShort(String name) => _t('mechanik: $name', 'mechanic: $name');
 
   /// Data jednakowa dla wszystkich języków (bez nazw miesięcy).
   String _date(DateTime when) => DateFormat('yyyy-MM-dd HH:mm').format(when.toLocal());

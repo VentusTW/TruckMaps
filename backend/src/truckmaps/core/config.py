@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+OIL_BULLETIN_URL = "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,20 @@ class Settings:
     exchange_rates_url: str | None = None
     """Kursy walut EBC (``currency.ECB_URL``); ``None`` – bez pobierania (testy)."""
 
+    fuel_prices_url: str | None = None
+    """Strona Weekly Oil Bulletin KE (``OIL_BULLETIN_URL``); ``None`` – bez pobierania (testy)."""
+
+    smtp_host: str | None = None
+    """Serwer SMTP do powiadomień e-mail; ``None`` – bez e-maili."""
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_sender: str = "TruckMaps <noreply@truckmaps.localhost>"
+    smtp_starttls: bool = True
+
+    vehicle_reminders: bool = False
+    """Przypomnienia o terminach pojazdów w tle (``Settings.from_env`` – domyślnie włączone)."""
+
     admin_require_mfa: bool = True
     """Program administracyjny tylko po logowaniu z drugim składnikiem (``amr`` w tokenie)."""
 
@@ -75,6 +90,15 @@ class Settings:
             photon_url=env.get("TRUCKMAPS_PHOTON_URL", cls.photon_url),
             # Pusta wartość wyłącza pobieranie kursów (np. serwer bez dostępu do internetu).
             exchange_rates_url=env.get("TRUCKMAPS_EXCHANGE_RATES_URL", ECB_URL) or None,
+            fuel_prices_url=env.get("TRUCKMAPS_FUEL_PRICES_URL", OIL_BULLETIN_URL) or None,
+            smtp_host=env.get("TRUCKMAPS_SMTP_HOST") or None,
+            smtp_port=int(env.get("TRUCKMAPS_SMTP_PORT") or 587),
+            smtp_user=env.get("TRUCKMAPS_SMTP_USER") or None,
+            smtp_password=env.get("TRUCKMAPS_SMTP_PASSWORD") or None,
+            smtp_sender=env.get("TRUCKMAPS_SMTP_FROM") or cls.smtp_sender,
+            smtp_starttls=env.get("TRUCKMAPS_SMTP_STARTTLS", "1").lower() in {"1", "true", "yes"},
+            vehicle_reminders=env.get("TRUCKMAPS_VEHICLE_REMINDERS", "1").lower()
+            in {"1", "true", "yes"},
             # Bezpiecznie domyślnie: wyłączenie tylko wprost (np. lokalny Zitadel bez 2FA).
             admin_require_mfa=env.get("TRUCKMAPS_ADMIN_REQUIRE_MFA", "1").lower()
             in {"1", "true", "yes"},

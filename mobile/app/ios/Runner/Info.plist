@@ -4,6 +4,17 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>pl</string>
+		<string>en</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>TruckMaps uses the camera to read the code and data from the vehicle registration certificate.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TruckMaps reads vehicle data from the registration certificate photo you choose.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TruckMaps uses your location for navigation and to check that you follow the planned route.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Truckmaps App</string>
 	<key>CFBundleExecutable</key>

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from sqlalchemy import Boolean, Date, String, func, select, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -71,6 +71,12 @@ class UserSettings(Base):
     """Język aplikacji; brak = język telefonu."""
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     """Pierwsze logowanie za nami: firma założona, dołączenie kodem albo „sam, bez firmy”."""
+    email_notifications: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    """Powiadomienia e-mail o nowych wiadomościach – włącza sam użytkownik."""
+    email: Mapped[str | None] = mapped_column(String(320))
+    """Adres z konta logowania, zapisany przy włączeniu powiadomień."""
 
 
 @dataclass(frozen=True)
@@ -191,11 +197,18 @@ class SettingsIn(BaseModel):
         default=None, examples=["pl"], description="Język aplikacji; brak = język telefonu"
     )
     onboarded: bool = False
+    email_notifications: bool = Field(
+        default=False, description="Powiadomienia e-mail o nowych wiadomościach w skrzynce"
+    )
 
 
 class SettingsOut(SettingsIn):
     display_name: str = ""
     """Ustawione imię albo imię z konta logowania."""
+    email: str | None = None
+    """Adres z konta logowania (tam idą powiadomienia)."""
+    email_available: bool = False
+    """Czy serwer wysyła e-maile (ustawiony SMTP)."""
 
 
 def display_name(user: Principal, settings: UserSettings | None = None) -> str:
@@ -212,7 +225,14 @@ def _settings_out(user: Principal, settings: UserSettings | None) -> SettingsOut
         display_name=display_name(user, settings),
         language=settings.language if settings else None,
         onboarded=bool(settings and settings.onboarded),
+        email_notifications=bool(settings and settings.email_notifications),
+        email=user.claims.get("email") or (settings.email if settings else None),
+        email_available=email_available,
     )
+
+
+email_available = False
+"""Ustawia ``app.create_app`` – serwer z SMTP wysyła powiadomienia e-mail."""
 
 
 def build_router(current_user) -> APIRouter:
@@ -238,6 +258,11 @@ def build_router(current_user) -> APIRouter:
         settings = db.get(UserSettings, user.subject) or UserSettings(subject=user.subject)
         for name, value in data.model_dump(exclude_unset=True).items():
             setattr(settings, name, value)
+        if data.email_notifications:
+            email = user.claims.get("email")
+            if not email:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.no_email"))
+            settings.email = str(email)[:320]
         db.add(settings)
         if "display_name" in data.model_fields_set:
             # Nowe imię widać od razu we wszystkich firmach użytkownika.

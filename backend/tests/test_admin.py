@@ -418,3 +418,45 @@ def test_vehicle_duplicates_merge_and_assign_need_grant(client, database, admins
     assert stranger.status_code == 422
     assigned = client.put(url, json={"owner_subject": "owner"}, headers=boss).json()
     assert (assigned["company_id"], assigned["owner_subject"]) == (None, "owner")
+
+
+def test_private_vehicles_need_the_persons_consent(client, database, admins, company):
+    owner, boss, solo = as_user("owner"), as_user("boss", mfa=True), as_user("solo")
+    kept = client.post(
+        "/api/vehicles", json=TRACTOR | {"company_id": company}, headers=owner
+    ).json()
+    private = client.post("/api/vehicles", json=TRACTOR | {"plate": "KR 1"}, headers=solo).json()
+    client.post(
+        f"/api/companies/{company}/admin-access",
+        json={"scopes": ["vehicles"], "minutes": 60},
+        headers=owner,
+    )
+    merge = {"keep_id": kept["id"], "merge_id": private["id"]}
+    assert client.post("/api/admin/vehicles/merge", json=merge, headers=boss).status_code == 403
+
+    # Administrator prosi osobę; tylko o pojazdy – osoba widzi prośbę i się zgadza.
+    url = "/api/admin/accounts/solo/access-requests"
+    wrong = {"scopes": ["company"], "note": "duble po VIN"}
+    assert client.post(url, json=wrong, headers=boss).status_code == 422
+    asked = client.post(url, json={"scopes": ["vehicles"], "note": "duble po VIN"}, headers=boss)
+    assert asked.status_code == 201
+    grant_id = asked.json()["id"]
+    assert client.get("/api/me/admin-access", headers=owner).json()["grants"] == []
+    accepted = client.post(
+        f"/api/me/admin-access/{grant_id}/accept", json={"minutes": 30}, headers=solo
+    )
+    assert accepted.json()["active"] is True
+
+    merged = client.post("/api/admin/vehicles/merge", json=merge, headers=boss)
+    assert merged.status_code == 200
+    assert merged.json()["plate"] == "KR 1"
+    mine = client.get("/api/me/admin-access", headers=solo).json()
+    assert [c["action"] for c in mine["changes"]] == ["vehicle.merge"]
+
+    # Cofnięta zgoda – dalsze zmiany odrzucone.
+    assert client.delete(f"/api/me/admin-access/{grant_id}", headers=solo).status_code == 204
+    again = client.post("/api/vehicles", json=TRACTOR, headers=solo).json()
+    assign = client.put(
+        f"/api/admin/vehicles/{again['id']}/assign", json={"company_id": company}, headers=boss
+    )
+    assert assign.status_code == 403

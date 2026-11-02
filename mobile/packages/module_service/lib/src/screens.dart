@@ -1,10 +1,42 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'texts.dart';
 
 const _base = '/api/m/service';
+
+/// Zdjęcie do zlecenia (`null` – anulowano): aparat na telefonie, plik na komputerze.
+typedef PhotoPicker = Future<Uint8List?> Function();
+
+Future<Uint8List?> pickServicePhoto() async {
+  final phone = defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
+  final file = await ImagePicker().pickImage(
+    source: phone ? ImageSource.camera : ImageSource.gallery,
+    maxWidth: 1600,
+    maxHeight: 1600,
+    imageQuality: 80,
+  );
+  return file?.readAsBytes();
+}
+
+/// Otwiera stronę HTML (protokół do druku) w przeglądarce; `false` – nie udało się.
+typedef HtmlOpener = Future<bool> Function(String html, String name);
+
+Future<bool> openHtml(String html, String name) async {
+  final file = File('${Directory.systemTemp.path}${Platform.pathSeparator}truckmaps-$name.html');
+  await file.writeAsString(html);
+  return launchUrl(Uri.file(file.path));
+}
+
+/// Waluty cen części w protokole (pierwsza – domyślna dla polskiego).
+const protocolCurrencies = ['PLN', 'EUR', 'CZK', 'HUF', 'RON', 'GBP', 'CHF'];
 
 InputDecoration _field(String label, {String? hint, String? suffix}) =>
     InputDecoration(labelText: label, hintText: hint, suffixText: suffix, border: const OutlineInputBorder(), isDense: true);
@@ -57,17 +89,25 @@ class _ServiceScreenState extends State<ServiceScreen> {
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: true, label: Text(t.openOrders)),
-              ButtonSegment(value: false, label: Text(t.allOrders)),
-            ],
-            selected: {_openOnly},
-            onSelectionChanged: (value) {
-              _openOnly = value.first;
-              _reload();
-            },
-          ),
+          child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(value: true, label: Text(t.openOrders)),
+                ButtonSegment(value: false, label: Text(t.allOrders)),
+              ],
+              selected: {_openOnly},
+              onSelectionChanged: (value) {
+                _openOnly = value.first;
+                _reload();
+              },
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute<void>(builder: (_) => CostsScreen(api: widget.api))),
+              icon: const Icon(Icons.payments_outlined),
+              label: Text(t.costs),
+            ),
+          ]),
         ),
         Expanded(
           child: FutureBuilder<dynamic>(
@@ -242,10 +282,13 @@ class _ReportScreenState extends State<ReportScreen> {
 
 /// Zlecenie: szczegóły, a dla mechanika / dyspozytora / właściciela – kolejne kroki.
 class OrderScreen extends StatefulWidget {
-  const OrderScreen({super.key, required this.api, required this.order});
+  const OrderScreen(
+      {super.key, required this.api, required this.order, this.photoPicker = pickServicePhoto, this.htmlOpener = openHtml});
 
   final CoreApi api;
   final Map<String, dynamic> order;
+  final PhotoPicker photoPicker;
+  final HtmlOpener htmlOpener;
 
   @override
   State<OrderScreen> createState() => _OrderScreenState();
@@ -273,6 +316,23 @@ class _OrderScreenState extends State<OrderScreen> {
       if (mounted) setState(() => _error = '$error');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _addPhoto(String stage) async {
+    final bytes = await widget.photoPicker();
+    if (bytes == null || !mounted) return;
+    await _action('photos', {'image': base64Encode(bytes), 'stage': stage});
+  }
+
+  Future<void> _openProtocol() async {
+    final t = ServiceTexts.of(context);
+    try {
+      final page = await widget.api.get('$_base/orders/${_order['id']}/protocol') as Map<String, dynamic>;
+      final opened = await widget.htmlOpener('${page['html']}', '${page['filename']}');
+      if (!opened && mounted) setState(() => _error = t.protocolOpenFailed);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
     }
   }
 
@@ -309,6 +369,8 @@ class _OrderScreenState extends State<OrderScreen> {
     final status = o['status'] as String?;
     final handle = o['can_handle'] == true;
     final parts = (o['parts'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final photos = (o['photos'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final open = status == 'new' || status == 'accepted' || status == 'in_progress';
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) {
@@ -350,7 +412,7 @@ class _OrderScreenState extends State<OrderScreen> {
                 title: Text('${p['name']}'),
                 trailing: Text([
                   '× ${p['quantity']}',
-                  if (p['price'] != null) '${p['price']}',
+                  if (p['price'] != null) [p['price'], if (o['currency'] != null) o['currency']].join(' '),
                 ].join('  ')),
               ),
             if (o['labour_hours'] != null) Text('${t.labourHours}: ${t.hours('${o['labour_hours']}')}'),
@@ -359,7 +421,32 @@ class _OrderScreenState extends State<OrderScreen> {
             if (DateTime.tryParse('${o['inspection_until']}') case final day?) Text(t.inspectionValid(day)),
             if (o['completed_at'] != null)
               Text(t.completed(DateTime.parse('${o['completed_at']}')), style: theme.textTheme.bodySmall),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: _openProtocol,
+                icon: const Icon(Icons.print_outlined),
+                label: Text(t.printProtocol),
+              ),
+            ),
           ],
+          if (photos.isNotEmpty) ...[
+            const Divider(height: 32),
+            Text(t.photos, style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final photo in photos) _Photo(api: widget.api, id: '${photo['id']}', key: ValueKey(photo['id'])),
+            ]),
+          ],
+          if (open && photos.length < 10)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: _busy ? null : () => _addPhoto(handle && status == 'in_progress' ? 'protocol' : 'report'),
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: Text(t.addPhoto),
+              ),
+            ),
           const SizedBox(height: 16),
           if (_error != null)
             Padding(
@@ -382,6 +469,102 @@ class _OrderScreenState extends State<OrderScreen> {
   }
 }
 
+/// Miniatura zdjęcia zlecenia (pobierana z serwera, w pamięci); dotknięcie – powiększenie.
+class _Photo extends StatefulWidget {
+  const _Photo({super.key, required this.api, required this.id});
+
+  final CoreApi api;
+  final String id;
+
+  @override
+  State<_Photo> createState() => _PhotoState();
+}
+
+class _PhotoState extends State<_Photo> {
+  late final Future<Uint8List> _bytes = widget.api
+      .get('$_base/photos/${widget.id}')
+      .then((json) => base64Decode('${(json as Map<String, dynamic>)['image']}'));
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Uint8List>(
+        future: _bytes,
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes == null) {
+            return SizedBox(
+              width: 96,
+              height: 96,
+              child: Center(child: snapshot.hasError ? const Icon(Icons.broken_image_outlined) : const CircularProgressIndicator()),
+            );
+          }
+          return InkWell(
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (_) => Dialog(child: InteractiveViewer(child: Image.memory(bytes))),
+            ),
+            child: Image.memory(bytes, width: 96, height: 96, fit: BoxFit.cover),
+          );
+        },
+      );
+}
+
+/// Koszty zakończonych napraw według pojazdów: liczba napraw, części, godziny pracy.
+class CostsScreen extends StatefulWidget {
+  const CostsScreen({super.key, required this.api});
+
+  final CoreApi api;
+
+  @override
+  State<CostsScreen> createState() => _CostsScreenState();
+}
+
+class _CostsScreenState extends State<CostsScreen> {
+  late Future<dynamic> _costs = widget.api.get('$_base/costs');
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ServiceTexts.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(t.costs)),
+      body: FutureBuilder<dynamic>(
+        future: _costs,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('${snapshot.error}'),
+                TextButton(
+                  onPressed: () => setState(() => _costs = widget.api.get('$_base/costs')),
+                  child: Text(t.retry),
+                ),
+              ]),
+            );
+          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final rows = (snapshot.data as List<dynamic>).cast<Map<String, dynamic>>();
+          return ListView(padding: const EdgeInsets.all(12), children: [
+            Text(t.costsHint, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            if (rows.isEmpty) Text(t.costsEmpty),
+            for (final row in rows)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.local_shipping_outlined),
+                  title: Text(_vehicleTitle(row)),
+                  subtitle: Text(t.costsLine(
+                    row['orders'] as int,
+                    t.amount((row['parts_total'] as num).toDouble(), row['currency'] as String?),
+                    t.number((row['labour_hours'] as num).toDouble()),
+                  )),
+                ),
+              ),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
 /// Protokół naprawy: czynności, części (nazwa, ilość, cena), czas pracy, przebieg, uwagi.
 class ProtocolScreen extends StatefulWidget {
   const ProtocolScreen({super.key});
@@ -398,6 +581,7 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
   final _notes = TextEditingController();
   final List<(TextEditingController, TextEditingController, TextEditingController)> _parts = [];
   bool _inspection = false;
+  String? _currency;
 
   /// Przegląd techniczny zwykle ważny rok.
   DateTime _inspectionUntil = DateUtils.dateOnly(DateTime.now()).add(const Duration(days: 365));
@@ -409,6 +593,8 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
     }
     super.dispose();
   }
+
+  String get _defaultCurrency => Localizations.localeOf(context).languageCode == 'pl' ? 'PLN' : 'EUR';
 
   String? _number(String? text, ServiceTexts t) =>
       (text ?? '').trim().isEmpty || _parse(text!) != null ? null : t.numberInvalid;
@@ -425,6 +611,7 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
       'labour_hours': _parse(_hours.text),
       'odometer_km': _parse(_odometer.text)?.round(),
       'notes': _notes.text.trim(),
+      'currency': _currency ?? _defaultCurrency,
       if (_inspection)
         'inspection_until': '${_inspectionUntil.year.toString().padLeft(4, '0')}-'
             '${_inspectionUntil.month.toString().padLeft(2, '0')}-${_inspectionUntil.day.toString().padLeft(2, '0')}',
@@ -457,6 +644,16 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
               label: Text(t.addPart),
             ),
           ]),
+          if (_parts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: DropdownButtonFormField<String>(
+                value: _currency ?? _defaultCurrency,
+                decoration: _field(t.currency),
+                items: [for (final c in protocolCurrencies) DropdownMenuItem(value: c, child: Text(c))],
+                onChanged: (value) => setState(() => _currency = value),
+              ),
+            ),
           for (final (i, p) in _parts.indexed)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),

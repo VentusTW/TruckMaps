@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
@@ -138,14 +139,89 @@ class Segment {
   final String level;
 }
 
+/// Część kosztu z modułu kosztów: paliwo, AdBlue albo myto w jednym kraju.
+class CostPart {
+  const CostPart(this.kind, this.amount, {this.country = '', this.km, this.unknown = false});
+
+  final String kind;
+  final double amount;
+  final String country;
+  final double? km;
+
+  /// Myto: płatne drogi są, ale stawki dla pojazdu nie znamy.
+  final bool unknown;
+
+  factory CostPart.fromJson(Map<String, dynamic> json) => CostPart(
+        json['kind'] as String,
+        _d(json['amount']),
+        country: json['country'] as String? ?? '',
+        km: (json['km'] as num?)?.toDouble(),
+        unknown: json['unknown'] == true,
+      );
+}
+
 class Cost {
-  const Cost(this.amount, this.currency);
+  const Cost(this.amount, this.currency,
+      {this.fuel, this.adblue, this.consumption, this.parts = const [], this.fuelPricesDay});
 
   final double amount;
   final String currency;
 
-  static Cost? fromJson(dynamic json) =>
-      json == null ? null : Cost(_d(json['amount']), json['currency'] as String);
+  /// Paliwo i AdBlue ze spalania pojazdu (części [amount]); `null` – nie liczone.
+  final double? fuel;
+  final double? adblue;
+  final double? consumption;
+  final List<CostPart> parts;
+
+  /// Tydzień cen ON z Weekly Oil Bulletin KE, gdy z nich liczono paliwo.
+  final DateTime? fuelPricesDay;
+
+  static Cost? fromJson(dynamic json) => json == null
+      ? null
+      : Cost(
+          _d(json['amount']),
+          json['currency'] as String,
+          fuel: (json['fuel'] as num?)?.toDouble(),
+          adblue: (json['adblue'] as num?)?.toDouble(),
+          consumption: (json['consumption'] as num?)?.toDouble(),
+          parts: [
+            for (final part in (json['parts'] as List<dynamic>? ?? [])) CostPart.fromJson(part as Map<String, dynamic>),
+          ],
+          fuelPricesDay: json['fuel_prices_day'] is String ? DateTime.tryParse(json['fuel_prices_day'] as String) : null,
+        );
+
+  /// „w tym paliwo ≈ 140 € (30/100 km), AdBlue ≈ 3 €” albo `null`, gdy paliwa nie liczono.
+  String? summaryParts(AppLocalizations l) {
+    if (fuel == null) return null;
+    final volume = NumberFormat.decimalPattern(l.localeName).format(consumption ?? 0);
+    return [
+      l.costFuelPart(l.money(fuel!, currency), volume),
+      if (adblue != null) l.costAdBluePart(l.money(adblue!, currency)),
+    ].join(', ');
+  }
+
+  /// Wiersze per kraj: „DE: paliwo ≈ 138 €, myto ≈ 70 € (200 km)”; na końcu data cen ON.
+  List<String> countryLines(AppLocalizations l) {
+    final countries = <String>[];
+    for (final part in parts) {
+      if (part.country.isNotEmpty && !countries.contains(part.country)) countries.add(part.country);
+    }
+    String km(double? value) => NumberFormat.decimalPattern(l.localeName).format((value ?? 0).round());
+    return [
+      for (final country in countries)
+        l.costCountryLine(country, [
+          for (final part in parts.where((p) => p.country == country))
+            switch (part.kind) {
+              'fuel' => l.costFuelItem(l.money(part.amount, currency)),
+              'adblue' => l.costAdBluePart(l.money(part.amount, currency)),
+              'toll' when part.unknown => l.costTollUnknown(km(part.km)),
+              'toll' => l.costTollItem(l.money(part.amount, currency), km(part.km)),
+              _ => '',
+            },
+        ].where((text) => text.isNotEmpty).join(', ')),
+      if (fuelPricesDay != null) l.costFuelPricesDay(DateFormat.yMd(l.localeName).format(fuelPricesDay!)),
+    ];
+  }
 }
 
 /// Trasa (wybrana albo alternatywa) z oceną dla pojazdu.
@@ -193,13 +269,13 @@ class PlannedRoute {
   final Cost? cost;
 
   /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia).
-  List<(List<LatLng>, String)> get coloredParts {
-    if (segments.isEmpty) return [(points, 'unknown')];
-    return [
-      for (final s in segments)
-        if (s.end < points.length) (points.sublist(s.start, s.end + 1), s.level),
-    ];
-  }
+  /// Kawałki linii trasy w kolorach oceny – liczone raz (mapa rysuje je przy każdej pozycji GPS).
+  late final List<(List<LatLng>, String)> coloredParts = segments.isEmpty
+      ? [(points, 'unknown')]
+      : [
+          for (final s in segments)
+            if (s.end < points.length) (points.sublist(s.start, s.end + 1), s.level),
+        ];
 
   String summary(AppLocalizations l) {
     final hours = durationMin ~/ 60, minutes = (durationMin % 60).round();

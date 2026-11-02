@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps używa aparatu do odczytu kodu i danych z dowodu rejestracyjnego pojazdu.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps odczytuje dane pojazdu ze zdjęcia dowodu rejestracyjnego, które wybierzesz.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps używa położenia do nawigacji i do sprawdzania, czy jedziesz zaplanowaną trasą.";

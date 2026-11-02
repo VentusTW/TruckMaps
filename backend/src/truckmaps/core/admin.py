@@ -40,6 +40,7 @@ from truckmaps.core.i18n import t
 from truckmaps.core.inbox import Kind, mark_read, send
 from truckmaps.core.releases import Release
 from truckmaps.core.reports import DriverReport
+from truckmaps.core.trips import move_trips
 from truckmaps.core.vehicles import VehicleProfile, _drop_broken_couplings
 from truckmaps.sdk import Principal
 
@@ -108,6 +109,8 @@ class AuditEntry(Base):
     action: Mapped[str] = mapped_column(String(50), default="", index=True)
     """Rodzaj zmiany, np. ``company.update``; puste – sam odczyt."""
     company_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    owner_subject: Mapped[str | None] = mapped_column(String(255), index=True)
+    """Zmiana w pojeździe prywatnym – widzi ją ta osoba."""
     changes: Mapped[dict | None] = mapped_column(JSON)
     """``{"pole": [przed, po]}``."""
 
@@ -123,14 +126,17 @@ class GrantState(StrEnum):
 
 
 class AccessGrant(Base):
-    """Dostęp administratora do zmian w firmie: prośba administratora i zgoda właściciela."""
+    """Dostęp administratora do zmian w firmie (zgoda właściciela) albo w pojazdach prywatnych
+    osoby (zgoda tej osoby): prośba administratora i zgoda."""
 
     __tablename__ = "company_access_grants"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    company_id: Mapped[str] = mapped_column(
+    company_id: Mapped[str | None] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), index=True
     )
+    subject: Mapped[str | None] = mapped_column(String(255), index=True)
+    """Osoba prywatna, która udziela zgody na swoje pojazdy (wtedy bez ``company_id``)."""
     scopes: Mapped[list] = mapped_column(JSON)
     note: Mapped[str] = mapped_column(String(300), default="")
     """Powód prośby administratora albo notatka właściciela."""
@@ -194,7 +200,8 @@ class MinutesIn(BaseModel):
 
 class GrantOut(BaseModel):
     id: str
-    company_id: str
+    company_id: str | None
+    subject: str | None = None
     scopes: list[Scope]
     note: str
     state: GrantState
@@ -231,6 +238,7 @@ def _grant_out(db: Session, grant: AccessGrant, moment: datetime) -> GrantOut:
     return GrantOut(
         id=grant.id,
         company_id=grant.company_id,
+        subject=grant.subject,
         scopes=grant.scopes,
         note=grant.note,
         state=state,
@@ -249,7 +257,10 @@ def describe_grant(db: Session, grant_id: str) -> dict | None:
     return grant and _grant_out(db, grant, _now()).model_dump(mode="json")
 
 
-def _owners(db: Session, company_id: str) -> list[str]:
+def _owners(db: Session, company_id: str | None, subject: str | None = None) -> list[str]:
+    """Kto decyduje o dostępie: właściciele firmy albo sama osoba (pojazdy prywatne)."""
+    if company_id is None:
+        return [subject] if subject else []
     return list(
         db.scalars(
             select(CompanyMember.subject).where(
@@ -309,14 +320,26 @@ def _record(database: Database, scope, state: dict, status_code: int) -> None:
                 user_agent=headers.get("user-agent", "")[:300],
                 action=audit.get("action", "") if changed else "",
                 company_id=audit.get("company_id"),
+                owner_subject=audit.get("owner_subject"),
                 changes=audit.get("changes") if changed else None,
             )
         )
         db.commit()
 
 
-def _audit(request: Request, action: str, company_id: str | None, changes: dict) -> None:
-    request.state.audit = {"action": action, "company_id": company_id, "changes": changes}
+def _audit(
+    request: Request,
+    action: str,
+    company_id: str | None,
+    changes: dict,
+    owner_subject: str | None = None,
+) -> None:
+    request.state.audit = {
+        "action": action,
+        "company_id": company_id,
+        "owner_subject": owner_subject,
+        "changes": changes,
+    }
 
 
 def _apply(target: Any, data: dict) -> dict:
@@ -371,6 +394,13 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
 
     Admin = Annotated[AdminAccount, Depends(admin)]
     FullAdmin = Annotated[AdminAccount, Depends(full_admin)]
+
+    def require_person_grant(db: Session, subject: str, scope: Scope) -> None:
+        """Pojazdy prywatne: aktywna zgoda tej osoby."""
+        moment = _now()
+        grants = db.scalars(select(AccessGrant).where(AccessGrant.subject == subject))
+        if not any(g.active(moment) and scope in g.scopes for g in grants):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.admin_access_not_granted"))
 
     def require_grant(db: Session, company_id: str, scope: Scope) -> None:
         if db.get(Company, company_id) is None:
@@ -636,15 +666,22 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             groups.setdefault(vehicle.vin, []).append(vehicle_row(vehicle, name))
         return [{"vin": vin, "vehicles": items} for vin, items in groups.items()]
 
-    def company_vehicle(db: Session, vehicle_id: str) -> VehicleProfile:
-        """Pojazd firmy – prywatnych administrator nie zmienia (brak zgody właściciela)."""
+    def managed_vehicle(db: Session, vehicle_id: str) -> VehicleProfile:
+        """Pojazd firmy za zgodą firmy, pojazd prywatny za zgodą jego właściciela."""
         vehicle = db.get(VehicleProfile, vehicle_id)
         if vehicle is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.vehicle_not_found"))
         if vehicle.company_id is None:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, t("error.admin_private_vehicle"))
-        require_grant(db, vehicle.company_id, Scope.VEHICLES)
+            require_person_grant(db, vehicle.owner_subject, Scope.VEHICLES)
+        else:
+            require_grant(db, vehicle.company_id, Scope.VEHICLES)
         return vehicle
+
+    def audit_vehicle(
+        request: Request, action: str, vehicle: VehicleProfile, changes: dict
+    ) -> None:
+        owner = vehicle.owner_subject if vehicle.company_id is None else None
+        _audit(request, action, vehicle.company_id, changes, owner)
 
     def is_member(db: Session, company_id: str, subject: str) -> bool:
         return (
@@ -660,13 +697,23 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
     def assign_vehicle(
         vehicle_id: str, data: AssignIn, request: Request, account: FullAdmin, db: Db
     ) -> dict:
-        """Przypisanie pojazdu firmy innej firmie albo członkowi firmy (za zgodą obu firm)."""
-        vehicle = company_vehicle(db, vehicle_id)
+        """Przypisanie pojazdu innej firmie albo członkowi firmy (za zgodą obu stron).
+        Pojazd prywatny – tylko do firmy, do której jego właściciel należy."""
+        vehicle = managed_vehicle(db, vehicle_id)
         source = vehicle.company_id
+        before = {"company_id": source, "owner_subject": vehicle.owner_subject}
         if data.company_id is not None:
             if data.company_id != source:
                 require_grant(db, data.company_id, Scope.VEHICLES)
+            if source is None and not is_member(db, data.company_id, vehicle.owner_subject):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.member_required")
+                )
             changes = _apply(vehicle, {"company_id": data.company_id})
+        elif source is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.admin_private_owner")
+            )
         else:
             # Pojazd prywatny – tylko dla członka firmy, z której wychodzi.
             if not data.owner_subject or not is_member(db, source, data.owner_subject):
@@ -680,9 +727,12 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
                 select(VehicleProfile).where(VehicleProfile.trailer_id == vehicle.id)
             ):
                 holder.trailer_id = None
-        _audit(
-            request, "vehicle.assign", source, {"vehicle": [vehicle.name, vehicle.name], **changes}
-        )
+        summary = {"vehicle": [vehicle.name, vehicle.name], **changes}
+        if source is None:
+            # Pojazd wyszedł z prywatnych – zmiana w dzienniku właściciela i nowej firmy.
+            _audit(request, "vehicle.assign", data.company_id, summary, before["owner_subject"])
+        else:
+            _audit(request, "vehicle.assign", source, summary)
         db.commit()
         name = db.get(Company, vehicle.company_id).name if vehicle.company_id else None
         return vehicle_row(vehicle, name)
@@ -693,7 +743,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
         na zachowany pojazd, dubel jest usuwany; zgoda każdej firmy, w dzienniku obu."""
         if data.keep_id == data.merge_id:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.merge_same"))
-        keep, merged = company_vehicle(db, data.keep_id), company_vehicle(db, data.merge_id)
+        keep, merged = managed_vehicle(db, data.keep_id), managed_vehicle(db, data.merge_id)
         if not keep.vin or keep.vin != merged.vin:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.merge_vin"))
         filled = {}
@@ -713,12 +763,13 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             holder.trailer_id = keep.id if holder.id != keep.id else None
         db.flush()
         _drop_broken_couplings(db, keep)
+        move_trips(db, keep.id, merged.id)
         for handler in request.app.state.modules.vehicle_merge_handlers:
             handler(db, keep.id, merged.id)
         summary = {"merged": [f"{merged.name} ({merged.id})", None], **filled}
-        _audit(request, "vehicle.merge", keep.company_id, summary)
-        if merged.company_id != keep.company_id:
-            # Firma dubla też widzi scalenie we własnym dzienniku.
+        audit_vehicle(request, "vehicle.merge", keep, summary)
+        if (merged.company_id, merged.owner_subject) != (keep.company_id, keep.owner_subject):
+            # Właściciel dubla (firma albo osoba) też widzi scalenie we własnym dzienniku.
             db.add(
                 AuditEntry(
                     subject=account.subject,
@@ -728,6 +779,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
                     status_code=200,
                     action="vehicle.merge",
                     company_id=merged.company_id,
+                    owner_subject=merged.owner_subject if merged.company_id is None else None,
                     changes=summary,
                 )
             )
@@ -913,19 +965,50 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
         db.commit()
         return _grant_out(db, created, moment)
 
+    @router.post(
+        "/api/admin/accounts/{subject}/access-requests", status_code=status.HTTP_201_CREATED
+    )
+    def request_person_access(
+        subject: str, data: RequestIn, account: FullAdmin, db: Db
+    ) -> GrantOut:
+        """Prośba do osoby o zgodę na zmiany w jej pojazdach prywatnych."""
+        if set(data.scopes) != {Scope.VEHICLES}:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.person_scope"))
+        moment = _now()
+        created = AccessGrant(
+            subject=subject,
+            scopes=[Scope.VEHICLES],
+            note=data.note.strip(),
+            requested_by=account.subject,
+            requested_at=moment,
+        )
+        db.add(created)
+        db.flush()
+        send(
+            db,
+            [subject],
+            Kind.ACCESS_REQUEST,
+            sender_name=account.name,
+            grant_id=created.id,
+            data={"scopes": created.scopes, "note": created.note},
+        )
+        db.commit()
+        return _grant_out(db, created, moment)
+
     @router.get("/api/admin/grants")
     def my_grants(account: Admin, db: Db) -> list[dict]:
         """Prośby i dostępy tego administratora – do odliczania czasu w programie."""
         moment = _now()
         rows = db.execute(
             select(AccessGrant, Company.name)
-            .join(Company, Company.id == AccessGrant.company_id)
+            .outerjoin(Company, Company.id == AccessGrant.company_id)
             .where(AccessGrant.requested_by == account.subject)
             .order_by(AccessGrant.requested_at.desc())
             .limit(PAGE_LIMIT)
         )
         return [
-            {**_grant_out(db, g, moment).model_dump(), "company_name": name} for g, name in rows
+            {**_grant_out(db, g, moment).model_dump(), "company_name": name or g.subject}
+            for g, name in rows
         ]
 
     @router.post("/api/admin/grants/{grant_id}/close", status_code=status.HTTP_204_NO_CONTENT)
@@ -937,7 +1020,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             found.revoked_by = account.subject
             send(
                 db,
-                _owners(db, found.company_id),
+                _owners(db, found.company_id, found.subject),
                 Kind.ACCESS_CLOSED,
                 sender_name=account.name,
                 company_id=found.company_id,
@@ -955,7 +1038,7 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_active"))
         send(
             db,
-            _owners(db, found.company_id),
+            _owners(db, found.company_id, found.subject),
             Kind.EXTENSION_REQUEST,
             sender_name=account.name,
             company_id=found.company_id,
@@ -963,6 +1046,98 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             data={"minutes": data.minutes},
         )
         db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # --- Osoba prywatna: zgoda na zmiany administratora w jej pojazdach ------------------
+
+    def persons_grant(db: Session, grant_id: str, user: Principal) -> AccessGrant:
+        found = db.get(AccessGrant, grant_id)
+        if found is None or found.subject != user.subject:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.grant_not_found"))
+        return found
+
+    @router.get("/api/me/admin-access")
+    def my_access(user: User, db: Db) -> AdminAccess:
+        moment = _now()
+        grants = db.scalars(
+            select(AccessGrant)
+            .where(AccessGrant.subject == user.subject)
+            .order_by(func.coalesce(AccessGrant.requested_at, AccessGrant.granted_at).desc())
+        )
+        entries = db.execute(
+            select(AuditEntry, AdminAccount.name)
+            .outerjoin(AdminAccount, AdminAccount.subject == AuditEntry.subject)
+            .where(AuditEntry.owner_subject == user.subject, AuditEntry.action != "")
+            .order_by(AuditEntry.id.desc())
+            .limit(PAGE_LIMIT)
+        )
+        return AdminAccess(
+            grants=[_grant_out(db, g, moment) for g in grants],
+            changes=[
+                ChangeOut(
+                    at=_aware(e.at),
+                    admin=name or e.subject,
+                    action=e.action,
+                    changes=e.changes or {},
+                )
+                for e, name in entries
+            ],
+        )
+
+    @router.post("/api/me/admin-access", status_code=status.HTTP_201_CREATED)
+    def my_grant_create(data: GrantIn, user: User, db: Db) -> GrantOut:
+        """Osoba udziela dostępu do swoich pojazdów sama (np. na prośbę wsparcia)."""
+        if set(data.scopes) != {Scope.VEHICLES}:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.person_scope"))
+        moment = _now()
+        created = AccessGrant(
+            subject=user.subject,
+            scopes=[Scope.VEHICLES],
+            note=data.note.strip(),
+            granted_by=user.subject,
+            granted_at=moment,
+            expires_at=moment + timedelta(minutes=data.minutes),
+        )
+        db.add(created)
+        db.commit()
+        return _grant_out(db, created, moment)
+
+    @router.post("/api/me/admin-access/{grant_id}/{action}")
+    def my_grant_action(
+        grant_id: str, action: str, user: User, db: Db, data: MinutesIn | None = None
+    ) -> GrantOut:
+        """Zgoda (``accept``), odmowa (``reject``) albo przedłużenie (``extend``)."""
+        found = persons_grant(db, grant_id, user)
+        minutes = (data or MinutesIn()).minutes
+        moment = _now()
+        if action in {"accept", "reject"}:
+            if found.state(moment) != GrantState.PENDING:
+                raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_pending"))
+            if action == "accept":
+                found.granted_by, found.granted_at = user.subject, moment
+                found.expires_at = moment + timedelta(minutes=minutes)
+            else:
+                found.revoked_by, found.revoked_at = user.subject, moment
+        elif action == "extend":
+            if not found.active(moment):
+                raise HTTPException(status.HTTP_409_CONFLICT, t("error.grant_not_active"))
+            found.expires_at = min(
+                _aware(found.expires_at) + timedelta(minutes=minutes),
+                moment + timedelta(minutes=MAX_GRANT_MINUTES),
+            )
+        else:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.grant_not_found"))
+        mark_read(db, found.id, user.subject)
+        db.commit()
+        return _grant_out(db, found, moment)
+
+    @router.delete("/api/me/admin-access/{grant_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def my_grant_revoke(grant_id: str, user: User, db: Db) -> Response:
+        found = persons_grant(db, grant_id, user)
+        if found.revoked_at is None:
+            found.revoked_at, found.revoked_by = _now(), user.subject
+            mark_read(db, found.id, user.subject)
+            db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # --- Właściciel firmy: zgoda na zmiany administratora ------------------------------

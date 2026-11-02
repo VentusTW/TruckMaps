@@ -31,6 +31,16 @@ class VehicleInfo:
     in_repair: bool = False
 
 
+@dataclass(frozen=True)
+class CargoInfo:
+    """Przestrzeń ładunkowa i ładowność pojazdu z profilu (do planu załadunku)."""
+
+    deck_length_m: float | None
+    """Z miejsc paletowych (33 palety EUR = 13,6 m); ``None`` – nie wiadomo."""
+    payload_kg: float | None
+    """DMC − masa własna; ``None`` – brak masy własnej."""
+
+
 class Fleet(Protocol):
     def vehicles(self, db: Session, user: Principal) -> list[VehicleInfo]:
         """Pojazdy prywatne użytkownika i pojazdy jego firm."""
@@ -55,6 +65,22 @@ class Fleet(Protocol):
 
     def record_inspection(self, db: Session, vehicle_id: str, day: date, valid_until: date) -> None:
         """Przegląd techniczny zrobiony w serwisie: ostatni przegląd i nowa ważność pojazdu."""
+        ...
+
+    def cargo(self, db: Session, vehicle_id: str) -> CargoInfo:
+        """Przestrzeń ładunkowa i ładowność pojazdu (bez sprawdzania widoczności)."""
+        ...
+
+    def staff(self, db: Session, vehicle_id: str) -> list[str]:
+        """Kto obsługuje pojazd: właściciel, dyspozytorzy i mechanicy firmy albo właściciel
+        pojazdu prywatnego (identyfikatory kont)."""
+        ...
+
+    def notify(
+        self, db: Session, recipients: list[str], kind: str, data: dict, company_id: str | None
+    ) -> None:
+        """Wiadomość w skrzynce aplikacji (zapis razem z sesją modułu). Treść składa aplikacja
+        z ``kind`` i ``data`` w języku odbiorcy – ``kind`` z przedrostkiem id modułu."""
         ...
 
 

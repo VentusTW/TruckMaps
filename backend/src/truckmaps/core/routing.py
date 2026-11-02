@@ -8,15 +8,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from truckmaps.core import costs, parkings, reports, restrictions, timebans
+from truckmaps.core import costs, fuel_prices, parkings, reports, restrictions, timebans
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
 from truckmaps.core.i18n import language, num, t
-from truckmaps.core.polyline import decode_polyline6
+from truckmaps.core.polyline import decode_polyline6, encode_polyline6
 from truckmaps.core.restrictions import distance_m
 from truckmaps.core.route_analysis import (
     END_STREET,
+    NODE_KINDS,
     REPORTED,
     Analysis,
     Level,
@@ -40,6 +41,8 @@ EDGE_ATTRIBUTES = [
     "edge.lane_count",
     "edge.roundabout",
     "edge.names",
+    "edge.length",
+    "edge.toll",
     "node.elapsed_time",
     "node.admin_index",
     "admin.country_code",
@@ -128,6 +131,8 @@ class AlternativeRoute(BaseModel):
     maneuvers: list[Maneuver] = []
     analysis: Analysis | None
     cost: costs.RouteCost | None = None
+    edges: list[RouteEdge] | None = Field(default=None, exclude=True)
+    """Odcinki trasy (kraje, płatne drogi) – do kosztu, nie do odpowiedzi."""
 
 
 class ParkingOut(BaseModel):
@@ -408,7 +413,8 @@ class ValhallaRouter:
         self, points: list[tuple[float, float]], shape_match: str, vehicle: VehicleIn
     ) -> tuple[list[RouteEdge], list[tuple[float, float]]] | None:
         request = {
-            "shape": [{"lat": lat, "lon": lon} for lon, lat in points],
+            # Zakodowana linia zamiast listy punktów: kilka razy mniejsze zapytanie.
+            "encoded_polyline": encode_polyline6(points),
             "shape_match": shape_match,
             **costing(vehicle),
             "filters": {"attributes": [*EDGE_ATTRIBUTES, "shape"], "action": "include"},
@@ -429,6 +435,8 @@ class ValhallaRouter:
                     lane_count=edge.get("lane_count"),
                     roundabout=edge.get("roundabout", False),
                     names=edge.get("names", []),
+                    length_km=edge.get("length", 0.0),
+                    toll=edge.get("toll", False),
                     **_admin(admins, edge.get("end_node", {})),
                 )
                 for edge in body.get("edges", [])
@@ -530,7 +538,8 @@ def plan(
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
     reports.assign_ways(db, getattr(router, "streets_near", None), first.geometry)
-    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure), []
+    ways: dict[int, list[restrictions.Restriction]] = {}
+    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure, ways), []
     if best_analysis is None:
         return best, best_analysis, best_excluded, first.distance_km, []
     levels = AVOID_LEVELS if avoid_difficult else {IMPASSABLE}
@@ -553,7 +562,7 @@ def plan(
             candidate = router.route(stops, vehicle, exclude=excluded)
         except NoRouteFound:
             break
-        analysis = assess(db, candidate, vehicle, departure)
+        analysis = assess(db, candidate, vehicle, departure, ways)
         if analysis is None:
             break
         better = analysis.score < best_analysis.score and (
@@ -605,6 +614,7 @@ def alternatives(
                     geometry=candidate.geometry,
                     maneuvers=candidate.maneuvers,
                     analysis=analysis,
+                    edges=candidate.edges,
                 ),
             )
         )
@@ -717,17 +727,24 @@ def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
 
 
 def assess(
-    db: Session, route: Route, vehicle: VehicleIn, departure: datetime | None = None
+    db: Session,
+    route: Route,
+    vehicle: VehicleIn,
+    departure: datetime | None = None,
+    ways: dict[int, list[restrictions.Restriction]] | None = None,
 ) -> Analysis | None:
-    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu."""
+    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu.
+
+    ``ways`` – wspólna pamięć ograniczeń dróg dla kolejnych wariantów tej samej trasy.
+    """
     if route.edges is None:
         return None
     return analyze(
         route.geometry,
         route.edges,
         vehicle,
-        restrictions.for_ways(db, (e.way_id for e in route.edges)),
-        restrictions.nodes_in_bbox(db, route.geometry),
+        restrictions.for_ways(db, (e.way_id for e in route.edges), ways),
+        restrictions.nodes_near_route(db, route.geometry, NODE_KINDS),
         departure,
         reports.road_limits(db, (e.way_id for e in route.edges)),
     )
@@ -928,7 +945,8 @@ def build_router(current_user) -> APIRouter:
         vehicle = VehicleOut.model_validate(profile)
         company = db.get(Company, profile.company_id) if profile.company_id else None
         shown = costs.display_currency(user_currency(db, user), profile, company)
-        rates = costs.rates_for(profile, company, latest_rates(db), shown)
+        prices = fuel_prices.latest(db)
+        rates = costs.rates_for(profile, company, latest_rates(db), shown, prices)
         stops = [data.origin, *data.via, data.destination]
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
@@ -990,8 +1008,9 @@ def build_router(current_user) -> APIRouter:
         for ban in bans.bans:
             ban.parkings = _parkings(db, Point(lat=ban.lat, lon=ban.lon))[:3]
 
-        def cost(distance_km: float, duration_min: float) -> costs.RouteCost | None:
-            return costs.estimate(extensions, rates, distance_km, duration_min)
+        def cost(distance_km: float, duration_min: float, edges) -> costs.RouteCost | None:
+            countries = costs.countries(edges)
+            return costs.estimate(extensions, rates, distance_km, duration_min, countries)
 
         return RouteResponse(
             **route.model_dump(),
@@ -1001,11 +1020,11 @@ def build_router(current_user) -> APIRouter:
             avoided_warnings=avoided_warnings,
             base_distance_km=base_km,
             alternatives=[
-                alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min)})
+                alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min, alt.edges)})
                 for alt in alternatives(db, route, first_candidates, vehicle, departure)
             ],
             stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
-            cost=cost(route.distance_km, route.duration_min),
+            cost=cost(route.distance_km, route.duration_min, route.edges),
             departure=departure,
             time_bans=bans,
             countries=timebans.countries_on_route(route, vehicle, departure, bans),

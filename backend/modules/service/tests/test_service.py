@@ -1,3 +1,4 @@
+import base64
 from datetime import date, timedelta
 
 import pytest
@@ -155,3 +156,73 @@ def test_reject_and_foreign_vehicle(client, fleet):
     assert client.get(
         f"/api/m/service/orders/{order['id']}/x", headers=as_user("olek")
     ).status_code in (404, 405)
+
+
+JPEG = base64.b64encode(b"\xff\xd8\xff\xe0" + b"0" * 100).decode()
+
+
+def messages(client, who):
+    return client.get("/api/me/messages", headers=as_user(who)).json()["items"]
+
+
+def test_photos_messages_protocol_and_costs(client, fleet):
+    order = client.post(
+        "/api/m/service/orders",
+        json={"vehicle_id": fleet, "description": "Pęknięta szyba"},
+        headers=as_user("jan"),
+    ).json()
+    url = f"/api/m/service/orders/{order['id']}"
+    # O zgłoszeniu wie obsługa pojazdu (właściciel i mechanik), nie sam zgłaszający.
+    assert [m["kind"] for m in messages(client, "marek")] == ["service.order_new"]
+    assert messages(client, "olek")[0]["data"]["reporter_name"] == "Jan"
+    assert messages(client, "jan") == []
+
+    photo = client.post(f"{url}/photos", json={"image": JPEG}, headers=as_user("jan"))
+    assert photo.status_code == 201
+    shot = photo.json()["photos"][0]
+    assert shot["stage"] == "report"
+    got = client.get(f"/api/m/service/photos/{shot['id']}", headers=as_user("olek")).json()
+    assert (got["content_type"], got["image"]) == ("image/jpeg", JPEG)
+    assert (
+        client.get(f"/api/m/service/photos/{shot['id']}", headers=as_user("obcy")).status_code
+        == 404
+    )
+    bad = client.post(f"{url}/photos", json={"image": "bm90IGFuIGltYWdl"}, headers=as_user("jan"))
+    assert bad.status_code == 422
+    protocol_photo = {"image": JPEG, "stage": "protocol"}
+    assert (
+        client.post(f"{url}/photos", json=protocol_photo, headers=as_user("jan")).status_code == 403
+    )
+
+    assert client.get(f"{url}/protocol", headers=as_user("olek")).status_code == 409
+    protocol = {
+        "work_done": "Wymiana szyby",
+        "parts": [
+            {"name": "Szyba", "quantity": 1, "price": 1800},
+            {"name": "Klej", "quantity": 2, "price": 50},
+        ],
+        "labour_hours": 3,
+        "currency": "PLN",
+    }
+    client.post(f"{url}/complete", json=protocol, headers=as_user("marek"))
+    done = messages(client, "jan")[0]
+    assert (done["kind"], done["data"]["mechanic_name"]) == ("service.order_done", "Marek")
+
+    page = client.get(f"{url}/protocol", headers=as_user("olek")).json()
+    assert "Protokół naprawy" in page["html"] and "1900.00 PLN" in page["html"]
+    assert "data:image/jpeg;base64," in page["html"]
+    assert page["filename"].endswith("-MAN_TGX")
+
+    costs = client.get("/api/m/service/costs", headers=as_user("olek")).json()
+    assert costs == [
+        {
+            "vehicle_id": fleet,
+            "vehicle_name": "MAN TGX",
+            "vehicle_plate": None,
+            "currency": "PLN",
+            "orders": 1,
+            "parts_total": 1900.0,
+            "labour_hours": 3.0,
+        }
+    ]
+    assert client.get("/api/m/service/costs", headers=as_user("jan")).json() == []  # kierowca

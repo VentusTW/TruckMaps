@@ -9,6 +9,7 @@ from truckmaps.core.auth import InvalidToken
 from truckmaps.core.companies import CompanyInvite
 from truckmaps.core.config import Settings
 from truckmaps.core.currency import store_rates
+from truckmaps.core.reminders import send_reminders
 from truckmaps.core.routing import Route
 from truckmaps.sdk import Principal
 
@@ -268,6 +269,28 @@ def test_private_vehicle_rates_and_validation(client):
     assert client.post("/api/vehicles", json=unknown, headers=as_user("ola")).status_code == 422
 
 
+def test_route_cost_adds_fuel_and_adblue_from_vehicle_consumption(client):
+    fuel = {**TRUCK, "fuel_type": "diesel", "consumption_empty": 25, "fuel_price": 1.5}
+    vehicle = client.post("/api/vehicles", json=fuel, headers=as_user("ola")).json()
+    cost = route_cost(client, vehicle["id"], who="ola")
+    # Bez stawek, samo paliwo: 310 km × 25 l/100 km × 1,5.
+    assert (cost["amount"], cost["fuel"], cost["adblue"]) == (116.25, 116.25, None)
+    assert cost["per_km"] == 0
+
+    full = {**fuel, "consumption_loaded": 30, "adblue_percent": 5, "adblue_price": 0.6}
+    full["cost_per_km"] = 0.3
+    client.put(f"/api/vehicles/{vehicle['id']}", json=full, headers=as_user("ola"))
+    cost = route_cost(client, vehicle["id"], who="ola")
+    # Z ładunkiem 93 l ON, AdBlue 4,65 l; stawka za km to reszta kosztów.
+    assert (cost["fuel"], cost["adblue"], cost["consumption"]) == (139.5, 2.79, 30)
+    assert cost["amount"] == 235.29
+
+    no_price = {**full, "fuel_price": None}
+    client.put(f"/api/vehicles/{vehicle['id']}", json=no_price, headers=as_user("ola"))
+    cost = route_cost(client, vehicle["id"], who="ola")
+    assert (cost["amount"], cost["fuel"]) == (93.0, None)
+
+
 def add_rates(database, day="2026-10-28", **per_eur):
     with database.session() as db:
         store_rates(db, date.fromisoformat(day), per_eur)
@@ -359,6 +382,9 @@ def test_account_settings_name_language_and_first_login(client):
         "display_name": "Użytkownik jan",
         "language": None,
         "onboarded": False,
+        "email_notifications": False,
+        "email": None,
+        "email_available": False,
     }
 
     # Sam, bez firmy: tylko znacznik; reszta ustawień zostaje, jak była.
@@ -490,3 +516,99 @@ def test_vehicle_features_by_kind_and_mechanic_service_dates(client):
         f"/api/companies/{forwarder}/invites", json={"role": "mechanic"}, headers=as_user("olek")
     )
     assert invite.status_code == 422
+
+
+REMINDERS_DAY = date(2026, 11, 1)
+
+
+def inbox_items(client, who):
+    return client.get("/api/me/messages", headers=as_user(who)).json()["items"]
+
+
+def test_reminders_once_per_due_date_to_company_staff(client, database):
+    company_id = new_company(client)
+    join(client, company_id, "jan")  # kierowca – bez przypomnień
+    join(client, company_id, "marek", role="mechanic")
+    truck = {
+        **TRUCK,
+        "company_id": company_id,
+        "inspection_until": "2026-11-20",
+        "insurance_until": "2026-10-30",
+        "ac_until": "2027-06-01",
+        "odometer_km": 418_500,
+        "service_due_km": 420_000,
+    }
+    vehicle = client.post("/api/vehicles", json=truck, headers=as_user("olek")).json()
+
+    with database.session() as db:
+        assert send_reminders(db, REMINDERS_DAY) == 6  # 3 terminy × właściciel i mechanik
+        assert send_reminders(db, REMINDERS_DAY) == 0  # każdy termin raz
+
+    items = {m["data"]["field"]: m for m in inbox_items(client, "marek")}
+    assert set(items) == {"inspection_until", "insurance_until", "service_due_km"}
+    assert items["insurance_until"]["data"]["overdue"] is True
+    assert items["inspection_until"]["data"]["day"] == "2026-11-20"
+    assert items["service_due_km"]["data"]["km_left"] == 1500
+    assert items["service_due_km"]["kind"] == "vehicle_due"
+    assert inbox_items(client, "jan") == []
+
+    # Nowy termin po przeglądzie – nowe przypomnienie, gdy się zbliży.
+    client.put(
+        f"/api/vehicles/{vehicle['id']}/service",
+        json={"inspection_until": "2026-11-25"},
+        headers=as_user("marek"),
+    )
+    with database.session() as db:
+        assert send_reminders(db, REMINDERS_DAY) == 2
+
+
+def test_private_vehicle_reminder_goes_to_owner(client, database):
+    private = {**TRUCK, "leasing_until": "2026-11-05"}
+    client.post("/api/vehicles", json=private, headers=as_user("ola"))
+    with database.session() as db:
+        assert send_reminders(db, REMINDERS_DAY) == 1
+    message = inbox_items(client, "ola")[0]
+    assert (message["data"]["field"], message["data"]["vehicle_name"]) == (
+        "leasing_until",
+        TRUCK["name"],
+    )
+
+
+def test_trips_and_vehicle_stats_by_month(client):
+    company_id = new_company(client)
+    join(client, company_id, "jan")
+    truck = client.post(
+        "/api/vehicles", json={**TRUCK, "company_id": company_id}, headers=as_user("olek")
+    ).json()
+    url = f"/api/vehicles/{truck['id']}"
+    trips = [
+        ("jan", "2026-10-03T06:00:00Z", "2026-10-03T10:30:00Z", 310.4, 432.5),
+        ("jan", "2026-10-20T06:00:00Z", "2026-10-20T08:00:00Z", 150.0, None),
+        ("olek", "2026-11-01T06:00:00Z", "2026-11-01T09:00:00Z", 240.0, 300.0),
+    ]
+    for who, start, end, km, cost in trips:
+        body = {"started_at": start, "ended_at": end, "distance_km": km}
+        if cost is not None:
+            body |= {"cost_amount": cost, "cost_currency": "EUR"}
+        assert client.post(f"{url}/trips", json=body, headers=as_user(who)).status_code == 201
+    wrong = {
+        "started_at": "2026-11-01T09:00:00Z",
+        "ended_at": "2026-11-01T08:00:00Z",
+        "distance_km": 1,
+    }
+    assert client.post(f"{url}/trips", json=wrong, headers=as_user("jan")).status_code == 422
+    assert client.post(f"{url}/trips", json=body, headers=as_user("obcy")).status_code == 404
+
+    found = client.get(f"{url}/stats", params={"months": 36}, headers=as_user("jan")).json()
+    assert (found["trips"], found["distance_km"], found["hours"], found["drivers"]) == (
+        3,
+        700.4,
+        9.5,
+        2,
+    )
+    assert found["costs"] == {"EUR": 732.5}
+    assert found["cost_per_km"] == {"EUR": round(732.5 / 550.4, 3)}  # tylko przejazdy z kosztem
+    assert [(m["month"], m["trips"], m["distance_km"]) for m in found["months"]] == [
+        ("2026-11", 1, 240.0),
+        ("2026-10", 2, 460.4),
+    ]

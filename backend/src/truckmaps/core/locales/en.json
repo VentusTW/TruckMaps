@@ -165,7 +165,6 @@
   "registration.not_image": "This is not a photo (supported: JPG, PNG).",
   "error.consumption_loaded_below_empty": "Consumption when loaded cannot be lower than when empty.",
   "registration.text_unreadable": "Could not read the data from the certificate text. Take a sharper photo or enter the data by hand.",
-  "error.admin_private_vehicle": "A private vehicle can only be changed by its owner, not by an administrator.",
   "error.member_required": "A private vehicle can only be assigned to a company member.",
   "error.merge_same": "Choose two different vehicles.",
   "error.merge_vin": "Only vehicles with the same VIN can be merged.",
@@ -206,5 +205,16 @@
   "country.RS": "Serbia",
   "country.GR": "Greece",
   "route.reported": "{message} – reported by other drivers (confirmations: {count}), not in map data",
-  "route.reported_permanent": "{message} – confirmed by drivers ({count})"
+  "route.reported_permanent": "{message} – confirmed by drivers ({count})",
+  "error.admin_private_owner": "A private vehicle can only be assigned to a company its owner belongs to.",
+  "error.person_scope": "A private person can only consent to changes in their own vehicles.",
+  "error.no_email": "The login account has no e-mail address – e-mail notifications cannot be turned on.",
+  "email.subject": "TruckMaps: {title}",
+  "email.body": "{title}\n\nYou will find the details in the inbox of the TruckMaps app.\n\nTurn e-mail notifications off in the app: Account → E-mail notifications.",
+  "inbox.generic": "New message in your inbox",
+  "inbox.admin_access_request": "An administrator asks for access to make changes",
+  "inbox.admin_extension_request": "An administrator asks to extend access",
+  "inbox.admin_access_closed": "The administrator finished the changes and closed access",
+  "inbox.vehicle_due": "Vehicle deadline: {vehicle_name}",
+  "error.trip_times": "The trip must end after it starts, at most 48 hours later."
 }

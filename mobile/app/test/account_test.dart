@@ -251,6 +251,20 @@ void main() {
     expect(changes, 3);
   });
 
+  testWidgets('konto: powiadomienia e-mail na adres z konta logowania', (tester) async {
+    bigScreen(tester);
+    settings = {...settings, 'email_available': true, 'email': 'anna@example.com', 'email_notifications': false};
+    await tester.pumpWidget(localized(Scaffold(
+      body: AccountScreen(api: api(), settings: settings, onChanged: () {}, onLanguage: (_) {}, onLogout: () {}),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('na anna@example.com'), findsOneWidget);
+    await tester.tap(find.text('Powiadomienia e-mail'));
+    await tester.pumpAndSettle();
+    expect(requests.singleWhere((r) => r.$1 == 'PUT').$3, {'email_notifications': true});
+  });
+
   testWidgets('spedycja: zaproszenia i role bez kierowców', (tester) async {
     bigScreen(tester);
     await tester.pumpWidget(
