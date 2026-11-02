@@ -53,10 +53,16 @@ class LoadTexts {
   String get height => _t('Wysokość sztuki', 'Height each');
   String get topView => _t('Z góry', 'Top view');
   String get sideView => _t('Z boku', 'Side view');
-  String get moveView => _t('Przesuń obraz', 'Move view');
+  String get moveView => _t('Obróć naczepę', 'Rotate trailer');
+  String get rotateLeft => _t('Obróć w lewo o 90°', 'Rotate left by 90°');
+  String get rotateRight => _t('Obróć w prawo o 90°', 'Rotate right by 90°');
+  String get zoomIn => _t('Przybliż', 'Zoom in');
+  String get zoomOut => _t('Oddal', 'Zoom out');
+  String get resetView => _t('Widok od nowa', 'Reset view');
   String get moveItems => _t('Przesuń towar', 'Move goods');
-  String get moveViewHint => _t('Przeciągnij, żeby przesunąć obraz; dwa palce – przybliżenie.',
-      'Drag to move the view; two fingers to zoom.');
+  String get moveViewHint => _t(
+      'Przeciągnij, żeby obrócić naczepę. Przybliżanie i oddalanie: Shift + kółko myszy albo dwa palce (także obrót i przesunięcie).',
+      'Drag to rotate the trailer. Zoom in and out: Shift + mouse wheel or two fingers (also rotate and move).');
   String get moveItemsHint => _t(
       'Przeciągnij paletę: z góry – wzdłuż i w poprzek, z boku – wzdłuż. Po puszczeniu naciski i normy są liczone od nowa.',
       'Drag a pallet: top view – along and across, side view – along. When released, axle loads and limits are recalculated.');

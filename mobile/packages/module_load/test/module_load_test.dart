@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -121,5 +123,45 @@ void main() {
     final moved = (check['placed'] as List).single as Map;
     expect(moved['x_m'], closeTo(3.0, 0.3));
     expect(find.text('Fifth wheel: 21.0 t of 12.0 t allowed'), findsOneWidget);
+  });
+
+  testWidgets('obracanie naczepy przyciskiem i przeciągnięciem, Shift + kółko – przybliżenie', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: LoadPlanScreen(api: api()))));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Weight each'), '500');
+    await tester.tap(find.text('Calculate plan'));
+    await tester.pumpAndSettle();
+    expect(find.text('0° · 100%'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Rotate right by 90°'));
+    await tester.pump();
+    expect(find.text('90° · 100%'), findsOneWidget);
+
+    final view = find.byKey(const ValueKey('deck-view'));
+    await tester.ensureVisible(view);
+    await tester.drag(view, const Offset(150, 0)); // ok. 90° dalej
+    await tester.pump();
+    expect(find.textContaining('° · 100%'), findsOneWidget);
+    expect(find.text('90° · 100%'), findsNothing);
+
+    // Shift + kółko myszy w górę – przybliżenie; samo kółko – bez zmiany przybliżenia.
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final at = tester.getCenter(view);
+    await tester.sendEventToBinding(pointer.hover(at));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, -100)));
+    await tester.pump();
+    expect(find.textContaining('· 100%'), findsOneWidget);
+    await simulateKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, -100)));
+    await simulateKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(find.textContaining('· 110%'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Reset view'));
+    await tester.pump();
+    expect(find.text('0° · 100%'), findsOneWidget);
   });
 }

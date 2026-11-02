@@ -296,7 +296,7 @@ class _PlanResultState extends State<PlanResult> {
         if (widget.onMoved != null)
           SegmentedButton<bool>(
             segments: [
-              ButtonSegment(value: false, icon: const Icon(Icons.pan_tool_outlined), label: Text(t.moveView)),
+              ButtonSegment(value: false, icon: const Icon(Icons.threesixty), label: Text(t.moveView)),
               ButtonSegment(value: true, icon: const Icon(Icons.open_with), label: Text(t.moveItems)),
             ],
             selected: {_moving},
