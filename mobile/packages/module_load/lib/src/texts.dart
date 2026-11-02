@@ -51,21 +51,22 @@ class LoadTexts {
   String cog(String metres) => _t('Środek ciężkości: $metres m od ściany czołowej', 'Centre of gravity: $metres m from the front wall');
   String get front => _t('Przód (ściana czołowa)', 'Front (front wall)');
   String get height => _t('Wysokość sztuki', 'Height each');
-  String get topView => _t('Z góry', 'Top view');
-  String get sideView => _t('Z boku', 'Side view');
+  String get topView => _t('Z góry', 'Top');
+  String get sideView => _t('Z boku', 'Side');
+  String get view3d => _t('3D', '3D');
+  String viewState(int yaw, int pitch, int zoom) =>
+      _t('obrót $yaw° · pochylenie $pitch° · $zoom%', 'rotation $yaw° · tilt $pitch° · $zoom%');
   String get moveView => _t('Obróć naczepę', 'Rotate trailer');
-  String get rotateLeft => _t('Obróć w lewo o 90°', 'Rotate left by 90°');
-  String get rotateRight => _t('Obróć w prawo o 90°', 'Rotate right by 90°');
   String get zoomIn => _t('Przybliż', 'Zoom in');
   String get zoomOut => _t('Oddal', 'Zoom out');
   String get resetView => _t('Widok od nowa', 'Reset view');
   String get moveItems => _t('Przesuń towar', 'Move goods');
   String get moveViewHint => _t(
-      'Przeciągnij, żeby obrócić naczepę. Przybliżanie i oddalanie: Shift + kółko myszy albo dwa palce (także obrót i przesunięcie).',
-      'Drag to rotate the trailer. Zoom in and out: Shift + mouse wheel or two fingers (also rotate and move).');
+      'Przeciągnij w poziomie, żeby obrócić naczepę, w pionie – żeby ją pochylić (od widoku z boku do widoku z góry). Przybliżanie i oddalanie: Shift + kółko myszy albo dwa palce.',
+      'Drag sideways to rotate the trailer, up and down to tilt it (from side view to top view). Zoom in and out: Shift + mouse wheel or two fingers.');
   String get moveItemsHint => _t(
-      'Przeciągnij paletę: z góry – wzdłuż i w poprzek, z boku – wzdłuż. Po puszczeniu naciski i normy są liczone od nowa.',
-      'Drag a pallet: top view – along and across, side view – along. When released, axle loads and limits are recalculated.');
+      'Przeciągnij paletę po podłodze (w widoku z boku – tylko wzdłuż). Po puszczeniu naciski i normy są liczone od nowa.',
+      'Drag a pallet across the floor (in side view – only along). When released, axle loads and limits are recalculated.');
   String get rearrange => _t('Ułóż automatycznie', 'Arrange automatically');
   String get heightHint => _t(
       'Wysokość bez podanej wartości – szacunkowa (1,2 m na sztukę). Naciski – typowa geometria pojazdu i masa własna z profilu.',

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'src/screens.dart';
 import 'src/texts.dart';
 
+export 'src/deck_view.dart' show DeckCamera;
 export 'src/screens.dart';
 export 'src/texts.dart';
 

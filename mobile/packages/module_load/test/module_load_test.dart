@@ -102,30 +102,32 @@ void main() {
     final sent = requests.singleWhere((r) => r.$2 == '/api/m/load/plan').$3 as Map;
     expect((sent['items'] as List).single['height_m'], 1.1);
     expect(find.text('Fifth wheel: 9.0 t of 12.0 t allowed'), findsOneWidget);
-    expect(find.text('Top view'), findsOneWidget);
-    expect(find.text('Side view'), findsOneWidget);
+    expect(find.byKey(const ValueKey('deck-3d')), findsOneWidget); // jeden rysunek 3D
 
+    // Widok z góry, tryb przesuwania towaru: paleta 1,2 × 0,8 m przy ścianie czołowej o 3 m do tyłu.
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Top'));
     await tester.tap(find.text('Move goods'));
     await tester.pumpAndSettle();
-    // Paleta 1,2 × 0,8 m przy ścianie czołowej: przeciągnięcie w widoku z góry.
-    final top = find.byKey(const ValueKey('deck-top'));
-    await tester.ensureVisible(top);
+    final deck = find.byKey(const ValueKey('deck-3d'));
+    await tester.ensureVisible(deck);
     await tester.pumpAndSettle();
-    final origin = tester.getTopLeft(top);
-    final scale = tester.getSize(top).width / (13.6 + 3.2);
-    final gesture = await tester.startGesture(origin + Offset((1.6 + 0.6) * scale, (1.6 + 0.4) * scale));
-    await gesture.moveBy(Offset(2 * scale, 0));
-    await gesture.moveBy(Offset(1 * scale, 0));
+    final camera = DeckCamera(size: tester.getSize(deck), length: 13.6, width: 2.48, height: 2.7);
+    final origin = tester.getTopLeft(deck);
+    final from = origin + camera.project((0.6, 0.4, 0)), to = origin + camera.project((3.6, 0.4, 0));
+    final gesture = await tester.startGesture(from);
+    await gesture.moveTo(from + (to - from) / 2);
+    await gesture.moveTo(to);
     await gesture.up();
     await tester.pumpAndSettle();
 
     final check = requests.singleWhere((r) => r.$2 == '/api/m/load/plan/check').$3 as Map;
     final moved = (check['placed'] as List).single as Map;
-    expect(moved['x_m'], closeTo(3.0, 0.3));
+    expect(moved['x_m'], closeTo(3.0, 0.1));
+    expect(moved['y_m'], closeTo(0.0, 0.1));
     expect(find.text('Fifth wheel: 21.0 t of 12.0 t allowed'), findsOneWidget);
   });
 
-  testWidgets('obracanie naczepy przyciskiem i przeciągnięciem, Shift + kółko – przybliżenie', (tester) async {
+  testWidgets('obracanie i pochylanie naczepy przeciągnięciem, ustawienia widoku, Shift + kółko', (tester) async {
     tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -134,18 +136,18 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Weight each'), '500');
     await tester.tap(find.text('Calculate plan'));
     await tester.pumpAndSettle();
-    expect(find.text('0° · 100%'), findsOneWidget);
+    expect(find.textContaining('rotation 331° · tilt 34° · 100%'), findsOneWidget); // 3D z ukosa
 
-    await tester.tap(find.byTooltip('Rotate right by 90°'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Side'));
     await tester.pump();
-    expect(find.text('90° · 100%'), findsOneWidget);
+    expect(find.text('rotation 0° · tilt 0° · 100%'), findsOneWidget);
 
     final view = find.byKey(const ValueKey('deck-view'));
     await tester.ensureVisible(view);
-    await tester.drag(view, const Offset(150, 0)); // ok. 90° dalej
+    await tester.drag(view, const Offset(150, -250)); // obrót ok. 90°, pochylenie aż do widoku z góry
     await tester.pump();
-    expect(find.textContaining('° · 100%'), findsOneWidget);
-    expect(find.text('90° · 100%'), findsNothing);
+    expect(find.textContaining('tilt 90°'), findsOneWidget);
+    expect(find.textContaining('rotation 0°'), findsNothing);
 
     // Shift + kółko myszy w górę – przybliżenie; samo kółko – bez zmiany przybliżenia.
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
@@ -160,8 +162,21 @@ void main() {
     await tester.pump();
     expect(find.textContaining('· 110%'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Reset view'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Top'));
     await tester.pump();
-    expect(find.text('0° · 100%'), findsOneWidget);
+    expect(find.text('rotation 0° · tilt 90° · 100%'), findsOneWidget);
+  });
+
+  test('rzut kamery: z góry i z boku, punkt podłogi pod palcem', () {
+    final top = DeckCamera(size: const Size(800, 400), length: 13.6, width: 2.48, height: 2.7);
+    final front = top.project((0, 0, 0)), back = top.project((13.6, 0, 0));
+    expect(back.dx, greaterThan(front.dx)); // przód po lewej
+    expect(top.project((0, 2.48, 0)).dy, lessThan(front.dy)); // lewa burta na dole
+    final floor = top.floorAt(top.project((5, 1, 0)))!;
+    expect(floor.$1, closeTo(5, 1e-6));
+    expect(floor.$2, closeTo(1, 1e-6));
+    final side = DeckCamera(size: const Size(800, 400), length: 13.6, width: 2.48, height: 2.7, pitch: 0);
+    expect(side.project((0, 0, 2.7)).dy, lessThan(side.project((0, 0, 0)).dy)); // wysokość w górę
+    expect(side.floorAt(const Offset(400, 200)), isNull); // z boku tylko wzdłuż
   });
 }
