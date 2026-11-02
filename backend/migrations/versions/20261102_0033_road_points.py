@@ -1,14 +1,14 @@
 """Punkty z OSM do ostrzeżeń w nawigacji: przejazdy kolejowe, fotoradary, sygnalizacja,
 pomiar odcinkowy, zakazy wyprzedzania
 
-Revision ID: 0032
+Revision ID: 0033
 Revises: 0031
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0032"
+revision = "0033"
 down_revision = "0031"
 branch_labels = None
 depends_on = None

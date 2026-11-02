@@ -281,7 +281,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] pionowy pasek trasy z boku ekranu: punkty pośrednie („VIA 1/2”), fotoradary, sygnalizacja świetlna, zdarzenia, opóźnienia, z odległościami
   - [x] w dolnej karcie także najbliższy punkt pośredni: nazwa, minuty i km („1/2 przy … – 3 min, 3,4 km”)
   - [x] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
-    - tabela `road_points` (migracja 0032), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
+    - tabela `road_points` (migracja 0033), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
     - zapowiedź głosowa ok. 500 m przed fotoradarem, pomiarem odcinkowym, przejazdem kolejowym, zakazem, trudnym miejscem i zgłoszeniem kierowcy
   - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
   - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
