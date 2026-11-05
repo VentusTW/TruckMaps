@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from truckmaps.core.currency import UserSettings
-from truckmaps.core.db import Database
+from truckmaps.core.db import Database, try_job_lock
 from truckmaps.core.i18n import t, use
 from truckmaps.core.inbox import Message
 
@@ -74,6 +74,8 @@ def pending(db: Session, now: datetime) -> list[tuple[Message, UserSettings]]:
 def send_pending(db: Session, smtp: SmtpSettings, now: datetime | None = None) -> int:
     """Wysyła zaległe powiadomienia; zwraca liczbę wysłanych."""
     now = now or datetime.now(UTC)
+    if not try_job_lock(db, "mail"):
+        return 0  # wysyła inna instancja serwera – bez podwójnych e-maili
     items = pending(db, now)
     if not items:
         return 0

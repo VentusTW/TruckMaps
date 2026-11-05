@@ -10,7 +10,8 @@ import re
 from collections.abc import Iterable
 from enum import StrEnum
 
-from sqlalchemy import BigInteger, Float, Index, String, Text, and_, or_, select
+from sqlalchemy import BigInteger, Float, Index, String, Text, and_, literal_column, or_, select
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base
@@ -43,11 +44,39 @@ MINOR_HIGHWAYS = {"residential", "service", "unclassified", "living_street", "tr
 BAD_SMOOTHNESS = {"bad", "very_bad", "horrible", "very_horrible", "impassable"}
 
 
+# Prostokąty wyższe niż ``LONG_SPAN`` stopni szerokości (~5,5 km) są rzadkie; dla reszty
+# zapytanie zna dolną granicę ``min_lat`` i czyta z indeksu tylko pas wokół trasy, a nie
+# wszystko na południe od niej. Wysokie znajduje indeks na wyrażeniu ``max_lat - min_lat`` –
+# daje też planiście statystyki tego wyrażenia (bez nich wybiera pełny skan tabeli).
+LONG_SPAN = 0.05
+SPAN_SQL = "(max_lat - min_lat)"
+
+
+def span_index(name: str) -> Index:
+    """Indeks na wysokości prostokąta (wyrażenie identyczne jak w ``box_overlaps``)."""
+    return Index(name, sql_text(SPAN_SQL))
+
+
+def box_overlaps(model, min_lat: float, max_lat: float, min_lon: float, max_lon: float):
+    """Warunek: prostokąt obiektu (``min_lat``…``max_lon``) nachodzi na podany prostokąt."""
+    rest = and_(model.max_lat >= min_lat, model.min_lon <= max_lon, model.max_lon >= min_lon)
+    return or_(
+        # Margines 0,001° ponad LONG_SPAN – bez wpływu zaokrągleń liczb zmiennoprzecinkowych.
+        and_(model.min_lat.between(min_lat - LONG_SPAN - 0.001, max_lat), rest),
+        and_(
+            model.max_lat - model.min_lat > literal_column(str(LONG_SPAN)),
+            model.min_lat <= max_lat,
+            rest,
+        ),
+    )
+
+
 class Restriction(Base):
     __tablename__ = "road_restrictions"
     __table_args__ = (
         Index("ix_road_restrictions_osm", "osm_type", "osm_id"),
         Index("ix_road_restrictions_bbox", "min_lat", "min_lon"),
+        span_index("ix_road_restrictions_span"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

@@ -11,7 +11,8 @@ ograniczenia z bazy. Funkcje są czyste – bez bazy i sieci – więc łatwo je
 """
 
 import math
-from collections import defaultdict
+import threading
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import IntEnum
@@ -189,7 +190,7 @@ def analyze(
     i omijane jak inne miejsca nieprzejezdne.
     """
     findings: list[_Finding] = []
-    cumulative = _cumulative_m(points)
+    cumulative = cumulative_m(points)
     total = cumulative[-1]
     begin_s = 0.0
     for edge in edges:
@@ -466,7 +467,7 @@ NODE_KINDS = (Kind.HEIGHT, Kind.WEIGHT, Kind.WEIGHT_RATING)
 
 def _node_findings(points, nodes: list[Restriction], vehicle: VehicleIn):
     """Ograniczenia punktowe (np. bramki wysokości) leżące na linii trasy – tylko ostrzeżenie."""
-    grid = SegmentGrid(points)
+    grid = segment_grid(points)
     for node in nodes:
         if node.kind not in NODE_KINDS or node.lat is None:
             continue
@@ -537,6 +538,49 @@ def _summarize(points, cumulative: list[float], findings: list[_Finding]) -> Ana
     return Analysis(
         level=overall.label, score=round(score, 1), segments=segments, warnings=warnings
     )
+
+
+class _ByIdentity:
+    """Wyniki dla ostatnich linii tras, rozpoznawanych po tożsamości listy punktów.
+
+    Jedna trasa jest w żądaniu oceniana, a potem dopasowywane są do niej zgłoszenia i punkty
+    na drodze – siatka i odległości wzdłuż linii liczą się raz. Lista jest trzymana razem
+    z wynikiem, więc jej ``id`` nie trafi do innej listy; zmiana długości unieważnia wynik.
+    """
+
+    def __init__(self, size: int = 8) -> None:
+        self._size = size
+        self._items: OrderedDict[tuple, tuple[list, object]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, points: list, extra, compute):
+        key = (id(points), len(points), extra)
+        with self._lock:
+            found = self._items.get(key)
+            if found is not None and found[0] is points:
+                self._items.move_to_end(key)
+                return found[1]
+        value = compute()
+        with self._lock:
+            self._items[key] = (points, value)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+        return value
+
+
+_GRIDS = _ByIdentity()
+_CUMULATIVE = _ByIdentity()
+
+
+def segment_grid(points: list, cell: float | None = None) -> "SegmentGrid":
+    """``SegmentGrid`` dla linii – liczona raz dla tej samej listy punktów."""
+    cell = SegmentGrid.CELL if cell is None else cell
+    return _GRIDS.get(points, cell, lambda: SegmentGrid(points, cell))
+
+
+def cumulative_m(points: list) -> list[float]:
+    """Odległości od początku linii (m) – liczone raz dla tej samej listy punktów."""
+    return _CUMULATIVE.get(points, None, lambda: _cumulative_m(points))
 
 
 def _cumulative_m(points) -> list[float]:

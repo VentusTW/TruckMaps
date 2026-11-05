@@ -20,7 +20,7 @@ from urllib.parse import urljoin
 from sqlalchemy import Date, String, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from truckmaps.core.db import Base, Database
+from truckmaps.core.db import Base, Database, try_job_lock
 
 log = logging.getLogger(__name__)
 
@@ -113,6 +113,8 @@ def find_link(page: str, page_url: str) -> str:
 
 def store(db: Session, day: date, prices: dict[str, float]) -> bool:
     """Zapisuje ceny z danego tygodnia; ``False``, gdy już były."""
+    if not try_job_lock(db, "fuel_prices"):
+        return False  # zapisuje inna instancja serwera
     if db.scalar(select(FuelPrice.day).where(FuelPrice.day == day).limit(1)):
         return False
     db.add_all(FuelPrice(day=day, country=c, diesel_eur=p) for c, p in prices.items())

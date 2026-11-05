@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import update
 
+from truckmaps.core import reminders
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.companies import CompanyInvite
@@ -525,7 +526,7 @@ def inbox_items(client, who):
     return client.get("/api/me/messages", headers=as_user(who)).json()["items"]
 
 
-def test_reminders_once_per_due_date_to_company_staff(client, database):
+def test_reminders_once_per_due_date_to_company_staff(client, database, monkeypatch):
     company_id = new_company(client)
     join(client, company_id, "jan")  # kierowca – bez przypomnień
     join(client, company_id, "marek", role="mechanic")
@@ -539,6 +540,12 @@ def test_reminders_once_per_due_date_to_company_staff(client, database):
         "service_due_km": 420_000,
     }
     vehicle = client.post("/api/vehicles", json=truck, headers=as_user("olek")).json()
+
+    # Inna instancja serwera właśnie sprawdza terminy – ta nic nie wysyła.
+    monkeypatch.setattr(reminders, "try_job_lock", lambda db, name: False)
+    with database.session() as db:
+        assert send_reminders(db, REMINDERS_DAY) == 0
+    monkeypatch.undo()
 
     with database.session() as db:
         assert send_reminders(db, REMINDERS_DAY) == 6  # 3 terminy × właściciel i mechanik

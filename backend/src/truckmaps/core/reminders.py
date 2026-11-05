@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from truckmaps.core import inbox
-from truckmaps.core.db import Database
+from truckmaps.core.db import Database, try_job_lock
 from truckmaps.core.fleet import service_staff
 from truckmaps.core.timebans import HOME_ZONE
 from truckmaps.core.vehicles import ServiceDates, VehicleProfile
@@ -44,6 +44,8 @@ def due(vehicle: VehicleProfile, today: date) -> Iterator[tuple[str, str, dict]]
 def send_reminders(db: Session, today: date | None = None) -> int:
     """Wysyła nowe przypomnienia; zwraca liczbę wiadomości."""
     today = today or datetime.now(HOME_ZONE).date()
+    if not try_job_lock(db, "reminders"):
+        return 0  # sprawdza inna instancja serwera – bez podwójnych przypomnień
     count = 0
     for vehicle in db.scalars(select(VehicleProfile)):
         sent = dict(vehicle.reminders_sent or {})

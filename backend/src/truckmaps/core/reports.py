@@ -42,8 +42,8 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
-from truckmaps.core.restrictions import Kind, Restriction, distance_m
-from truckmaps.core.route_analysis import ReportedLimit, SegmentGrid
+from truckmaps.core.restrictions import QUERY_BATCH, Kind, Restriction, distance_m, route_chunks
+from truckmaps.core.route_analysis import ReportedLimit, cumulative_m, segment_grid
 from truckmaps.sdk import Principal
 
 # Punkty dostawy przy celu: w tym promieniu od celu trasy.
@@ -284,21 +284,31 @@ def along_route(
     """Problemy na drodze zgłoszone przez kierowców, leżące na linii trasy."""
     if len(geometry) < 2:
         return []
-    lons, lats = [p[0] for p in geometry], [p[1] for p in geometry]
+    # Pasy wokół kolejnych kawałków trasy – prostokąt całej długiej trasy obejmuje pół kraju.
     margin = ON_ROUTE_M / 111_000
-    query = select(DriverReport).where(
-        active(),
-        DriverReport.kind.not_in([k.value for k in DELIVERY_KINDS]),
-        DriverReport.lat.between(min(lats) - margin, max(lats) + margin),
-        DriverReport.lon.between(min(lons) - 2 * margin, max(lons) + 2 * margin),
-    )
-    candidates = list(db.scalars(query))
+    boxes = []
+    for chunk in route_chunks(geometry):
+        lons, lats = [p[0] for p in chunk], [p[1] for p in chunk]
+        boxes.append(
+            and_(
+                DriverReport.lat.between(min(lats) - margin, max(lats) + margin),
+                DriverReport.lon.between(min(lons) - 2 * margin, max(lons) + 2 * margin),
+            )
+        )
+    by_id: dict[str, DriverReport] = {}
+    for start in range(0, len(boxes), QUERY_BATCH):
+        query = select(DriverReport).where(
+            active(),
+            DriverReport.kind.not_in([k.value for k in DELIVERY_KINDS]),
+            or_(*boxes[start : start + QUERY_BATCH]),
+        )
+        for report in db.scalars(query):
+            by_id[report.id] = report
+    candidates = list(by_id.values())
     if not candidates:
         return []
-    grid = SegmentGrid(geometry)
-    cumulative = [0.0]
-    for (lon1, lat1), (lon2, lat2) in zip(geometry, geometry[1:], strict=False):
-        cumulative.append(cumulative[-1] + distance_m(lon1, lat1, lon2, lat2))
+    grid = segment_grid(geometry)
+    cumulative = cumulative_m(geometry)
     found = []
     for report in candidates:
         index = grid.nearest(report.lon, report.lat, ON_ROUTE_M)
@@ -372,10 +382,18 @@ def assign_ways(db: Session, streets_near, geometry: list[tuple[float, float]]) 
     db.commit()
 
 
-def road_limits(db: Session, way_ids) -> dict[int, list[ReportedLimit]]:
-    """Ograniczenia zgłoszone przez kierowców na podanych drogach OSM (do oceny trasy)."""
-    ids = list(set(way_ids) - {NO_WAY})
-    result: dict[int, list[ReportedLimit]] = {}
+def road_limits(
+    db: Session, way_ids, cache: dict[int, list[ReportedLimit]] | None = None
+) -> dict[int, list[ReportedLimit]]:
+    """Ograniczenia zgłoszone przez kierowców na podanych drogach OSM (do oceny trasy).
+
+    ``cache`` – drogi sprawdzone wcześniej (także bez zgłoszeń); kolejne warianty tej samej
+    trasy mają w większości wspólne drogi, więc z bazy pobierane są tylko nowe.
+    """
+    wanted = set(way_ids) - {NO_WAY}
+    cache = {} if cache is None else cache
+    ids = [i for i in wanted if i not in cache]
+    result: dict[int, list[ReportedLimit]] = {i: [] for i in ids}
     for start in range(0, len(ids), 1000):
         query = select(DriverReport).where(
             DriverReport.way_id.in_(ids[start : start + 1000]),
@@ -401,7 +419,8 @@ def road_limits(db: Session, way_ids) -> dict[int, list[ReportedLimit]]:
                     confirmations=max(report.score, 1),
                 )
             )
-    return result
+    cache.update(result)
+    return {i: cache[i] for i in wanted if cache[i]}
 
 
 def build_router(current_user) -> APIRouter:
