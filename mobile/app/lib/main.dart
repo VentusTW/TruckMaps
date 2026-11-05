@@ -1,5 +1,6 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:module_documents/module_documents.dart';
 import 'package:module_drivers/module_drivers.dart';
 import 'package:module_hello/module_hello.dart';
 import 'package:module_load/module_load.dart';
@@ -15,7 +16,7 @@ import 'src/theme.dart';
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');
 
 /// Pakiety modułów w tej wersji aplikacji.
-final modules = ModuleRegistry([HelloModule(), ServiceModule(), LoadModule(), DriversModule()]);
+final modules = ModuleRegistry([HelloModule(), ServiceModule(), LoadModule(), DriversModule(), DocumentsModule()]);
 
 void main() => runApp(const TruckMapsApp());
 
