@@ -241,5 +241,17 @@
   "report.speed_check": "Speed check",
   "report.police": "Police",
   "report.inspection": "Roadside inspection and weighing",
-  "report.speed_camera": "Speed camera"
+  "report.speed_camera": "Speed camera",
+  "error.axles_before_kingpin": "The trailer axles must be behind the kingpin.",
+  "error.axles_beyond_length": "The axles cannot be further back than the vehicle length.",
+  "error.driver_not_here": "A driver can only be assigned to a company vehicle that drives itself (not a semi-trailer or trailer).",
+  "error.shared_expired": "The link has expired or is invalid – open the document again in the app.",
+  "error.permit_dates": "The permit cannot end before it starts.",
+  "error.permit_nothing": "Enter what the permit covers (weight, axle load, dimensions or the lorry ban).",
+  "error.permit_country": "Choose the country of the permit.",
+  "error.permit_circle": "Enter the place and radius of the permit.",
+  "error.permit_ways": "Select the roads covered by the permit.",
+  "error.permit_forbidden": "Company permits are saved by the owner and dispatchers.",
+  "error.permit_not_found": "Permit not found.",
+  "route.permitted": "{message} – covered by permit no. {number}"
 }

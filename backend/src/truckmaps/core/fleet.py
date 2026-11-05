@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from truckmaps.core import inbox
+from truckmaps.core import inbox, shared
 from truckmaps.core.companies import SERVICES_VEHICLES, CompanyMember, company_ids
 from truckmaps.core.db import get_session
 from truckmaps.core.vehicles import VehicleProfile, load_owned
@@ -102,6 +102,9 @@ class CoreFleet:
             tare_kg=vehicle.tare_t * 1000 if vehicle.tare_t is not None else None,
             gvw_kg=gvw * 1000,
             height_m=vehicle.height_m,
+            kingpin_m=vehicle.kingpin_m,
+            axles_m=vehicle.axles_m,
+            wheelbase_m=vehicle.wheelbase_m,
         )
 
     def staff(self, db: Session, vehicle_id: str) -> list[str]:
@@ -118,3 +121,8 @@ class CoreStorage:
     @property
     def session(self) -> Callable[..., Iterator[Session]]:
         return get_session
+
+    def share(
+        self, db: Session, body: bytes, content_type: str, filename: str, minutes: int = 15
+    ) -> str:
+        return shared.share(db, body, content_type, filename, minutes)

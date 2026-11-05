@@ -24,9 +24,11 @@ from truckmaps.core.companies import (
     SERVICES_VEHICLES,
     Company,
     CompanyKind,
+    CompanyMember,
     company_ids,
 )
 from truckmaps.core.costs import CostRates
+from truckmaps.core.currency import UserSettings
 from truckmaps.core.db import Base, get_session
 from truckmaps.core.i18n import t
 from truckmaps.core.registration import (
@@ -202,6 +204,16 @@ class VehicleProfile(Base):
     repair_reported: Mapped[bool] = mapped_column(default=False, server_default="false")
     """Zgłoszona usterka (moduł Serwis), pojazd jeszcze jeździ – do zamknięcia zlecenia."""
     in_use_by: Mapped[str | None] = mapped_column(String(255))
+    assigned_driver: Mapped[str | None] = mapped_column(String(255))
+    """Kierowca przydzielony do pojazdu firmy (konto członka firmy)."""
+    fifth_wheel_m: Mapped[float | None]
+    """Ciągnik: siodło od przodu ciągnika (z dokumentów)."""
+    kingpin_m: Mapped[float | None]
+    """Naczepa: sworzeń od przodu naczepy."""
+    axles_m: Mapped[float | None]
+    """Naczepa / przyczepa: środek zespołu osi od przodu."""
+    wheelbase_m: Mapped[float | None]
+    """Pojazd z silnikiem: rozstaw osi – od osi przedniej do środka osi tylnych."""
     in_use_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """Kierowca jedzie nim (nawigacja) – do zwolnienia albo do tej chwili."""
     company_id: Mapped[str | None] = mapped_column(
@@ -358,6 +370,18 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
     adblue_price: float | None = Field(
         default=None, gt=0, le=1000, description="Własna cena AdBlue za litr (waluta stawek)"
     )
+    fifth_wheel_m: float | None = Field(
+        default=None, gt=0, le=6, description="Ciągnik: siodło od przodu ciągnika [m]"
+    )
+    kingpin_m: float | None = Field(
+        default=None, gt=0, le=4, description="Naczepa: sworzeń od przodu naczepy [m]"
+    )
+    axles_m: float | None = Field(
+        default=None, gt=0, le=20, description="Naczepa / przyczepa: środek osi od przodu [m]"
+    )
+    wheelbase_m: float | None = Field(
+        default=None, gt=0, le=10, description="Rozstaw osi: przednia – środek tylnych [m]"
+    )
 
     @field_validator("plate")
     @classmethod
@@ -397,6 +421,18 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
             self.tachograph_until = self.tachograph_download_until = None
         if self.trailer_type != TrailerType.REEFER:
             self.atp_until = None
+        if self.kind != VehicleKind.TRACTOR:
+            self.fifth_wheel_m = None
+        if self.kind != VehicleKind.SEMITRAILER:
+            self.kingpin_m = None
+        if self.kind not in TOWED:
+            self.axles_m = None
+        if not motor:
+            self.wheelbase_m = None
+        if self.kingpin_m and self.axles_m and self.axles_m <= self.kingpin_m:
+            raise ValueError(t("error.axles_before_kingpin"))
+        if self.axles_m and self.axles_m > self.length_m:
+            raise ValueError(t("error.axles_beyond_length"))
         if self.trailer_type != TrailerType.TANKER:
             self.tdt_until = None
         if not self.hazmat:
@@ -418,6 +454,11 @@ class VehicleOut(VehicleData):
     """Naczepa / przyczepa: do którego pojazdu jest podpięta."""
     coupled_to_name: str | None = None
     in_use: bool = False
+    driver_name: str | None = None
+    """Kto teraz jedzie pojazdem (nawigacja)."""
+    assigned_member_id: str | None = None
+    """Przydzielony kierowca – członek firmy (id członka, nie konto)."""
+    assigned_driver_name: str | None = None
     in_repair: bool = False
     repair_reported: bool = False
     """Pojazd: kierowca nim jedzie; naczepa / przyczepa: jest podpięta albo jej pojazd jedzie."""
@@ -431,6 +472,10 @@ class RegistrationIn(BaseModel):
         default=None, max_length=20_000, description="Tekst rozpoznany ze zdjęcia dowodu"
     )
     image: str | None = Field(default=None, max_length=15_000_000)
+
+
+class DriverIn(BaseModel):
+    member_id: str | None = Field(description="Członek firmy; brak = bez przydziału")
 
 
 class CouplingIn(BaseModel):
@@ -511,6 +556,20 @@ def build_router(current_user) -> APIRouter:
         for field, value in data.model_dump().items():
             setattr(vehicle, field, value)
         _drop_broken_couplings(db, vehicle)
+        db.commit()
+        return vehicle_outs(db, [vehicle], roles, user)[0]
+
+    @router.put("/{vehicle_id}/driver")
+    def assign_driver(vehicle_id: str, data: DriverIn, user: User, db: Db) -> VehicleOut:
+        """Przydział kierowcy do pojazdu firmy (właściciel i dyspozytorzy)."""
+        roles = company_ids(db, user)
+        vehicle = load_owned(db, vehicle_id, user, edit=True)
+        if vehicle.company_id is None or VehicleKind(vehicle.kind) not in DRIVABLE:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.driver_not_here"))
+        member = db.get(CompanyMember, data.member_id) if data.member_id else None
+        if data.member_id and (member is None or member.company_id != vehicle.company_id):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.member_not_found"))
+        vehicle.assigned_driver = member.subject if member else None
         db.commit()
         return vehicle_outs(db, [vehicle], roles, user)[0]
 
@@ -619,14 +678,13 @@ def load_drivable(db: Session, vehicle_id: str, user: Principal) -> VehicleProfi
     trailer = db.get(VehicleProfile, vehicle.trailer_id) if vehicle.trailer_id else None
     if trailer is None:
         return vehicle
-    overlap = KINGPIN_OVERLAP_M if trailer.kind == VehicleKind.SEMITRAILER else 0.0
     columns = {c.key: getattr(vehicle, c.key) for c in VehicleProfile.__table__.columns}
     return VehicleProfile(
         **columns
         | {
             "height_m": max(vehicle.height_m, trailer.height_m),
             "width_m": max(vehicle.width_m, trailer.width_m),
-            "length_m": max(vehicle.length_m, vehicle.length_m + trailer.length_m - overlap),
+            "length_m": combination_length(vehicle, trailer),
             "weight_t": vehicle.weight_t + trailer.weight_t,
             "gvw_t": vehicle.gvw_t + trailer.gvw_t,
             "axle_load_t": max(vehicle.axle_load_t, trailer.axle_load_t),
@@ -638,6 +696,35 @@ def load_drivable(db: Session, vehicle_id: str, user: Principal) -> VehicleProfi
             "pallet_places": trailer.pallet_places,
         }
     )
+
+
+def combination_length(vehicle: VehicleProfile, trailer: VehicleProfile) -> float:
+    """Długość zestawu: z dokumentów (siodło ciągnika i sworzeń naczepy), inaczej typowa
+    część naczepy nad ciągnikiem; przyczepa – suma długości (dyszel w długości przyczepy)."""
+    if trailer.kind != VehicleKind.SEMITRAILER:
+        return vehicle.length_m + trailer.length_m
+    if vehicle.fifth_wheel_m and trailer.kingpin_m:
+        exact = vehicle.fifth_wheel_m + trailer.length_m - trailer.kingpin_m
+        return round(max(vehicle.length_m, exact), 2)
+    return max(vehicle.length_m, vehicle.length_m + trailer.length_m - KINGPIN_OVERLAP_M)
+
+
+def person_names(db: Session, subjects: set[str], company_id: str | None = None) -> dict[str, str]:
+    """Imiona do pokazania: z firmy, inaczej z ustawień konta, inaczej końcówka konta."""
+    subjects = {s for s in subjects if s}
+    if not subjects:
+        return {}
+    names: dict[str, str] = {}
+    if company_id:
+        members = select(CompanyMember).where(
+            CompanyMember.company_id == company_id, CompanyMember.subject.in_(subjects)
+        )
+        names |= {m.subject: m.display_name for m in db.scalars(members)}
+    missing = subjects - names.keys()
+    if missing:
+        settings = select(UserSettings).where(UserSettings.subject.in_(missing))
+        names |= {s.subject: s.display_name for s in db.scalars(settings) if s.display_name}
+    return names | {s: t("account.user_fallback", id=s[-6:]) for s in subjects - names.keys()}
 
 
 def _can_service(vehicle: VehicleProfile, roles: dict, user: Principal) -> bool:
@@ -686,10 +773,26 @@ def vehicle_outs(
         t.id: t
         for t in db.scalars(select(VehicleProfile).where(VehicleProfile.id.in_(trailer_ids)))
     }
+    names: dict[tuple[str | None, str], str] = {}
+    assigned = {(v.company_id, v.assigned_driver) for v in vehicles if v.assigned_driver}
+    members: dict[tuple[str | None, str], str] = {}
+    if assigned:
+        query = select(CompanyMember).where(
+            CompanyMember.subject.in_({s for _, s in assigned}),
+            CompanyMember.company_id.in_({c for c, _ in assigned}),
+        )
+        members = {(m.company_id, m.subject): m.id for m in db.scalars(query)}
+    for company_id in {v.company_id for v in vehicles}:
+        people = {
+            s for v in vehicles if v.company_id == company_id
+            for s in (v.assigned_driver, v.in_use_by if _driven(v) else None) if s
+        }  # fmt: skip
+        names |= {(company_id, s): n for s, n in person_names(db, people, company_id).items()}
     outs = []
     for v in vehicles:
         holder, trailer = holders.get(v.id), trailers.get(v.trailer_id)
         out = VehicleOut.model_validate(v)
+        driving = v.in_use_by if _driven(v) else None
         outs.append(
             out.model_copy(
                 update={
@@ -699,6 +802,11 @@ def vehicle_outs(
                     "coupled_to_id": holder.id if holder else None,
                     "coupled_to_name": holder.name if holder else None,
                     "in_use": _driven(v) or holder is not None,
+                    "driver_name": names.get((v.company_id, driving)) if driving else None,
+                    "assigned_member_id": members.get((v.company_id, v.assigned_driver)),
+                    "assigned_driver_name": names.get((v.company_id, v.assigned_driver))
+                    if v.assigned_driver
+                    else None,
                 }
             )
         )

@@ -23,5 +23,8 @@
   "service.protocol_parts_total": "Części razem",
   "service.protocol_signature": "Podpis",
   "inbox.service.order_new": "Nowe zgłoszenie usterki: {vehicle_name}",
-  "inbox.service.order_done": "Naprawa zakończona: {vehicle_name}"
+  "inbox.service.order_done": "Naprawa zakończona: {vehicle_name}",
+  "service.protocol_rate": "Stawka za godzinę",
+  "service.protocol_labour_total": "Robocizna razem",
+  "service.protocol_total": "Razem (części i robocizna)"
 }

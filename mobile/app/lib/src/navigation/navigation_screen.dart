@@ -147,6 +147,9 @@ const offRouteFixes = 3;
 const _spokenKinds = {'speed_camera', 'average_speed', 'level_crossing', 'ban', 'red', 'orange'};
 const eventVoiceM = 500.0;
 
+/// Poniżej tej prędkości (m/s, ok. 3 km/h) pojazd stoi – przestój w statystykach.
+const idleSpeedMs = 0.8;
+
 enum MapTheme { auto, day, night }
 
 /// Mapa nocą: odwrócone jasności kafelków w szarościach (bez osobnego stylu mapy).
@@ -208,6 +211,13 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   DateTime? _tripStart;
   LatLng? _tripLast;
   double _tripM = 0;
+
+  /// Przestoje: czas między pozycjami, gdy pojazd prawie stoi (do statystyk pojazdu).
+  DateTime? _tripLastAt;
+  Duration _idle = Duration.zero;
+
+  /// Z ładunkiem albo pusty przejazd – kierowca przełącza (puste km w statystykach).
+  bool _loaded = true;
 
   /// Ile trasy przejechano przy ostatniej pozycji na trasie (do pominięcia minionych punktów).
   double _lastAlongM = 0;
@@ -312,12 +322,19 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
 
   /// Skok dalej niż 2 km między pozycjami to błąd GPS, nie jazda.
   void _track(LatLng position) {
-    _tripStart ??= DateTime.now().toUtc();
+    final now = _now().toUtc();
+    _tripStart ??= now;
     if (_tripLast case final last?) {
       final step = distanceM(last, position);
       if (step < 2000) _tripM += step;
+      final elapsed = now.difference(_tripLastAt ?? now);
+      // Wolniej niż ok. 3 km/h przez dłużej niż 10 s – postój (korek, załadunek, przerwa).
+      if (elapsed.inSeconds >= 10 && elapsed.inSeconds < 3600 && step / elapsed.inSeconds < idleSpeedMs) {
+        _idle += elapsed;
+      }
     }
     _tripLast = position;
+    _tripLastAt = now;
   }
 
   /// Koniec nawigacji: przejazd od 0,5 km trafia do statystyk pojazdu (bez sieci – przepada).
@@ -332,6 +349,8 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
       'planned_km': _route.distanceKm,
       if (cost != null) 'cost_amount': cost.amount,
       if (cost != null) 'cost_currency': cost.currency,
+      'loaded': _loaded,
+      'idle_min': double.parse((_idle.inSeconds / 60).toStringAsFixed(1)),
     }).ignore();
   }
 
@@ -679,6 +698,13 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
                     },
                     size: 44,
                     onPressed: () => setState(() => _theme = MapTheme.values[(_theme.index + 1) % 3]),
+                  ),
+                  const SizedBox(height: 8),
+                  RoundButton(
+                    tooltip: _loaded ? l.navLoaded : l.navEmpty,
+                    icon: _loaded ? Icons.inventory_2 : Icons.inventory_2_outlined,
+                    size: 44,
+                    onPressed: () => setState(() => _loaded = !_loaded),
                   ),
                   if (tall && check?.alongM != null) ...[
                     const SizedBox(height: 8),

@@ -6,6 +6,7 @@ import 'l10n.dart';
 import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_form.dart';
 import 'vehicles/vehicle_state.dart';
+import 'vehicles/permits_screen.dart';
 import 'vehicles/vehicle_stats.dart';
 import 'vehicles/vehicles_table.dart';
 
@@ -88,6 +89,43 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     if (saved != null && mounted) _reload();
   }
 
+  /// Przydział kierowcy (K3): członek firmy albo bez przydziału.
+  Future<void> _driver(Map<String, dynamic> vehicle) async {
+    final l = context.l;
+    final company = await widget.api.get('/api/companies/${vehicle['company_id']}') as Map<String, dynamic>;
+    if (!mounted) return;
+    final members = (company['members'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l.vehicleDriverTitle('${vehicle['name']}')),
+        children: [
+          for (final m in [
+            {'id': '', 'display_name': l.vehicleNoDriver},
+            ...members,
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, '${m['id']}'),
+              child: Row(children: [
+                Icon((m['id'] == (vehicle['assigned_member_id'] ?? ''))
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked),
+                const SizedBox(width: 12),
+                Expanded(child: Text('${m['display_name']}')),
+              ]),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    try {
+      await widget.api.put('/api/vehicles/${vehicle['id']}/driver', {'member_id': chosen.isEmpty ? null : chosen});
+      if (mounted) _reload();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    }
+  }
+
   void _stats(Map<String, dynamic> vehicle) => Navigator.of(context)
       .push(MaterialPageRoute<void>(builder: (_) => VehicleStatsScreen(api: widget.api, vehicle: vehicle)));
 
@@ -160,12 +198,22 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   Widget build(BuildContext context) {
     final l = context.l;
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'add-vehicle',
-        onPressed: _open,
-        icon: const Icon(Icons.add),
-        label: Text(l.vehicleAdd),
-      ),
+      floatingActionButton: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
+        FloatingActionButton.small(
+          heroTag: 'permits',
+          tooltip: l.permitsTitle,
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute<void>(builder: (_) => PermitsScreen(api: widget.api))),
+          child: const Icon(Icons.verified_outlined),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton.extended(
+          heroTag: 'add-vehicle',
+          onPressed: _open,
+          icon: const Icon(Icons.add),
+          label: Text(l.vehicleAdd),
+        ),
+      ]),
       body: FutureBuilder<dynamic>(
         future: _vehicles,
         builder: (context, snapshot) {
@@ -200,6 +248,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 onDelete: () => _delete(v),
                 onService: () => _service(v),
                 onStats: () => _stats(v),
+                onDriver: () => _driver(v),
                 coupling: couples.containsKey(v['kind'])
                     ? _CouplingSlot(
                         vehicle: v,
@@ -290,7 +339,8 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
             onEdit: () => _open(v),
             onDelete: () => _delete(v),
             onService: () => _service(v),
-            onStats: () => _stats(v));
+            onStats: () => _stats(v),
+            onDriver: () => _driver(v));
     Widget coupling(Map<String, dynamic> v) {
       if (!couples.containsKey(v['kind'])) return const Text('–');
       final trailer = byId[v['trailer_id']];
@@ -365,6 +415,7 @@ class _VehicleCard extends StatelessWidget {
       required this.onDelete,
       required this.onService,
       this.onStats,
+      this.onDriver,
       this.coupling});
 
   final Map<String, dynamic> vehicle;
@@ -372,6 +423,7 @@ class _VehicleCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onService;
   final VoidCallback? onStats;
+  final VoidCallback? onDriver;
   final Widget? coupling;
 
   @override
@@ -404,10 +456,12 @@ class _VehicleCard extends StatelessWidget {
           title: Text(_title(v)),
           subtitle: Text('${kindLabel(l, kind)} · ${company ? l.vehicleOfCompany : l.vehiclePrivate}'
               '${stateLabel != null ? ' · $stateLabel' : ''}\n'
-              '$summary$tare$tank$seats$adr'),
+              '$summary$tare$tank$seats$adr'
+              '${v['assigned_driver_name'] != null ? '\n${l.vehicleAssignedDriver('${v['assigned_driver_name']}')}' : ''}'),
           isThreeLine: true,
           onTap: editable ? onEdit : (service ? onService : null),
-          trailing: _Actions(vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService, onStats: onStats),
+          trailing: _Actions(
+              vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService, onStats: onStats, onDriver: onDriver),
         ),
         if (urgent != null)
           Padding(
@@ -449,7 +503,12 @@ class _VehicleCard extends StatelessWidget {
 /// Menu pojazdu: zmiana, terminy, usunięcie – według uprawnień; bez uprawnień kłódka.
 class _Actions extends StatelessWidget {
   const _Actions(
-      {required this.vehicle, required this.onEdit, required this.onDelete, required this.onService, this.onStats});
+      {required this.vehicle,
+      required this.onEdit,
+      required this.onDelete,
+      required this.onService,
+      this.onStats,
+      this.onDriver});
 
   final Map<String, dynamic> vehicle;
   final VoidCallback onEdit;
@@ -458,6 +517,9 @@ class _Actions extends StatelessWidget {
 
   /// Statystyki przejazdów – tylko pojazdy, które jeżdżą same (bez naczep i przyczep).
   final VoidCallback? onStats;
+
+  /// Przydział kierowcy – pojazdy firmy, które jeżdżą same; zmieniają zarządzający.
+  final VoidCallback? onDriver;
 
   @override
   Widget build(BuildContext context) {
@@ -470,13 +532,16 @@ class _Actions extends StatelessWidget {
         'edit' => onEdit(),
         'service' => onService(),
         'stats' => onStats?.call(),
+        'driver' => onDriver?.call(),
         _ => onDelete(),
       },
       itemBuilder: (context) => [
         if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
         if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
-        if (onStats != null && !towedKinds.contains(vehicle['kind']))
+        if (onStats != null)
           PopupMenuItem(value: 'stats', child: Text(l.vehicleStatsAction)),
+        if (onDriver != null && editable && vehicle['company_id'] != null && !towedKinds.contains(vehicle['kind']))
+          PopupMenuItem(value: 'driver', child: Text(l.vehicleDriverAction)),
         if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
       ],
     );

@@ -65,6 +65,9 @@ class ServiceTexts {
   String get partQuantity => _t('Ilość', 'Qty');
   String get partPrice => _t('Cena', 'Price');
   String get labourHours => _t('Czas pracy', 'Labour');
+  String get labourRate => _t('Stawka za godzinę', 'Hourly rate');
+  String costsLabourTotal(String amount) => _t('robocizna: $amount', 'labour: $amount');
+  String costsTotal(String amount) => _t('razem: $amount', 'total: $amount');
   String get odometer => _t('Przebieg', 'Odometer');
   String get inspectionDone => _t('Zrobiono przegląd techniczny', 'Roadworthiness test done');
   String get inspectionDoneHint => _t('Terminy pojazdu przesuną się same: ostatni przegląd – dziś, ważny do – wybrana data.',

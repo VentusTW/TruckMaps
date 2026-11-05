@@ -104,7 +104,19 @@ const _ranges = {
   'adblue_price': (0.01, 1000.0),
   'odometer_km': (0.0, 10000000.0),
   'service_due_km': (0.0, 10000000.0),
+  'fifth_wheel_m': (0.1, 6.0),
+  'kingpin_m': (0.1, 4.0),
+  'axles_m': (0.5, 20.0),
+  'wheelbase_m': (1.0, 10.0),
 };
+
+/// Wymiary z dokumentów pojazdu (do długości zestawu i nacisków przy załadunku), według rodzaju.
+List<String> geometryKeys(String kind) => switch (kind) {
+      'tractor' => const ['fifth_wheel_m', 'wheelbase_m'],
+      'semitrailer' => const ['kingpin_m', 'axles_m'],
+      'trailer' => const ['axles_m'],
+      _ => const ['wheelbase_m'],
+    };
 
 /// Nowy pojazd (bez [vehicle]) albo zmiana istniejącego. Zwraca zapisany pojazd z serwera.
 class VehicleFormScreen extends StatefulWidget {
@@ -179,6 +191,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'vin': TextEditingController(text: text('vin')),
       'production_year': TextEditingController(text: text('production_year')),
       'pallet_places': TextEditingController(text: text('pallet_places')),
+      for (final key in const ['fifth_wheel_m', 'kingpin_m', 'axles_m', 'wheelbase_m'])
+        key: TextEditingController(text: text(key)),
       for (final key in const [
         'consumption_empty',
         'consumption_loaded',
@@ -354,6 +368,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       for (final key in ['consumption_empty', 'consumption_loaded', 'fuel_price']) key: _number(key),
       for (final key in ['adblue_percent', 'adblue_price']) key: _hasAdBlue ? _number(key) : null,
       'pallet_places': bodyKinds.contains(_kind) && _trailer != 'tanker' ? _number('pallet_places')?.round() : null,
+      for (final key in const ['fifth_wheel_m', 'kingpin_m', 'axles_m', 'wheelbase_m'])
+        key: geometryKeys(_kind).contains(key) ? _number(key) : null,
       for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
       for (final key in mileageKeys) key: towedKinds.contains(_kind) ? null : _number(key)?.round(),
     };
@@ -474,6 +490,22 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             _numberField('width_m', l.vehicleWidth, suffix: 'm'),
             _numberField('length_m', l.vehicleLength, suffix: 'm'),
           ]),
+          if (_kind != 'combination') ...[
+            section(l.vehicleGeometry, l.vehicleGeometryHint),
+            row([
+              for (final key in geometryKeys(_kind))
+                _numberField(
+                    key,
+                    switch (key) {
+                      'fifth_wheel_m' => l.vehicleFifthWheel,
+                      'kingpin_m' => l.vehicleKingpin,
+                      'axles_m' => l.vehicleAxlesFromFront,
+                      _ => l.vehicleWheelbase,
+                    },
+                    suffix: 'm',
+                    required: false),
+            ]),
+          ],
           section(l.vehicleMasses),
           row([
             _numberField('gvw_t', l.vehicleGvw, suffix: 't'),

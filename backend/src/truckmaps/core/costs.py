@@ -8,6 +8,7 @@ w walucie wybranej przez użytkownika, przeliczając po kursie EBC. Sam koszt li
 moduł Opłaty drogowe i koszty podmieni je na dokładniejsze (ceny paliwa i myto per kraj).
 """
 
+from collections.abc import Callable
 from datetime import date
 from typing import Literal
 
@@ -192,11 +193,16 @@ def estimate(
     distance_km,
     duration_min,
     route_countries: list[CountryDistance] | None = None,
+    allowed: Callable[[str], bool] | None = None,
 ) -> RouteCost | None:
+    """Koszt trasy przez gniazdo ``COST_PROVIDER``; ``allowed`` – czy konto może użyć modułu
+    o danym id (moduł kosztów liczy tylko dla kont, które go wykupiły; inaczej – rdzeń)."""
     if rates is None:
         return None
     profile = rates.profile.model_copy(update={"countries": route_countries or []})
-    provider = extensions.get(COST_PROVIDER)
+    provider, owner = extensions.get_allowed(
+        COST_PROVIDER, lambda module: module == "core" or allowed is None or allowed(module)
+    )
     amount = provider.estimate(distance_km, duration_min / 60, profile)
     parts = []
     if isinstance(provider, CostBreakdown):
@@ -222,5 +228,5 @@ def estimate(
         source=rates.source,
         rates_currencies=rates.currencies,
         exchange_day=rates.exchange_day,
-        provider=extensions.owner(COST_PROVIDER),
+        provider=owner,
     )

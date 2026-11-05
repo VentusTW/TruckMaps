@@ -23,10 +23,12 @@ from truckmaps.core import (
     inbox,
     mailer,
     passwords,
+    permits,
     releases,
     reminders,
     reports,
     routing,
+    shared,
     trips,
     vehicles,
 )
@@ -158,6 +160,8 @@ def create_app(
     app.include_router(corridor.build_router(auth.current_user))
     app.include_router(country_bans.build_router(auth.current_user))
     app.include_router(reports.build_router(auth.current_user))
+    app.include_router(shared.build_router())
+    app.include_router(permits.build_router(auth.current_user))
     app.include_router(releases.build_router(auth.current_user))
     app.include_router(currency.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))

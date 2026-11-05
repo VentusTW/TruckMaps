@@ -74,6 +74,7 @@ void main() {
           }
           if (path == '/api/m/service/photos/p1') return json({'content_type': 'image/png', 'image': png});
           if (path.endsWith('/protocol')) return json({'html': '<h1>Protokół</h1>', 'filename': '2026-11-01-KTA'});
+          if (path.endsWith('/protocol/link')) return json({'path': '/api/shared/klucz', 'filename': '2026-11-01-KTA'});
           if (path == '/api/m/service/costs') {
             return json([
               {
@@ -203,6 +204,7 @@ void main() {
             key: const ValueKey('done'),
             api: api(),
             order: order('done'),
+            byLink: false, // komputer: plik HTML w przeglądarce
             htmlOpener: (html, name) async {
               opened.add('$name:$html');
               return true;
@@ -210,6 +212,22 @@ void main() {
     await tester.tap(find.text('Printable protocol / PDF'));
     await tester.pumpAndSettle();
     expect(opened, ['2026-11-01-KTA:<h1>Protokół</h1>']);
+
+    // Telefon: protokół przez krótki link otwierany w przeglądarce systemu.
+    await pump(
+        tester,
+        OrderScreen(
+            key: const ValueKey('phone'),
+            api: api(),
+            order: order('done'),
+            byLink: true,
+            linkOpener: (link) async {
+              opened.add('$link');
+              return true;
+            }));
+    await tester.tap(find.text('Printable protocol / PDF'));
+    await tester.pumpAndSettle();
+    expect(opened.last, 'http://serwer.test/api/shared/klucz');
 
     await pump(tester, CostsScreen(api: api()));
     expect(find.text('MAN TGX · KTA 12345'), findsOneWidget);

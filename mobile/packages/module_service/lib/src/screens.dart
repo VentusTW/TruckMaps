@@ -29,6 +29,15 @@ Future<Uint8List?> pickServicePhoto() async {
 /// Otwiera stronę HTML (protokół do druku) w przeglądarce; `false` – nie udało się.
 typedef HtmlOpener = Future<bool> Function(String html, String name);
 
+/// Otwiera adres w przeglądarce systemu (protokół pod krótkim linkiem z serwera).
+typedef LinkOpener = Future<bool> Function(Uri link);
+
+Future<bool> openLink(Uri link) => launchUrl(link, mode: LaunchMode.externalApplication);
+
+/// Telefon: przeglądarka nie otworzy pliku z pamięci aplikacji – protokół idzie przez link.
+bool get protocolByLink =>
+    !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+
 Future<bool> openHtml(String html, String name) async {
   final file = File('${Directory.systemTemp.path}${Platform.pathSeparator}truckmaps-$name.html');
   await file.writeAsString(html);
@@ -283,12 +292,22 @@ class _ReportScreenState extends State<ReportScreen> {
 /// Zlecenie: szczegóły, a dla mechanika / dyspozytora / właściciela – kolejne kroki.
 class OrderScreen extends StatefulWidget {
   const OrderScreen(
-      {super.key, required this.api, required this.order, this.photoPicker = pickServicePhoto, this.htmlOpener = openHtml});
+      {super.key,
+      required this.api,
+      required this.order,
+      this.photoPicker = pickServicePhoto,
+      this.htmlOpener = openHtml,
+      this.linkOpener = openLink,
+      this.byLink});
 
   final CoreApi api;
   final Map<String, dynamic> order;
   final PhotoPicker photoPicker;
   final HtmlOpener htmlOpener;
+  final LinkOpener linkOpener;
+
+  /// Protokół przez link (telefon) zamiast pliku; `null` – według platformy.
+  final bool? byLink;
 
   @override
   State<OrderScreen> createState() => _OrderScreenState();
@@ -328,8 +347,14 @@ class _OrderScreenState extends State<OrderScreen> {
   Future<void> _openProtocol() async {
     final t = ServiceTexts.of(context);
     try {
-      final page = await widget.api.get('$_base/orders/${_order['id']}/protocol') as Map<String, dynamic>;
-      final opened = await widget.htmlOpener('${page['html']}', '${page['filename']}');
+      final bool opened;
+      if (widget.byLink ?? protocolByLink) {
+        final link = await widget.api.post('$_base/orders/${_order['id']}/protocol/link', {}) as Map<String, dynamic>;
+        opened = await widget.linkOpener(widget.api.uri('${link['path']}'));
+      } else {
+        final page = await widget.api.get('$_base/orders/${_order['id']}/protocol') as Map<String, dynamic>;
+        opened = await widget.htmlOpener('${page['html']}', '${page['filename']}');
+      }
       if (!opened && mounted) setState(() => _error = t.protocolOpenFailed);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -416,6 +441,8 @@ class _OrderScreenState extends State<OrderScreen> {
                 ].join('  ')),
               ),
             if (o['labour_hours'] != null) Text('${t.labourHours}: ${t.hours('${o['labour_hours']}')}'),
+            if (o['labour_rate'] != null)
+              Text('${t.labourRate}: ${t.amount((o['labour_rate'] as num).toDouble(), o['currency'] as String?)}'),
             if (o['odometer_km'] != null) Text('${t.odometer}: ${o['odometer_km']} km'),
             if (o['notes'] != null) Text('${t.notes}: ${o['notes']}'),
             if (DateTime.tryParse('${o['inspection_until']}') case final day?) Text(t.inspectionValid(day)),
@@ -551,11 +578,18 @@ class _CostsScreenState extends State<CostsScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.local_shipping_outlined),
                   title: Text(_vehicleTitle(row)),
-                  subtitle: Text(t.costsLine(
-                    row['orders'] as int,
-                    t.amount((row['parts_total'] as num).toDouble(), row['currency'] as String?),
-                    t.number((row['labour_hours'] as num).toDouble()),
-                  )),
+                  subtitle: Text([
+                    t.costsLine(
+                      row['orders'] as int,
+                      t.amount((row['parts_total'] as num).toDouble(), row['currency'] as String?),
+                      t.number((row['labour_hours'] as num).toDouble()),
+                    ),
+                    if ((row['labour_total'] as num? ?? 0) > 0)
+                      t.costsLabourTotal(
+                          t.amount((row['labour_total'] as num).toDouble(), row['currency'] as String?)),
+                    if (row['total'] != null)
+                      t.costsTotal(t.amount((row['total'] as num).toDouble(), row['currency'] as String?)),
+                  ].join(' · ')),
                 ),
               ),
           ]);
@@ -577,6 +611,7 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
   final _form = GlobalKey<FormState>();
   final _work = TextEditingController();
   final _hours = TextEditingController();
+  final _rate = TextEditingController();
   final _odometer = TextEditingController();
   final _notes = TextEditingController();
   final List<(TextEditingController, TextEditingController, TextEditingController)> _parts = [];
@@ -588,7 +623,7 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
 
   @override
   void dispose() {
-    for (final c in [_work, _hours, _odometer, _notes, for (final p in _parts) ...[p.$1, p.$2, p.$3]]) {
+    for (final c in [_work, _hours, _rate, _odometer, _notes, for (final p in _parts) ...[p.$1, p.$2, p.$3]]) {
       c.dispose();
     }
     super.dispose();
@@ -609,6 +644,7 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
             {'name': p.$1.text.trim(), 'quantity': _parse(p.$2.text) ?? 1, 'price': _parse(p.$3.text)},
       ],
       'labour_hours': _parse(_hours.text),
+      'labour_rate': _parse(_rate.text),
       'odometer_km': _parse(_odometer.text)?.round(),
       'notes': _notes.text.trim(),
       'currency': _currency ?? _defaultCurrency,
@@ -693,6 +729,16 @@ class _ProtocolScreenState extends State<ProtocolScreen> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: numbers,
                 decoration: _field(t.labourHours, suffix: 'h'),
+                validator: (text) => _number(text, t),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                controller: _rate,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: numbers,
+                decoration: _field(t.labourRate, suffix: _currency ?? _defaultCurrency),
                 validator: (text) => _number(text, t),
               ),
             ),

@@ -14,6 +14,7 @@ from truckmaps.core import (
     costs,
     fuel_prices,
     parkings,
+    permits,
     reports,
     restrictions,
     road_points,
@@ -106,6 +107,11 @@ class RouteRequest(BaseModel):
     departure: datetime | None = Field(
         default=None,
         description="Wyjazd (do zakazów ruchu w czasie); bez strefy – czas polski, brak – teraz",
+    )
+    permit_ids: list[str] | None = Field(
+        default=None,
+        max_length=50,
+        description="Zaznaczone zezwolenia; brak – wszystkie ważne w dniu wyjazdu",
     )
 
 
@@ -276,6 +282,9 @@ class RouteResponse(Route):
     )
     speed_limits: list[SpeedLimit] = Field(
         default=[], description="Ograniczenia prędkości na trasie (dla ciężarówek – limit krajowy)"
+    )
+    permits_used: list[str] = Field(
+        default=[], description="Numery zezwoleń, które objęły ograniczenia na trasie"
     )
     road_events: list[road_points.RoadEvent] = Field(
         default=[],
@@ -851,7 +860,9 @@ class Lookups:
     Kolejne warianty i alternatywy tej samej trasy mają w większości wspólne drogi.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, permits: list | None = None) -> None:
+        self.permits = permits or []
+        """Zezwolenia na przejazd ważne dla pojazdu w dniu wyjazdu (``permits.ActivePermit``)."""
         self.clear()
 
     def clear(self) -> None:
@@ -880,6 +891,7 @@ def assess(
         restrictions.nodes_near_route(db, route.geometry, NODE_KINDS),
         departure,
         reports.road_limits(db, way_ids, lookups.reported),
+        lookups.permits,
     )
 
 
@@ -1084,10 +1096,11 @@ def build_router(current_user) -> APIRouter:
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
         first_candidates: list[Route] = []
-        lookups = Lookups()
         departure = data.departure or datetime.now(timebans.HOME_ZONE)
         if departure.tzinfo is None:
             departure = departure.replace(tzinfo=timebans.HOME_ZONE)
+        vehicle_ids = {profile.id, *([profile.trailer_id] if profile.trailer_id else [])}
+        lookups = Lookups(permits.active(db, user, vehicle_ids, departure.date(), data.permit_ids))
 
         def plan_for(points: list[Point]):
             first_candidates.clear()
@@ -1139,13 +1152,17 @@ def build_router(current_user) -> APIRouter:
                 status.HTTP_503_SERVICE_UNAVAILABLE, t("error.routing_unavailable")
             ) from exc
         extensions = request.app.state.extensions
+        licensing = request.app.state.licensing
         bans = timebans.check_route(route, vehicle, departure)
         for ban in bans.bans:
             ban.parkings = _parkings(db, Point(lat=ban.lat, lon=ban.lon))[:3]
 
         def cost(distance_km: float, duration_min: float, edges) -> costs.RouteCost | None:
             countries = costs.countries(edges)
-            return costs.estimate(extensions, rates, distance_km, duration_min, countries)
+            return costs.estimate(
+                extensions, rates, distance_km, duration_min, countries,
+                allowed=lambda module: licensing.is_granted(user, module),
+            )  # fmt: skip
 
         return RouteResponse(
             **route.model_dump(),
@@ -1168,6 +1185,9 @@ def build_router(current_user) -> APIRouter:
             ),
             driver_reports=reports.along_route(db, route.geometry, user),
             speed_limits=speed_limits(route.edges, vehicle),
+            permits_used=sorted(
+                {w.permit for w in (analysis.warnings if analysis else []) if w.permit}
+            ),
             road_events=road_points.along_route(db, route.geometry),
         )
 

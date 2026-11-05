@@ -619,3 +619,97 @@ def test_trips_and_vehicle_stats_by_month(client):
         ("2026-11", 1, 240.0),
         ("2026-10", 2, 460.4),
     ]
+
+
+def test_assigned_driver_who_drives_and_exact_combination_length(client):
+    company_id = new_company(client)
+    joined = join(client, company_id, "jan")
+    owner, jan = as_user("olek"), as_user("jan")
+    member_id = next(m["id"] for m in joined["members"] if m["display_name"] == "Jan")
+    tractor = client.post(
+        "/api/vehicles",
+        json=TRUCK | {"company_id": company_id, "kind": "tractor", "length_m": 6.0,
+                      "fifth_wheel_m": 3.4, "kingpin_m": 1.6},
+        headers=owner,
+    ).json()  # fmt: skip
+    assert (tractor["fifth_wheel_m"], tractor["kingpin_m"]) == (3.4, None)  # sworzeń – w naczepie
+    trailer = client.post(
+        "/api/vehicles",
+        json=TRUCK | {"company_id": company_id, "kind": "semitrailer", "length_m": 13.6,
+                      "kingpin_m": 1.6, "axles_m": 9.6, "axle_count": 3},
+        headers=owner,
+    ).json()  # fmt: skip
+    url = f"/api/vehicles/{tractor['id']}"
+    client.put(f"{url}/trailer", json={"trailer_id": trailer["id"]}, headers=owner)
+
+    # Przydział: tylko członek firmy, tylko przez zarządzających, nie do naczepy.
+    driver = f"{url}/driver"
+    assert client.put(driver, json={"member_id": "obcy"}, headers=owner).status_code == 422
+    assert client.put(driver, json={"member_id": member_id}, headers=jan).status_code == 403
+    trailer_url = f"/api/vehicles/{trailer['id']}/driver"
+    assert client.put(trailer_url, json={"member_id": member_id}, headers=owner).status_code == 422
+    assigned = client.put(driver, json={"member_id": member_id}, headers=owner).json()
+    assert (assigned["assigned_member_id"], assigned["assigned_driver_name"]) == (member_id, "Jan")
+    assert "assigned_driver" not in assigned  # konto kierowcy nie wychodzi poza serwer
+
+    # Jan rusza w trasę: wszyscy widzą, kto jedzie.
+    corridor = {"vehicle_id": tractor["id"], "route": "_c`|@_c`|@_ibE_ibE"}
+    assert client.post("/api/corridor", json=corridor, headers=jan).status_code == 200
+    listed = {v["id"]: v for v in client.get("/api/vehicles", headers=owner).json()}
+    assert (listed[tractor["id"]]["in_use"], listed[tractor["id"]]["driver_name"]) == (True, "Jan")
+
+    # Zestaw: siodło 3,4 m + naczepa 13,6 m − sworzeń 1,6 m = 15,4 m (zamiast typowego skrótu).
+    route = client.post(
+        "/api/routes",
+        json={"vehicle_id": tractor["id"], "origin": POZNAN, "destination": WARSAW},
+        headers=jan,
+    ).json()
+    assert route["vehicle"]["length_m"] == 15.4
+    bad = TRUCK | {"kind": "semitrailer", "kingpin_m": 2.0, "axles_m": 1.5}
+    assert client.post("/api/vehicles", json=bad, headers=owner).status_code == 422
+
+
+def test_stats_step_two_empty_km_idle_drivers_trailers_and_previous_period(client):
+    from datetime import UTC, datetime, timedelta
+
+    company_id = new_company(client)
+    join(client, company_id, "jan")
+    owner, jan = as_user("olek"), as_user("jan")
+    tractor = client.post(
+        "/api/vehicles", json=TRUCK | {"company_id": company_id, "kind": "tractor"}, headers=owner
+    ).json()
+    trailer = client.post(
+        "/api/vehicles",
+        json=TRUCK | {"company_id": company_id, "kind": "semitrailer", "name": "Firanka 1",
+                      "axle_count": 3},
+        headers=owner,
+    ).json()  # fmt: skip
+    url = f"/api/vehicles/{tractor['id']}"
+    now = datetime.now(UTC)
+
+    def trip(who, days_ago, km, loaded, idle=None):
+        start = now - timedelta(days=days_ago)
+        body = {
+            "started_at": start.isoformat(), "ended_at": (start + timedelta(hours=2)).isoformat(),
+            "distance_km": km, "loaded": loaded, "idle_min": idle,
+        }  # fmt: skip
+        assert client.post(f"{url}/trips", json=body, headers=as_user(who)).status_code == 201
+
+    trip("olek", 400, 500, True)  # poprzedni okres (12 miesięcy wstecz)
+    client.put(f"{url}/trailer", json={"trailer_id": trailer["id"]}, headers=owner)
+    trip("jan", 10, 300, True, idle=30)
+    trip("jan", 5, 100, False, idle=15)
+    trip("olek", 2, 100, None)
+    stats = client.get(f"{url}/stats", headers=owner).json()
+    assert (stats["distance_km"], stats["empty_km"], stats["empty_share"]) == (500, 100, 0.25)
+    assert stats["idle_hours"] == 0.8
+    assert [(d["name"], d["distance_km"]) for d in stats["by_driver"]] == [
+        ("Jan", 400),
+        ("Olek", 100),
+    ]
+    assert [(t["name"], t["trips"]) for t in stats["linked"]] == [("Firanka 1", 3)]
+    assert (stats["previous"]["trips"], stats["previous"]["distance_km"]) == (1, 500)
+
+    towed = client.get(f"/api/vehicles/{trailer['id']}/stats", headers=jan).json()
+    assert (towed["trips"], towed["distance_km"]) == (3, 500)
+    assert [v["name"] for v in towed["linked"]] == [TRUCK["name"]]

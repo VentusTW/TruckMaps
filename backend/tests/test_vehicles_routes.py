@@ -1285,3 +1285,53 @@ Name: Max Mustermann"""
         "/api/vehicles/registration", json={"text": "zdjęcie kota"}, headers=as_user("anna")
     )
     assert nothing.status_code == 422
+
+
+def test_permit_lets_the_vehicle_through_a_weight_limit_in_its_scope(database):
+    with database.session() as db:
+        db.add(
+            Restriction(
+                osm_type="way", osm_id=7, kind="weight", value=12.0, raw="maxweight=12",
+                source="osm", source_date="2026-10-29",
+            )
+        )  # fmt: skip
+        db.commit()
+    edges = [RouteEdge(way_id=7, begin_index=0, end_index=1, country="PL", names=["DK 94"])]
+    client = make_client(database, FakeRouter(edges=edges))
+    body = route_body(client)
+    anna = as_user("anna")
+    assert client.post("/api/routes", json=body, headers=anna).status_code == 422  # bez zezwolenia
+
+    permit = {
+        "number": "UM/12/2026", "issuer": "Urząd Miasta", "valid_from": "2026-01-01",
+        "valid_to": "2030-12-31", "max_weight_t": 44, "scope": "country", "country": "PL",
+        "vehicle_ids": [body["vehicle_id"]],
+    }  # fmt: skip
+    created = client.post("/api/permits", json=permit, headers=anna)
+    assert created.status_code == 201, created.json()
+    route = client.post("/api/routes", json=body, headers=anna).json()
+    (warning,) = [w for w in route["analysis"]["warnings"] if w["kind"] == "permitted"]
+    assert warning["level"] == "lime" and "UM/12/2026" in warning["message"]
+    assert route["permits_used"] == ["UM/12/2026"] and route["analysis"]["level"] != "red"
+
+    # Planer bez zaznaczonych zezwoleń, zezwolenie wygasłe albo w innym miejscu – znów zakaz.
+    assert (
+        client.post("/api/routes", json=body | {"permit_ids": []}, headers=anna).status_code == 422
+    )
+    elsewhere = permit | {
+        "scope": "circle",
+        "country": None,
+        "lat": 50.0,
+        "lon": 20.0,
+        "radius_km": 5,
+    }
+    client.put(f"/api/permits/{created.json()['id']}", json=elsewhere, headers=anna)
+    assert client.post("/api/routes", json=body, headers=anna).status_code == 422
+    expired = permit | {"valid_to": "2026-01-31"}
+    client.put(f"/api/permits/{created.json()['id']}", json=expired, headers=anna)
+    assert client.post("/api/routes", json=body, headers=anna).status_code == 422
+
+    # Zezwolenie bez treści i cudze zezwolenia.
+    empty = permit | {"max_weight_t": None}
+    assert client.post("/api/permits", json=empty, headers=anna).status_code == 422
+    assert client.get("/api/permits", headers=as_user("obcy")).json() == []
