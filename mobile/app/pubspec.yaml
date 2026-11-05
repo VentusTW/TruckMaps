@@ -36,6 +36,8 @@ dependencies:
     path: ../packages/module_load
   module_drivers:
     path: ../packages/module_drivers
+  module_documents:
+    path: ../packages/module_documents
   image_picker: ^1.1.2
   mobile_scanner: ^5.1.1
   google_mlkit_text_recognition: ^0.15.0

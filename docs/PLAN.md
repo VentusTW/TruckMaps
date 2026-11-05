@@ -459,6 +459,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - **eksport do faktur**: dane zlecenia → program do faktur z KSeF (Fakturownia, inFakt, wFirma)
   - szablony z logo firmy, język dokumentu wg kraju (PL, EN, DE…), archiwum dokumentów przy zleceniu
   - zastrzeżenie: dokumenty generowane na podstawie danych użytkownika – za treść odpowiada przewoźnik
+  - [x] krok 1 (`backend/modules/documents`, id `documents`, gałąź migracji `documents_0001`): katalog dokumentów z mapowaniem pól (`docs/dokumenty-transportowe.md`), propozycja modułu (`docs/modul-dokumenty.md`); CMR, zlecenie transportowe, karta drogowa – profil firmy do dokumentów, szablony firmy (wartości domyślne, ukryte pola, warunki), autouzupełnianie (firma, pojazd z naczepą, kierowca, licznik, trasa, ładunek, przejazdy), numeracja, PDF bez zależności, strona do druku, krótki link; SDK: `fleet.company`, `DrivingInfo.trailer_plate / odometer_km`
+  - [x] krok 2: aplikacja (`mobile/packages/module_documents`) – lista, formularz z podpowiedziami, „Nowy dokument” z karty pojazdu, dane firmy i logo, edytor wzorów (nazwy pól, pola firmy, ukrywanie, wartości domyślne, warunki), PDF przez krótki link
+  - [ ] krok 3: „Dokument” z planera (trasa + plan załadunku do `/prefill`), POD z podpisem, protokół szkody, kolejne wzory
 - [ ] Sprzedaż licencji B2B poza sklepami
 - [ ] M11 Raporty (wersja podstawowa)
 
