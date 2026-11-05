@@ -15,7 +15,9 @@ import 'country_bans_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
 import '../vehicles/permits_screen.dart';
+import 'recent.dart';
 import 'route_review.dart';
+import '../navigation/navigation_screen.dart';
 
 /// Podkład mapy: kafelki OSM jak w planerze w przeglądarce (testy podmieniają na puste).
 Widget Function() mapTiles = () => TileLayer(
@@ -26,13 +28,40 @@ Widget Function() mapTiles = () => TileLayer(
 /// Planowanie trasy: start, cel i punkty pośrednie (adres, GPS albo kliknięcie na mapie),
 /// pojazd, godzina wyjazdu; trasa w kolorach ryzyka z ostrzeżeniami, zakazami ruchu
 /// w czasie, kosztem i alternatywami – to samo API co planer w przeglądarce.
+/// Polecenia dla planera z innych ekranów: „zaplanuj tym pojazdem”, „powtórz ostatnią trasę”.
+class PlannerController extends ChangeNotifier {
+  String? _vehicleId;
+  RecentRoute? _route;
+
+  void useVehicle(String id) {
+    _vehicleId = id;
+    notifyListeners();
+  }
+
+  void openRoute(RecentRoute route) {
+    _route = route;
+    notifyListeners();
+  }
+
+  ({String? vehicleId, RecentRoute? route}) _take() {
+    final taken = (vehicleId: _vehicleId, route: _route);
+    _vehicleId = null;
+    _route = null;
+    return taken;
+  }
+}
+
 class PlannerScreen extends StatefulWidget {
-  const PlannerScreen({super.key, required this.api, this.vehiclesChanged});
+  const PlannerScreen({super.key, required this.api, this.vehiclesChanged, this.memory, this.controller});
 
   final CoreApi api;
 
   /// Zmiana listy pojazdów na innym ekranie – planer pobiera ją ponownie.
   final Listenable? vehiclesChanged;
+
+  /// Ostatnie trasy i pojazd (domyślnie w pamięci – testy; aplikacja podaje magazyn urządzenia).
+  final PlannerMemory? memory;
+  final PlannerController? controller;
 
   @override
   State<PlannerScreen> createState() => _PlannerScreenState();
@@ -65,15 +94,81 @@ class _PlannerScreenState extends State<PlannerScreen> {
   _Drag? _drag;
   final _mapKey = GlobalKey();
 
+  late final PlannerMemory _memory = widget.memory ?? PlannerMemory();
+
+  /// Bazy firm użytkownika – szybki wybór startu i celu.
+  List<Place> _bases = const [];
+
   @override
   void initState() {
     super.initState();
-    _loadVehicles();
+    _memory.addListener(_memoryChanged);
+    _memory.load().then((_) => _loadVehicles());
+    _loadBases();
     widget.vehiclesChanged?.addListener(_loadVehicles);
+    widget.controller?.addListener(_command);
+  }
+
+  void _memoryChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadBases() async {
+    try {
+      final data = await widget.api.get('/api/bases');
+      if (!mounted || data is! List) return;
+      final bases = data.cast<Map<String, dynamic>>();
+      setState(() => _bases = [
+            for (final b in bases)
+              Place('${b['name']}', LatLng((b['lat'] as num).toDouble(), (b['lon'] as num).toDouble())),
+          ]);
+    } catch (_) {
+      // Bez baz – tylko ostatnie miejsca.
+    }
+  }
+
+  /// Polecenie z innego ekranu (pulpit, karta pojazdu).
+  void _command() {
+    final (:vehicleId, :route) = widget.controller!._take();
+    if (vehicleId != null && _vehicles.any((v) => v['id'] == vehicleId)) {
+      setState(() => _vehicleId = vehicleId);
+      _memory.setVehicle(vehicleId);
+      if (_result != null) _calculate();
+    }
+    if (route != null) _useRoute(route);
+  }
+
+  void _useRoute(RecentRoute route) {
+    setState(() {
+      _start = route.from;
+      _end = route.to;
+      _from.text = route.from.label;
+      _to.text = route.to.label;
+      _via.clear();
+      final usable = _vehicles.any((v) => v['id'] == route.vehicleId && v['in_repair'] != true);
+      if (usable) _vehicleId = route.vehicleId;
+    });
+    _calculate();
+  }
+
+  /// Szybki wybór miejsca: puste „Skąd” – start, inaczej cel; z obydwoma – od razu trasa.
+  void _usePlace(Place place) {
+    setState(() {
+      if (_start == null) {
+        _start = place;
+        _from.text = place.label;
+      } else {
+        _end = place;
+        _to.text = place.label;
+      }
+    });
+    if (_start != null && _end != null) _calculate();
   }
 
   @override
   void dispose() {
+    widget.controller?.removeListener(_command);
+    _memory.removeListener(_memoryChanged);
     widget.vehiclesChanged?.removeListener(_loadVehicles);
     _from.dispose();
     _to.dispose();
@@ -92,9 +187,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _vehicles = list;
         // Wybrany pojazd zostaje, jeśli nadal jest na liście (np. po zmianie wymiarów).
         // Pojazd w naprawie jest wyłączony z użytku – planer wybiera inny.
+        // Domyślnie: przydzielony mi pojazd, potem ostatnio używany, potem pierwszy sprawny.
         final usable = [for (final v in list) if (v['in_repair'] != true) v];
         if (!usable.any((v) => v['id'] == _vehicleId)) {
-          _vehicleId = usable.isEmpty ? null : usable.first['id'] as String;
+          final preferred = usable.where((v) => v['assigned_to_me'] == true).firstOrNull ??
+              usable.where((v) => v['id'] == _memory.vehicleId).firstOrNull ??
+              usable.firstOrNull;
+          _vehicleId = preferred?['id'] as String?;
         }
       });
     } catch (error) {
@@ -156,6 +255,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _result = result;
         _alternative = null;
       });
+      _memory.addRoute(RecentRoute(
+        from: start,
+        to: end,
+        vehicleId: vehicleId,
+        vehicleName: _vehicles.where((v) => v['id'] == vehicleId).map((v) => '${v['name']}').firstOrNull,
+      ));
       _fit(result.route.points);
     } on ApiException catch (error) {
       // Nieaktualna trasa nie może zostać na mapie – wyglądałoby, że nic się nie zmieniło.
@@ -344,10 +449,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
           for (final report in _myReports) _reportMarker(report),
         ]),
         MarkerLayer(markers: [
-          if (_start != null) _stopMarker(_start!.point, 'A', const Color(0xFF185FA5), stop: -1),
-          if (_end != null) _stopMarker(_end!.point, 'B', const Color(0xFFA32D2D), stop: -2),
+          if (_start != null) _stopMarker(_start!.point, 'A', TruckPalette.start, stop: -1),
+          if (_end != null) _stopMarker(_end!.point, 'B', TruckPalette.end, stop: -2),
           for (final (i, via) in _via.indexed)
-            _stopMarker(via.point, '${i + 1}', const Color(0xFF5F5E5A), stop: i, onTap: () {
+            _stopMarker(via.point, '${i + 1}', TruckPalette.via, stop: i, onTap: () {
               setState(() => _via.removeAt(i));
               _calculate();
             }),
@@ -421,6 +526,55 @@ class _PlannerScreenState extends State<PlannerScreen> {
     if (_start != null && _end != null) _calculate();
   }
 
+  void _startDriving(RouteResult result) => Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => NavigationScreen(
+          api: widget.api,
+          request: navigationRequest(
+            result: result,
+            alternative: _alternative,
+            vehicleId: _vehicleId!,
+            destination: _end!.point,
+            via: [for (final v in _via) v.point],
+            viaNames: [for (final v in _via) v.label],
+            avoidDifficult: _avoid,
+          ),
+        ),
+      ));
+
+  /// Ostatnie trasy, bazy firmy i ostatnie miejsca – jedno kliknięcie zamiast wpisywania adresu.
+  Widget _quickPicks(AppLocalizations l) {
+    final routes = _memory.routes.take(3).toList();
+    final places = [
+      for (final b in _bases) (b, Icons.warehouse_outlined),
+      for (final p in _memory.places)
+        if (!_bases.any((b) => b.label == p.label)) (p, Icons.history),
+    ].take(8).toList();
+    if (routes.isEmpty && places.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final r in routes)
+          ActionChip(
+            avatar: const Icon(Icons.replay, size: 18),
+            label: Text('${_short(r.from.label)} → ${_short(r.to.label)}'),
+            onPressed: () => _useRoute(r),
+          ),
+        for (final (place, icon) in places)
+          ActionChip(
+            avatar: Icon(icon, size: 18),
+            label: Text(_short(place.label)),
+            tooltip: place.label,
+            onPressed: () => _usePlace(place),
+          ),
+      ]),
+    );
+  }
+
+  static String _short(String label) {
+    final first = label.split(',').first.trim();
+    return first.length > 28 ? '${first.substring(0, 27)}…' : first;
+  }
+
   Future<void> _addVehicle() async {
     final saved = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute(builder: (_) => VehicleFormScreen(api: widget.api)),
@@ -441,7 +595,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         message: report.message,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: delivery ? const Color(0xFF185FA5) : const Color(0xFFF08C00),
+            color: delivery ? TruckPalette.start : TruckPalette.pickup,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: Colors.white, width: 2),
           ),
@@ -578,13 +732,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
                             v['plate'] == null ? '${v['name']}' : '${v['name']} · ${v['plate']}',
                             if (v['trailer_name'] != null) '${v['trailer_name']}',
                           ].join(' + ') +
-                          (v['in_repair'] == true ? ' · ${l.vehicleInRepair}' : ''),
+                          (v['in_repair'] == true ? ' · ${l.vehicleInRepair}' : '') +
+                          (v['assigned_to_me'] == true ? ' · ${l.plannerAssignedToYou}' : ''),
                       style: v['in_repair'] == true ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
                       overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: (id) {
               setState(() => _vehicleId = id);
+              _memory.setVehicle(id);
               if (_result != null) _calculate();
             },
           ),
@@ -615,6 +771,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (_start != null) _calculate();
         },
       ),
+      if (_result == null) _quickPicks(l),
       for (final (i, via) in _via.indexed)
         ListTile(
           dense: true,
@@ -640,6 +797,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
           onPressed: _vehicleId == null ? null : _pickPermits,
           icon: const Icon(Icons.verified_outlined),
           label: Text(_permitIds == null ? l.permitsChoose : l.permitsChosen(_permitIds!.length)),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute<void>(builder: (_) => CountryBansScreen(api: widget.api))),
+          icon: const Icon(Icons.event_busy_outlined),
+          label: Text(l.menuBans),
         ),
         FilterChip(
           label: Text(l.addViaOnMap),
@@ -701,7 +864,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
         ),
       Text(shown.summary(l), style: theme.textTheme.titleMedium),
       const SizedBox(height: 8),
+      // Od razu w drogę – przegląd trasy jest obok, nie jest obowiązkowym krokiem.
       FilledButton.icon(
+        key: const Key('planner-start'),
+        onPressed: _end == null || _vehicleId == null ? null : () => _startDriving(result),
+        icon: const Icon(Icons.navigation_outlined),
+        label: Text(l.startDriving),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
         onPressed: _end == null || _vehicleId == null
             ? null
             : () => Navigator.of(context).push(MaterialPageRoute<void>(
@@ -721,7 +892,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   ),
                 )),
         icon: const Icon(Icons.fact_check_outlined),
-        label: Text(l.routeReviewOpen),
+        label: Text(l.routeReviewShort),
       ),
       if (shown.cost != null) ...[
         Text([l.costEstimate, if (shown.cost!.summaryParts(l) case final parts?) parts].join(' · '),

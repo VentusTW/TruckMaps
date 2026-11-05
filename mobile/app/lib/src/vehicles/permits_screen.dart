@@ -90,7 +90,7 @@ class _PermitsScreenState extends State<PermitsScreen> {
                 child: ListTile(
                   leading: Icon(
                     Icons.verified_outlined,
-                    color: '${p['valid_to']}'.compareTo(today) < 0 ? Theme.of(context).disabledColor : Colors.blue,
+                    color: '${p['valid_to']}'.compareTo(today) < 0 ? Theme.of(context).disabledColor : TruckPalette.permitted,
                   ),
                   title: Text([p['number'], if ('${p['issuer']}'.isNotEmpty) p['issuer']].join(' · ')),
                   subtitle: Text(permitSummary(l, p)),
@@ -110,10 +110,13 @@ class _PermitsScreenState extends State<PermitsScreen> {
 
 /// Formularz zezwolenia: numer, wydawca, ważność, czego dotyczy, zasięg i pojazdy.
 class PermitFormScreen extends StatefulWidget {
-  const PermitFormScreen({super.key, required this.api, this.permit});
+  const PermitFormScreen({super.key, required this.api, this.permit, this.vehicleIds = const []});
 
   final CoreApi api;
   final Map<String, dynamic>? permit;
+
+  /// Pojazdy zaznaczone z góry w nowym zezwoleniu (np. z karty pojazdu).
+  final List<String> vehicleIds;
 
   @override
   State<PermitFormScreen> createState() => _PermitFormScreenState();
@@ -136,7 +139,9 @@ class _PermitFormScreenState extends State<PermitFormScreen> {
   late String _country = '${_p['country'] ?? 'PL'}';
   late double? _lat = (_p['lat'] as num?)?.toDouble();
   late double? _lon = (_p['lon'] as num?)?.toDouble();
-  late final Set<String> _vehicles = {for (final v in (_p['vehicle_ids'] as List<dynamic>? ?? const [])) '$v'};
+  late final Set<String> _vehicles = {
+    for (final v in (_p['vehicle_ids'] as List<dynamic>? ?? widget.vehicleIds)) '$v',
+  };
   late final Future<dynamic> _allVehicles = widget.api.get('/api/vehicles');
   bool _busy = false;
   String? _error;

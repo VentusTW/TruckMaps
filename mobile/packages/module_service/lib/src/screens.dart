@@ -137,7 +137,7 @@ class _ServiceScreenState extends State<ServiceScreen> {
                 for (final o in orders)
                   Card(
                     child: ListTile(
-                      leading: _StatusIcon(order: o),
+                      leading: ServiceStatusIcon(order: o),
                       title: Text(_vehicleTitle(o)),
                       subtitle: Text('${t.status(o['status'] as String?)} · ${o['description']}',
                           maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -154,8 +154,8 @@ class _ServiceScreenState extends State<ServiceScreen> {
   }
 }
 
-class _StatusIcon extends StatelessWidget {
-  const _StatusIcon({required this.order});
+class ServiceStatusIcon extends StatelessWidget {
+  const ServiceStatusIcon({super.key, required this.order});
 
   final Map<String, dynamic> order;
 
@@ -405,7 +405,7 @@ class _OrderScreenState extends State<OrderScreen> {
         appBar: AppBar(title: Text(_vehicleTitle(o))),
         body: ListView(padding: const EdgeInsets.all(16), children: [
           Row(children: [
-            _StatusIcon(order: o),
+            ServiceStatusIcon(order: o),
             const SizedBox(width: 8),
             Text(t.status(status), style: theme.textTheme.titleMedium),
             if (o['urgency'] == 'stopped') ...[

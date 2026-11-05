@@ -13,15 +13,20 @@ import 'auth.dart';
 import 'company/company_screen.dart';
 import 'company/admin_access_screen.dart';
 import 'company/members_screen.dart';
+import 'dashboard_screen.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
 import 'planner/country_bans_screen.dart';
 import 'planner/planner_screen.dart';
+import 'planner/recent.dart';
 import 'updates.dart';
+import 'vehicles/vehicle_actions.dart' show openVehicleForm;
+import 'vehicles/vehicle_card.dart';
 import 'vehicles_screen.dart';
 
-/// Ekran główny: menu rdzenia (trasa, pojazdy, firma, konto, moduły) i ekrany modułów z dostępem.
+/// Ekran główny: pulpit, menu rdzenia (trasa, pojazdy, firma, konto, moduły) i ekrany modułów z dostępem.
+/// Moduły dokładają sekcje do pulpitu i karty pojazdu przez kontrakt [TruckMapsModule].
 /// Ekrany firmy zależą od roli w wybranej firmie; bez firmy przy pierwszym logowaniu – wybór,
 /// czy zakładasz firmę, dołączasz kodem, czy jeździsz sam.
 class HomeScreen extends StatefulWidget {
@@ -32,7 +37,8 @@ class HomeScreen extends StatefulWidget {
       required this.onLogout,
       this.onLanguage,
       this.openUrl,
-      this.pageMemory});
+      this.pageMemory,
+      this.plannerMemory});
 
   final Session session;
   final ModuleRegistry registry;
@@ -46,6 +52,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Ostatnio używany ekran (testy podmieniają); zwykle magazyn systemu.
   final PageMemory? pageMemory;
+
+  /// Ostatnie trasy i pojazd planera (testy podmieniają); zwykle magazyn systemu.
+  final PlannerMemory? plannerMemory;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -85,7 +94,7 @@ class SecurePageMemory implements PageMemory {
 }
 
 class _Page {
-  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0, this.start = false});
+  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0});
 
   /// Stały identyfikator: wybrany ekran zostaje wybrany, gdy menu zmienia się z rolą albo językiem.
   final String id;
@@ -96,9 +105,6 @@ class _Page {
 
   /// Liczba nowych (np. nieprzeczytane wiadomości) przy pozycji menu.
   final int badge;
-
-  /// Ekran startowy – bez przycisku w menu.
-  final bool start;
 }
 
 /// Ikona z licznikiem nowych.
@@ -108,9 +114,11 @@ Widget _badged(IconData icon, int count) =>
 class _HomeScreenState extends State<HomeScreen> {
   List<ModuleAccess> _modules = const [];
   String? _error;
-  /// Wybrany ekran; `null` – jeszcze nie wiadomo (wtedy ekran startowy, a bez niego pierwszy).
+  /// Wybrany ekran; `null` – jeszcze nie wiadomo (wtedy pulpit).
   String? _selected;
   late final PageMemory _memory = widget.pageMemory ?? SecurePageMemory();
+  late final PlannerMemory _plannerMemory = widget.plannerMemory ?? PlannerMemory(const FlutterSecureStorage());
+  final _planner = PlannerController();
 
   /// Ustawienia konta (`/api/me/settings`) i firmy użytkownika z jego rolą w każdej.
   Map<String, dynamic> _settings = const {};
@@ -130,10 +138,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _inboxTimer;
   int _inboxVersion = 0;
 
+  /// Wejście na pulpit → świeże dane (terminy, wiadomości, sekcje modułów).
+  int _dashboardVersion = 0;
+
   @override
   void dispose() {
     _vehiclesChanged.dispose();
     _vehiclesShown.dispose();
+    _planner.dispose();
     _inboxTimer?.cancel();
     super.dispose();
   }
@@ -242,16 +254,77 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  ModuleContext get _moduleContext => ModuleContext(
+        api: widget.session.api,
+        userName: _userName,
+        locale: Localizations.localeOf(context),
+      );
+
+  Iterable<TruckMapsModule> get _usable => [for (final m in _modules) if (m.usable) m.module!];
+
+  List<VehicleSection> get _vehicleSections => [for (final m in _usable) ...m.vehicleSections(_moduleContext)];
+  List<VehicleAction> get _vehicleActions => [for (final m in _usable) ...m.vehicleActions(_moduleContext)];
+
+  void _vehiclesUpdated() {
+    _vehiclesChanged.value++;
+    _vehiclesShown.value++;
+  }
+
+  /// Karta pojazdu nad bieżącym ekranem (z pulpitu albo listy).
+  Future<void> _openVehicle(Map<String, dynamic> vehicle) => Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => VehicleCardScreen(
+          api: widget.session.api,
+          vehicle: vehicle,
+          sections: _vehicleSections,
+          actions: _vehicleActions,
+          onChanged: _vehiclesUpdated,
+          onPlanRoute: _planWith,
+        ),
+      ));
+
+  void _planWith(Map<String, dynamic> vehicle) {
+    _planner.useVehicle('${vehicle['id']}');
+    _open('route');
+  }
+
+  void _planRoute(RecentRoute? route) {
+    if (route != null) _planner.openRoute(route);
+    _open('route');
+  }
+
+  Future<void> _addVehicle() async {
+    if (await openVehicleForm(context, widget.session.api) && mounted) _vehiclesUpdated();
+  }
+
   List<_Page> get _pages {
     final l = context.l;
-    final module = ModuleContext(
-      api: widget.session.api,
-      userName: _userName,
-      locale: Localizations.localeOf(context),
-    );
+    final module = _moduleContext;
     return [
+      _Page(
+          'dashboard',
+          l.menuDashboard,
+          Icons.space_dashboard_outlined,
+          (_) => DashboardScreen(
+                key: ValueKey(('dashboard', _modules.length, _dashboardVersion)),
+                api: widget.session.api,
+                userName: _userName,
+                memory: _plannerMemory,
+                onPlanRoute: _planRoute,
+                onOpenVehicle: _openVehicle,
+                onAddVehicle: _addVehicle,
+                onOpenPage: (id) {
+                  if (id == 'inbox') _inboxChanged();
+                  if (id == 'vehicles') _vehiclesShown.value++;
+                  _open(id);
+                },
+                sections: [for (final m in _usable) ...m.dashboardSections(module)],
+              )),
       _Page('route', l.menuRoute, Icons.route_outlined,
-          (_) => PlannerScreen(api: widget.session.api, vehiclesChanged: _vehiclesChanged)),
+          (_) => PlannerScreen(
+              api: widget.session.api,
+              vehiclesChanged: _vehiclesChanged,
+              memory: _plannerMemory,
+              controller: _planner)),
       _Page(
           'vehicles',
           l.menuVehicles,
@@ -260,6 +333,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 api: widget.session.api,
                 onChanged: () => _vehiclesChanged.value++,
                 refresh: _vehiclesShown,
+                sections: _vehicleSections,
+                actions: _vehicleActions,
+                onPlanRoute: _planWith,
               )),
       _Page('bans', l.menuBans, Icons.block_outlined,
           (_) => CountryBansScreen(api: widget.session.api, standalone: false)),
@@ -302,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
       for (final access in _modules.where((m) => m.usable))
         for (final (i, entry) in access.module!.entries(module).indexed)
-          _Page('${access.id}/$i', entry.title, entry.icon, entry.builder, start: entry.start),
+          _Page('${access.id}/$i', entry.title, entry.icon, entry.builder),
       _Page(
           'inbox',
           l.menuInbox,
@@ -335,12 +411,11 @@ class _HomeScreenState extends State<HomeScreen> {
       return OnboardingScreen(api: widget.session.api, onDone: _loadAccount, onLogout: widget.onLogout);
     }
     final pages = _pages;
-    // Ostatnio używany ekran; gdy go nie ma (pierwsze uruchomienie, moduł bez dostępu) – startowy.
+    // Ostatnio używany ekran; gdy go nie ma (pierwsze uruchomienie, moduł bez dostępu) – pulpit.
     var selected = pages.indexWhere((page) => page.id == _selected);
-    if (selected < 0) selected = pages.indexWhere((page) => page.start);
     if (selected < 0) selected = 0;
     final wide = MediaQuery.sizeOf(context).width >= 720;
-    final inMenu = [for (final page in pages) if (!page.start) page];
+    final inMenu = pages;
     final menu = [
       for (final page in inMenu) NavigationDrawerDestination(icon: _badged(page.icon, page.badge), label: Text(page.title)),
     ];
@@ -350,6 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Stan pojazdów zmienia się poza tym ekranem (serwis, nawigacja innych kierowców).
       if (id == 'vehicles') _vehiclesShown.value++;
       if (id == 'route') _vehiclesChanged.value++;
+      if (id == 'dashboard' && _selected != 'dashboard') setState(() => _dashboardVersion++);
       _open(id);
       if (!wide) Navigator.of(context).maybePop();
     }

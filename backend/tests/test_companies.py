@@ -651,6 +651,9 @@ def test_assigned_driver_who_drives_and_exact_combination_length(client):
     assigned = client.put(driver, json={"member_id": member_id}, headers=owner).json()
     assert (assigned["assigned_member_id"], assigned["assigned_driver_name"]) == (member_id, "Jan")
     assert "assigned_driver" not in assigned  # konto kierowcy nie wychodzi poza serwer
+    assert assigned["assigned_to_me"] is False  # właściciel nie jest przydzielonym kierowcą
+    mine = {v["id"]: v for v in client.get("/api/vehicles", headers=jan).json()}
+    assert mine[tractor["id"]]["assigned_to_me"] is True  # planer Jana wybierze ten pojazd
 
     # Jan rusza w trasę: wszyscy widzą, kto jedzie.
     corridor = {"vehicle_id": tractor["id"], "route": "_c`|@_c`|@_ibE_ibE"}

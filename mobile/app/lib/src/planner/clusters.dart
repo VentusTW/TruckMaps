@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,7 +23,7 @@ List<List<int>> clusterIndices(List<LatLng> points, double zoom, {double cellPx 
 /// od [maxZoom] – wszystkie osobno.
 class ClusteredMarkerLayer extends StatelessWidget {
   const ClusteredMarkerLayer(
-      {super.key, required this.markers, this.maxZoom = 14, this.color = const Color(0xFF185FA5)});
+      {super.key, required this.markers, this.maxZoom = 14, this.color = TruckPalette.start});
 
   final List<Marker> markers;
   final double maxZoom;

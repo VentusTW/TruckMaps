@@ -9,6 +9,7 @@ import 'src/auth.dart';
 import 'src/home.dart';
 import 'src/l10n.dart';
 import 'src/guest.dart';
+import 'src/theme.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');
@@ -27,7 +28,7 @@ Locale resolveLocale(Locale? device, Iterable<Locale> supported) {
 }
 
 class TruckMapsApp extends StatefulWidget {
-  const TruckMapsApp({super.key, this.session, this.login, this.locale});
+  const TruckMapsApp({super.key, this.session, this.login, this.locale, this.themeMode = ThemeMode.system});
 
   /// Sesja podana z góry (testy); zwykle przywrócona z poprzedniego uruchomienia albo z logowania.
   final Session? session;
@@ -35,6 +36,9 @@ class TruckMapsApp extends StatefulWidget {
 
   /// Język wybrany z góry (testy); zwykle język systemu.
   final Locale? locale;
+
+  /// Jasny / ciemny tryb; zwykle według systemu.
+  final ThemeMode themeMode;
 
   @override
   State<TruckMapsApp> createState() => _TruckMapsAppState();
@@ -82,12 +86,9 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
     return MaterialApp(
       title: 'TruckMaps',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1B6E3A),
-        useMaterial3: true,
-        // Panel menu – beżowy.
-        navigationDrawerTheme: const NavigationDrawerThemeData(backgroundColor: Color(0xFFF5F0E1)),
-      ),
+      theme: TruckTheme.light(),
+      darkTheme: TruckTheme.dark(),
+      themeMode: widget.themeMode,
       // Język telefonu / systemu, jeśli aplikacja go ma; inaczej polski.
       locale: _language ?? widget.locale,
       supportedLocales: AppLocalizations.supportedLocales,

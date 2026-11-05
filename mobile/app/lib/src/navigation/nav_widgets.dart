@@ -1,3 +1,4 @@
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
@@ -7,8 +8,8 @@ import 'guidance.dart';
 import 'route_events.dart';
 
 /// Półprzezroczyste ciemne karty ekranu nawigacji.
-const navPanelColor = Color(0xE01B232B);
-const navAccent = Color(0xFF5FB3F6);
+const navPanelColor = TruckPalette.navPanel;
+const navAccent = TruckPalette.navAccent;
 const _white = TextStyle(color: Colors.white);
 const _dim = TextStyle(color: Colors.white70);
 
@@ -100,9 +101,9 @@ class RoadShield extends StatelessWidget {
   Widget build(BuildContext context) {
     final upper = ref.toUpperCase();
     final (background, foreground) = switch (upper) {
-      _ when upper.startsWith('E') => (const Color(0xFF2E7D32), Colors.white),
-      _ when upper.startsWith('DW') || upper.startsWith('B') => (const Color(0xFFF5C518), Colors.black),
-      _ => (const Color(0xFFC62828), Colors.white),
+      _ when upper.startsWith('E') => (TruckPalette.roadEuropean, Colors.white),
+      _ when upper.startsWith('DW') || upper.startsWith('B') => (TruckPalette.roadRegional, Colors.black),
+      _ => (TruckPalette.roadNational, Colors.white),
     };
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -260,9 +261,9 @@ IconData eventIcon(NavEvent e) => switch (e.kind) {
 Color eventColor(NavEvent e) => switch (e.kind) {
       'red' || 'ban' => levelColor('red'),
       'orange' => levelColor('orange'),
-      'speed_camera' || 'average_speed' => const Color(0xFFF08C00),
+      'speed_camera' || 'average_speed' => TruckPalette.camera,
       'via' || 'destination' => navAccent,
-      final kind when kind.startsWith('report:') => const Color(0xFFE5B800),
+      final kind when kind.startsWith('report:') => TruckPalette.driverReport,
       _ => Colors.white,
     };
 
@@ -329,7 +330,7 @@ class SpeedPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFD62828), width: 6),
+                border: Border.all(color: TruckPalette.ratingRed, width: 6),
               ),
               child: Text('${limit!.kmh}',
                   style: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.w800)),
@@ -338,7 +339,7 @@ class SpeedPanel extends StatelessWidget {
         if (speedKmh != null) ...[
           const SizedBox(width: 8),
           NavPanel(
-            color: over ? const Color(0xF0D62828) : null,
+            color: over ? TruckPalette.navAlarm : null,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text('${speedKmh!.round()}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
@@ -458,7 +459,7 @@ class BottomPanel extends StatelessWidget {
           Expanded(
             child: Text(time,
                 style: TextStyle(
-                  color: late ? const Color(0xFFFF6B6B) : const Color(0xFF7BD389),
+                  color: late ? TruckPalette.navLate : TruckPalette.navOnTime,
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
                 )),
@@ -473,7 +474,7 @@ class BottomPanel extends StatelessWidget {
             icon: const Icon(Icons.close, color: Colors.white),
           ),
         ]),
-        if (late) Text(l.navLate, style: const TextStyle(color: Color(0xFFFF6B6B))),
+        if (late) Text(l.navLate, style: const TextStyle(color: TruckPalette.navLate)),
         if (nextVia case (final index, final count, final minutes, final meters))
           Text(l.navNextVia(index, count, navDuration(l, minutes), l.km(meters / 1000)), style: _dim),
         const SizedBox(height: 6),

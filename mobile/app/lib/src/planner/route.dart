@@ -1,3 +1,4 @@
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,18 +7,18 @@ import '../l10n.dart';
 
 /// Kolory oceny jak w planerze w przeglądarce (zielony → czerwony).
 const levelColors = {
-  'green': Color(0xFF3B6D11),
-  'lime': Color(0xFF97C459),
-  'yellow': Color(0xFFF5C518),
-  'orange': Color(0xFFF08C00),
-  'red': Color(0xFFD62828),
+  'green': TruckPalette.ratingGreen,
+  'lime': TruckPalette.ratingLime,
+  'yellow': TruckPalette.ratingYellow,
+  'orange': TruckPalette.ratingOrange,
+  'red': TruckPalette.ratingRed,
 };
-const unknownColor = Color(0xFF888780);
+const unknownColor = TruckPalette.ratingUnknown;
 
 Color levelColor(String? level) => levelColors[level] ?? unknownColor;
 
 /// Ograniczenie objęte zezwoleniem na przejazd – osobny kolor (nie jest omijane).
-const permittedColor = Color(0xFF1E6FD9);
+const permittedColor = TruckPalette.permitted;
 
 Color placeColor(RoutePlace place) => place.kind == 'permitted' ? permittedColor : levelColor(place.level);
 

@@ -366,6 +366,24 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - kilka instancji serwera: przypomnienia, e-maile, kursy EBC i ceny paliwa pod blokadą doradczą PostgreSQL (`db.try_job_lock`) – bez podwójnych wiadomości i zapisów; limit próśb o reset hasła czyści stare adresy
   - aplikacja: na jedną pozycję GPS logika zajmuje ok. 0,1 ms (korytarz 38 µs, skupianie 150 znaczników 21 µs) – bez przebudowy ekranu; położenie na trasie wyszukiwaniem binarnym (31 → 0,3 µs na klatkę), znaczniki zdarzeń budowane raz dla trasy
   - [ ] dalej: limit próśb o reset hasła jest w pamięci każdej instancji (przy N instancjach – N razy więcej próśb), rozmiar puli połączeń z bazą do ustawienia; podział `routing.py` odłożony – modele tras i router Valhalli są ze sobą splecione, podział dałby głównie importy cykliczne
+- [x] **Wygląd i mniej kliknięć**:
+  - motyw w jednym miejscu: `lib/src/theme.dart` (`TruckTheme.light/dark`, tryb według systemu – typografia, zaokrąglenia, karty z obrysem, przyciski, pola, menu); paleta i kolory znaczeniowe w `core_sdk` (`TruckPalette` – marka granatowa z bursztynowym akcentem, ocena trasy, mapa, nawigacja; `TruckColors` – stan pojazdu, terminy, sukces, jasny i ciemny), wspólne `SectionCard` / `AttentionTile` / `Gap` – rdzeń i moduły bez kolorów na sztywno
+  - pulpit startowy (pierwszy ekran, gdy nie ma zapamiętanego): „Zaplanuj trasę”, „Znowu do: …” (ostatnia trasa), „Dodaj pojazd”; pojazdy wymagające uwagi (terminy po czasie / bliskie, serwis według przebiegu, naprawa, usterka), nowe wiadomości, ostatnie trasy i sekcje modułów (Serwis – otwarte zgłoszenia, Kierowcy – terminy kwalifikacji)
+  - karta pojazdu w jednym miejscu (kliknięcie kafelka albo wiersza tabeli): dane, terminy, kierowca i naczepa (wolną pasującą naczepę podpina się jednym kliknięciem), zezwolenia ważne dziś, statystyki z 12 mies., sekcje modułów (usterki i koszty napraw, kierowcy z kartoteki, plan załadunku); szybkie akcje na górze: zaplanuj trasę tym pojazdem, terminy, kierowca, zgłoś usterkę, plan załadunku, dodaj zezwolenie (pojazd wybrany z góry)
+  - planer: domyślny pojazd – przydzielony mnie (`assigned_to_me` w `/api/vehicles`), potem ostatnio używany, potem pierwszy sprawny; szybki wybór pod polami adresu – ostatnie trasy, bazy firmy i ostatnie miejsca (zapamiętane na urządzeniu, trasa liczy się od razu); przycisk „Zakazy ruchu” obok zezwoleń; „Rozpocznij jazdę” od razu pod wynikiem, przegląd trasy obok, a w przeglądzie przycisk startu zawsze widoczny na dole
+  - kontrakt modułu w `core_sdk`: `vehicleSections`, `vehicleActions`, `dashboardSections` (domyślnie puste) – moduły dokładają sekcje i akcje, rdzeń ich nie importuje; ekran „start” modułu jest teraz zwykłą pozycją menu
+  - kliknięcia na głównych ścieżkach (telefon, menu boczne):
+
+    | Ścieżka | Było | Jest |
+    |---|---|---|
+    | Powtórzenie ostatniej trasy i start | menu → Trasa (2), pojazd (2), dwa adresy z podpowiedzi (≥4), przegląd (1), przewinięcie + Rozpocznij (1) ≈ 10 | pulpit „Znowu do …” (1) → Rozpocznij jazdę (1) = 2 |
+    | Nowa trasa z bazy firmy | menu → Trasa (2), pojazd (2), start i cel (≥4), przegląd (1), Rozpocznij (1) ≈ 10 | pulpit „Zaplanuj trasę” (1), baza (1), cel z podpowiedzi (2), Rozpocznij (1) = 5 |
+    | Zgłoszenie usterki pojazdu | menu → Serwis (2), Zgłoś (1), wybór pojazdu (2), Wyślij (1) = 6 + opis | menu pojazdu (2) albo akcja na karcie (1), Wyślij (1) = 2–3 + opis |
+    | Termin po czasie → zmiana | menu → Pojazdy (2), menu pojazdu (2), Terminy (0), zapis (1) = 5 | pulpit: pojazd (1), „Zmień” w terminach (1), zapis (1) = 3 |
+    | Podpięcie jedynej wolnej naczepy | Podepnij (1), wybór (1) = 2 | „Podepnij …” (1) |
+    | Zezwolenie dla pojazdu | Pojazdy (2), Zezwolenia (1), Dodaj (1), zaznaczenie pojazdu (1), zapis (1) = 6 | karta pojazdu (1), „Dodaj zezwolenie” – pojazd zaznaczony (1), zapis (1) = 3 |
+    | Plan załadunku pojazdu | menu → Załadunek (2), wybór pojazdu (2) = 4 + dane | karta pojazdu (1), „Plan załadunku” (1) = 2 + dane |
+  - [ ] dalej: wybór trybu jasny / ciemny w koncie (dziś według systemu), skróty na pulpicie od modułów (np. „Zgłoś usterkę” bez wyboru pojazdu dla przydzielonego), ostatnie trasy na serwerze (wspólne dla urządzeń)
 - [ ] Zgody na lokalizację, polityka prywatności, regulamin (z prawnikiem)
 
 **Gotowe, gdy:** testerzy przejadą realne trasy, a alarm zadziała na znanym niskim wiadukcie.

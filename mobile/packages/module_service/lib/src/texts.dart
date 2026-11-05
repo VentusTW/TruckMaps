@@ -86,6 +86,12 @@ class ServiceTexts {
   String get protocolOpenFailed =>
       _t('Nie udało się otworzyć protokołu w przeglądarce.', 'Could not open the protocol in the browser.');
   String get costs => _t('Koszty napraw', 'Repair costs');
+  String get sectionTitle => _t('Usterki i naprawy', 'Faults and repairs');
+  String get dashboardTitle => _t('Zgłoszone usterki', 'Reported faults');
+  String get noOpenOrders => _t('Brak otwartych zgłoszeń.', 'No open reports.');
+  String repairCostsYear(String sum, int orders) =>
+      _t('Naprawy w 12 mies.: $orders · $sum', 'Repairs in 12 months: $orders · $sum');
+  String moreOrders(int count) => _t('i jeszcze $count…', 'and $count more…');
   String get costsHint => _t('Zakończone naprawy pojazdów, które obsługujesz: części według protokołów i czas pracy.',
       'Completed repairs of the vehicles you look after: parts from the protocols and labour time.');
   String get costsEmpty => _t('Brak zakończonych napraw.', 'No completed repairs.');

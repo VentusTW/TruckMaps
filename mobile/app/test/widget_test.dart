@@ -73,15 +73,18 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));  // moduły wczytane → powitanie z serwera
 
-    // Bez zapamiętanego ekranu – ekran startowy (Powitanie), który nie ma przycisku w menu.
+    // Bez zapamiętanego ekranu – pulpit; ekran modułu (Powitanie) jest w menu.
+    expect(find.text('Pulpit'), findsWidgets);
+    expect(find.textContaining(', Anna Kowalska'), findsOneWidget);  // powitanie na pulpicie
+    expect(find.text('Zaplanuj trasę'), findsOneWidget);
+    await tester.tap(find.text('Powitanie'));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Witaj w TruckMaps!'), findsOneWidget);
-    expect(find.text('Powitanie'), findsOneWidget);  // tylko tytuł ekranu
-    expect(find.text('Anna Kowalska'), findsOneWidget);
 
     await tester.tap(find.text('Pojazdy'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('Zestaw 40 t'), findsWidgets);
-    expect(find.text('Powitanie'), findsNothing);
+    expect(find.text('Witaj w TruckMaps!'), findsNothing);
 
     await tester.tap(find.text('Moduły'));
     await tester.pump(const Duration(seconds: 1));
@@ -104,7 +107,7 @@ void main() {
     ));
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('Plan route'), findsOneWidget);
+    expect(find.text('Plan a route'), findsOneWidget);  // pulpit
     await tester.tap(find.text('Vehicles'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.text('No vehicles. Add the first one with “Add vehicle”.'), findsOneWidget);

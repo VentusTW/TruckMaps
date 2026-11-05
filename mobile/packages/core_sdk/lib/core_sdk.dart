@@ -8,3 +8,4 @@ library;
 export 'src/api.dart';
 export 'src/module.dart';
 export 'src/registry.dart';
+export 'src/theme.dart';
