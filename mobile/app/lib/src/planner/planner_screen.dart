@@ -784,6 +784,17 @@ class _PlannerScreenState extends State<PlannerScreen> {
         for (final w in result.avoidedWarnings)
           _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: levelColor(w.level))),
       ],
+      if (result.driverWarnings.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text(l.driverWarningsTitle, style: theme.textTheme.titleSmall),
+        for (final w in result.driverWarnings)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.badge_outlined, color: theme.colorScheme.error),
+            title: Text(w),
+          ),
+      ],
       if (shown.warnings.isNotEmpty) ...[
         const SizedBox(height: 12),
         Text(l.onRouteTitle, style: theme.textTheme.titleSmall),

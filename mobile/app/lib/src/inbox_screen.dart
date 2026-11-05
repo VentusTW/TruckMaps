@@ -107,6 +107,23 @@ class _InboxScreenState extends State<InboxScreen> {
     return (overdue ? l.vehicleOverdue : l.vehicleDueSoon)(serviceDateLabel(l, '${data['field']}'), when);
   }
 
+  /// Przypomnienie o terminie kierowcy (moduł Kierowcy).
+  String _driverDueText(AppLocalizations l, Map<String, dynamic> data) {
+    final day = parseDate(data['day']);
+    final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
+    final what = switch (data['field']) {
+      'license_until' => l.driverFieldLicense,
+      'code95_until' => l.driverFieldCode95,
+      'medical_until' => l.driverFieldMedical,
+      'psych_until' => l.driverFieldPsych,
+      'card_until' => l.driverFieldCard,
+      'card_download_until' => l.driverFieldCardDownload,
+      'adr_until' => l.driverFieldAdr,
+      _ => l.driverFieldAttestation,
+    };
+    return (data['overdue'] == true ? l.driverOverdue : l.driverDueSoon)(what, when);
+  }
+
   Widget _message(AppLocalizations l, Map<String, dynamic> message) {
     final theme = Theme.of(context);
     final actionable = _actionable(message);
@@ -140,6 +157,7 @@ class _InboxScreenState extends State<InboxScreen> {
           l.inboxVehicleDue(_vehicleName(data)),
           _dueText(l, data)
         ),
+      'drivers.due' => (l.inboxDriverDue('${data['driver_name']}'), _driverDueText(l, data)),
       _ => ('${message['kind']}', ''),
     };
     return Card(
@@ -153,6 +171,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 ? Icons.admin_panel_settings
                 : switch (message['kind']) {
                     'vehicle_due' => Icons.event_note_outlined,
+                    'drivers.due' => Icons.badge_outlined,
                     'service.order_new' || 'service.order_done' => Icons.build_outlined,
                     _ => Icons.mail_outline,
                   }),

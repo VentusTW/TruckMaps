@@ -10,17 +10,28 @@ from truckmaps.sdk.context import ApiRegistry, CoreContext, EventBus, Extensions
 from truckmaps.sdk.events import CoreReady, Event
 from truckmaps.sdk.extensions import (
     COST_PROVIDER,
+    DRIVER_CHECK,
     CostBreakdown,
     CostPart,
     CostProfile,
     CostProvider,
     CostVehicle,
     CountryDistance,
+    DriverCheck,
     ExtensionPoint,
     RoadKm,
     fuel_costs,
 )
-from truckmaps.sdk.fleet import SERVICE_ROLES, CargoInfo, Fleet, Storage, VehicleInfo
+from truckmaps.sdk.fleet import (
+    SERVICE_ROLES,
+    CargoInfo,
+    DrivingInfo,
+    Fleet,
+    MemberInfo,
+    Storage,
+    TripInfo,
+    VehicleInfo,
+)
 from truckmaps.sdk.module import Module
 
 __all__ = [
@@ -36,16 +47,21 @@ __all__ = [
     "CostProvider",
     "CostVehicle",
     "CountryDistance",
+    "DRIVER_CHECK",
+    "DriverCheck",
+    "DrivingInfo",
     "Event",
     "EventBus",
     "ExtensionPoint",
     "Extensions",
     "Fleet",
+    "MemberInfo",
     "Module",
     "Principal",
     "RoadKm",
     "SERVICE_ROLES",
     "Storage",
+    "TripInfo",
     "VehicleInfo",
     "fuel_costs",
     "i18n",

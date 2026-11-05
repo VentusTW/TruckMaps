@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "truckmaps-module-drivers"
+version = "0.1.0"
+description = "Moduł Kierowcy TruckMaps – kartoteka kierowców, kwalifikacje, przydział do pojazdów, przejazdy"
+requires-python = ">=3.12"
+dependencies = ["truckmaps-backend>=0.1,<1.0"]
+
+# Nazwa entry pointu musi być równa Module.id.
+[project.entry-points."truckmaps.modules"]
+drivers = "truckmaps_drivers.module:DriversModule"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/truckmaps_drivers"]

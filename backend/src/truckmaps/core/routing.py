@@ -1,6 +1,7 @@
 """Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``) z omijaniem trudnych miejsc."""
 
 import contextvars
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Annotated, Literal, Protocol
@@ -37,7 +38,9 @@ from truckmaps.core.route_analysis import (
     analyze,
 )
 from truckmaps.core.vehicles import VehicleIn, VehicleOut, load_drivable
-from truckmaps.sdk import Principal
+from truckmaps.sdk import DRIVER_CHECK, Principal
+
+log = logging.getLogger(__name__)
 
 # Język komunikatów manewrów w Valhalli dla języka zapytania (bez tłumaczenia – angielski).
 VALHALLA_LANGUAGES = {"pl": "pl-PL", "en": "en-US", "de": "de-DE", "cs": "cs-CZ", "sk": "sk-SK"}
@@ -285,6 +288,10 @@ class RouteResponse(Route):
     )
     permits_used: list[str] = Field(
         default=[], description="Numery zezwoleń, które objęły ograniczenia na trasie"
+    )
+    driver_warnings: list[str] = Field(
+        default=[],
+        description="Uwagi o kierowcy (moduł Kierowcy): kategorie prawa jazdy, ADR, terminy",
     )
     road_events: list[road_points.RoadEvent] = Field(
         default=[],
@@ -1076,6 +1083,18 @@ class _Recording:
         return inner(points, radius_m) if inner else None
 
 
+def driver_warnings(extensions, licensing, db: Session, user: Principal, vehicle_id: str):
+    """Uwagi o kierowcy z gniazda ``DRIVER_CHECK`` – tylko z modułu wykupionego przez konto."""
+    check, _ = extensions.get_allowed(
+        DRIVER_CHECK, lambda module: module == "core" or licensing.is_granted(user, module)
+    )
+    try:
+        return check.warnings(db, user, vehicle_id)
+    except Exception:  # noqa: BLE001 – uwagi o kierowcy nie mogą zablokować trasy
+        log.exception("Sprawdzenie kierowcy nie powiodło się")
+        return []
+
+
 def build_router(current_user) -> APIRouter:
     router = APIRouter(prefix="/api/routes", tags=["routes"])
 
@@ -1189,6 +1208,7 @@ def build_router(current_user) -> APIRouter:
                 {w.permit for w in (analysis.warnings if analysis else []) if w.permit}
             ),
             road_events=road_points.along_route(db, route.geometry),
+            driver_warnings=driver_warnings(extensions, licensing, db, user, profile.id),
         )
 
     @router.get("/parkings")

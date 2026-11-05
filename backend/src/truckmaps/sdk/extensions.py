@@ -3,6 +3,9 @@ from datetime import date
 from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from truckmaps.sdk.auth import Principal
 
 
 @dataclass(frozen=True)
@@ -118,3 +121,21 @@ class CostBreakdown(Protocol):
 
 
 COST_PROVIDER = ExtensionPoint("cost_provider", CostProvider)
+
+
+@runtime_checkable
+class DriverCheck(Protocol):
+    def warnings(self, db: Session, user: Principal, vehicle_id: str) -> list[str]:
+        """Ostrzeżenia o kierowcy przed jazdą tym pojazdem (np. brak kategorii prawa jazdy,
+        przeterminowane badania) – w języku użytkownika; pusta lista – bez uwag."""
+        ...
+
+
+class NoDriverCheck:
+    """Rdzeń bez modułu kierowców nie zna uprawnień kierowcy."""
+
+    def warnings(self, db: Session, user: Principal, vehicle_id: str) -> list[str]:
+        return []
+
+
+DRIVER_CHECK = ExtensionPoint("driver_check", DriverCheck)

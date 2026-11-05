@@ -14,10 +14,11 @@ from packaging.version import Version
 from truckmaps.core.auth import AuthService
 from truckmaps.core.events import InProcessEventBus
 from truckmaps.core.extensions import ExtensionRegistry, check_implementation
-from truckmaps.core.fleet import CoreFleet, CoreStorage, MergeHandler
+from truckmaps.core.fleet import CoreFleet, CoreStorage, MergeHandler, PeriodicJob
 from truckmaps.core.licensing import StaticLicensing
 from truckmaps.core.version import CORE_VERSION
 from truckmaps.sdk import Event, ExtensionPoint, Module
+from truckmaps.sdk.fleet import DriverAssignedHandler
 
 ENTRY_POINT_GROUP = "truckmaps.modules"
 MODULE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,31}$")
@@ -112,6 +113,10 @@ class ModuleManager:
         self._enabled = enabled
         self.vehicle_merge_handlers: list[MergeHandler] = []
         """Moduły przenoszą swoje dane przy scalaniu pojazdów (``fleet.on_vehicles_merged``)."""
+        self.driver_handlers: list[DriverAssignedHandler] = []
+        """Moduły widzą zmianę przydziału kierowcy w rdzeniu (``fleet.on_driver_assigned``)."""
+        self.periodic_jobs: list[PeriodicJob] = []
+        """Zadania modułów w wątku przypomnień (``storage.periodic``)."""
         self.statuses: dict[str, ModuleStatus] = {}
 
     @property
@@ -156,8 +161,8 @@ class ModuleManager:
             auth=self._auth,
             events=_ModuleEvents(self._bus),
             extensions=_ModuleExtensions(self._extensions),
-            storage=CoreStorage(),
-            fleet=CoreFleet(self.vehicle_merge_handlers),
+            storage=CoreStorage(self.periodic_jobs),
+            fleet=CoreFleet(self.vehicle_merge_handlers, self.driver_handlers),
             logger=logging.getLogger(f"truckmaps.module.{module_id}"),
         )
         try:

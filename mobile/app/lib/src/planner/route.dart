@@ -437,6 +437,7 @@ class RouteResult {
     this.freeDeparture,
     this.banCountries = const [],
     this.permitsUsed = const [],
+    this.driverWarnings = const [],
     this.departure,
     this.countries = const [],
     this.avoidedWarnings = const [],
@@ -471,6 +472,7 @@ class RouteResult {
           bans?['free_departure'] == null ? null : DateTime.parse(bans!['free_departure'] as String).toLocal(),
       banCountries: {for (final b in (bans?['bans'] as List<dynamic>? ?? [])) '${(b as Map)['country']}'}.toList(),
       permitsUsed: [for (final p in (json['permits_used'] as List<dynamic>? ?? [])) '$p'],
+      driverWarnings: [for (final w in (json['driver_warnings'] as List<dynamic>? ?? [])) '$w'],
       departure: json['departure'] == null ? null : DateTime.parse(json['departure'] as String).toLocal(),
       countries: [
         for (final c in (json['countries'] as List<dynamic>? ?? []))
@@ -504,6 +506,9 @@ class RouteResult {
 
   /// Numery zezwoleń, które objęły ograniczenia na trasie proponowanej.
   final List<String> permitsUsed;
+
+  /// Uwagi o kierowcy (moduł Kierowcy): kategoria prawa jazdy, ADR, przeterminowane badania.
+  final List<String> driverWarnings;
 
   /// Wyjazd, dla którego liczono trasę i zakazy.
   final DateTime? departure;

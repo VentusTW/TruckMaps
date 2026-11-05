@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol
 
 from sqlalchemy.orm import Session
@@ -56,6 +56,62 @@ class CargoInfo:
     """Solówka: rozstaw osi (przednia – środek tylnych)."""
 
 
+@dataclass(frozen=True)
+class MemberInfo:
+    """Członek firmy (konto) i jego rola."""
+
+    id: str
+    subject: str
+    name: str
+    role: str
+    """owner, dispatcher, driver, mechanic…"""
+
+
+@dataclass(frozen=True)
+class DrivingInfo:
+    """Czym się jedzie – do sprawdzenia uprawnień kierowcy (kategorie prawa jazdy, ADR)."""
+
+    vehicle_id: str
+    name: str
+    plate: str | None
+    kind: str
+    company_id: str | None
+    gvw_t: float
+    seats: int | None
+    hazmat: bool
+    tanker: bool
+    """Zabudowa cysterna (pojazd albo podpięta naczepa / przyczepa)."""
+    trailer_kind: str | None = None
+    """Podpięta naczepa / przyczepa (semitrailer, trailer); ``None`` – bez."""
+    trailer_gvw_t: float | None = None
+    assigned_driver: str | None = None
+    """Kierowca przydzielony do pojazdu (konto)."""
+
+
+@dataclass(frozen=True)
+class TripInfo:
+    """Przejazd zapisany po nawigacji (``vehicle_trips``)."""
+
+    id: str
+    vehicle_id: str
+    vehicle_name: str
+    driver: str
+    """Konto, które jechało."""
+    started_at: datetime
+    ended_at: datetime
+    distance_km: float
+    planned_km: float | None
+    loaded: bool | None
+    idle_min: float | None
+    trailer_id: str | None
+    cost_amount: float | None
+    cost_currency: str | None
+
+
+DriverAssignedHandler = Callable[[Session, str, str | None, Principal], None]
+"""``handler(db, vehicle_id, kierowca albo None, kto zmienił)``."""
+
+
 class Fleet(Protocol):
     def vehicles(self, db: Session, user: Principal) -> list[VehicleInfo]:
         """Pojazdy prywatne użytkownika i pojazdy jego firm."""
@@ -98,6 +154,41 @@ class Fleet(Protocol):
         z ``kind`` i ``data`` w języku odbiorcy – ``kind`` z przedrostkiem id modułu."""
         ...
 
+    def members(self, db: Session, company_id: str) -> list[MemberInfo]:
+        """Członkowie firmy z rolami."""
+        ...
+
+    def driving(self, db: Session, vehicle_id: str) -> DrivingInfo | None:
+        """Pojazd z podpiętą naczepą / przyczepą i przydzielonym kierowcą (bez sprawdzania
+        widoczności); ``None`` – nie ma takiego pojazdu."""
+        ...
+
+    def assigned(self, db: Session, company_id: str) -> dict[str, str]:
+        """Pojazdy firmy z przydzielonym kierowcą: id pojazdu → konto kierowcy."""
+        ...
+
+    def assign_driver(self, db: Session, vehicle_id: str, subject: str | None) -> None:
+        """Przydział kierowcy (konto członka firmy) albo zwolnienie pojazdu – zapis razem
+        z sesją modułu, bez sprawdzania uprawnień (sprawdza moduł)."""
+        ...
+
+    def on_driver_assigned(self, handler: DriverAssignedHandler) -> None:
+        """Przydział zmieniony w rdzeniu (``PUT /api/vehicles/{id}/driver``):
+        ``handler(db, vehicle_id, konto albo None, kto)`` – w tej samej sesji, przed zapisem."""
+        ...
+
+    def trips(
+        self,
+        db: Session,
+        *,
+        driver: str | None = None,
+        vehicle_ids: list[str] | None = None,
+        since: datetime | None = None,
+    ) -> list[TripInfo]:
+        """Przejazdy konta ``driver`` albo pojazdów ``vehicle_ids`` (od ``since``), od
+        najnowszych. Bez żadnego filtra – pusta lista."""
+        ...
+
 
 class Storage(Protocol):
     @property
@@ -113,4 +204,9 @@ class Storage(Protocol):
     ) -> str:
         """Dokument pod krótkim linkiem bez logowania (``/api/shared/<klucz>``, do 60 min) –
         np. protokół do otwarcia w przeglądarce telefonu. Tylko to, co użytkownik i tak widzi."""
+        ...
+
+    def periodic(self, name: str, job: Callable[[Session], int]) -> None:
+        """Zadanie w tle co kilka godzin (wątek przypomnień rdzenia): ``job(db)`` zwraca liczbę
+        wysłanych wiadomości. Naraz tylko jedna instancja serwera (blokada ``name``)."""
         ...
