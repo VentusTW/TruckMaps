@@ -11,7 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from truckmaps.core.db import get_session
@@ -22,6 +22,7 @@ from truckmaps.core.restrictions import (
     ROAD_CONTEXT,
     Kind,
     Restriction,
+    box_overlaps,
     distance_m,
     route_chunks,
 )
@@ -168,11 +169,12 @@ def _candidates(
         lons, lats = [p[0] for p in chunk], [p[1] for p in chunk]
         margin_lat, margin_lon = buffer_m / 111_000, buffer_m / 111_000 / 0.5
         boxes.append(
-            and_(
-                Restriction.min_lat <= max(lats) + margin_lat,
-                Restriction.max_lat >= min(lats) - margin_lat,
-                Restriction.min_lon <= max(lons) + margin_lon,
-                Restriction.max_lon >= min(lons) - margin_lon,
+            box_overlaps(
+                Restriction,
+                min(lats) - margin_lat,
+                max(lats) + margin_lat,
+                min(lons) - margin_lon,
+                max(lons) + margin_lon,
             )
         )
     found: dict[int, Restriction] = {}

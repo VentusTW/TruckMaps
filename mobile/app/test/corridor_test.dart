@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:truckmaps_app/src/navigation/corridor.dart';
+import 'package:truckmaps_app/src/navigation/navigation_screen.dart' show pointAlong;
 
 // Te same dane co na serwerze (truckmaps.core.polyline / corridor.check_position).
 const routeLine = '_gwj~A_qo_g@?_af@?_af@';
@@ -47,5 +48,15 @@ void main() {
 
     final elsewhere = corridor.check(const LatLng(50.003, 21.01));
     expect((elsewhere.onRoute, elsewhere.alarm), (false, null));
+  });
+
+  test('punkt na trasie po metrach – ten sam co przy przejściu całej linii', () {
+    final route = [for (var i = 0; i < 300; i++) LatLng(52.4 - i * 0.0004 * math.sin(i / 7), 16.9 + i * 0.0008)];
+    final corridor = Corridor(route: [...route, route.last], items: const []);
+    for (var along = 0.0; along <= corridor.lengthM; along += 37.3) {
+      final a = corridor.pointAt(along)!, b = pointAlong(route, along)!;
+      expect(distanceM(a, b), lessThan(0.001));
+    }
+    expect(corridor.pointAt(corridor.lengthM + 1), isNull);
   });
 }

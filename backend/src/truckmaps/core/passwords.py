@@ -22,6 +22,8 @@ from truckmaps.sdk import Principal
 RESET_LIMIT = 3
 """Ile próśb o link na ten sam adres w ciągu ``RESET_WINDOW_S`` (ochrona skrzynek przed spamem)."""
 RESET_WINDOW_S = 3600
+# Od tylu adresów w pamięci limitu usuwane są te bez próśb w oknie.
+LIMITER_PURGE_AT = 10_000
 MIN_LENGTH = 8
 
 
@@ -107,6 +109,12 @@ class _Limiter:
     def allow(self, key: str) -> bool:
         now = time.monotonic()
         with self._lock:
+            if len(self._seen) > LIMITER_PURGE_AT:
+                # Adresy bez próśb w oknie – inaczej słownik rośnie bez końca.
+                for old in [
+                    k for k, v in self._seen.items() if not v or now - v[-1] > RESET_WINDOW_S
+                ]:
+                    del self._seen[old]
             seen = self._seen[key]
             while seen and now - seen[0] > RESET_WINDOW_S:
                 seen.popleft()

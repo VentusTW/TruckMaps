@@ -22,7 +22,7 @@ from sqlalchemy import Boolean, Date, String, func, select, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.config import ECB_URL
-from truckmaps.core.db import Base, Database, get_session
+from truckmaps.core.db import Base, Database, get_session, try_job_lock
 from truckmaps.core.i18n import t
 from truckmaps.sdk import Principal
 from truckmaps.sdk.i18n import languages
@@ -119,7 +119,9 @@ def parse_ecb(xml: bytes) -> tuple[date, dict[str, float]]:
 
 
 def store_rates(db: Session, day: date, rates: dict[str, float]) -> bool:
-    """Zapisuje kursy z danego dnia; ``False``, gdy już były."""
+    """Zapisuje kursy z danego dnia; ``False``, gdy już były (albo zapisuje je inna instancja)."""
+    if not try_job_lock(db, "exchange_rates"):
+        return False
     if db.scalar(select(ExchangeRate.day).where(ExchangeRate.day == day).limit(1)):
         return False
     db.add_all(ExchangeRate(day=day, currency=c, per_eur=r) for c, r in rates.items())

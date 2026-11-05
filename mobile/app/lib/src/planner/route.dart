@@ -363,8 +363,7 @@ class PlannedRoute {
   final List<SpeedLimit> speedLimits;
   final List<RoadEvent> roadEvents;
 
-  /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia).
-  /// Kawałki linii trasy w kolorach oceny – liczone raz (mapa rysuje je przy każdej pozycji GPS).
+  /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia) – liczone raz (mapa rysuje je przy każdej pozycji GPS).
   late final List<(List<LatLng>, String)> coloredParts = segments.isEmpty
       ? [(points, 'unknown')]
       : [

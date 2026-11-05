@@ -8,13 +8,19 @@ leżą na jej linii – z kilometrem od startu (nawigacja liczy z nich odległo�
 from enum import StrEnum
 
 from pydantic import BaseModel
-from sqlalchemy import BigInteger, Float, Index, String, Text, and_, or_, select
+from sqlalchemy import BigInteger, Float, Index, String, Text, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from truckmaps.core.db import Base
 from truckmaps.core.polyline import decode_polyline6
-from truckmaps.core.restrictions import QUERY_BATCH, distance_m, route_chunks
-from truckmaps.core.route_analysis import SegmentGrid
+from truckmaps.core.restrictions import (
+    QUERY_BATCH,
+    box_overlaps,
+    distance_m,
+    route_chunks,
+    span_index,
+)
+from truckmaps.core.route_analysis import cumulative_m, segment_grid
 
 
 class PointKind(StrEnum):
@@ -29,7 +35,10 @@ class PointKind(StrEnum):
 
 class RoadPoint(Base):
     __tablename__ = "road_points"
-    __table_args__ = (Index("ix_road_points_bbox", "min_lat", "min_lon"),)
+    __table_args__ = (
+        Index("ix_road_points_bbox", "min_lat", "min_lon"),
+        span_index("ix_road_points_span"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     osm_type: Mapped[str] = mapped_column(String(8))
@@ -91,11 +100,12 @@ def _candidates(db: Session, geometry: list[tuple[float, float]]) -> list[RoadPo
     for chunk in route_chunks(geometry):
         lons, lats = [p[0] for p in chunk], [p[1] for p in chunk]
         boxes.append(
-            and_(
-                RoadPoint.min_lat <= max(lats) + margin_lat,
-                RoadPoint.max_lat >= min(lats) - margin_lat,
-                RoadPoint.min_lon <= max(lons) + margin_lon,
-                RoadPoint.max_lon >= min(lons) - margin_lon,
+            box_overlaps(
+                RoadPoint,
+                min(lats) - margin_lat,
+                max(lats) + margin_lat,
+                min(lons) - margin_lon,
+                max(lons) + margin_lon,
             )
         )
     found: dict[int, RoadPoint] = {}
@@ -112,10 +122,8 @@ def along_route(db: Session, geometry: list[tuple[float, float]]) -> list[RoadEv
     candidates = _candidates(db, geometry)
     if not candidates:
         return []
-    grid = SegmentGrid(geometry)
-    cumulative = [0.0]
-    for (lon1, lat1), (lon2, lat2) in zip(geometry, geometry[1:], strict=False):
-        cumulative.append(cumulative[-1] + distance_m(lon1, lat1, lon2, lat2))
+    grid = segment_grid(geometry)
+    cumulative = cumulative_m(geometry)
 
     def along(lon: float, lat: float, max_m: float) -> float | None:
         index = grid.nearest(lon, lat, max_m)

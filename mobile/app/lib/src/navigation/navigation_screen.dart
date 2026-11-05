@@ -264,7 +264,23 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
       destination: widget.request.destination,
       alongOf: _alongOf,
     );
+    _eventMarkers = [
+      for (final e in _events)
+        if (e.kind != 'traffic_signals' && e.kind != 'destination')
+          Marker(
+            point: e.point,
+            width: 26,
+            height: 26,
+            child: CircleAvatar(
+              backgroundColor: navPanelColor,
+              child: Icon(eventIcon(e), size: 15, color: eventColor(e)),
+            ),
+          ),
+    ];
   }
+
+  /// Znaczniki zdarzeń – budowane raz dla trasy, nie przy każdej pozycji GPS.
+  late List<Marker> _eventMarkers;
 
   @override
   void initState() {
@@ -382,8 +398,8 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   /// Pozycja na mapie: na trasie – dopasowana do linii trasy (bez skakania obok drogi).
   LatLng? get _shownPosition {
     final along = _check?.alongM;
-    final route = _corridor?.route;
-    if (_check?.onRoute == true && along != null && route != null) return pointAlong(route, along) ?? _position;
+    final corridor = _corridor;
+    if (_check?.onRoute == true && along != null && corridor != null) return corridor.pointAt(along) ?? _position;
     return _position;
   }
 
@@ -565,19 +581,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
           children: [
             if (_night) ColorFiltered(colorFilter: _nightTiles, child: mapTiles()) else mapTiles(),
             PolylineLayer(polylines: _routeLines),
-            ClusteredMarkerLayer(color: navPanelColor, markers: [
-              for (final e in _events)
-                if (e.kind != 'traffic_signals' && e.kind != 'destination')
-                  Marker(
-                    point: e.point,
-                    width: 26,
-                    height: 26,
-                    child: CircleAvatar(
-                      backgroundColor: navPanelColor,
-                      child: Icon(eventIcon(e), size: 15, color: eventColor(e)),
-                    ),
-                  ),
-            ]),
+            ClusteredMarkerLayer(color: navPanelColor, markers: _eventMarkers),
             MarkerLayer(markers: [
               Marker(
                 point: widget.request.destination,

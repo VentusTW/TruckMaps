@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from truckmaps.core.i18n import t
@@ -12,6 +12,19 @@ from truckmaps.core.i18n import t
 
 class Base(DeclarativeBase):
     """Tabele rdzenia. Moduły będą miały własne schematy i migracje."""
+
+
+def try_job_lock(db: Session, name: str) -> bool:
+    """Zadanie w tle tylko na jednej instancji serwera naraz – ``False``: robi je inna.
+
+    PostgreSQL: blokada doradcza do końca bieżącej transakcji (``commit`` / ``rollback``
+    ją zwalnia, więc zadanie nie może zatwierdzać zmian w trakcie). Inne bazy (testy na
+    SQLite) – zawsze ``True``.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return True
+    query = text("SELECT pg_try_advisory_xact_lock(hashtext(:name))")
+    return bool(db.scalar(query, {"name": f"truckmaps:{name}"}))
 
 
 class Database:

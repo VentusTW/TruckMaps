@@ -159,6 +159,25 @@ class Corridor {
 
   double get lengthM => _cumulative.last;
 
+  /// Punkt trasy [alongM] metrów od startu (jak `pointAlong`, ale wyszukiwanie binarne po
+  /// policzonych odległościach – przy każdej klatce zamiast przejścia całej trasy); za końcem – null.
+  LatLng? pointAt(double alongM) {
+    if (route.length < 2 || alongM > lengthM) return null;
+    var low = 0, high = route.length - 2;
+    while (low < high) {
+      final mid = (low + high) ~/ 2;
+      if (_cumulative[mid + 1] < alongM) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    final a = route[low], b = route[low + 1];
+    final length = _cumulative[low + 1] - _cumulative[low];
+    final t = length == 0 ? 0.0 : ((alongM - _cumulative[low]) / length).clamp(0.0, 1.0);
+    return LatLng(a.latitude + t * (b.latitude - a.latitude), a.longitude + t * (b.longitude - a.longitude));
+  }
+
   double _along(int segment, double t) {
     if (route.length < 2) return 0;
     return _cumulative[segment] + t * (_cumulative[segment + 1] - _cumulative[segment]);

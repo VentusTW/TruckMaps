@@ -1,5 +1,7 @@
 """Wyznaczanie trasy dla ciężarówki (Valhalla, koszt ``truck``) z omijaniem trudnych miejsc."""
 
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
@@ -389,10 +391,8 @@ class ValhallaRouter:
         if response.is_error:
             raise RoutingUnavailable(f"Valhalla {response.status_code}: {body.get('error')}")
 
-        route = self._parse_trip(body["trip"], vehicle)
-        route.alternates = [
-            self._parse_trip(alternate["trip"], vehicle) for alternate in body.get("alternates", [])
-        ]
+        trips = [body["trip"], *(alternate["trip"] for alternate in body.get("alternates", []))]
+        route, *route.alternates = _parallel(lambda trip: self._parse_trip(trip, vehicle), trips)
         return route
 
     def locate(self, stops: list[Point], vehicle: VehicleIn) -> list[tuple[Point, float] | None]:
@@ -448,11 +448,13 @@ class ValhallaRouter:
         edges: list[RouteEdge] | None = []
         maneuvers: list[Maneuver] = []
         leg_km = 0.0
-        for leg in trip["legs"]:
+        legs = trip["legs"]
+        # Odcinki między punktami pośrednimi dopasowywane równolegle (osobne zapytania).
+        all_matched = _parallel(lambda leg: self._edges(leg["shape"], vehicle), legs)
+        for leg, matched in zip(legs, all_matched, strict=True):
             maneuvers += _maneuvers(leg, leg_km)
             leg_km += leg.get("summary", {}).get("length", 0.0)
             offset = len(geometry)
-            matched = self._edges(leg["shape"], vehicle)
             if matched is None:
                 geometry += decode_polyline6(leg["shape"])
                 edges = None
@@ -564,8 +566,22 @@ def _end_s(edges: list[RouteEdge]) -> float:
     return next((e.end_s for e in reversed(edges) if e.end_s is not None), 0.0)
 
 
+def _parallel(fn, items: list) -> list:
+    """``[fn(x) for x in items]`` – przy kilku elementach w wątkach (zapytania do Valhalli).
+
+    Każde zadanie dostaje kopię kontekstu (język odpowiedzi i inne ``ContextVar``).
+    """
+    if len(items) <= 1:
+        return [fn(item) for item in items]
+    with ThreadPoolExecutor(max_workers=min(len(items), 4)) as pool:
+        futures = [pool.submit(contextvars.copy_context().run, fn, item) for item in items]
+        return [future.result() for future in futures]
+
+
 def _shifted(edges: list[RouteEdge], index: int, seconds: float) -> list[RouteEdge]:
     """Odcinki kolejnego kawałka trasy: indeksy linii i czas liczone od początku całej trasy."""
+    if index == 0 and not seconds:
+        return edges  # pierwszy kawałek – bez zmian, bez kopiowania
     return [
         e.model_copy(
             update={
@@ -626,6 +642,7 @@ def plan(
     vehicle: VehicleIn,
     avoid_difficult: bool = True,
     departure: datetime | None = None,
+    lookups: "Lookups | None" = None,
 ) -> tuple[Route, Analysis | None, list[Point], float, list[RouteWarning]]:
     """Trasa z jak najmniejszą liczbą trudnych miejsc (alternatywy – patrz ``alternatives``).
 
@@ -639,8 +656,8 @@ def plan(
     """
     first = router.route(stops, vehicle, alternates=MAX_ALTERNATIVES)
     reports.assign_ways(db, getattr(router, "streets_near", None), first.geometry)
-    ways: dict[int, list[restrictions.Restriction]] = {}
-    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure, ways), []
+    lookups = Lookups() if lookups is None else lookups
+    best, best_analysis, best_excluded = first, assess(db, first, vehicle, departure, lookups), []
     if best_analysis is None:
         return best, best_analysis, best_excluded, first.distance_km, []
     levels = AVOID_LEVELS if avoid_difficult else {IMPASSABLE}
@@ -663,7 +680,7 @@ def plan(
             candidate = router.route(stops, vehicle, exclude=excluded)
         except NoRouteFound:
             break
-        analysis = assess(db, candidate, vehicle, departure, ways)
+        analysis = assess(db, candidate, vehicle, departure, lookups)
         if analysis is None:
             break
         better = analysis.score < best_analysis.score and (
@@ -693,6 +710,7 @@ def alternatives(
     candidates: list[Route],
     vehicle: VehicleIn,
     departure: datetime | None = None,
+    lookups: "Lookups | None" = None,
 ) -> list[AlternativeRoute]:
     """Do dwóch tras innych niż wybrana, od najmniej problematycznej."""
     found: list[tuple[float, AlternativeRoute]] = []
@@ -702,7 +720,7 @@ def alternatives(
         if candidate.distance_km > max_km or any(_same_route(candidate, o) for o in taken):
             continue
         taken.append(candidate)
-        analysis = assess(db, candidate, vehicle, departure)
+        analysis = assess(db, candidate, vehicle, departure, lookups)
         if analysis is not None and _impassable(analysis):
             continue  # alternatywa przez miejsce nieprzejezdne nie wchodzi w grę
         score = analysis.score if analysis else float("inf")
@@ -827,27 +845,41 @@ def _parkings(db: Session, stop: Point) -> list[ParkingOut]:
     ]
 
 
+class Lookups:
+    """Wspólna pamięć jednego żądania: ograniczenia i zgłoszenia dróg już pobrane z bazy.
+
+    Kolejne warianty i alternatywy tej samej trasy mają w większości wspólne drogi.
+    """
+
+    def __init__(self) -> None:
+        self.clear()
+
+    def clear(self) -> None:
+        """Od nowa – np. po ``reports.assign_ways``, który mógł przypisać zgłoszenia drogom."""
+        self.ways: dict[int, list[restrictions.Restriction]] = {}
+        self.reported: dict[int, list] = {}
+
+
 def assess(
     db: Session,
     route: Route,
     vehicle: VehicleIn,
     departure: datetime | None = None,
-    ways: dict[int, list[restrictions.Restriction]] | None = None,
+    lookups: Lookups | None = None,
 ) -> Analysis | None:
-    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu.
-
-    ``ways`` – wspólna pamięć ograniczeń dróg dla kolejnych wariantów tej samej trasy.
-    """
+    """Ocena trasy; z ``departure`` także ograniczenia warunkowe w godzinach przejazdu."""
     if route.edges is None:
         return None
+    lookups = Lookups() if lookups is None else lookups
+    way_ids = {e.way_id for e in route.edges}
     return analyze(
         route.geometry,
         route.edges,
         vehicle,
-        restrictions.for_ways(db, (e.way_id for e in route.edges), ways),
+        restrictions.for_ways(db, way_ids, lookups.ways),
         restrictions.nodes_near_route(db, route.geometry, NODE_KINDS),
         departure,
-        reports.road_limits(db, (e.way_id for e in route.edges)),
+        reports.road_limits(db, way_ids, lookups.reported),
     )
 
 
@@ -1052,14 +1084,16 @@ def build_router(current_user) -> APIRouter:
         router_: Router = request.app.state.router
         issues = check_stops(router_, db, stops, vehicle)
         first_candidates: list[Route] = []
+        lookups = Lookups()
         departure = data.departure or datetime.now(timebans.HOME_ZONE)
         if departure.tzinfo is None:
             departure = departure.replace(tzinfo=timebans.HOME_ZONE)
 
         def plan_for(points: list[Point]):
             first_candidates.clear()
+            lookups.clear()
             recording = _Recording(router_, first_candidates)
-            return plan(recording, db, points, vehicle, data.avoid_difficult, departure)
+            return plan(recording, db, points, vehicle, data.avoid_difficult, departure, lookups)
 
         try:
             try:
@@ -1122,7 +1156,7 @@ def build_router(current_user) -> APIRouter:
             base_distance_km=base_km,
             alternatives=[
                 alt.model_copy(update={"cost": cost(alt.distance_km, alt.duration_min, alt.edges)})
-                for alt in alternatives(db, route, first_candidates, vehicle, departure)
+                for alt in alternatives(db, route, first_candidates, vehicle, departure, lookups)
             ],
             stop_issues=issues + difficult_ends(db, route, analysis, stops, issues),
             cost=cost(route.distance_km, route.duration_min, route.edges),

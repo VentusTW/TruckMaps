@@ -353,6 +353,15 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] plany kont z cenami i promocjami czasowymi dla wybranych grup (typ konta, kraj, nowe firmy, kod) – na razie poglądowe
   - [ ] wersja w przeglądarce – po logowaniu web
   - [ ] moduł faktur (osobny punkt)
+- [x] **Wydajność i skalowalność (pomiary)** – trasa Poznań → Warszawa (327 km, 4707 punktów, 2 alternatywy) na lokalnej Valhalli i tymczasowej bazie PostgreSQL z danymi syntetycznymi (400 tys. ograniczeń, 300 tys. punktów drogowych, 50 tys. zgłoszeń); najlepsze z 3 pomiarów:
+  - `POST /api/routes`: **787 → 565 ms** (zapytania SQL 24 → 20, czas SQL 93 → 54 ms, Valhalla 400 → 340 ms, Python 290 → 165 ms); `POST /api/corridor`: **105 → 73 ms** (SQL 59 → 26 ms); odpowiedzi takie same jak przed zmianą
+  - zapytania o prostokąty (`road_points`, korytarz `road_restrictions`): dolna granica `min_lat` + indeks na wyrażeniu `max_lat - min_lat` (migracja 0034) – indeks czyta pas wokół trasy, a nie wszystko na południe od niej (jedno zapytanie 43 → 13 ms, przejrzane wpisy indeksu 69 696 → 3 093; czas rośnie z liczbą obiektów przy trasie, nie w całej tabeli)
+  - zgłoszenia kierowców wzdłuż trasy – pasami po ~10 km zamiast prostokąta całej trasy (1544 → kilkadziesiąt wczytanych wierszy, 95 → 7 ms)
+  - warianty i alternatywy jednej trasy korzystają ze wspólnej pamięci ograniczeń i zgłoszeń dróg (`routing.Lookups`); siatka odcinków i odległości wzdłuż linii liczone raz dla tej samej trasy (`route_analysis.segment_grid` / `cumulative_m`)
+  - Valhalla: dopasowanie odcinków (`trace_attributes`) trasy głównej, alternatyw i odcinków między punktami pośrednimi równolegle, bez zbędnego kopiowania odcinków
+  - kilka instancji serwera: przypomnienia, e-maile, kursy EBC i ceny paliwa pod blokadą doradczą PostgreSQL (`db.try_job_lock`) – bez podwójnych wiadomości i zapisów; limit próśb o reset hasła czyści stare adresy
+  - aplikacja: na jedną pozycję GPS logika zajmuje ok. 0,1 ms (korytarz 38 µs, skupianie 150 znaczników 21 µs) – bez przebudowy ekranu; położenie na trasie wyszukiwaniem binarnym (31 → 0,3 µs na klatkę), znaczniki zdarzeń budowane raz dla trasy
+  - [ ] dalej: limit próśb o reset hasła jest w pamięci każdej instancji (przy N instancjach – N razy więcej próśb), rozmiar puli połączeń z bazą do ustawienia; podział `routing.py` odłożony – modele tras i router Valhalli są ze sobą splecione, podział dałby głównie importy cykliczne
 - [ ] Zgody na lokalizację, polityka prywatności, regulamin (z prawnikiem)
 
 **Gotowe, gdy:** testerzy przejadą realne trasy, a alarm zadziała na znanym niskim wiadukcie.
