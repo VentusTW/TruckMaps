@@ -18,7 +18,8 @@ class LoadTexts {
       'Loading metres and weight, whether it fits, pallet layout by unloading order, centre of gravity and number of straps.');
   String get menu => _t('Załadunek', 'Loading');
   String get openPlan => _t('Ułóż ładunek', 'Arrange cargo');
-  String get sectionHint => _t('Czy ładunek się zmieści, rozmieszczenie palet, naciski osi i mocowanie – dla tego pojazdu.',
+  String get sectionHint => _t(
+      'Czy ładunek się zmieści, rozmieszczenie palet, naciski osi i mocowanie – dla tego pojazdu.',
       'Whether the cargo fits, pallet layout, axle loads and securing – for this vehicle.');
   String get vehicle => _t('Pojazd (przestrzeń ładunkowa)', 'Vehicle (cargo space)');
   String get noVehicles => _t('Brak pojazdów z przestrzenią ładunkową.', 'No vehicles with a cargo space.');
@@ -51,15 +52,16 @@ class LoadTexts {
       : _t('Masa ładunku: $weight z $payload kg ładowności', 'Load weight: $weight of $payload kg payload');
   String strapsLine(int straps) =>
       _t('Pasy (docisk, EN 12195-1): $straps – liczone na rząd', 'Straps (top-over, EN 12195-1): $straps – per row');
-  String cog(String metres) => _t('Środek ciężkości: $metres m od ściany czołowej', 'Centre of gravity: $metres m from the front wall');
+  String cog(String metres) =>
+      _t('Środek ciężkości: $metres m od ściany czołowej', 'Centre of gravity: $metres m from the front wall');
   String get front => _t('Przód (ściana czołowa)', 'Front (front wall)');
   String get height => _t('Wysokość sztuki', 'Height each');
   String get topView => _t('Z góry', 'Top view');
   String get sideView => _t('Z boku', 'Side view');
   String get moveView => _t('Przesuń obraz', 'Move view');
   String get moveItems => _t('Przesuń towar', 'Move goods');
-  String get moveViewHint => _t('Przeciągnij, żeby przesunąć obraz; dwa palce – przybliżenie.',
-      'Drag to move the view; two fingers to zoom.');
+  String get moveViewHint =>
+      _t('Przeciągnij, żeby przesunąć obraz; dwa palce – przybliżenie.', 'Drag to move the view; two fingers to zoom.');
   String get moveItemsHint => _t(
       'Przeciągnij paletę: z góry – wzdłuż i w poprzek, z boku – wzdłuż. Po puszczeniu naciski i normy są liczone od nowa.',
       'Drag a pallet: top view – along and across, side view – along. When released, axle loads and limits are recalculated.');
@@ -82,6 +84,24 @@ class LoadTexts {
   String get disclaimer => _t(
       'Szacunek pomocniczy, nie certyfikat. Za rozmieszczenie i zabezpieczenie ładunku odpowiadają ładujący i kierowca.',
       'A helping estimate, not a certificate. The loader and the driver are responsible for placing and securing the load.');
+
+  String get resultHint => _t('Policz plan – tu pojawią się stan załadunku, naciski na osie i mocowanie.',
+      'Calculate the plan – load status, axle loads and securing will appear here.');
+  String get loadStatus => _t('Stan załadunku', 'Load status');
+  String get cargoWeight => _t('Masa towaru', 'Cargo weight');
+  String get axleTitle => _t('Naciski na osie', 'Axle loads');
+  String get axleOk => _t('W normie', 'Within limits');
+  String get axleOver => _t('Przekroczenie', 'Over limit');
+  String get securingTitle => _t('Mocowanie ładunku', 'Load securing');
+  String get layoutTitle => _t('Rozmieszczenie ładunku', 'Load layout');
+  String get yes => _t('tak', 'yes');
+  String get no => _t('nie', 'no');
+  String deckDims(String length, String width, String height) => _t(
+      'Długość: $length · szerokość: $width · wysokość: $height', 'Length: $length · width: $width · height: $height');
+  String get disclaimerTitle => _t('Zastrzeżenie', 'Disclaimer');
+  String get disclaimerLaw => _t(
+      'Rozmieszczenie i zabezpieczenie ładunku zgodnie z art. 61 ustawy Prawo o ruchu drogowym, Konwencją CMR i normą PN-EN 12195-1 – na odpowiedzialność kierowcy oraz załadowcy / nadawcy.',
+      'Placing and securing the load in line with art. 61 of the Polish Road Traffic Act, the CMR Convention and EN 12195-1 is the responsibility of the driver and the loader / consignor.');
 
   String number(num value) => NumberFormat.decimalPattern(locale.toLanguageTag()).format(value);
 }

@@ -101,3 +101,14 @@ Tokeny we wszystkich ekranach są identyczne (powyżej). „✔” = dane są w 
 2. Wspólne komponenty: karta KPI, chip statusu, pasek postępu, kafelek wartości, baner alarmowy, kafel listy z ikoną.
 3. Układy: komputer – menu boczne + górny pasek; telefon – dolna nawigacja dla roli kierowcy.
 4. Ekrany z danymi ✔, potem funkcje ✚; kafle ⚡ ukryte do czasu integracji telematyki.
+
+## Ekran „Plan załadunku” (projekt dyspozytora, wdrożony w module `module_load`)
+
+- Komputer: formularz ładunku i rozmieszczenie (widok z góry / z boku) po lewej 8/12, wynik po prawej 4/12, zastrzeżenie na dole.
+  Telefon: jedna kolumna w tej samej kolejności.
+- ✔ Stan załadunku (LDM, zajęta długość z paskiem), masa towaru / ładowność, naciski na osie z paskami
+  (≥ 90 % – bursztyn, przekroczenie – czerwień) i chipem „W normie / Przekroczenie”, środek ciężkości, pasy (EN 12195-1),
+  maty i ściana czołowa, ostrzeżenia, wymiary przestrzeni, zastrzeżenie odpowiedzialności (art. 61 PRD, CMR, PN-EN 12195-1).
+- ⚡ Naciski z czujników EBS, „GPS online” – wymagają telematyki; naciski liczone z planu, nie z czujników.
+- ✚ Widok 3D, bilans sił cx/cy, lista sprzętu VDI 2700 z atestami, certyfikat EN 12642 XL, eksport PDF/VDI, „Zatwierdź plan” –
+  nowe funkcje, do osobnej decyzji.

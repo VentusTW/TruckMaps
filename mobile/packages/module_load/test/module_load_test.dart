@@ -85,6 +85,25 @@ void main() {
     expect(find.text('13.64 LDM · 13.2 of 13.6 m used'), findsOneWidget);
     expect(find.text('⚠ Uwaga testowa'), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
+    // Karty wyniku obok formularza (komputer): naciski w normie, mocowanie, zastrzeżenie.
+    expect(find.text('Axle loads'), findsOneWidget);
+    expect(find.text('WITHIN LIMITS'), findsOneWidget);
+    expect(find.text('Load securing'), findsOneWidget);
+    expect(find.text('DISCLAIMER'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Axle loads')).dx, greaterThan(600));
+  });
+
+  testWidgets('telefon: wynik pod formularzem', (tester) async {
+    tester.view.physicalSize = const Size(700, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: LoadPlanScreen(api: api()))));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Weight each'), '500');
+    await tester.tap(find.text('Calculate plan'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.getTopLeft(find.text('Axle loads')).dy, greaterThan(tester.getTopLeft(find.text('Calculate plan')).dy));
   });
 
   testWidgets('naciski na osie, widok z boku i przeciąganie palety → sprawdzenie norm', (tester) async {

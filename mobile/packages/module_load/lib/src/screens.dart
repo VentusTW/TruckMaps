@@ -14,7 +14,7 @@ const itemKinds = ['euro', 'industrial', 'half', 'custom'];
 double? _parse(String text) => double.tryParse(text.trim().replaceAll(',', '.'));
 
 InputDecoration _field(String label, {String? suffix}) =>
-    InputDecoration(labelText: label, suffixText: suffix, border: const OutlineInputBorder(), isDense: true);
+    InputDecoration(labelText: label, suffixText: suffix, isDense: true);
 
 /// Pozycja ładunku w formularzu.
 class _Item {
@@ -128,9 +128,17 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
         ];
         if (vehicles.isEmpty) return Center(child: Text(t.noVehicles));
         _vehicleId ??= '${vehicles.first['id']}';
-        return Form(
-          key: _form,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
+        final theme = Theme.of(context);
+        final fill = TruckColors.of(context).card;
+        final form = SectionCard(
+          title: t.items,
+          icon: Icons.inventory_2_outlined,
+          action: TextButton.icon(
+            onPressed: () => setState(() => _items.add(_Item())),
+            icon: const Icon(Icons.add),
+            label: Text(t.addItem),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             DropdownButtonFormField<String>(
               isExpanded: true,
               value: _vehicleId,
@@ -144,67 +152,61 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
               ],
               onChanged: (id) => setState(() => _vehicleId = id),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: Gap.m),
             TextFormField(
               controller: _deck,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: numbers,
               decoration: _field(t.deckLength, suffix: 'm'),
             ),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(child: Text(t.items, style: Theme.of(context).textTheme.titleSmall)),
-              TextButton.icon(
-                onPressed: () => setState(() => _items.add(_Item())),
-                icon: const Icon(Icons.add),
-                label: Text(t.addItem),
-              ),
-            ]),
             for (final (index, item) in _items.indexed)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(children: [
-                    Row(children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          value: item.kind,
-                          decoration: _field(t.items),
-                          items: [for (final k in itemKinds) DropdownMenuItem(value: k, child: Text(t.kind(k)))],
-                          onChanged: (k) => setState(() => item.kind = k ?? 'euro'),
+              Container(
+                margin: const EdgeInsets.only(top: Gap.m),
+                padding: const EdgeInsets.all(Gap.m),
+                decoration: BoxDecoration(
+                  color: TruckColors.of(context).surfaceLow,
+                  borderRadius: BorderRadius.circular(TruckTheme.radius),
+                ),
+                child: Column(children: [
+                  Row(children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: item.kind,
+                        decoration: _field(t.items).copyWith(fillColor: fill),
+                        items: [for (final k in itemKinds) DropdownMenuItem(value: k, child: Text(t.kind(k)))],
+                        onChanged: (k) => setState(() => item.kind = k ?? 'euro'),
+                      ),
+                    ),
+                    if (_items.length > 1)
+                      IconButton(
+                        onPressed: () => setState(() => _items.removeAt(index).all.forEach((c) => c.dispose())),
+                        icon: const Icon(Icons.close),
+                      ),
+                  ]),
+                  const SizedBox(height: Gap.s),
+                  Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+                    for (final (controller, label, suffix, check) in [
+                      (item.count, t.count, null, true),
+                      (item.weight, t.weight, 'kg', true),
+                      (item.stack, t.stack, null, true),
+                      (item.stop, t.stop, null, true),
+                      if (item.kind == 'custom') (item.length, t.length, 'm', true),
+                      if (item.kind == 'custom') (item.width, t.width, 'm', true),
+                      (item.height, t.height, 'm', false),
+                    ])
+                      SizedBox(
+                        width: 150,
+                        child: TextFormField(
+                          controller: controller,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: numbers,
+                          decoration: _field(label, suffix: suffix).copyWith(fillColor: fill),
+                          validator: check ? required : (text) => (text ?? '').trim().isEmpty ? null : required(text),
                         ),
                       ),
-                      if (_items.length > 1)
-                        IconButton(
-                          onPressed: () => setState(() => _items.removeAt(index).all.forEach((c) => c.dispose())),
-                          icon: const Icon(Icons.close),
-                        ),
-                    ]),
-                    const SizedBox(height: 8),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      for (final (controller, label, suffix, check) in [
-                        (item.count, t.count, null, true),
-                        (item.weight, t.weight, 'kg', true),
-                        (item.stack, t.stack, null, true),
-                        (item.stop, t.stop, null, true),
-                        if (item.kind == 'custom') (item.length, t.length, 'm', true),
-                        if (item.kind == 'custom') (item.width, t.width, 'm', true),
-                        (item.height, t.height, 'm', false),
-                      ])
-                        SizedBox(
-                          width: 150,
-                          child: TextFormField(
-                            controller: controller,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: numbers,
-                            decoration: _field(label, suffix: suffix),
-                            validator: check ? required : (text) => (text ?? '').trim().isEmpty ? null : required(text),
-                          ),
-                        ),
-                    ]),
                   ]),
-                ),
+                ]),
               ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -220,44 +222,260 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                padding: const EdgeInsets.only(bottom: Gap.m),
+                child: Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
               ),
             FilledButton.icon(
               onPressed: _busy ? null : _calculate,
               icon: const Icon(Icons.calculate_outlined),
               label: Text(t.calculate),
             ),
-            if (_plan case final plan?) ...[
-              const SizedBox(height: 16),
-              PlanResult(plan: plan, onMoved: _check, onRearrange: _busy ? null : _calculate, checking: _checking),
-            ],
           ]),
+        );
+        final plan = _plan;
+        return Form(
+          key: _form,
+          child: LayoutBuilder(builder: (context, size) {
+            final wide = size.maxWidth >= 1000;
+            final pad = wide ? Gap.xl : Gap.l;
+            final deck =
+                plan == null ? null : PlanDeck(plan: plan, onMoved: _check, onRearrange: _busy ? null : _calculate);
+            final side = plan == null
+                ? <Widget>[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(Gap.l),
+                        child: Text(t.resultHint, style: theme.textTheme.bodyMedium),
+                      ),
+                    ),
+                  ]
+                : PlanResult.panels(plan, mats: _mats, frontWall: _frontWall, checking: _checking);
+            Widget column(List<Widget> children) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (i, c) in children.indexed) ...[if (i > 0) const SizedBox(height: Gap.l), c],
+                  ],
+                );
+            // Komputer: formularz i rozmieszczenie po lewej (8/12), wynik po prawej (4/12) – jak w projekcie.
+            if (wide) {
+              return ListView(padding: EdgeInsets.all(pad), children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(flex: 8, child: column([form, if (deck != null) deck])),
+                  const SizedBox(width: Gap.xl),
+                  Expanded(flex: 4, child: column(side)),
+                ]),
+                const SizedBox(height: Gap.l),
+                const LoadDisclaimer(),
+              ]);
+            }
+            return ListView(padding: EdgeInsets.all(pad), children: [
+              column([form, if (plan != null) ...side, if (deck != null) deck, const LoadDisclaimer()]),
+            ]);
+          }),
         );
       },
     );
   }
 }
 
-/// Wynik planu: podsumowanie, naciski na osie, ostrzeżenia i widoki z góry i z boku
-/// (przód – po lewej) z przybliżaniem, przesuwaniem obrazu i przeciąganiem palet.
-class PlanResult extends StatefulWidget {
-  const PlanResult({super.key, required this.plan, this.onMoved, this.onRearrange, this.checking = false});
+/// Wynik planu w kartach: stan załadunku, naciski na osie, mocowanie, ostrzeżenia.
+abstract final class PlanResult {
+  static List<Widget> panels(Map<String, dynamic> plan,
+          {required bool mats, required bool frontWall, bool checking = false}) =>
+      [
+        _PlanStatus(plan: plan, checking: checking),
+        if ((plan['axles'] as List<dynamic>? ?? const []).isNotEmpty) _AxleLoads(plan: plan),
+        _Securing(plan: plan, mats: mats, frontWall: frontWall),
+        if ((plan['warnings'] as List<dynamic>? ?? const []).isNotEmpty) _Warnings(plan: plan),
+      ];
+}
+
+double _ratio(num? value, num? limit) => value == null || limit == null || limit <= 0 ? 0 : value / limit;
+
+class _PlanStatus extends StatelessWidget {
+  const _PlanStatus({required this.plan, required this.checking});
+
+  final Map<String, dynamic> plan;
+  final bool checking;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    final theme = Theme.of(context);
+    final fits = plan['fits'] == true;
+    final used = plan['used_length_m'] as num;
+    final deck = plan['deck_length_m'] as num;
+    final weight = plan['weight_kg'] as num;
+    final payload = plan['payload_kg'] as num?;
+    final caption = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(Gap.l),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            StatusChip(
+              label: fits ? t.fits : t.notFits,
+              tone: fits ? StatusTone.ok : StatusTone.error,
+              icon: fits ? Icons.check_circle_outline : Icons.error_outline,
+              uppercase: false,
+            ),
+            const Spacer(),
+            if (checking) const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
+          const SizedBox(height: Gap.m),
+          SectionLabel(t.loadStatus),
+          const SizedBox(height: Gap.xs),
+          BigNumber(value: t.number(plan['ldm'] as num), unit: 'LDM', size: 24),
+          Text(t.summary(t.number(plan['ldm'] as num), t.number(used), t.number(deck)), style: caption),
+          const SizedBox(height: Gap.s),
+          TruckProgressBar(value: _ratio(used, deck), color: fits ? null : theme.colorScheme.error),
+          const SizedBox(height: Gap.l),
+          SectionLabel(t.cargoWeight),
+          const SizedBox(height: Gap.xs),
+          BigNumber(
+            value: t.tonnes(weight.toDouble()),
+            unit: payload == null ? null : '/ ${t.tonnes(payload.toDouble())}',
+            size: 24,
+          ),
+          Text(t.weightLine(t.number(weight), payload == null ? null : t.number(payload)), style: caption),
+          if (payload != null) ...[
+            const SizedBox(height: Gap.s),
+            TruckProgressBar(value: _ratio(weight, payload), color: weight > payload ? theme.colorScheme.error : null),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+class _AxleLoads extends StatelessWidget {
+  const _AxleLoads({required this.plan});
+
+  final Map<String, dynamic> plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final axles = (plan['axles'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final over = axles.any((a) => a['over'] == true);
+    return SectionCard(
+      title: t.axleTitle,
+      icon: Icons.balance,
+      action: Padding(
+        padding: const EdgeInsets.only(right: Gap.s),
+        child: StatusChip(label: over ? t.axleOver : t.axleOk, tone: over ? StatusTone.error : StatusTone.ok),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final axle in axles)
+          Builder(builder: (context) {
+            final load = axle['load_kg'] as num;
+            final limit = axle['limit_kg'] as num?;
+            final ratio = _ratio(load, limit);
+            final isOver = axle['over'] == true;
+            final color =
+                isOver ? scheme.error : (ratio >= 0.9 ? TruckColors.of(context).warning : scheme.primaryContainer);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: Gap.m),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(
+                  t.axleLine(t.axle(axle['name'] as String), t.tonnes(load.toDouble()),
+                      limit == null ? null : t.tonnes(limit.toDouble())),
+                  style: theme.textTheme.labelMedium?.copyWith(color: isOver ? scheme.error : scheme.onSurface),
+                ),
+                if (limit != null) ...[
+                  const SizedBox(height: Gap.xs),
+                  TruckProgressBar(value: ratio, height: 10, color: color),
+                ],
+              ]),
+            );
+          }),
+        if (plan['cog_m'] case final num cog)
+          Container(
+            padding: const EdgeInsets.all(Gap.m),
+            decoration: BoxDecoration(
+              color: TruckColors.of(context).surfaceLow,
+              borderRadius: BorderRadius.circular(TruckTheme.radius),
+            ),
+            child: Text(t.cog(t.number(cog)), style: theme.textTheme.labelLarge),
+          ),
+      ]),
+    );
+  }
+}
+
+class _Securing extends StatelessWidget {
+  const _Securing({required this.plan, required this.mats, required this.frontWall});
+
+  final Map<String, dynamic> plan;
+  final bool mats;
+  final bool frontWall;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    final theme = Theme.of(context);
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: Gap.xs),
+          child: Row(children: [
+            Expanded(
+              child: Text(label, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary)),
+            ),
+            Text(value, style: theme.textTheme.labelLarge),
+          ]),
+        );
+    return SectionCard(
+      title: t.securingTitle,
+      icon: Icons.link,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(t.strapsLine(plan['straps'] as int), style: theme.textTheme.bodyMedium),
+        const Divider(height: Gap.l),
+        row(t.mats, mats ? t.yes : t.no),
+        row(t.frontWall, frontWall ? t.yes : t.no),
+      ]),
+    );
+  }
+}
+
+class _Warnings extends StatelessWidget {
+  const _Warnings({required this.plan});
+
+  final Map<String, dynamic> plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(Gap.l),
+      decoration: BoxDecoration(color: scheme.errorContainer, borderRadius: BorderRadius.circular(TruckTheme.radius)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final warning in (plan['warnings'] as List<dynamic>))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text('⚠ $warning', style: TextStyle(color: scheme.onErrorContainer)),
+          ),
+      ]),
+    );
+  }
+}
+
+/// Rozmieszczenie: widoki z góry i z boku (przód – po lewej) z przybliżaniem, przesuwaniem obrazu
+/// i przeciąganiem palet; „Ułóż automatycznie” – plan od nowa bez przekroczeń.
+class PlanDeck extends StatefulWidget {
+  const PlanDeck({super.key, required this.plan, this.onMoved, this.onRearrange});
 
   final Map<String, dynamic> plan;
 
   /// Palety przeciągnięte – nowe ułożenie do sprawdzenia; `null` – bez przeciągania.
   final ValueChanged<List<Map<String, dynamic>>>? onMoved;
-
-  /// „Ułóż automatycznie” – plan od nowa bez przekroczeń.
   final VoidCallback? onRearrange;
-  final bool checking;
 
   @override
-  State<PlanResult> createState() => _PlanResultState();
+  State<PlanDeck> createState() => _PlanDeckState();
 }
 
-class _PlanResultState extends State<PlanResult> {
+class _PlanDeckState extends State<PlanDeck> {
   bool _moving = false;
 
   @override
@@ -265,60 +483,76 @@ class _PlanResultState extends State<PlanResult> {
     final t = LoadTexts.of(context);
     final theme = Theme.of(context);
     final plan = widget.plan;
-    final fits = plan['fits'] == true;
-    final payload = plan['payload_kg'] as num?;
-    final cog = plan['cog_m'] as num?;
-    final axles = (plan['axles'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Icon(fits ? Icons.check_circle_outline : Icons.error_outline,
-            color: fits ? theme.colorScheme.primary : theme.colorScheme.error),
-        const SizedBox(width: 8),
-        Expanded(child: Text(fits ? t.fits : t.notFits, style: theme.textTheme.titleMedium)),
-        if (widget.checking) const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-      ]),
-      const SizedBox(height: 4),
-      Text(t.summary(t.number(plan['ldm'] as num), t.number(plan['used_length_m'] as num),
-          t.number(plan['deck_length_m'] as num))),
-      Text(t.weightLine(t.number(plan['weight_kg'] as num), payload == null ? null : t.number(payload))),
-      Text(t.strapsLine(plan['straps'] as int)),
-      if (cog != null) Text(t.cog(t.number(cog))),
-      for (final axle in axles)
-        Text(
-          t.axleLine(t.axle(axle['name'] as String), t.tonnes((axle['load_kg'] as num).toDouble()),
-              axle['limit_kg'] == null ? null : t.tonnes((axle['limit_kg'] as num).toDouble())),
-          style: TextStyle(color: axle['over'] == true ? theme.colorScheme.error : null),
-        ),
-      for (final warning in (plan['warnings'] as List<dynamic>? ?? const []))
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text('⚠ $warning', style: TextStyle(color: theme.colorScheme.error)),
-        ),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        if (widget.onMoved != null)
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: false, icon: const Icon(Icons.pan_tool_outlined), label: Text(t.moveView)),
-              ButtonSegment(value: true, icon: const Icon(Icons.open_with), label: Text(t.moveItems)),
-            ],
-            selected: {_moving},
-            onSelectionChanged: (value) => setState(() => _moving = value.first),
+    String m(Object? value) => value is num ? '${t.number(value)} m' : '–';
+    return SectionCard(
+      title: t.layoutTitle,
+      icon: Icons.view_in_ar_outlined,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          if (widget.onMoved != null)
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(value: false, icon: const Icon(Icons.pan_tool_outlined), label: Text(t.moveView)),
+                ButtonSegment(value: true, icon: const Icon(Icons.open_with), label: Text(t.moveItems)),
+              ],
+              selected: {_moving},
+              onSelectionChanged: (value) => setState(() => _moving = value.first),
+            ),
+          if (widget.onRearrange != null)
+            OutlinedButton.icon(
+              onPressed: widget.onRearrange,
+              icon: const Icon(Icons.auto_fix_high_outlined),
+              label: Text(t.rearrange),
+            ),
+        ]),
+        const SizedBox(height: Gap.s),
+        Text(_moving ? t.moveItemsHint : t.moveViewHint, style: theme.textTheme.bodySmall),
+        Text(t.front, style: theme.textTheme.bodySmall),
+        DeckView(plan: plan, moving: _moving && widget.onMoved != null, onMoved: widget.onMoved ?? (_) {}),
+        const SizedBox(height: Gap.s),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(Gap.s),
+          decoration: BoxDecoration(
+            color: TruckColors.of(context).surfaceLow,
+            borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
           ),
-        if (widget.onRearrange != null)
-          OutlinedButton.icon(
-            onPressed: widget.onRearrange,
-            icon: const Icon(Icons.auto_fix_high_outlined),
-            label: Text(t.rearrange),
-          ),
+          child: Text(t.deckDims(m(plan['deck_length_m']), m(plan['deck_width_m']), m(plan['inner_height_m'])),
+              style: theme.textTheme.labelMedium),
+        ),
+        const SizedBox(height: Gap.s),
+        Text(t.heightHint, style: theme.textTheme.bodySmall),
       ]),
-      const SizedBox(height: 8),
-      Text(_moving ? t.moveItemsHint : t.moveViewHint, style: theme.textTheme.bodySmall),
-      Text(t.front, style: theme.textTheme.bodySmall),
-      DeckView(plan: plan, moving: _moving && widget.onMoved != null, onMoved: widget.onMoved ?? (_) {}),
-      const SizedBox(height: 8),
-      Text(t.heightHint, style: theme.textTheme.bodySmall),
-      Text(t.disclaimer, style: theme.textTheme.bodySmall),
-    ]);
+    );
+  }
+}
+
+/// Zastrzeżenie: plan jest pomocniczy, odpowiedzialność ponoszą kierowca i załadowca.
+class LoadDisclaimer extends StatelessWidget {
+  const LoadDisclaimer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final text = theme.textTheme.bodySmall?.copyWith(color: scheme.secondary);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(Gap.l),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          IconSquare(icon: Icons.gavel, color: scheme.onErrorContainer, background: scheme.errorContainer),
+          const SizedBox(width: Gap.m),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SectionLabel(t.disclaimerTitle, color: scheme.onSurface),
+              const SizedBox(height: Gap.xs),
+              Text(t.disclaimer, style: text),
+              Text(t.disclaimerLaw, style: text),
+            ]),
+          ),
+        ]),
+      ),
+    );
   }
 }
