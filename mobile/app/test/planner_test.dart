@@ -29,7 +29,7 @@ const route = {
 };
 
 Future<void> pumpPlanner(WidgetTester tester, Future<http.Response> Function(http.Request) handler) async {
-  tester.view.physicalSize = const Size(1600, 900);
+  tester.view.physicalSize = const Size(1600, 1300);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final api = CoreApi(baseUrl: 'http://serwer.test', token: 't', client: MockClient(handler));

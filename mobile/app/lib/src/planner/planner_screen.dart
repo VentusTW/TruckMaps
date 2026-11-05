@@ -14,6 +14,7 @@ import 'clusters.dart';
 import 'country_bans_screen.dart';
 import 'place_field.dart';
 import 'route.dart';
+import '../vehicles/permits_screen.dart';
 import 'route_review.dart';
 
 /// Podkład mapy: kafelki OSM jak w planerze w przeglądarce (testy podmieniają na puste).
@@ -49,6 +50,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
   bool _viaMode = false;
   bool _avoid = true;
   DateTime? _departure;
+
+  /// Zaznaczone zezwolenia na przejazd; `null` – wszystkie ważne w dniu wyjazdu.
+  Set<String>? _permitIds;
   RouteResult? _result;
   int? _alternative;
   bool _busy = false;
@@ -145,6 +149,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         'vehicle_id': vehicleId,
         'avoid_difficult': _avoid,
         if (_departure != null) 'departure': _isoLocal(_departure!),
+        if (_permitIds != null) 'permit_ids': _permitIds!.toList(),
       }) as Map<String, dynamic>;
       final result = RouteResult.fromJson(body);
       setState(() {
@@ -183,6 +188,60 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _from.clear();
         _to.clear();
       });
+
+  /// „Mam zezwolenia”: ważne w dniu wyjazdu dla wybranego pojazdu, domyślnie wszystkie zaznaczone.
+  Future<void> _pickPermits() async {
+    final l = context.l;
+    final day = (_departure ?? DateTime.now()).toIso8601String().substring(0, 10);
+    final List<Map<String, dynamic>> permits;
+    try {
+      permits = (await widget.api.get('/api/permits?vehicle_id=$_vehicleId&day=$day') as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+      return;
+    }
+    if (!mounted) return;
+    final chosen = {..._permitIds ?? {for (final p in permits) '${p['id']}'}};
+    final result = await showDialog<Set<String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text(l.permitsHave),
+          content: SizedBox(
+            width: 420,
+            child: ListView(shrinkWrap: true, children: [
+              if (permits.isEmpty) Text(l.permitsNoneValid),
+              for (final p in permits)
+                CheckboxListTile(
+                  value: chosen.contains('${p['id']}'),
+                  onChanged: (on) => setLocal(() => on == true ? chosen.add('${p['id']}') : chosen.remove('${p['id']}')),
+                  title: Text('${p['number']}'),
+                  subtitle: Text(permitSummary(l, p)),
+                ),
+              TextButton.icon(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await Navigator.of(this.context)
+                      .push(MaterialPageRoute<void>(builder: (_) => PermitsScreen(api: widget.api)));
+                  if (mounted) setState(() => _permitIds = null);
+                },
+                icon: const Icon(Icons.edit_note),
+                label: Text(l.permitsManage),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(l.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, chosen), child: Text(l.save)),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _permitIds = result.length == permits.length ? null : result);
+    if (_start != null && _end != null) _calculate();
+  }
 
   Future<void> _pickDeparture() async {
     final now = DateTime.now();
@@ -577,6 +636,11 @@ class _PlannerScreenState extends State<PlannerScreen> {
           icon: const Icon(Icons.schedule),
           label: Text(_departure == null ? l.departureNow : l.departureAt(l.when(_departure!))),
         ),
+        OutlinedButton.icon(
+          onPressed: _vehicleId == null ? null : _pickPermits,
+          icon: const Icon(Icons.verified_outlined),
+          label: Text(_permitIds == null ? l.permitsChoose : l.permitsChosen(_permitIds!.length)),
+        ),
         FilterChip(
           label: Text(l.addViaOnMap),
           selected: _viaMode,
@@ -724,7 +788,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
         const SizedBox(height: 12),
         Text(l.onRouteTitle, style: theme.textTheme.titleSmall),
         for (final w in shown.warnings)
-          _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: levelColor(w.level))),
+          _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: placeColor(w))),
+        if (identical(shown, result.route) && result.permitsUsed.isNotEmpty)
+          Text(l.permitsUsed(result.permitsUsed.join(', ')),
+              style: theme.textTheme.bodySmall?.copyWith(color: permittedColor)),
       ],
       if (result.alternatives.isNotEmpty) ...[
         const SizedBox(height: 12),

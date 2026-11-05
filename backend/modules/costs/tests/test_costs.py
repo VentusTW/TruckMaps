@@ -144,7 +144,7 @@ def test_route_cost_from_api_with_bulletin_prices_and_tolls():
         fuel_prices.store(db, *fuel_prices.parse_bulletin(bulletin.read_bytes()))
         store_rates(db, date(2026, 10, 28), {"PLN": 4.25})
     app = create_app(
-        Settings(dev_grant_all=True),
+        Settings(licenses={"ola": frozenset({"costs"})}),
         modules=[CostsModule()],
         token_verifier=Verifier(),
         database=database,
@@ -178,3 +178,18 @@ def test_route_cost_from_api_with_bulletin_prices_and_tolls():
     assert parts[("toll", "PL")]["amount"] == pytest.approx(100 * 0.56 / 4.25, abs=0.01)
     assert parts[("toll", "DE")]["amount"] == pytest.approx(200 * 0.348, abs=0.01)
     assert cost["amount"] == pytest.approx(sum(p["amount"] for p in cost["parts"]), abs=0.05)
+
+    # Konto bez modułu kosztów: koszt liczy rdzeń (stawki i paliwo), bez myta per kraj.
+    other = {"Authorization": "Bearer user-ewa"}
+    own = client.post("/api/vehicles", json=truck | {"cost_per_km": 1.0}, headers=other).json()
+    plain = client.post(
+        "/api/routes",
+        json={
+            "vehicle_id": own["id"],
+            "origin": {"lat": 52.4, "lon": 16.9},
+            "destination": {"lat": 52.5, "lon": 13.4},
+        },
+        headers=other,
+    ).json()["cost"]
+    assert plain["provider"] == "core"
+    assert not any(p["kind"] == "toll" for p in plain["parts"])

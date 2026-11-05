@@ -23,5 +23,8 @@
   "service.protocol_parts_total": "Parts total",
   "service.protocol_signature": "Signature",
   "inbox.service.order_new": "New fault report: {vehicle_name}",
-  "inbox.service.order_done": "Repair completed: {vehicle_name}"
+  "inbox.service.order_done": "Repair completed: {vehicle_name}",
+  "service.protocol_rate": "Hourly rate",
+  "service.protocol_labour_total": "Labour total",
+  "service.protocol_total": "Total (parts and labour)"
 }

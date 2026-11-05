@@ -10,9 +10,11 @@ from truckmaps.core import (  # noqa: F401  (rejestrują tabele w Base.metadata)
     currency,
     fuel_prices,
     parkings,
+    permits,
     reports,
     restrictions,
     road_points,
+    shared,
     trips,
     vehicles,
 )

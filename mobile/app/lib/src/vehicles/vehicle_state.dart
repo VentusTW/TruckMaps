@@ -35,8 +35,11 @@ Color? stateTint(BuildContext context, VehicleState state) {
 String? stateText(AppLocalizations l, Map<String, dynamic> v) => switch (vehicleState(v)) {
       VehicleState.repair => l.vehicleInRepair,
       VehicleState.reported => l.vehicleRepairReported,
-      VehicleState.inUse =>
-        v['coupled_to_name'] != null ? l.vehicleCoupledTo('${v['coupled_to_name']}') : l.vehicleInUse,
+      VehicleState.inUse => v['coupled_to_name'] != null
+          ? l.vehicleCoupledTo('${v['coupled_to_name']}')
+          : v['driver_name'] != null
+              ? l.vehicleDrivenBy('${v['driver_name']}')
+              : l.vehicleInUse,
       VehicleState.free => null,
     };
 

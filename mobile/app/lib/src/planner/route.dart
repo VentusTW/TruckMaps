@@ -16,6 +16,11 @@ const unknownColor = Color(0xFF888780);
 
 Color levelColor(String? level) => levelColors[level] ?? unknownColor;
 
+/// Ograniczenie objęte zezwoleniem na przejazd – osobny kolor (nie jest omijane).
+const permittedColor = Color(0xFF1E6FD9);
+
+Color placeColor(RoutePlace place) => place.kind == 'permitted' ? permittedColor : levelColor(place.level);
+
 List<LatLng> _points(dynamic geometry) => [
       for (final p in geometry as List<dynamic>)
         LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
@@ -431,6 +436,7 @@ class RouteResult {
     this.waitMin = 0,
     this.freeDeparture,
     this.banCountries = const [],
+    this.permitsUsed = const [],
     this.departure,
     this.countries = const [],
     this.avoidedWarnings = const [],
@@ -464,6 +470,7 @@ class RouteResult {
       freeDeparture:
           bans?['free_departure'] == null ? null : DateTime.parse(bans!['free_departure'] as String).toLocal(),
       banCountries: {for (final b in (bans?['bans'] as List<dynamic>? ?? [])) '${(b as Map)['country']}'}.toList(),
+      permitsUsed: [for (final p in (json['permits_used'] as List<dynamic>? ?? [])) '$p'],
       departure: json['departure'] == null ? null : DateTime.parse(json['departure'] as String).toLocal(),
       countries: [
         for (final c in (json['countries'] as List<dynamic>? ?? []))
@@ -494,6 +501,9 @@ class RouteResult {
 
   /// Kraje, w których trasa trafia na zakaz ruchu (do ekranu zakazów kraju).
   final List<String> banCountries;
+
+  /// Numery zezwoleń, które objęły ograniczenia na trasie proponowanej.
+  final List<String> permitsUsed;
 
   /// Wyjazd, dla którego liczono trasę i zakazy.
   final DateTime? departure;

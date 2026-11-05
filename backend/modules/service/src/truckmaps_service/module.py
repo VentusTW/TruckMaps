@@ -78,6 +78,8 @@ class ServiceOrder(Base):
     """Zrobiony przegląd techniczny – ważny do (przesuwa terminy pojazdu)."""
     currency: Mapped[str | None] = mapped_column(String(3))
     """Waluta cen części w protokole."""
+    labour_rate: Mapped[float | None]
+    """Stawka za godzinę pracy (w walucie protokołu)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -114,6 +116,9 @@ class ProtocolIn(BaseModel):
     work_done: str = Field(min_length=3, max_length=4000)
     parts: list[Part] = Field(default_factory=list, max_length=100)
     labour_hours: float | None = Field(default=None, ge=0, le=1000)
+    labour_rate: float | None = Field(
+        default=None, ge=0, le=100_000, description="Stawka za godzinę pracy (waluta protokołu)"
+    )
     odometer_km: int | None = Field(default=None, ge=0, le=10_000_000)
     notes: str = Field(default="", max_length=2000)
     inspection_until: date | None = Field(
@@ -149,6 +154,10 @@ class VehicleCosts(BaseModel):
     orders: int
     parts_total: float
     labour_hours: float
+    labour_total: float
+    """Godziny × stawka (zlecenia bez stawki – tylko godziny)."""
+    total: float
+    """Części i robocizna razem."""
 
 
 class RejectIn(BaseModel):
@@ -171,6 +180,7 @@ class OrderOut(BaseModel):
     work_done: str | None
     parts: list[Part]
     labour_hours: float | None
+    labour_rate: float | None = None
     odometer_km: int | None
     notes: str | None
     reject_reason: str | None
@@ -203,6 +213,10 @@ def _photo(data: str) -> tuple[bytes, str]:
     return raw, kind
 
 
+def _labour_total(order: ServiceOrder) -> float:
+    return (order.labour_hours or 0) * (order.labour_rate or 0)
+
+
 def _protocol_html(order: ServiceOrder, vehicle: VehicleInfo, photos: list[ServicePhoto]) -> str:
     """Protokół naprawy do druku – przeglądarka zapisze go jako PDF („Drukuj”)."""
     e = html.escape
@@ -219,6 +233,8 @@ def _protocol_html(order: ServiceOrder, vehicle: VehicleInfo, photos: list[Servi
         for p in order.parts or []
     )
     completed = f"{order.completed_at:%Y-%m-%d}" if order.completed_at else ""
+    rate = money(order.labour_rate) if order.labour_rate is not None else None
+    labour = money(_labour_total(order)) if order.labour_rate else None
     images = "".join(
         f'<img src="data:{p.content_type};base64,{base64.b64encode(p.data).decode()}" alt="">'
         for p in photos
@@ -240,12 +256,15 @@ th{{width:30%;background:#eee}}img{{max-width:48%;margin:4px}}
 {row(t("service.protocol_mechanic"), order.mechanic_name)}
 {row(t("service.protocol_work"), order.work_done)}
 {row(t("service.protocol_hours"), order.labour_hours)}
+{row(t("service.protocol_rate"), rate)}
+{row(t("service.protocol_labour_total"), labour)}
 {row(t("service.protocol_odometer"), order.odometer_km)}
 {row(t("service.protocol_inspection"), order.inspection_until)}
 {row(t("service.protocol_notes"), order.notes)}
 </table>
 {f"<h2>{e(t('service.protocol_parts'))}</h2><table>{parts}</table>" if parts else ""}
 {row(t("service.protocol_parts_total"), money(_parts_total(order))) if parts else ""}
+{row(t("service.protocol_total"), money(_parts_total(order) + _labour_total(order)))}
 {images}
 <p><br>{e(t("service.protocol_signature"))}: ............................</p>
 </body></html>"""
@@ -411,6 +430,7 @@ class ServiceModule(Module):
             order.work_done = data.work_done.strip()
             order.parts = [p.model_dump() for p in data.parts]
             order.labour_hours = data.labour_hours
+            order.labour_rate = data.labour_rate
             order.odometer_km = data.odometer_km
             order.notes = data.notes.strip() or None
             order.currency = data.currency
@@ -485,16 +505,35 @@ class ServiceModule(Module):
                 "filename": "".join(c if c.isalnum() or c in "-_" else "_" for c in name),
             }
 
+        @router.post("/orders/{order_id}/protocol/link")
+        def protocol_link(order_id: str, user: User, db: Db) -> dict:
+            """Protokół pod krótkim linkiem (15 min) – telefon otworzy go w przeglądarce,
+            która wydrukuje go albo zapisze jako PDF."""
+            page = protocol(order_id, user, db)
+            path = ctx.storage.share(
+                db, page["html"].encode(), "text/html; charset=utf-8", f"{page['filename']}.html"
+            )
+            return {"path": path, "filename": page["filename"]}
+
         @router.get("/costs")
         def costs(
-            user: User, db: Db, date_from: date | None = None, date_to: date | None = None
+            user: User,
+            db: Db,
+            date_from: date | None = None,
+            date_to: date | None = None,
+            vehicle_id: str | None = None,
         ) -> list[VehicleCosts]:
-            """Koszty zakończonych napraw według pojazdów (części i godziny pracy), w okresie."""
-            vehicles = {v.id: v for v in fleet.vehicles(db, user) if v.role in SERVICE_ROLES}
+            """Koszty zakończonych napraw według pojazdów (części, robocizna), w okresie;
+            ``vehicle_id`` – jeden pojazd (np. obok statystyk przejazdów)."""
+            vehicles = {
+                v.id: v
+                for v in fleet.vehicles(db, user)
+                if v.role in SERVICE_ROLES and vehicle_id in (None, v.id)
+            }
             query = select(ServiceOrder).where(
                 ServiceOrder.vehicle_id.in_(list(vehicles)), ServiceOrder.status == Status.DONE
             )
-            totals: dict[tuple[str, str | None], list] = defaultdict(lambda: [0, 0.0, 0.0])
+            totals: dict[tuple[str, str | None], list] = defaultdict(lambda: [0, 0.0, 0.0, 0.0])
             for order in db.scalars(query):
                 day = order.completed_at.date() if order.completed_at else None
                 if day is None or (date_from and day < date_from) or (date_to and day > date_to):
@@ -503,6 +542,7 @@ class ServiceModule(Module):
                 total[0] += 1
                 total[1] += _parts_total(order)
                 total[2] += order.labour_hours or 0
+                total[3] += _labour_total(order)
             return [
                 VehicleCosts(
                     vehicle_id=vehicle_id,
@@ -512,8 +552,10 @@ class ServiceModule(Module):
                     orders=n,
                     parts_total=round(parts, 2),
                     labour_hours=round(hours, 2),
+                    labour_total=round(labour, 2),
+                    total=round(parts + labour, 2),
                 )
-                for (vehicle_id, currency), (n, parts, hours) in sorted(
+                for (vehicle_id, currency), (n, parts, hours, labour) in sorted(
                     totals.items(), key=lambda item: vehicles[item[0][0]].name
                 )
             ]

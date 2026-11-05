@@ -186,3 +186,19 @@ def test_dragged_layout_is_checked_without_rearranging():
         "/api/m/load/plan/check", json=body | {"placed": overlap}, headers=headers
     ).json()
     assert any("nachodzi" in w for w in checked["warnings"])
+
+
+def test_axles_from_vehicle_documents():
+    documented = CargoInfo(
+        deck_length_m=13.6, payload_kg=32_000, kind="semitrailer", axle_count=3, axle_load_t=9,
+        tare_kg=7_000, gvw_kg=39_000, height_m=4.0, kingpin_m=1.2, axles_m=10.4,
+    )  # fmt: skip
+    kingpin, axles = supports(documented, 13.6)
+    assert (kingpin.x, axles.x) == (1.2, 10.4)
+    rigid = CargoInfo(
+        deck_length_m=7.2, payload_kg=8_000, kind="rigid", axle_count=2, axle_load_t=11.5,
+        tare_kg=10_000, gvw_kg=18_000, height_m=3.4, wheelbase_m=5.2,
+    )  # fmt: skip
+    assert (
+        supports(rigid, 7.2)[1].x == 4.0
+    )  # 5,2 m od osi przedniej, która jest 1,2 m przed skrzynią

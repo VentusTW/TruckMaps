@@ -202,6 +202,7 @@ def test_photos_messages_protocol_and_costs(client, fleet):
             {"name": "Klej", "quantity": 2, "price": 50},
         ],
         "labour_hours": 3,
+        "labour_rate": 150,
         "currency": "PLN",
     }
     client.post(f"{url}/complete", json=protocol, headers=as_user("marek"))
@@ -212,6 +213,16 @@ def test_photos_messages_protocol_and_costs(client, fleet):
     assert "Protokół naprawy" in page["html"] and "1900.00 PLN" in page["html"]
     assert "data:image/jpeg;base64," in page["html"]
     assert page["filename"].endswith("-MAN_TGX")
+    assert "450.00 PLN" in page["html"] and "2350.00 PLN" in page["html"]  # robocizna i razem
+
+    # Link do przeglądarki telefonu: bez logowania, tylko z kluczem, ważny kilka minut.
+    link = client.post(f"{url}/protocol/link", headers=as_user("olek")).json()
+    assert link["path"].startswith("/api/shared/")
+    opened = client.get(link["path"])
+    assert opened.status_code == 200 and "Protokół naprawy" in opened.text
+    assert opened.headers["content-type"].startswith("text/html")
+    assert client.get("/api/shared/zly-klucz").status_code == 404
+    assert client.post(f"{url}/protocol/link", headers=as_user("obcy")).status_code in (403, 404)
 
     costs = client.get("/api/m/service/costs", headers=as_user("olek")).json()
     assert costs == [
@@ -223,6 +234,16 @@ def test_photos_messages_protocol_and_costs(client, fleet):
             "orders": 1,
             "parts_total": 1900.0,
             "labour_hours": 3.0,
+            "labour_total": 450.0,
+            "total": 2350.0,
         }
     ]
+    one = client.get(
+        "/api/m/service/costs", params={"vehicle_id": fleet}, headers=as_user("olek")
+    ).json()
+    assert [c["total"] for c in one] == [2350.0]
+    other = client.get(
+        "/api/m/service/costs", params={"vehicle_id": "inny"}, headers=as_user("olek")
+    ).json()
+    assert other == []
     assert client.get("/api/m/service/costs", headers=as_user("jan")).json() == []  # kierowca

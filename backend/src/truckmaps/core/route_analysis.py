@@ -136,9 +136,13 @@ class RouteWarning(BaseModel):
     km: float
     limit: str | None = None
     """Wartość ograniczenia do znaku na mapie, np. "4,05 m", "30 t", "zakaz"."""
+    permit: str | None = None
+    """Numer zezwolenia, które obejmuje to ograniczenie (rodzaj ``permitted``)."""
 
 
 REPORTED = "reported"
+PERMITTED = "permitted"
+"""Rodzaj ostrzeżenia: ograniczenie objęte zezwoleniem – nie jest czerwone ani omijane."""
 """Rodzaj ostrzeżenia: ograniczenie zgłoszone przez kierowców (nie z mapy)."""
 
 
@@ -172,6 +176,7 @@ class _Finding:
     value: float | None = None
     """Przy scalaniu zostaje komunikat z najmniejszą wartością (np. najciaśniejszy łuk)."""
     limit: str | None = None
+    permit: str | None = None
 
 
 def analyze(
@@ -182,6 +187,7 @@ def analyze(
     node_restrictions: list[Restriction],
     departure: datetime | None = None,
     reported: dict[int, list[ReportedLimit]] | None = None,
+    permits: list | None = None,
 ) -> Analysis:
     """Ocena trasy dla pojazdu.
 
@@ -206,7 +212,8 @@ def analyze(
             )
             begin_s = edge.end_s
         on_way = way_restrictions.get(edge.way_id, [])
-        findings += _edge_findings(edge, vehicle, on_way, near_end, moment)
+        start = points[min(edge.begin_index, len(points) - 1)]
+        findings += _edge_findings(edge, vehicle, on_way, near_end, moment, permits, start)
         findings += _reported_findings(edge, vehicle, (reported or {}).get(edge.way_id, []), on_way)
     findings += _bend_findings(points, cumulative, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
@@ -242,6 +249,8 @@ def _edge_findings(
     restrictions: list[Restriction],
     near_end: bool = False,
     moment: datetime | None = None,
+    permits: list | None = None,
+    start: tuple[float, float] | None = None,
 ):
     span = (edge.begin_index, edge.end_index)
     name = f" ({edge.names[0]})" if edge.names else ""
@@ -261,6 +270,22 @@ def _edge_findings(
         finding = _compare(restriction, vehicle)
         if finding:
             level, message = finding
+            permit = (
+                _covering(permits, restriction, edge, vehicle, start)
+                if level >= Level.ORANGE
+                else None
+            )
+            if permit is not None:
+                yield _Finding(
+                    Level.LIME,
+                    PERMITTED,
+                    t("route.permitted", message=message + name, number=permit.number),
+                    *span,
+                    key=(restriction.raw, permit.id),
+                    limit=_limit_label(restriction),
+                    permit=permit.number,
+                )
+                continue
             yield _Finding(
                 level,
                 restriction.kind,
@@ -280,6 +305,17 @@ def _edge_findings(
         yield _Finding(
             Level.LIME, "roundabout", t("route.roundabout") + name, *span, key="roundabout"
         )
+
+
+def _covering(permits, restriction: Restriction, edge: RouteEdge, vehicle: VehicleIn, start):
+    """Pierwsze zezwolenie, które obejmuje ograniczenie na tej drodze (zasięg i limity)."""
+    measured = ":physical" in restriction.raw
+    for permit in permits or ():
+        if permit.allows(restriction.kind, vehicle, measured) and permit.reaches(
+            edge.way_id, edge.country, start or (0.0, 0.0)
+        ):
+            return permit
+    return None
 
 
 def _road_level(
@@ -530,6 +566,7 @@ def _summarize(points, cumulative: list[float], findings: list[_Finding]) -> Ana
             lat=lat,
             km=round(cumulative[start] / 1000, 1),
             limit=finding.limit,
+            permit=finding.permit,
         )
         warnings.append(warning)
         open_groups[group] = (finding, warning)

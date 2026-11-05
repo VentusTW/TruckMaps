@@ -48,6 +48,12 @@ class CargoInfo:
     gvw_kg: float | None = None
     height_m: float | None = None
     """Wysokość całkowita pojazdu – z niej szacunkowa wysokość przestrzeni ładunkowej."""
+    kingpin_m: float | None = None
+    """Naczepa: sworzeń od przodu (z dokumentów); ``None`` – typowa geometria."""
+    axles_m: float | None = None
+    """Naczepa / przyczepa: środek zespołu osi od przodu."""
+    wheelbase_m: float | None = None
+    """Solówka: rozstaw osi (przednia – środek tylnych)."""
 
 
 class Fleet(Protocol):
@@ -100,4 +106,11 @@ class Storage(Protocol):
 
         Tabele modułu: własny ``DeclarativeBase`` i własne migracje Alembica (gałąź modułu).
         """
+        ...
+
+    def share(
+        self, db: Session, body: bytes, content_type: str, filename: str, minutes: int = 15
+    ) -> str:
+        """Dokument pod krótkim linkiem bez logowania (``/api/shared/<klucz>``, do 60 min) –
+        np. protokół do otwarcia w przeglądarce telefonu. Tylko to, co użytkownik i tak widzi."""
         ...

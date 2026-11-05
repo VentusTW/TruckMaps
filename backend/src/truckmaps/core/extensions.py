@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import count
 
@@ -39,6 +40,19 @@ class ExtensionRegistry:
             return best.implementation  # type: ignore[return-value]
         if point.key in self._defaults:
             return self._defaults[point.key]  # type: ignore[return-value]
+        raise LookupError(f"Brak implementacji gniazda '{point.key}'")
+
+    def get_allowed[T](
+        self, point: ExtensionPoint[T], allowed: Callable[[str], bool]
+    ) -> tuple[T, str]:
+        """Najlepsza implementacja spośród dozwolonych (np. moduły wykupione przez konto):
+        (implementacja, kto ją dostarcza); bez dozwolonych – domyślna z rdzenia."""
+        providers = [p for p in self._providers.get(point.key, []) if allowed(p.owner)]
+        if providers:
+            best = max(providers, key=lambda p: (p.priority, -p.order))
+            return best.implementation, best.owner  # type: ignore[return-value]
+        if point.key in self._defaults:
+            return self._defaults[point.key], "core"  # type: ignore[return-value]
         raise LookupError(f"Brak implementacji gniazda '{point.key}'")
 
     def owner(self, point: ExtensionPoint) -> str:

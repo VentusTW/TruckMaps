@@ -57,6 +57,10 @@ TRACTOR_TARE_KG = 8_000
 # Dopuszczalny nacisk zespołu osi (dyrektywa 96/53/WE, rozstaw 1,3–1,8 m).
 GROUP_LIMIT_KG = {1: 10_000, 2: 18_000, 3: 24_000}
 STEER_AXLE_KG = 7_500
+TYPICAL_KINGPIN_M = 1.6
+"""Sworzeń od ściany czołowej naczepy, gdy brak go w profilu."""
+RIGID_FRONT_AXLE_M = -1.2
+"""Oś przednia solówki względem początku skrzyni (przed nią – kabina)."""
 STEP_M = 0.05
 """Krok przesuwania ładunku przy szukaniu ułożenia bez przekroczeń."""
 
@@ -176,18 +180,31 @@ def supports(cargo: CargoInfo | None, deck_length: float) -> list[Support]:
             max(0.0, tare - TRACTOR_TARE_KG) if tare is not None else None
         )  # fmt: skip
         trailer_tare = trailer_tare if trailer_tare is not None else 7000.0
+        # Z dokumentów naczepy (sworzeń, środek osi), inaczej typowa geometria.
+        kingpin = cargo.kingpin_m or TYPICAL_KINGPIN_M
+        axle_x = cargo.axles_m or round(deck_length * 0.7, 2)
         return [
-            Support("kingpin", 1.6, KINGPIN_LIMIT_KG, trailer_tare * 0.35),
-            Support(
-                "trailer_axles", round(deck_length * 0.7, 2), group(axles), trailer_tare * 0.65
-            ),
+            Support("kingpin", kingpin, KINGPIN_LIMIT_KG, trailer_tare * 0.35),
+            Support("trailer_axles", axle_x, group(axles), trailer_tare * 0.65),
         ]
     if cargo.kind == "rigid":
         rear = max(1, cargo.axle_count - 1)
         own = tare if tare is not None else 0.0
         return [
-            Support("front_axle", -1.2, min(STEER_AXLE_KG, axle_kg or STEER_AXLE_KG), own * 0.6),
-            Support("rear_axles", round(deck_length * 0.55, 2), group(rear), own * 0.4),
+            Support(
+                "front_axle",
+                RIGID_FRONT_AXLE_M,
+                min(STEER_AXLE_KG, axle_kg or STEER_AXLE_KG),
+                own * 0.6,
+            ),
+            Support(
+                "rear_axles",
+                round(cargo.wheelbase_m + RIGID_FRONT_AXLE_M, 2)
+                if cargo.wheelbase_m
+                else round(deck_length * 0.55, 2),
+                group(rear),
+                own * 0.4,
+            ),
         ]
     if cargo.kind == "trailer":
         front = max(1, cargo.axle_count // 2)

@@ -241,5 +241,17 @@
   "report.speed_check": "Kontrola prędkości",
   "report.police": "Policja",
   "report.inspection": "Inspekcja i ważenie (ITD)",
-  "report.speed_camera": "Fotoradar"
+  "report.speed_camera": "Fotoradar",
+  "error.axles_before_kingpin": "Osie naczepy muszą być za sworzniem.",
+  "error.axles_beyond_length": "Osie nie mogą być dalej niż długość pojazdu.",
+  "error.driver_not_here": "Kierowcę przydziela się tylko do pojazdu firmy, który jeździ sam (nie do naczepy ani przyczepy).",
+  "error.shared_expired": "Link wygasł albo jest nieprawidłowy – otwórz dokument jeszcze raz w aplikacji.",
+  "error.permit_dates": "Zezwolenie musi kończyć się nie wcześniej niż zaczyna.",
+  "error.permit_nothing": "Podaj, czego dotyczy zezwolenie (masa, nacisk osi, wymiary albo zakaz dla ciężarówek).",
+  "error.permit_country": "Wybierz kraj zezwolenia.",
+  "error.permit_circle": "Podaj miejsce i promień zezwolenia.",
+  "error.permit_ways": "Wskaż drogi objęte zezwoleniem.",
+  "error.permit_forbidden": "Zezwolenia firmy zapisują właściciel i dyspozytorzy.",
+  "error.permit_not_found": "Nie znaleziono zezwolenia.",
+  "route.permitted": "{message} – objęte zezwoleniem nr {number}"
 }
