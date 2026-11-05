@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from truckmaps.core import inbox
 from truckmaps.core.db import Database, try_job_lock
-from truckmaps.core.fleet import service_staff
+from truckmaps.core.fleet import PeriodicJob, service_staff
 from truckmaps.core.timebans import HOME_ZONE
 from truckmaps.core.vehicles import ServiceDates, VehicleProfile
 
@@ -78,8 +78,9 @@ def send_reminders(db: Session, today: date | None = None) -> int:
 class ReminderSender:
     """Wątek w tle: przypomnienia przy starcie serwera i potem co kilka godzin."""
 
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, jobs: list[PeriodicJob] | None = None) -> None:
         self._database = database
+        self._jobs = jobs or []
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="przypomnienia", daemon=True)
 
@@ -97,4 +98,19 @@ class ReminderSender:
                         log.info("Przypomnienia o terminach pojazdów: %d", sent)
             except Exception as exc:  # noqa: BLE001 – błąd nie może zatrzymać serwera
                 log.warning("Nie udało się wysłać przypomnień: %s", exc)
+            run_jobs(self._database, self._jobs)
             self._stop.wait(CHECK_EVERY_S)
+
+
+def run_jobs(database: Database, jobs: list[PeriodicJob]) -> None:
+    """Zadania modułów – każde w osobnej sesji; błąd jednego nie zatrzymuje pozostałych."""
+    for name, job in jobs:
+        try:
+            with database.session() as db:
+                if not try_job_lock(db, name):
+                    continue
+                if sent := job(db):
+                    log.info("Zadanie %s: %d", name, sent)
+                db.commit()
+        except Exception as exc:  # noqa: BLE001 – błąd modułu nie może zatrzymać serwera
+            log.warning("Zadanie %s nie powiodło się: %s", name, exc)

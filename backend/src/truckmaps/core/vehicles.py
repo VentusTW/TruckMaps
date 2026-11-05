@@ -560,7 +560,9 @@ def build_router(current_user) -> APIRouter:
         return vehicle_outs(db, [vehicle], roles, user)[0]
 
     @router.put("/{vehicle_id}/driver")
-    def assign_driver(vehicle_id: str, data: DriverIn, user: User, db: Db) -> VehicleOut:
+    def assign_driver(
+        vehicle_id: str, data: DriverIn, user: User, db: Db, request: Request
+    ) -> VehicleOut:
         """Przydział kierowcy do pojazdu firmy (właściciel i dyspozytorzy)."""
         roles = company_ids(db, user)
         vehicle = load_owned(db, vehicle_id, user, edit=True)
@@ -569,7 +571,11 @@ def build_router(current_user) -> APIRouter:
         member = db.get(CompanyMember, data.member_id) if data.member_id else None
         if data.member_id and (member is None or member.company_id != vehicle.company_id):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.member_not_found"))
-        vehicle.assigned_driver = member.subject if member else None
+        subject = member.subject if member else None
+        if subject != vehicle.assigned_driver:
+            for handler in request.app.state.modules.driver_handlers:
+                handler(db, vehicle.id, subject, user)
+        vehicle.assigned_driver = subject
         db.commit()
         return vehicle_outs(db, [vehicle], roles, user)[0]
 

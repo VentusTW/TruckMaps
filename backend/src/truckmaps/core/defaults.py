@@ -1,7 +1,8 @@
 """Domyślne implementacje gniazd – działają, gdy żaden moduł nie dostarcza lepszej."""
 
 from truckmaps.core.extensions import ExtensionRegistry
-from truckmaps.sdk import COST_PROVIDER, CostProfile, fuel_costs
+from truckmaps.sdk import COST_PROVIDER, DRIVER_CHECK, CostProfile, fuel_costs
+from truckmaps.sdk.extensions import NoDriverCheck
 
 
 class FlatCostProvider:
@@ -15,3 +16,4 @@ class FlatCostProvider:
 
 def register_defaults(registry: ExtensionRegistry) -> None:
     registry.set_default(COST_PROVIDER, FlatCostProvider())
+    registry.set_default(DRIVER_CHECK, NoDriverCheck())

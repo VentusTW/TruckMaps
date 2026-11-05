@@ -765,5 +765,20 @@
   "permitsNoneValid": "Brak zezwoleń ważnych w dniu wyjazdu dla tego pojazdu.",
   "permitsManage": "Dodaj albo zmień zezwolenia",
   "permitsUsed": "Użyte zezwolenia: {numbers}",
-  "@permitsUsed": {"placeholders": {"numbers": {"type": "String"}}}
+  "@permitsUsed": {"placeholders": {"numbers": {"type": "String"}}},
+  "driverWarningsTitle": "Uwagi o kierowcy",
+  "inboxDriverDue": "Termin kierowcy: {driver}",
+  "@inboxDriverDue": {"placeholders": {"driver": {"type": "String"}}},
+  "driverDueSoon": "{what} – termin {day}",
+  "@driverDueSoon": {"placeholders": {"what": {"type": "String"}, "day": {"type": "String"}}},
+  "driverOverdue": "{what} – po terminie ({day})",
+  "@driverOverdue": {"placeholders": {"what": {"type": "String"}, "day": {"type": "String"}}},
+  "driverFieldLicense": "Prawo jazdy",
+  "driverFieldCode95": "Kod 95 (kwalifikacja zawodowa)",
+  "driverFieldMedical": "Badania lekarskie",
+  "driverFieldPsych": "Badania psychologiczne",
+  "driverFieldCard": "Karta kierowcy",
+  "driverFieldCardDownload": "Pobranie danych z karty kierowcy",
+  "driverFieldAdr": "Zaświadczenie ADR",
+  "driverFieldAttestation": "Świadectwo kierowcy"
 }

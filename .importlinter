@@ -6,6 +6,7 @@
 root_packages =
     truckmaps
     truckmaps_costs
+    truckmaps_drivers
     truckmaps_hello
     truckmaps_load
     truckmaps_service
@@ -23,6 +24,7 @@ name = Moduły korzystają tylko z truckmaps.sdk
 type = forbidden
 source_modules =
     truckmaps_costs
+    truckmaps_drivers
     truckmaps_hello
     truckmaps_load
     truckmaps_service
@@ -36,6 +38,7 @@ source_modules =
     truckmaps
 forbidden_modules =
     truckmaps_costs
+    truckmaps_drivers
     truckmaps_hello
     truckmaps_load
     truckmaps_service
@@ -45,6 +48,7 @@ name = Moduły nie importują się nawzajem
 type = independence
 modules =
     truckmaps_costs
+    truckmaps_drivers
     truckmaps_hello
     truckmaps_load
     truckmaps_service

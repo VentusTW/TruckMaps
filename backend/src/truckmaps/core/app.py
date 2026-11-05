@@ -87,7 +87,7 @@ def create_app(
             mail.start()
         reminder = None
         if database is not None and settings.vehicle_reminders:
-            reminder = reminders.ReminderSender(database)
+            reminder = reminders.ReminderSender(database, manager.periodic_jobs)
             reminder.start()
         bus.publish(CoreReady(modules=manager.active))
         yield

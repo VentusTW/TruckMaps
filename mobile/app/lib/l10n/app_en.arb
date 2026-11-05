@@ -641,5 +641,17 @@
   "permitsHave": "I have permits",
   "permitsNoneValid": "No permits valid on the departure day for this vehicle.",
   "permitsManage": "Add or edit permits",
-  "permitsUsed": "Permits used: {numbers}"
+  "permitsUsed": "Permits used: {numbers}",
+  "driverWarningsTitle": "Driver warnings",
+  "inboxDriverDue": "Driver deadline: {driver}",
+  "driverDueSoon": "{what} – due {day}",
+  "driverOverdue": "{what} – overdue ({day})",
+  "driverFieldLicense": "Driving licence",
+  "driverFieldCode95": "Code 95 (professional qualification)",
+  "driverFieldMedical": "Medical examination",
+  "driverFieldPsych": "Psychological examination",
+  "driverFieldCard": "Driver card",
+  "driverFieldCardDownload": "Driver card data download",
+  "driverFieldAdr": "ADR certificate",
+  "driverFieldAttestation": "Driver attestation"
 }
