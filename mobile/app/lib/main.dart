@@ -9,7 +9,6 @@ import 'src/auth.dart';
 import 'src/home.dart';
 import 'src/l10n.dart';
 import 'src/guest.dart';
-import 'src/theme.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');

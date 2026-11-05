@@ -172,4 +172,26 @@ void pageMemoryTests() {
     await tester.pump(const Duration(seconds: 1));
     expect(memory.saved, 'account');
   });
+
+  testWidgets('kierowca na telefonie: dolna nawigacja, Tachograf i e-CMR wyłączone', (tester) async {
+    tester.view.physicalSize = const Size(700, 900); // węższy niż 720 – telefon (podpis mapy mieści się)
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final memory = FakePageMemory('route');
+    await tester.pumpWidget(localized(HomeScreen(
+      session: session({'/api/vehicles': [], '/api/me/modules': []}),
+      registry: modules,
+      onLogout: () {},
+      pageMemory: memory,
+    )));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Tachograf'), findsOneWidget);
+    expect(find.text('e-CMR'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('bottom-tachograph')));
+    await tester.pump();
+    expect(memory.saved, isNot('tachograph'));
+    await tester.tap(find.byKey(const Key('bottom-vehicles')));
+    await tester.pump(const Duration(seconds: 1));
+    expect(memory.saved, 'vehicles');
+  });
 }

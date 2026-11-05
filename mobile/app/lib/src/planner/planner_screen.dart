@@ -715,13 +715,13 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final l = context.l;
     final result = _result;
     final shown = _shown;
-    return ListView(controller: scroll, padding: const EdgeInsets.all(16), children: [
+    return ListView(controller: scroll, padding: const EdgeInsets.all(Gap.l), children: [
       Row(children: [
         Expanded(
           child: DropdownButtonFormField<String>(
             isExpanded: true,
             value: _vehicleId,
-            decoration: InputDecoration(labelText: l.vehicle, isDense: true, border: const OutlineInputBorder()),
+            decoration: InputDecoration(labelText: l.vehicle, isDense: true),
             items: [
               for (final v in _vehicles)
                 DropdownMenuItem(
@@ -852,18 +852,30 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final theme = Theme.of(context);
     final l = context.l;
     return [
-      const Divider(height: 32),
-      if (_vehicles.where((v) => v['id'] == _vehicleId).firstOrNull case final vehicle?)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(children: [
-            const Icon(Icons.local_shipping_outlined, size: 18),
-            const SizedBox(width: 6),
-            Expanded(child: Text(vehicleHeadline(l, vehicle), style: theme.textTheme.labelLarge)),
+      const SizedBox(height: Gap.l),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(Gap.l),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (_vehicles.where((v) => v['id'] == _vehicleId).firstOrNull case final vehicle?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Gap.s),
+                child: Row(children: [
+                  const IconSquare(icon: Icons.local_shipping_outlined, size: 32),
+                  const SizedBox(width: Gap.s),
+                  Expanded(child: Text(vehicleHeadline(l, vehicle), style: theme.textTheme.labelLarge)),
+                ]),
+              ),
+            Text(shown.summary(l), style: theme.textTheme.titleMedium),
+            const SizedBox(height: Gap.s),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusChip(label: l.level(shown.level), tone: _levelTone(shown.level), uppercase: false),
+            ),
           ]),
         ),
-      Text(shown.summary(l), style: theme.textTheme.titleMedium),
-      const SizedBox(height: 8),
+      ),
+      const SizedBox(height: Gap.m),
       // Od razu w drogę – przegląd trasy jest obok, nie jest obowiązkowym krokiem.
       FilledButton.icon(
         key: const Key('planner-start'),
@@ -899,11 +911,6 @@ class _PlannerScreenState extends State<PlannerScreen> {
             style: theme.textTheme.bodySmall),
         for (final line in shown.cost!.countryLines(l)) Text(line, style: theme.textTheme.bodySmall),
       ],
-      const SizedBox(height: 8),
-      Chip(
-        avatar: CircleAvatar(backgroundColor: levelColor(shown.level), radius: 8),
-        label: Text(l.level(shown.level)),
-      ),
       for (final issue in result.issues)
         Padding(padding: const EdgeInsets.only(top: 6), child: Text(issue, style: theme.textTheme.bodySmall)),
       if (result.timeBans.isNotEmpty || result.arrival != null) ...[
@@ -1018,3 +1025,11 @@ class _Drag {
   bool moved = false;
   LatLng? point;
 }
+
+/// Ocena trasy jako znaczenie chipa stanu.
+StatusTone _levelTone(String? level) => switch (level) {
+      'green' || 'lime' => StatusTone.ok,
+      'yellow' || 'orange' => StatusTone.warning,
+      'red' => StatusTone.error,
+      _ => StatusTone.neutral,
+    };

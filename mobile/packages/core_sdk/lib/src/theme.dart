@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 /// Paleta TruckMaps – jedyne miejsce z kolorami na stałe. Ekrany i moduły biorą kolory
 /// z motywu ([ColorScheme], [TruckColors]); te stałe są dla miejsc bez motywu (mapa,
 /// ciemny układ nawigacji, ocena trasy, która musi wyglądać tak samo w obu trybach).
+/// Kolory interfejsu – według projektu Stitch (`docs/design/stitch/STYL.md`).
 abstract final class TruckPalette {
-  /// Kolor marki: głęboki granat drogowy.
-  static const brand = Color(0xFF14507A);
+  /// Kolor marki: głęboki granat (primary).
+  static const brand = Color(0xFF00288E);
+
+  /// Aktywna pozycja menu, piny pojazdów (primaryContainer).
+  static const brandContainer = Color(0xFF1E40AF);
 
   /// Akcent: bursztyn znaków ostrzegawczych.
   static const accent = Color(0xFFE8A317);
@@ -55,7 +59,8 @@ abstract final class TruckPalette {
   ];
 }
 
-/// Kolory znaczeniowe zależne od trybu (jasny / ciemny): stan pojazdu, terminy, sukces.
+/// Kolory znaczeniowe zależne od trybu (jasny / ciemny): stan pojazdu, terminy, sukces,
+/// oraz odcienie powierzchni z projektu, których [ColorScheme] tej wersji Fluttera nie ma.
 @immutable
 class TruckColors extends ThemeExtension<TruckColors> {
   const TruckColors({
@@ -64,22 +69,37 @@ class TruckColors extends ThemeExtension<TruckColors> {
     required this.info,
     required this.reported,
     required this.inUse,
+    required this.mint,
+    required this.onMint,
+    required this.card,
+    required this.surfaceLow,
+    required this.surfaceHigh,
   });
 
   static const light = TruckColors(
-    success: Color(0xFF2E7D32),
+    success: Color(0xFF00563A),
     warning: Color(0xFFB45F06),
-    info: Color(0xFF1565C0),
+    info: Color(0xFF1E40AF),
     reported: Color(0xFFB7791F),
-    inUse: Color(0xFF1565C0),
+    inUse: Color(0xFF1E40AF),
+    mint: Color(0xFF85F8C4),
+    onMint: Color(0xFF00563A),
+    card: Color(0xFFFFFFFF),
+    surfaceLow: Color(0xFFEFF4FF),
+    surfaceHigh: Color(0xFFDCE9FF),
   );
 
   static const dark = TruckColors(
-    success: Color(0xFF81C784),
+    success: Color(0xFF68DBA9),
     warning: Color(0xFFFFB74D),
-    info: Color(0xFF64B5F6),
+    info: Color(0xFFB8C4FF),
     reported: Color(0xFFFFD54F),
-    inUse: Color(0xFF4FC3F7),
+    inUse: Color(0xFFB8C4FF),
+    mint: Color(0xFF00563A),
+    onMint: Color(0xFF85F8C4),
+    card: Color(0xFF102339),
+    surfaceLow: Color(0xFF162B44),
+    surfaceHigh: Color(0xFF213854),
   );
 
   /// Zrobione, w porządku.
@@ -95,6 +115,19 @@ class TruckColors extends ThemeExtension<TruckColors> {
   /// Pojazd w użyciu / podpięty.
   final Color inUse;
 
+  /// Miętowe tło chipów „w porządku / w trasie” i ciemnozielony tekst na nim.
+  final Color mint;
+  final Color onMint;
+
+  /// Tło kart (najjaśniejsza powierzchnia).
+  final Color card;
+
+  /// Pola w kartach, wyszukiwarka, kwadraty ikon, przyciski drugorzędne.
+  final Color surfaceLow;
+
+  /// Tor paska postępu, najechanie myszą.
+  final Color surfaceHigh;
+
   /// Kolory z motywu; motyw bez rozszerzenia (np. w testach modułu) – jasne albo ciemne domyślne.
   static TruckColors of(BuildContext context) {
     final theme = Theme.of(context);
@@ -102,23 +135,46 @@ class TruckColors extends ThemeExtension<TruckColors> {
   }
 
   @override
-  TruckColors copyWith({Color? success, Color? warning, Color? info, Color? reported, Color? inUse}) => TruckColors(
+  TruckColors copyWith({
+    Color? success,
+    Color? warning,
+    Color? info,
+    Color? reported,
+    Color? inUse,
+    Color? mint,
+    Color? onMint,
+    Color? card,
+    Color? surfaceLow,
+    Color? surfaceHigh,
+  }) =>
+      TruckColors(
         success: success ?? this.success,
         warning: warning ?? this.warning,
         info: info ?? this.info,
         reported: reported ?? this.reported,
         inUse: inUse ?? this.inUse,
+        mint: mint ?? this.mint,
+        onMint: onMint ?? this.onMint,
+        card: card ?? this.card,
+        surfaceLow: surfaceLow ?? this.surfaceLow,
+        surfaceHigh: surfaceHigh ?? this.surfaceHigh,
       );
 
   @override
   TruckColors lerp(TruckColors? other, double t) {
     if (other == null) return this;
+    Color mix(Color a, Color b) => Color.lerp(a, b, t)!;
     return TruckColors(
-      success: Color.lerp(success, other.success, t)!,
-      warning: Color.lerp(warning, other.warning, t)!,
-      info: Color.lerp(info, other.info, t)!,
-      reported: Color.lerp(reported, other.reported, t)!,
-      inUse: Color.lerp(inUse, other.inUse, t)!,
+      success: mix(success, other.success),
+      warning: mix(warning, other.warning),
+      info: mix(info, other.info),
+      reported: mix(reported, other.reported),
+      inUse: mix(inUse, other.inUse),
+      mint: mix(mint, other.mint),
+      onMint: mix(onMint, other.onMint),
+      card: mix(card, other.card),
+      surfaceLow: mix(surfaceLow, other.surfaceLow),
+      surfaceHigh: mix(surfaceHigh, other.surfaceHigh),
     );
   }
 }
@@ -130,6 +186,228 @@ abstract final class Gap {
   static const m = 12.0;
   static const l = 16.0;
   static const xl = 24.0;
+  static const xxl = 32.0;
+}
+
+/// Czcionki dołączone do pakietu (licencja OFL, pliki w `core_sdk/fonts`) – bez pobierania z sieci.
+abstract final class TruckFonts {
+  /// Tekst, etykiety, liczby.
+  static const body = 'packages/core_sdk/Inter';
+
+  /// Nagłówki.
+  static const headline = 'packages/core_sdk/PlusJakartaSans';
+}
+
+/// Motyw TruckMaps w jednym miejscu: kolory z projektu Stitch, czcionki, typografia, zaokrąglenia,
+/// karty bez obramowań z delikatnym cieniem; jasny i ciemny tryb z tych samych kolorów.
+abstract final class TruckTheme {
+  /// Karty.
+  static const radius = 8.0;
+
+  /// Przyciski, pola, pozycje menu.
+  static const smallRadius = 4.0;
+
+  /// Szerokość menu bocznego na komputerze.
+  static const sideMenuWidth = 288.0;
+
+  static ThemeData light() => _build(Brightness.light);
+  static ThemeData dark() => _build(Brightness.dark);
+
+  static const _lightScheme = ColorScheme(
+    brightness: Brightness.light,
+    primary: Color(0xFF00288E),
+    onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFF1E40AF),
+    onPrimaryContainer: Color(0xFFFFFFFF),
+    secondary: Color(0xFF565E74),
+    onSecondary: Color(0xFFFFFFFF),
+    secondaryContainer: Color(0xFFDAE2FD),
+    onSecondaryContainer: Color(0xFF131B2E),
+    tertiary: Color(0xFF003D28),
+    onTertiary: Color(0xFFFFFFFF),
+    tertiaryContainer: Color(0xFF00563A),
+    onTertiaryContainer: Color(0xFF85F8C4),
+    error: Color(0xFFBA1A1A),
+    onError: Color(0xFFFFFFFF),
+    errorContainer: Color(0xFFFFDAD6),
+    onErrorContainer: Color(0xFF410002),
+    background: Color(0xFFF8F9FF),
+    onBackground: Color(0xFF0B1C30),
+    surface: Color(0xFFF8F9FF),
+    onSurface: Color(0xFF0B1C30),
+    surfaceVariant: Color(0xFFD3E4FE),
+    onSurfaceVariant: Color(0xFF444653),
+    outline: Color(0xFF757684),
+    outlineVariant: Color(0xFFC4C5D5),
+    inverseSurface: Color(0xFF213145),
+    onInverseSurface: Color(0xFFEAF1FF),
+    inversePrimary: Color(0xFFB8C4FF),
+    surfaceTint: Color(0xFF00288E),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+  );
+
+  /// Ciemny: tło z koloru tekstu jasnego trybu, tekst z najjaśniejszych powierzchni.
+  static const _darkScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: Color(0xFFB8C4FF),
+    onPrimary: Color(0xFF00288E),
+    primaryContainer: Color(0xFF1E40AF),
+    onPrimaryContainer: Color(0xFFDDE1FF),
+    secondary: Color(0xFFBEC6E0),
+    onSecondary: Color(0xFF283044),
+    secondaryContainer: Color(0xFF3E4759),
+    onSecondaryContainer: Color(0xFFDAE2FD),
+    tertiary: Color(0xFF68DBA9),
+    onTertiary: Color(0xFF003D28),
+    tertiaryContainer: Color(0xFF00563A),
+    onTertiaryContainer: Color(0xFF85F8C4),
+    error: Color(0xFFFFB4AB),
+    onError: Color(0xFF690005),
+    errorContainer: Color(0xFF93000A),
+    onErrorContainer: Color(0xFFFFDAD6),
+    background: Color(0xFF0B1C30),
+    onBackground: Color(0xFFD3E4FE),
+    surface: Color(0xFF0B1C30),
+    onSurface: Color(0xFFD3E4FE),
+    surfaceVariant: Color(0xFF213854),
+    onSurfaceVariant: Color(0xFFC4C5D5),
+    outline: Color(0xFF8E909F),
+    outlineVariant: Color(0xFF444653),
+    inverseSurface: Color(0xFFD3E4FE),
+    onInverseSurface: Color(0xFF0B1C30),
+    inversePrimary: Color(0xFF00288E),
+    surfaceTint: Color(0xFFB8C4FF),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+  );
+
+  /// Skala typografii z projektu: nagłówki Plus Jakarta Sans, reszta Inter.
+  static TextTheme textTheme(Color color) {
+    TextStyle head(double size, double line, FontWeight weight, {double spacing = 0}) => TextStyle(
+        fontFamily: TruckFonts.headline,
+        fontSize: size,
+        height: line / size,
+        fontWeight: weight,
+        letterSpacing: spacing,
+        color: color);
+    TextStyle body(double size, double line, FontWeight weight, {double spacing = 0}) => TextStyle(
+        fontFamily: TruckFonts.body,
+        fontSize: size,
+        height: line / size,
+        fontWeight: weight,
+        letterSpacing: spacing,
+        color: color);
+    return TextTheme(
+      displayLarge: head(48, 56, FontWeight.w700, spacing: -0.5),
+      displayMedium: head(40, 48, FontWeight.w700, spacing: -0.4),
+      displaySmall: head(36, 44, FontWeight.w700, spacing: -0.3),
+      headlineLarge: head(36, 44, FontWeight.w700, spacing: -0.3),
+      headlineMedium: head(28, 36, FontWeight.w600, spacing: -0.2),
+      headlineSmall: head(24, 32, FontWeight.w600, spacing: -0.2),
+      titleLarge: head(20, 26, FontWeight.w600),
+      titleMedium: head(17, 24, FontWeight.w600),
+      titleSmall: body(14, 20, FontWeight.w600),
+      bodyLarge: body(16, 24, FontWeight.w400),
+      bodyMedium: body(14, 22, FontWeight.w400),
+      bodySmall: body(12, 18, FontWeight.w400),
+      labelLarge: body(14, 20, FontWeight.w600),
+      labelMedium: body(12, 16, FontWeight.w600),
+      labelSmall: body(11, 14, FontWeight.w700, spacing: 0.44),
+    );
+  }
+
+  static ThemeData _build(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final scheme = dark ? _darkScheme : _lightScheme;
+    final colors = dark ? TruckColors.dark : TruckColors.light;
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius));
+    final small = RoundedRectangleBorder(borderRadius: BorderRadius.circular(smallRadius));
+    const buttonPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+    final text = textTheme(scheme.onSurface);
+    final fieldBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(smallRadius),
+      borderSide: BorderSide(color: scheme.outlineVariant),
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: scheme,
+      fontFamily: TruckFonts.body,
+      scaffoldBackgroundColor: scheme.surface,
+      canvasColor: scheme.surface,
+      textTheme: text,
+      visualDensity: VisualDensity.standard,
+      extensions: [colors],
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.card,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        shadowColor: Colors.black26,
+        centerTitle: false,
+        titleTextStyle: text.titleLarge,
+      ),
+      // Karty bez obramowań, z delikatnym cieniem.
+      cardTheme: CardTheme(
+        color: colors.card,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withOpacity(dark ? 0.5 : 0.25),
+        elevation: 1,
+        margin: EdgeInsets.zero,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+      ),
+      listTileTheme: ListTileThemeData(shape: small, iconColor: scheme.onSurfaceVariant),
+      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(padding: buttonPadding, shape: small)),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(padding: buttonPadding, shape: small, side: BorderSide(color: scheme.outline)),
+      ),
+      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: small)),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(shape: small)),
+      segmentedButtonTheme: SegmentedButtonThemeData(style: ButtonStyle(shape: MaterialStatePropertyAll(small))),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        shape: shape,
+      ),
+      // Chipy w pełni zaokrąglone.
+      chipTheme: ChipThemeData(
+        shape: const StadiumBorder(),
+        side: BorderSide.none,
+        backgroundColor: colors.surfaceLow,
+        labelStyle: text.labelMedium,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colors.surfaceLow,
+        border: fieldBorder,
+        enabledBorder: fieldBorder,
+        focusedBorder: fieldBorder.copyWith(borderSide: BorderSide(color: scheme.primary, width: 2)),
+      ),
+      dialogTheme: DialogTheme(shape: shape, surfaceTintColor: Colors.transparent, backgroundColor: colors.card),
+      popupMenuTheme: PopupMenuThemeData(shape: small, surfaceTintColor: Colors.transparent, color: colors.card),
+      bottomSheetTheme: BottomSheetThemeData(
+        surfaceTintColor: Colors.transparent,
+        backgroundColor: colors.card,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      ),
+      snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: small),
+      drawerTheme:
+          DrawerThemeData(backgroundColor: colors.card, surfaceTintColor: Colors.transparent, width: sideMenuWidth),
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: colors.card,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: scheme.primaryContainer,
+        indicatorShape: small,
+        tileHeight: 48,
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary, linearTrackColor: colors.surfaceHigh),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant.withOpacity(0.6), space: 1),
+      tabBarTheme: TabBarTheme(dividerColor: scheme.outlineVariant),
+    );
+  }
 }
 
 /// Sekcja karty (pojazdu, pulpitu): nagłówek z ikoną, opcjonalne akcje i treść.
@@ -166,7 +444,7 @@ class SectionCard extends StatelessWidget {
           child: Row(children: [
             Icon(icon, size: 20, color: accent ?? theme.colorScheme.primary),
             const SizedBox(width: Gap.s),
-            Expanded(child: Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600))),
+            Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
             if (action != null) action!,
           ]),
         ),
@@ -201,11 +479,35 @@ class AttentionTile extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon ?? (overdue ? Icons.error_outline : Icons.schedule), color: color),
+      leading: IconSquare(icon: icon ?? (overdue ? Icons.error_outline : Icons.schedule), color: color),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!, style: TextStyle(color: color)),
       trailing: onTap == null ? null : const Icon(Icons.chevron_right),
       onTap: onTap,
+    );
+  }
+}
+
+/// Ikona w zaokrąglonym kwadracie (karty KPI, pozycje list).
+class IconSquare extends StatelessWidget {
+  const IconSquare({super.key, required this.icon, this.color, this.background, this.size = 40});
+
+  final IconData icon;
+  final Color? color;
+  final Color? background;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = color ?? Theme.of(context).colorScheme.primary;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: background ?? Color.alphaBlend(fg.withOpacity(0.10), TruckColors.of(context).surfaceLow),
+        borderRadius: BorderRadius.circular(TruckTheme.radius),
+      ),
+      child: Icon(icon, color: fg, size: size * 0.55),
     );
   }
 }

@@ -94,16 +94,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onRefresh: _refresh,
       child: LayoutBuilder(builder: (context, size) {
         final columns = size.maxWidth >= 1100 ? 3 : (size.maxWidth >= 720 ? 2 : 1);
-        final width = (size.maxWidth - Gap.l * 2 - Gap.m * (columns - 1)) / columns;
-        return ListView(padding: const EdgeInsets.all(Gap.l), children: [
+        final pad = size.maxWidth >= 720 ? Gap.xl : Gap.l;
+        final width = (size.maxWidth - pad * 2 - Gap.m * (columns - 1)) / columns;
+        final kpiColumns = size.maxWidth >= 1100 ? 5 : (size.maxWidth >= 720 ? 3 : 2);
+        final kpiWidth = (size.maxWidth - pad * 2 - Gap.m * (kpiColumns - 1)) / kpiColumns;
+        return ListView(padding: EdgeInsets.all(pad), children: [
           Row(children: [
             Expanded(
               child: Text(widget.userName.isEmpty ? greeting : '$greeting, ${widget.userName}',
-                  style: theme.textTheme.headlineSmall),
+                  style: theme.textTheme.headlineMedium),
             ),
             IconButton(tooltip: l.dashRefresh, onPressed: _refresh, icon: const Icon(Icons.refresh)),
           ]),
-          Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()), style: theme.textTheme.bodyMedium),
+          Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()),
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
+          const SizedBox(height: Gap.l),
+          _Kpis(
+            vehicles: _vehicles,
+            inbox: _inbox,
+            width: kpiWidth,
+            onVehicles: () => widget.onOpenPage('vehicles'),
+            onInbox: () => widget.onOpenPage('inbox'),
+          ),
           const SizedBox(height: Gap.l),
           Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
             FilledButton.icon(
@@ -131,6 +143,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ]),
         ]);
       }),
+    );
+  }
+}
+
+/// Liczby floty z danych serwera: pojazdy, wolne, w naprawie, terminy, nieprzeczytane wiadomości.
+class _Kpis extends StatelessWidget {
+  const _Kpis({
+    required this.vehicles,
+    required this.inbox,
+    required this.width,
+    required this.onVehicles,
+    required this.onInbox,
+  });
+
+  final Future<dynamic> vehicles;
+  final Future<dynamic> inbox;
+  final double width;
+  final VoidCallback onVehicles;
+  final VoidCallback onInbox;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l;
+    return FutureBuilder<List<dynamic>>(
+      future: Future.wait([vehicles, inbox].map((f) => f.catchError((_) => null))),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        if (data == null || data[0] is! List) return const SizedBox.shrink();
+        final list = _maps(data[0]);
+        final states = [for (final v in list) vehicleState(v)];
+        int count(VehicleState s) => states.where((x) => x == s).length;
+        final repair = count(VehicleState.repair);
+        final reported = count(VehicleState.reported);
+        var overdue = 0;
+        var soon = 0;
+        for (final v in list) {
+          final urgent = mostUrgent(v);
+          final km = serviceKmLeft(v);
+          if ((urgent?.overdue ?? false) || (km != null && km < 0)) {
+            overdue++;
+          } else if (urgent != null || km != null) {
+            soon++;
+          }
+        }
+        final messages = data[1];
+        final unread = messages is Map ? (messages['unread'] as int? ?? 0) : null;
+        final cards = [
+          KpiCard(
+            label: l.menuVehicles,
+            value: l.number(list.length),
+            icon: Icons.local_shipping_outlined,
+            status: l.kpiInUse(l.number(count(VehicleState.inUse))),
+            tone: StatusTone.info,
+            onTap: onVehicles,
+          ),
+          KpiCard(
+            label: l.kpiAvailable,
+            value: l.number(count(VehicleState.free)),
+            icon: Icons.check_circle_outline,
+            status: l.kpiAvailableHint,
+            tone: StatusTone.ok,
+            onTap: onVehicles,
+          ),
+          KpiCard(
+            label: l.kpiRepair,
+            value: l.number(repair),
+            icon: Icons.build_outlined,
+            status: reported > 0 ? l.kpiReported(l.number(reported)) : l.kpiNoReports,
+            tone: repair + reported > 0 ? StatusTone.error : StatusTone.ok,
+            onTap: onVehicles,
+          ),
+          KpiCard(
+            label: l.kpiDeadlines,
+            value: l.number(overdue + soon),
+            icon: Icons.event_note_outlined,
+            status: overdue > 0 ? l.kpiOverdue(l.number(overdue)) : (soon > 0 ? l.kpiDueSoon : l.kpiAllFine),
+            tone: overdue > 0 ? StatusTone.error : (soon > 0 ? StatusTone.warning : StatusTone.ok),
+            onTap: onVehicles,
+          ),
+          if (unread != null)
+            KpiCard(
+              label: l.menuInbox,
+              value: l.number(unread),
+              icon: Icons.mail_outline,
+              status: l.kpiUnread,
+              tone: unread > 0 ? StatusTone.info : StatusTone.neutral,
+              onTap: onInbox,
+            ),
+        ];
+        return Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
+          for (final card in cards) SizedBox(width: width, child: card),
+        ]);
+      },
     );
   }
 }
@@ -225,7 +330,7 @@ class _MessagesCard extends StatelessWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.mark_email_unread_outlined, color: Theme.of(context).colorScheme.primary),
+                leading: const IconSquare(icon: Icons.mark_email_unread_outlined),
                 title: Text(inboxTitle(l, m), maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(l.when(DateTime.parse('${m['created_at']}').toLocal())),
                 onTap: onOpen,
@@ -256,7 +361,7 @@ class _RecentCard extends StatelessWidget {
                 ListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.route_outlined),
+                  leading: const IconSquare(icon: Icons.route_outlined),
                   title: Text('${_short(r.from.label)} → ${_short(r.to.label)}'),
                   subtitle: r.vehicleName == null ? null : Text(r.vehicleName!),
                   trailing: const Icon(Icons.chevron_right),
@@ -274,8 +379,8 @@ class _AllGood extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        Icon(Icons.check_circle_outline, color: TruckColors.of(context).success, size: 20),
-        const SizedBox(width: Gap.s),
+        IconSquare(icon: Icons.check_circle_outline, color: TruckColors.of(context).success, size: 32),
+        const SizedBox(width: Gap.m),
         Expanded(child: Text(text)),
       ]);
 }
