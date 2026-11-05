@@ -205,3 +205,20 @@ class _InboxScreenState extends State<InboxScreen> {
   String _outcome(AppLocalizations l, Map<String, dynamic> message) =>
       grantStateLabel(l, message['grant'] as Map<String, dynamic>?);
 }
+
+/// Tytuł wiadomości (np. na pulpicie) – bez treści i przycisków decyzji.
+String inboxTitle(AppLocalizations l, Map<String, dynamic> message) {
+  final data = (message['data'] as Map<String, dynamic>?) ?? const {};
+  final admin = '${message['sender_name'] ?? ''}'.isEmpty ? l.inboxAdmin : '${message['sender_name']}';
+  final vehicle = [data['vehicle_name'], if (data['plate'] != null) data['plate']].join(' · ');
+  return switch (message['kind']) {
+    'admin_access_request' => l.inboxAccessRequest(admin),
+    'admin_extension_request' => l.inboxExtensionRequest(admin, grantDuration(l, data['minutes'] as int? ?? 60)),
+    'admin_access_closed' => l.inboxAccessClosed(admin),
+    'service.order_new' => l.inboxServiceNew(vehicle),
+    'service.order_done' => l.inboxServiceDone(vehicle),
+    'vehicle_due' => l.inboxVehicleDue(vehicle),
+    'drivers.due' => l.inboxDriverDue('${data['driver_name']}'),
+    _ => '${message['kind']}',
+  };
+}

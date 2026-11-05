@@ -36,7 +36,7 @@ String _iso(DateTime day) =>
 
 Color _stateColor(ThemeData theme, String state) => switch (state) {
       'overdue' => theme.colorScheme.error,
-      'soon' => Colors.orange.shade800,
+      'soon' => (theme.extension<TruckColors>() ?? TruckColors.light).warning,
       _ => theme.colorScheme.primary,
     };
 

@@ -25,8 +25,8 @@ class ModuleEntry {
   final IconData icon;
   final WidgetBuilder builder;
 
-  /// Ekran startowy: otwiera się, gdy nie wiadomo, którego ekranu użytkownik używał ostatnio;
-  /// nie ma własnego przycisku w menu.
+  /// Dawniej ekran startowy. Teraz startem jest pulpit powłoki – moduł dokłada do niego sekcje
+  /// ([TruckMapsModule.dashboardSections]), a ten ekran jest zwykłą pozycją menu.
   final bool start;
 }
 
@@ -43,4 +43,51 @@ abstract class TruckMapsModule {
 
   /// Ekrany modułu – wywoływane tylko, gdy konto ma dostęp.
   List<ModuleEntry> entries(ModuleContext context);
+
+  /// Sekcje dokładane do karty pojazdu (np. usterki i koszty napraw, kierowcy, plan załadunku).
+  List<VehicleSection> vehicleSections(ModuleContext context) => const [];
+
+  /// Szybkie akcje na karcie i w menu pojazdu (np. „Zgłoś usterkę”).
+  List<VehicleAction> vehicleActions(ModuleContext context) => const [];
+
+  /// Sekcje pulpitu startowego – to, co wymaga uwagi (np. otwarte usterki, terminy kierowców).
+  List<DashboardSection> dashboardSections(ModuleContext context) => const [];
+}
+
+/// Pojazd w postaci z `GET /api/vehicles` (id, name, plate, kind, company_id, can_edit…).
+typedef Vehicle = Map<String, dynamic>;
+
+/// Sekcja karty pojazdu. [builder] zwraca zwykle [SectionCard]; `SizedBox.shrink()` – nic do pokazania.
+/// Po zmianie na karcie (np. po akcji) sekcja jest budowana od nowa – pobiera dane sama.
+class VehicleSection {
+  const VehicleSection({required this.id, required this.builder, this.applies, this.order = 100});
+
+  final String id;
+  final Widget Function(BuildContext context, Vehicle vehicle) builder;
+
+  /// Czy sekcja dotyczy pojazdu (np. tylko pojazdy z napędem); `null` – każdego.
+  final bool Function(Vehicle vehicle)? applies;
+
+  /// Kolejność na karcie: sekcje rdzenia mają 10–90, moduły domyślnie 100.
+  final int order;
+}
+
+/// Szybka akcja pojazdu. [run] zwraca `true`, gdy coś zmieniła – karta odświeża dane.
+class VehicleAction {
+  const VehicleAction({required this.id, required this.label, required this.icon, required this.run, this.applies});
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final Future<bool> Function(BuildContext context, Vehicle vehicle) run;
+  final bool Function(Vehicle vehicle)? applies;
+}
+
+/// Sekcja pulpitu startowego. Przy odświeżeniu pulpitu budowana od nowa.
+class DashboardSection {
+  const DashboardSection({required this.id, required this.builder, this.order = 100});
+
+  final String id;
+  final WidgetBuilder builder;
+  final int order;
 }

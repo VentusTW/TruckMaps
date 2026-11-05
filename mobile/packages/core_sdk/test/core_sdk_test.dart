@@ -25,6 +25,15 @@ class _Module extends TruckMapsModule {
 void main() {
   tokenTests();
 
+  test('kontrakt: moduł bez sekcji nic nie dokłada; kolory znaczeniowe bez motywu', () {
+    final context = ModuleContext(api: CoreApi(baseUrl: 'http://x', token: 't'), userName: 'Anna');
+    final module = _Module('hello');
+    expect(module.vehicleSections(context), isEmpty);
+    expect(module.vehicleActions(context), isEmpty);
+    expect(module.dashboardSections(context), isEmpty);
+    expect(TruckColors.light.lerp(TruckColors.dark, 1).warning, TruckColors.dark.warning);
+  });
+
   test('rejestr łączy pakiety aplikacji z modułami serwera', () {
     final registry = ModuleRegistry([_Module('hello'), _Module('tolls')]);
 

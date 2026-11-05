@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import 'l10n.dart';
 import 'vehicles/service_dates.dart';
+import 'vehicles/vehicle_actions.dart';
+import 'vehicles/vehicle_card.dart';
 import 'vehicles/vehicle_form.dart';
 import 'vehicles/vehicle_state.dart';
 import 'vehicles/permits_screen.dart';
@@ -19,7 +21,17 @@ class VehiclesScreen extends StatefulWidget {
       required this.api,
       this.onChanged,
       this.refresh,
+      this.sections = const [],
+      this.actions = const [],
+      this.onPlanRoute,
       this.viewStore = const SecureVehiclesViewStore()});
+
+  /// Sekcje i szybkie akcje modułów na karcie pojazdu.
+  final List<VehicleSection> sections;
+  final List<VehicleAction> actions;
+
+  /// „Zaplanuj trasę” z karty pojazdu.
+  final ValueChanged<Map<String, dynamic>>? onPlanRoute;
 
   final CoreApi api;
   final VehiclesViewStore viewStore;
@@ -75,124 +87,52 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     widget.onChanged?.call();
   }
 
-  Future<void> _open([Map<String, dynamic>? vehicle]) async {
-    final saved = await Navigator.of(context).push<dynamic>(
-      MaterialPageRoute(builder: (_) => VehicleFormScreen(api: widget.api, vehicle: vehicle)),
-    );
-    if (saved != null && mounted) _reload();
+  Future<void> _after(Future<bool> action) async {
+    if (await action && mounted) _reload();
   }
 
-  Future<void> _service(Map<String, dynamic> vehicle) async {
-    final saved = await Navigator.of(context).push<dynamic>(
-      MaterialPageRoute(builder: (_) => ServiceDatesScreen(api: widget.api, vehicle: vehicle)),
-    );
-    if (saved != null && mounted) _reload();
-  }
+  void _open([Map<String, dynamic>? vehicle]) => _after(openVehicleForm(context, widget.api, vehicle));
 
-  /// Przydział kierowcy (K3): członek firmy albo bez przydziału.
-  Future<void> _driver(Map<String, dynamic> vehicle) async {
-    final l = context.l;
-    final company = await widget.api.get('/api/companies/${vehicle['company_id']}') as Map<String, dynamic>;
-    if (!mounted) return;
-    final members = (company['members'] as List<dynamic>).cast<Map<String, dynamic>>();
-    final chosen = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(l.vehicleDriverTitle('${vehicle['name']}')),
-        children: [
-          for (final m in [
-            {'id': '', 'display_name': l.vehicleNoDriver},
-            ...members,
-          ])
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, '${m['id']}'),
-              child: Row(children: [
-                Icon((m['id'] == (vehicle['assigned_member_id'] ?? ''))
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked),
-                const SizedBox(width: 12),
-                Expanded(child: Text('${m['display_name']}')),
-              ]),
-            ),
-        ],
-      ),
-    );
-    if (chosen == null || !mounted) return;
-    try {
-      await widget.api.put('/api/vehicles/${vehicle['id']}/driver', {'member_id': chosen.isEmpty ? null : chosen});
-      if (mounted) _reload();
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
-    }
-  }
+  void _service(Map<String, dynamic> vehicle) => _after(openServiceDates(context, widget.api, vehicle));
+
+  void _driver(Map<String, dynamic> vehicle) => _after(assignDriver(context, widget.api, vehicle));
 
   void _stats(Map<String, dynamic> vehicle) => Navigator.of(context)
       .push(MaterialPageRoute<void>(builder: (_) => VehicleStatsScreen(api: widget.api, vehicle: vehicle)));
 
-  Future<void> _delete(Map<String, dynamic> vehicle) async {
-    final l = context.l;
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l.vehicleDeleteTitle),
-        content: Text(l.vehicleDeleteQuestion('${vehicle['name']}')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.delete)),
-        ],
+  void _delete(Map<String, dynamic> vehicle) => _after(deleteVehicle(context, widget.api, vehicle));
+
+  void _couple(Map<String, dynamic> vehicle, Map<String, dynamic>? trailer) =>
+      _after(coupleTrailer(context, widget.api, vehicle, trailer));
+
+  void _chooseTrailer(Map<String, dynamic> vehicle, List<Map<String, dynamic>> trailers) =>
+      _after(chooseTrailer(context, widget.api, vehicle, trailers));
+
+  /// Karta pojazdu: wszystko o pojeździe w jednym miejscu.
+  Future<void> _card(Map<String, dynamic> vehicle) async {
+    await Navigator.of(context).push<dynamic>(MaterialPageRoute(
+      builder: (_) => VehicleCardScreen(
+        api: widget.api,
+        vehicle: vehicle,
+        sections: widget.sections,
+        actions: widget.actions,
+        onChanged: widget.onChanged,
+        onPlanRoute: widget.onPlanRoute,
       ),
-    );
-    if (sure != true || !mounted) return;
-    try {
-      await widget.api.delete('/api/vehicles/${vehicle['id']}');
-      _reload();
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$error')));
-    }
+    ));
+    if (mounted) _refresh();
   }
 
-  /// Podpięcie naczepy / przyczepy do pojazdu ([trailer] `null` – odpięcie).
-  Future<void> _couple(Map<String, dynamic> vehicle, Map<String, dynamic>? trailer) async {
-    try {
-      await widget.api.put('/api/vehicles/${vehicle['id']}/trailer', {'trailer_id': trailer?['id']});
-      _reload();
-    } catch (error) {
-      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$error')));
-    }
-  }
+  List<VehicleAction> _moduleActions(Map<String, dynamic> v) => [
+        for (final a in widget.actions)
+          if (a.applies?.call(v) ?? true) a,
+      ];
 
-  /// „Podepnij”: lista pasujących naczep / przyczep; te w użyciu – na czerwono i nie do wybrania.
-  Future<void> _chooseTrailer(Map<String, dynamic> vehicle, List<Map<String, dynamic>> trailers) async {
-    final l = context.l;
-    final fitting = [for (final t in trailers) if (t['kind'] == couples[vehicle['kind']]) t];
-    final chosen = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(l.couplingChoose('${vehicle['name']}')),
-        children: [
-          if (fitting.isEmpty)
-            Padding(padding: const EdgeInsets.all(24), child: Text(l.couplingNone(kindLabel(l, couples[vehicle['kind']])))),
-          for (final t in fitting)
-            ColoredBox(
-              color: (_busy(t, vehicle) ? stateTint(context, vehicleState(t)) : null) ?? Colors.transparent,
-              child: SimpleDialogOption(
-                onPressed: _busy(t, vehicle) ? null : () => Navigator.pop(context, t),
-                child: ListTile(
-                  leading: Icon(kindIcon(t['kind'] as String?)),
-                  title: Text(_title(t)),
-                  subtitle: Text(_busy(t, vehicle) ? stateText(l, t) ?? '' : trailerLabel(l, '${t['trailer_type']}')),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-    if (chosen != null) await _couple(vehicle, chosen);
-  }
-
-  /// W użyciu dla [vehicle]: podpięta gdzie indziej (do tego pojazdu – nie przeszkadza).
-  bool _busy(Map<String, dynamic> trailer, Map<String, dynamic> vehicle) =>
-      trailer['in_use'] == true && trailer['coupled_to_id'] != vehicle['id'];
+  void _runAction(VehicleAction action, Map<String, dynamic> vehicle) =>
+      _after(action.run(context, vehicle).then((changed) {
+        if (changed) widget.onChanged?.call();
+        return changed;
+      }));
 
   @override
   Widget build(BuildContext context) {
@@ -244,6 +184,9 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
           Widget motorCard(Map<String, dynamic> v) => _VehicleCard(
                 vehicle: v,
+                onOpen: () => _card(v),
+                moduleActions: _moduleActions(v),
+                onAction: (a) => _runAction(a, v),
                 onEdit: () => _open(v),
                 onDelete: () => _delete(v),
                 onService: () => _service(v),
@@ -253,17 +196,24 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                     ? _CouplingSlot(
                         vehicle: v,
                         trailer: byId[v['trailer_id']],
-                        accepts: (t) => t['kind'] == couples[v['kind']] && !_busy(t, v),
+                        accepts: (t) => t['kind'] == couples[v['kind']] && !trailerBusy(t, v),
                         onDrop: (t) => _couple(v, t),
                         onChoose: () => _chooseTrailer(v, trailers),
                         onUncouple: () => _couple(v, null),
+                        free: freeTrailers(v, trailers),
                       )
                     : null,
               );
           Widget trailerCard(Map<String, dynamic> t) => _DraggableTrailer(
                 trailer: t,
                 child: _VehicleCard(
-                    vehicle: t, onEdit: () => _open(t), onDelete: () => _delete(t), onService: () => _service(t)),
+                    vehicle: t,
+                    onOpen: () => _card(t),
+                    moduleActions: _moduleActions(t),
+                    onAction: (a) => _runAction(a, t),
+                    onEdit: () => _open(t),
+                    onDelete: () => _delete(t),
+                    onService: () => _service(t)),
               );
           List<Widget> section(String title, List<Map<String, dynamic>> items, Widget Function(Map<String, dynamic>) card,
                   String empty) =>
@@ -331,11 +281,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   /// Tabela w dwóch zakładkach: pojazdy z napędem oraz naczepy i przyczepy.
   Widget _tables(AppLocalizations l, List<Map<String, dynamic>> motors, List<Map<String, dynamic>> towed,
       List<Map<String, dynamic>> trailers, Map<Object?, Map<String, dynamic>> byId, String? empty) {
-    VoidCallback? open(Map<String, dynamic> v) =>
-        v['can_edit'] != false ? () => _open(v) : (v['can_service'] == true ? () => _service(v) : null);
-    Widget actions(Map<String, dynamic> v) =>
-        _Actions(
+    VoidCallback? open(Map<String, dynamic> v) => () => _card(v);
+    Widget actions(Map<String, dynamic> v) => _Actions(
             vehicle: v,
+            moduleActions: _moduleActions(v),
+            onAction: (a) => _runAction(a, v),
             onEdit: () => _open(v),
             onDelete: () => _delete(v),
             onService: () => _service(v),
@@ -346,7 +296,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       final trailer = byId[v['trailer_id']];
       if (trailer == null) return TextButton(onPressed: () => _chooseTrailer(v, trailers), child: Text(l.couplingAdd));
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(_title(trailer)),
+        Text(vehicleTitle(trailer)),
         IconButton(tooltip: l.couplingRemove, onPressed: () => _couple(v, null), icon: const Icon(Icons.link_off)),
       ]);
     }
@@ -403,14 +353,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   }
 }
 
-String _title(Map<String, dynamic> v) {
-  final plate = '${v['plate'] ?? ''}';
-  return plate.isEmpty ? '${v['name']}' : '${v['name']} · $plate';
-}
-
 class _VehicleCard extends StatelessWidget {
   const _VehicleCard(
       {required this.vehicle,
+      required this.onOpen,
+      this.moduleActions = const [],
+      this.onAction,
       required this.onEdit,
       required this.onDelete,
       required this.onService,
@@ -419,6 +367,11 @@ class _VehicleCard extends StatelessWidget {
       this.coupling});
 
   final Map<String, dynamic> vehicle;
+
+  /// Kliknięcie w kafelek – karta pojazdu.
+  final VoidCallback onOpen;
+  final List<VehicleAction> moduleActions;
+  final ValueChanged<VehicleAction>? onAction;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onService;
@@ -432,10 +385,8 @@ class _VehicleCard extends StatelessWidget {
     final l = context.l;
     final scheme = Theme.of(context).colorScheme;
     final company = v['company_id'] != null;
-    final editable = v['can_edit'] != false;
     final state = vehicleState(v);
     final stateLabel = stateText(l, v);
-    final service = v['can_service'] == true;
     final urgent = mostUrgent(v);
     final kmLeft = serviceKmLeft(v);
     String n(Object? value) => value is num ? l.number(value) : '–';
@@ -453,15 +404,22 @@ class _VehicleCard extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
           leading: Icon(kindIcon(kind), color: stateColor(context, state)),
-          title: Text(_title(v)),
+          title: Text(vehicleTitle(v)),
           subtitle: Text('${kindLabel(l, kind)} · ${company ? l.vehicleOfCompany : l.vehiclePrivate}'
               '${stateLabel != null ? ' · $stateLabel' : ''}\n'
               '$summary$tare$tank$seats$adr'
               '${v['assigned_driver_name'] != null ? '\n${l.vehicleAssignedDriver('${v['assigned_driver_name']}')}' : ''}'),
           isThreeLine: true,
-          onTap: editable ? onEdit : (service ? onService : null),
+          onTap: onOpen,
           trailing: _Actions(
-              vehicle: v, onEdit: onEdit, onDelete: onDelete, onService: onService, onStats: onStats, onDriver: onDriver),
+              vehicle: v,
+              moduleActions: moduleActions,
+              onAction: onAction,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              onService: onService,
+              onStats: onStats,
+              onDriver: onDriver),
         ),
         if (urgent != null)
           Padding(
@@ -504,6 +462,8 @@ class _VehicleCard extends StatelessWidget {
 class _Actions extends StatelessWidget {
   const _Actions(
       {required this.vehicle,
+      this.moduleActions = const [],
+      this.onAction,
       required this.onEdit,
       required this.onDelete,
       required this.onService,
@@ -511,6 +471,10 @@ class _Actions extends StatelessWidget {
       this.onDriver});
 
   final Map<String, dynamic> vehicle;
+
+  /// Akcje modułów (np. „Zgłoś usterkę”) – w tym samym menu.
+  final List<VehicleAction> moduleActions;
+  final ValueChanged<VehicleAction>? onAction;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onService;
@@ -526,21 +490,29 @@ class _Actions extends StatelessWidget {
     final l = context.l;
     final editable = vehicle['can_edit'] != false;
     final service = vehicle['can_service'] == true;
-    if (!editable && !service) return Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline));
+    if (!editable && !service && moduleActions.isEmpty) {
+      return Tooltip(message: l.vehicleReadOnly, child: const Icon(Icons.lock_outline));
+    }
     return PopupMenuButton<String>(
       onSelected: (action) => switch (action) {
         'edit' => onEdit(),
         'service' => onService(),
         'stats' => onStats?.call(),
         'driver' => onDriver?.call(),
-        _ => onDelete(),
+        'delete' => onDelete(),
+        final id => onAction?.call(moduleActions.firstWhere((a) => 'module:${a.id}' == id)),
       },
       itemBuilder: (context) => [
+        for (final a in moduleActions)
+          PopupMenuItem(
+            value: 'module:${a.id}',
+            child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(a.icon), title: Text(a.label)),
+          ),
         if (editable) PopupMenuItem(value: 'edit', child: Text(l.edit)),
         if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
         if (onStats != null)
           PopupMenuItem(value: 'stats', child: Text(l.vehicleStatsAction)),
-        if (onDriver != null && editable && vehicle['company_id'] != null && !towedKinds.contains(vehicle['kind']))
+        if (onDriver != null && canAssignDriver(vehicle))
           PopupMenuItem(value: 'driver', child: Text(l.vehicleDriverAction)),
         if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
       ],
@@ -565,7 +537,7 @@ class _DraggableTrailer extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(kindIcon(trailer['kind'] as String?)),
           const SizedBox(width: 8),
-          Text(_title(trailer)),
+          Text(vehicleTitle(trailer)),
         ]),
       ),
     );
@@ -590,7 +562,11 @@ class _CouplingSlot extends StatelessWidget {
     required this.onDrop,
     required this.onChoose,
     required this.onUncouple,
+    this.free = const [],
   });
+
+  /// Wolne pasujące naczepy – „Podepnij X” jednym kliknięciem.
+  final List<Map<String, dynamic>> free;
 
   final Map<String, dynamic> vehicle;
   final Map<String, dynamic>? trailer;
@@ -623,14 +599,22 @@ class _CouplingSlot extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                trailer == null ? l.couplingEmpty(wanted) : l.couplingWith(_title(trailer!)),
+                trailer == null ? l.couplingEmpty(wanted) : l.couplingWith(vehicleTitle(trailer!)),
                 style: trailer == null ? TextStyle(color: scheme.outline) : null,
               ),
             ),
             if (trailer != null)
               IconButton(tooltip: l.couplingRemove, onPressed: onUncouple, icon: const Icon(Icons.link_off))
-            else
-              TextButton(onPressed: onChoose, child: Text(l.couplingAdd)),
+            else ...[
+              // Jedna wolna pasująca naczepa – podpięcie bez okna wyboru.
+              if (free.length == 1)
+                TextButton.icon(
+                  onPressed: () => onDrop(free.single),
+                  icon: const Icon(Icons.link, size: 18),
+                  label: Text(l.cardCoupleQuick(vehicleTitle(free.single))),
+                ),
+              TextButton(onPressed: onChoose, child: Text(free.length == 1 ? l.couplingOther : l.couplingAdd)),
+            ],
           ]),
         );
       },

@@ -114,6 +114,24 @@ void main() {
     expect(ServiceTexts(const Locale('pl')).status('in_progress'), 'W naprawie');
   });
 
+  testWidgets('karta pojazdu i pulpit: otwarte zgłoszenia, koszty napraw, akcja „Zgłoś usterkę”', (tester) async {
+    final context = ModuleContext(api: api(), userName: 'Anna', locale: const Locale('en'));
+    final module = ServiceModule();
+    expect(module.vehicleActions(context).single.label, 'Report a fault');
+    final section = module.vehicleSections(context).single;
+    await pump(tester, Builder(builder: (c) => Column(children: [
+          section.builder(c, {'id': 'v1', 'name': 'MAN TGX'}),
+          module.dashboardSections(context).single.builder(c),
+        ])));
+
+    expect(find.text('Faults and repairs'), findsOneWidget);
+    expect(find.text('Wycieka olej'), findsOneWidget);
+    expect(find.textContaining('Repairs in 12 months: 2'), findsOneWidget);
+    expect(find.text('Reported faults'), findsOneWidget);
+    final paths = [for (final r in requests) r.$2];
+    expect(paths, containsAll(['/api/m/service/orders', '/api/m/service/costs']));
+  });
+
   testWidgets('zgłoszenie usterki: pojazd stoi', (tester) async {
     await pump(tester, ReportScreen(api: api()));
 

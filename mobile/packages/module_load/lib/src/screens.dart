@@ -43,9 +43,12 @@ class _Item {
 
 /// Plan załadunku: pojazd, pozycje ładunku → LDM, masa, rozmieszczenie z góry, pasy, ostrzeżenia.
 class LoadPlanScreen extends StatefulWidget {
-  const LoadPlanScreen({super.key, required this.api});
+  const LoadPlanScreen({super.key, required this.api, this.vehicleId});
 
   final CoreApi api;
+
+  /// Pojazd wybrany z góry (np. z karty pojazdu).
+  final String? vehicleId;
 
   @override
   State<LoadPlanScreen> createState() => _LoadPlanScreenState();
@@ -56,7 +59,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
   final _form = GlobalKey<FormState>();
   final _items = [_Item()];
   final _deck = TextEditingController();
-  String? _vehicleId;
+  late String? _vehicleId = widget.vehicleId;
   bool _frontWall = true;
   bool _mats = false;
   bool _busy = false;

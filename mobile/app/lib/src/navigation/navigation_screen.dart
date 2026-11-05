@@ -618,7 +618,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
                   height: 26,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: alarm != null ? levelColor('red') : const Color(0xFF185FA5),
+                      color: alarm != null ? levelColor('red') : TruckPalette.start,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black45)],
@@ -763,7 +763,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
             child: AnimatedBuilder(
               animation: _blink,
               builder: (context, child) => ColoredBox(
-                color: Color.lerp(const Color(0xE6D62828), const Color(0xE6600000), _blink.value)!,
+                color: Color.lerp(TruckPalette.navAlarm, TruckPalette.navAlarmDark, _blink.value)!,
                 child: child,
               ),
               child: SafeArea(
@@ -834,13 +834,13 @@ class _StatusBanner extends StatelessWidget {
     final corridor = this.corridor;
     final l = context.l;
     final (color, text) = switch ((check, corridor)) {
-      _ when corridorError != null => (const Color(0xE0E65100), corridorError!),
+      _ when corridorError != null => (TruckPalette.navOffRoute, corridorError!),
       (_, null) => (navPanelColor, l.loadingCorridor),
       (null, _) => (navPanelColor, l.waitingForPosition),
       (final c?, final k?) when c.onRoute =>
-        (const Color(0xE03B6D11), l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
-      (final c?, _) when c.alarm != null => (const Color(0xF0D62828), c.alarm!.message),
-      _ => (const Color(0xE0E65100), recalculating ? l.offRouteRecalculating : l.offRoute),
+        (TruckPalette.navOnRoute, l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
+      (final c?, _) when c.alarm != null => (TruckPalette.navAlarm, c.alarm!.message),
+      _ => (TruckPalette.navOffRoute, recalculating ? l.offRouteRecalculating : l.offRoute),
     };
     return NavPanel(
       color: color,

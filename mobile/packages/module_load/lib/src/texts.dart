@@ -17,6 +17,9 @@ class LoadTexts {
       'LDM i masa ładunku, czy się zmieści, rozmieszczenie palet z kolejnością rozładunków, środek ciężkości i liczba pasów.',
       'Loading metres and weight, whether it fits, pallet layout by unloading order, centre of gravity and number of straps.');
   String get menu => _t('Załadunek', 'Loading');
+  String get openPlan => _t('Ułóż ładunek', 'Arrange cargo');
+  String get sectionHint => _t('Czy ładunek się zmieści, rozmieszczenie palet, naciski osi i mocowanie – dla tego pojazdu.',
+      'Whether the cargo fits, pallet layout, axle loads and securing – for this vehicle.');
   String get vehicle => _t('Pojazd (przestrzeń ładunkowa)', 'Vehicle (cargo space)');
   String get noVehicles => _t('Brak pojazdów z przestrzenią ładunkową.', 'No vehicles with a cargo space.');
   String get items => _t('Ładunek', 'Load');

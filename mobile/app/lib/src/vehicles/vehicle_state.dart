@@ -1,3 +1,4 @@
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n.dart';
@@ -15,11 +16,11 @@ VehicleState vehicleState(Map<String, dynamic> v) => v['in_repair'] == true
 
 /// Kolor stanu: czerwony – w naprawie, żółty – zgłoszona usterka, niebieski – w użyciu / podpięta.
 Color? stateColor(BuildContext context, VehicleState state) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
+  final colors = TruckColors.of(context);
   return switch (state) {
     VehicleState.repair => Theme.of(context).colorScheme.error,
-    VehicleState.reported => dark ? Colors.amber.shade300 : Colors.amber.shade800,
-    VehicleState.inUse => dark ? Colors.lightBlue.shade300 : Colors.blue.shade700,
+    VehicleState.reported => colors.reported,
+    VehicleState.inUse => colors.inUse,
     VehicleState.free => null,
   };
 }

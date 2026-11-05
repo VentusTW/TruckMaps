@@ -459,6 +459,8 @@ class VehicleOut(VehicleData):
     assigned_member_id: str | None = None
     """Przydzielony kierowca – członek firmy (id członka, nie konto)."""
     assigned_driver_name: str | None = None
+    assigned_to_me: bool = False
+    """Pojazd przydzielony zalogowanemu – planer wybiera go domyślnie."""
     in_repair: bool = False
     repair_reported: bool = False
     """Pojazd: kierowca nim jedzie; naczepa / przyczepa: jest podpięta albo jej pojazd jedzie."""
@@ -813,6 +815,8 @@ def vehicle_outs(
                     "assigned_driver_name": names.get((v.company_id, v.assigned_driver))
                     if v.assigned_driver
                     else None,
+                    "assigned_to_me": v.assigned_driver is not None
+                    and v.assigned_driver == user.subject,
                 }
             )
         )

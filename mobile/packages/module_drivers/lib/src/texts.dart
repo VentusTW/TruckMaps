@@ -90,6 +90,13 @@ class DriversTexts {
         _ => _t('ważne', 'valid'),
       };
 
+  String get vehicleSectionTitle => _t('Kierowcy z kartoteki', 'Drivers from the register');
+  String get vehicleSectionEmpty =>
+      _t('Brak kierowców z kartoteki przydzielonych do tego pojazdu.', 'No registered drivers assigned to this vehicle.');
+  String get allValid => _t('Kwalifikacje ważne', 'Qualifications valid');
+  String get dashboardTitle => _t('Terminy kierowców', 'Driver deadlines');
+  String get dashboardOk => _t('Kwalifikacje kierowców ważne.', 'Driver qualifications are valid.');
+
   String dueSummary(int overdue, int soon) => [
         if (overdue > 0) _t('po terminie: $overdue', 'overdue: $overdue'),
         if (soon > 0) _t('wkrótce: $soon', 'soon: $soon'),

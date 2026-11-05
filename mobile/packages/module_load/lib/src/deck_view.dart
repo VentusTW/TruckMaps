@@ -1,10 +1,11 @@
 import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
 import 'texts.dart';
 
 /// Kolory rozładunków (1, 2, 3…) – te same w widoku z góry i z boku.
-const stopColors = [Colors.blue, Colors.orange, Colors.green, Colors.purple, Colors.teal, Colors.brown];
+const stopColors = TruckPalette.series;
 
 /// Krok przesuwania palety [m].
 const snapM = 0.05;

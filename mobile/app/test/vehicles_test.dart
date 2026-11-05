@@ -161,7 +161,11 @@ void main() {
   testWidgets('zmiana waluty przelicza stawki, edycja zapisuje pojazd', (tester) async {
     await pump(tester);
 
+    // Kliknięcie w kafelek – karta pojazdu; „Zmień” na karcie – formularz.
     await tester.tap(find.text('Zestaw 40 t · KTA 12345'));
+    await tester.pumpAndSettle();
+    expect(find.text('Terminy i przeglądy'), findsOneWidget);
+    await tester.tap(find.byTooltip('Zmień'));
     await tester.pumpAndSettle();
     expect(find.text('Zmień pojazd'), findsOneWidget);
     await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Waluta'));
@@ -229,7 +233,9 @@ void main() {
     final tank = requests.singleWhere((r) => r.$1 == 'POST').$3!;
     expect((tank['kind'], tank['trailer_type'], tank['tank_volume_m3']), ('semitrailer', 'tanker', 32.0));
 
-    await tester.tap(find.text('Podepnij'));
+    // Jedna wolna pasująca naczepa – podpięcie jednym kliknięciem; inne – z okna wyboru.
+    expect(find.text('Podepnij Cysterna 32'), findsOneWidget);
+    await tester.tap(find.text('Inna…'));
     await tester.pumpAndSettle();
     expect(find.text('Podepnij do: MAN TGX'), findsOneWidget);
     expect(find.text('Przyczepa'), findsOneWidget); // tylko na liście w tle – w oknie same naczepy
@@ -385,7 +391,8 @@ void main() {
 
     await tester.tap(find.text('Firanka'));
     await tester.pumpAndSettle();
-    expect(find.byType(TextFormField), findsWidgets); // formularz pojazdu
+    expect(find.text('Pojazd ciągnący'), findsOneWidget); // karta pojazdu
+    expect(find.text('w użyciu – podpięta do: Zestaw 40 t'), findsWidgets);
   });
 
   test('szukanie po tablicy bez spacji i najbliższy termin', () {

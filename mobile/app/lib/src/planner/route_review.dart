@@ -11,6 +11,28 @@ import 'route.dart';
 /// Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans,
 /// czas jazdy, przyjazd, opóźnienie), kraje z przejściami granicznymi, zakazy ruchu
 /// w każdym kraju i „Rozpocznij jazdę”.
+/// Żądanie nawigacji dla wariantu trasy – wspólne dla przeglądu trasy i szybkiego startu z planera.
+NavigationRequest navigationRequest({
+  required RouteResult result,
+  required int? alternative,
+  required String vehicleId,
+  required LatLng destination,
+  List<LatLng> via = const [],
+  List<String> viaNames = const [],
+  bool avoidDifficult = true,
+}) =>
+    NavigationRequest(
+      vehicleId: vehicleId,
+      route: alternative == null ? result.route : result.alternatives[alternative],
+      destination: destination,
+      via: via,
+      viaNames: viaNames,
+      avoidDifficult: avoidDifficult,
+      // Zgłoszenia i zakazy są policzone dla trasy proponowanej, nie dla alternatyw.
+      reports: alternative == null ? result.driverReports : const [],
+      bans: alternative == null ? result.timeBans : const [],
+    );
+
 class RouteReviewScreen extends StatefulWidget {
   const RouteReviewScreen({
     super.key,
@@ -60,16 +82,14 @@ class _RouteReviewScreenState extends State<RouteReviewScreen> {
   void _start() => Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
         builder: (_) => NavigationScreen(
           api: widget.api,
-          request: NavigationRequest(
+          request: navigationRequest(
+            result: _result,
+            alternative: _alternative,
             vehicleId: widget.vehicleId,
-            route: _shown,
             destination: widget.destination,
             via: widget.via,
             viaNames: widget.viaNames,
             avoidDifficult: widget.avoidDifficult,
-            // Zgłoszenia i zakazy są policzone dla trasy proponowanej, nie dla alternatyw.
-            reports: _alternative == null ? _result.driverReports : const [],
-            bans: _alternative == null ? _result.timeBans : const [],
           ),
         ),
       ));
@@ -84,6 +104,18 @@ class _RouteReviewScreenState extends State<RouteReviewScreen> {
           if (widget.vehicleHeadline != null)
             Text(widget.vehicleHeadline!, style: Theme.of(context).textTheme.bodySmall),
         ]),
+      ),
+      // „Rozpocznij jazdę” zawsze widoczny – bez przewijania przeglądu do końca.
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton.icon(
+            key: const Key('review-start'),
+            onPressed: _start,
+            icon: const Icon(Icons.navigation_outlined),
+            label: Text(l.startDriving),
+          ),
+        ),
       ),
       body: LayoutBuilder(builder: (context, size) {
         final panel = _buildPanel();
@@ -247,12 +279,6 @@ class _RouteReviewScreenState extends State<RouteReviewScreen> {
             ]),
           ),
       ],
-      const SizedBox(height: 16),
-      FilledButton.icon(
-        onPressed: _start,
-        icon: const Icon(Icons.navigation_outlined),
-        label: Text(l.startDriving),
-      ),
     ]);
   }
 }
