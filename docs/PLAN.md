@@ -525,6 +525,22 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - flota, terminy, dokumenty jak w M13/M14 + listy pasażerów, ubezpieczenie NNW
   - klienci: szkoły, firmy, biura podróży, parafie, gminy; w PL przewoźnik potrzebuje licencji na przewóz osób – platforma działa jako pośrednik technologiczny, nie przewoźnik
   - rynek: w Europie m.in. Driven Connect (UK), Busfinder.com (AT), bus-angebot.com / Omniplus On (DE); w PL brak wyraźnego lidera
+- [ ] **Załoga dwuosobowa (dwóch kierowców w pojeździe)** – w M2 i w planerze, wg 561/2006:
+  - w pojeździe obsada wieloosobowa: przydział dwóch kierowców do pojazdu / kursu (dziś jeden); w nawigacji wybór, kto prowadzi, i zmiana kierowcy
+  - limity jazdy liczone osobno dla każdego kierowcy (9 h / 10 h dziennie, 56 h tygodniowo, 90 h w dwóch tygodniach), więc pojazd może jechać prawie bez przerwy
+  - odpoczynek dobowy co najmniej 9 h w ciągu 30 h od końca poprzedniego odpoczynku (art. 8 ust. 5), a nie 11 h w ciągu 24 h; odpoczynek nie może być w jadącym pojeździe, przerwa 45 min tak (drugi kierowca jedzie, pierwszy nie pomaga w prowadzeniu)
+  - czas obok kierowcy to dyspozycyjność, nie odpoczynek; pierwsza godzina obsady wieloosobowej – drugi kierowca może dołączyć później
+  - planer: ETA i miejsca odpoczynku dla załogi (krótszy czas przejazdu), koszt drugiego kierowcy (delegacja, stawka) w kosztach trasy; ostrzeżenia, gdy któryś kierowca przekroczy limit
+- [ ] **Przeprawy promowe i kolejowe** (prom, Eurotunnel Le Shuttle Freight, Ro-La – pociąg dla ciężarówek):
+  - trasy z przeprawą: Valhalla zna promy z OSM (`route=ferry`, czas `duration`); porównanie wariantów „z przeprawą” i „dookoła drogą”
+  - przepisy (art. 9 561/2006 po zmianie 2020/1054): odpoczynek dobowy regularny albo skrócony tygodniowy na promie / w pociągu można przerwać najwyżej dwa razy, łącznie do 1 h (wjazd, zjazd, odprawa), tylko gdy kierowca ma kuszetkę lub kabinę; regularny odpoczynek tygodniowy – tylko przy przeprawie ≥ 8 h z kabiną; bez kabiny czas na promie to przerwa / dyspozycyjność, nie odpoczynek
+  - doradca: koszt (bilet za pojazd wg długości / masy / ADR + kabina) vs oszczędzone km, paliwo, myto i czas kierowcy; najlepiej, gdy obowiązkowy odpoczynek wypada w czasie przeprawy – planer dobiera rejs tak, by przerwa / odpoczynek zbiegł się z rejsem, i pokazuje „oszczędzasz X h i Y €”
+  - rozkłady i ceny: najpierw ręczna tabela przewoźników i tras (darmowo, aktualizowana w panelu admina), później API przewoźników; ADR na promach (ograniczenia ładunków niebezpiecznych, deklaracja)
+  - zależności: M2 (czas pracy), M4 (koszty), planer tras
+- [ ] **Samochody osobowe we flocie**:
+  - nowy rodzaj pojazdu „osobowy” (także dostawczy do 3,5 t bez tachografu) we wszystkich rodzajach firm
+  - trasy profilem dla samochodów (Valhalla `auto`), bez ograniczeń dla ciężarówek, bez planu załadunku i czasu pracy wg 561/2006
+  - terminy (przegląd, OC/AC), statystyki i koszty (paliwo, kilometrówka / prywatne użycie) jak w M13; przydział pracownika do auta
 
 ---
 
