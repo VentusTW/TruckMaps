@@ -414,56 +414,51 @@ class _HomeScreenState extends State<HomeScreen> {
     // Ostatnio używany ekran; gdy go nie ma (pierwsze uruchomienie, moduł bez dostępu) – pulpit.
     var selected = pages.indexWhere((page) => page.id == _selected);
     if (selected < 0) selected = 0;
-    final wide = MediaQuery.sizeOf(context).width >= 720;
-    final inMenu = pages;
-    final menu = [
-      for (final page in inMenu) NavigationDrawerDestination(icon: _badged(page.icon, page.badge), label: Text(page.title)),
-    ];
-    void select(int index) {
-      final id = inMenu[index].id;
+    final current = pages[selected];
+    void select(String id) {
       if (id == 'inbox' && _selected != 'inbox') _inboxChanged();
       // Stan pojazdów zmienia się poza tym ekranem (serwis, nawigacja innych kierowców).
       if (id == 'vehicles') _vehiclesShown.value++;
       if (id == 'route') _vehiclesChanged.value++;
       if (id == 'dashboard' && _selected != 'dashboard') setState(() => _dashboardVersion++);
       _open(id);
-      if (!wide) Navigator.of(context).maybePop();
     }
 
-    final current = inMenu.indexOf(pages[selected]);
-    final drawer = NavigationDrawer(
-      selectedIndex: current < 0 ? null : current,
-      onDestinationSelected: select,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
-          child: Text(_userName.isEmpty ? 'TruckMaps' : _userName, style: Theme.of(context).textTheme.titleSmall),
+    final l = context.l;
+    // Kierowca (w firmie albo jeżdżący sam) na telefonie: dolna nawigacja; funkcje jeszcze bez ekranu – wyłączone.
+    final role = _company?['role'] as String?;
+    final driver = role == null || role == 'driver';
+    // Ekrany zostają w pamięci: po powrocie do planera trasa i mapa są tam, gdzie były.
+    final body = IndexedStack(index: selected, children: [for (final page in pages) page.builder(context)]);
+    return TruckShell(
+      title: current.title,
+      subtitle: _userName,
+      selected: current.id,
+      onSelect: select,
+      items: [for (final page in pages) ShellItem(page.id, page.title, page.icon, badge: page.badge)],
+      bottomItems: driver
+          ? [
+              ShellItem('route', l.menuRoute, Icons.route_outlined),
+              ShellItem('tachograph', l.navTachograph, Icons.timer_outlined, enabled: false),
+              ShellItem('ecmr', l.navEcmr, Icons.inventory_2_outlined, enabled: false),
+              ShellItem('vehicles', l.navVehicle, Icons.local_shipping_outlined),
+            ]
+          : null,
+      actions: [
+        IconButton(
+          tooltip: l.menuInbox,
+          onPressed: () => select('inbox'),
+          icon: _badged(Icons.mail_outline, _unread),
         ),
-        ...menu,
-        const Divider(indent: 28, endIndent: 28),
+      ],
+      footer: [
         ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 28),
           leading: const Icon(Icons.logout),
-          title: Text(context.l.logout),
+          title: Text(l.logout),
           onTap: widget.onLogout,
         ),
       ],
-    );
-    // Ekrany zostają w pamięci: po powrocie do planera trasa i mapa są tam, gdzie były.
-    final body = IndexedStack(index: selected, children: [for (final page in pages) page.builder(context)]);
-    return Scaffold(
-      appBar: AppBar(title: Text(pages[selected].title), actions: [
-        IconButton(
-          tooltip: context.l.menuInbox,
-          onPressed: () {
-            if (_selected != 'inbox') _inboxChanged();
-            _open('inbox');
-          },
-          icon: _badged(Icons.mail_outline, _unread),
-        ),
-      ]),
-      drawer: wide ? null : drawer,
-      body: wide ? Row(children: [SizedBox(width: 280, child: drawer), Expanded(child: body)]) : body,
+      body: body,
     );
   }
 }

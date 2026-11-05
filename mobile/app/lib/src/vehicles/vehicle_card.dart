@@ -208,7 +208,6 @@ class _Header extends StatelessWidget {
     final state = vehicleState(v);
     final color = stateColor(context, state) ?? theme.colorScheme.primary;
     final label = stateText(l, v);
-    String n(Object? value) => value is num ? l.number(value) : '–';
     final kind = v['kind'] as String?;
     final facts = [
       kindLabel(l, kind),
@@ -216,40 +215,58 @@ class _Header extends StatelessWidget {
       if (v['trailer_type'] != null && v['trailer_type'] != 'none') trailerLabel(l, '${v['trailer_type']}'),
       if (v['hazmat'] == true) 'ADR',
     ];
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Gap.l),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: color.withOpacity(0.14),
-            child: Icon(kindIcon(kind), color: color, size: 28),
-          ),
-          const SizedBox(width: Gap.l),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(vehicleTitle(v), style: theme.textTheme.titleLarge),
-              const SizedBox(height: Gap.xs),
-              Text(facts.join(' · '), style: theme.textTheme.bodyMedium),
-              const SizedBox(height: Gap.xs),
-              Text(
-                l.vehicleSummary(
-                    n(v['height_m']), n(v['width_m']), n(v['length_m']), n(v['gvw_t']), n(v['axle_load_t'])),
-                style: theme.textTheme.bodySmall,
+    final dims = [
+      (l.vehicleHeight, v['height_m'], 'm', Icons.height),
+      (l.vehicleWidth, v['width_m'], 'm', Icons.width_normal_outlined),
+      (l.vehicleLength, v['length_m'], 'm', Icons.straighten),
+      (l.vehicleGvw, v['gvw_t'], 't', Icons.scale_outlined),
+      (l.vehicleAxleLoad, v['axle_load_t'], 't', Icons.fitness_center),
+    ].where((d) => d.$2 is num).toList();
+    final chip = switch (state) {
+      VehicleState.inUse => StatusChip(label: label!),
+      VehicleState.reported => StatusChip(label: label!, tone: StatusTone.warning),
+      _ => null,
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (state == VehicleState.repair) ...[
+        AlertBanner(title: l.cardRepairBanner, icon: Icons.car_repair),
+        const SizedBox(height: Gap.m),
+      ],
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(Gap.l),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (chip != null) ...[chip, const SizedBox(height: Gap.m)],
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              IconSquare(icon: kindIcon(kind), color: color, size: 64),
+              const SizedBox(width: Gap.l),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(vehicleTitle(v), style: theme.textTheme.titleLarge),
+                  const SizedBox(height: Gap.xs),
+                  Text(facts.join(' · '),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary)),
+                ]),
               ),
-              if (label != null) ...[
-                const SizedBox(height: Gap.s),
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  avatar: Icon(Icons.circle, size: 10, color: color),
-                  label: Text(label),
-                ),
-              ],
             ]),
-          ),
-        ]),
+          ]),
+        ),
       ),
-    );
+      if (dims.isNotEmpty) ...[
+        const SizedBox(height: Gap.m),
+        LayoutBuilder(builder: (context, size) {
+          final columns = size.maxWidth >= 700 ? dims.length : (size.maxWidth >= 400 ? 3 : 2);
+          final width = (size.maxWidth - Gap.m * (columns - 1)) / columns;
+          return Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
+            for (final (name, value, unit, icon) in dims)
+              SizedBox(
+                width: width,
+                child: ValueTile(label: name, value: l.number(value as num), unit: unit, icon: icon),
+              ),
+          ]);
+        }),
+      ],
+    ]);
   }
 }
 

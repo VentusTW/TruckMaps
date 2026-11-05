@@ -10,7 +10,6 @@ import 'package:truckmaps_app/src/dashboard_screen.dart';
 import 'package:truckmaps_app/src/planner/place_field.dart';
 import 'package:truckmaps_app/src/planner/planner_screen.dart';
 import 'package:truckmaps_app/src/planner/recent.dart';
-import 'package:truckmaps_app/src/theme.dart';
 import 'package:truckmaps_app/src/vehicles/vehicle_card.dart';
 
 import 'localized.dart';

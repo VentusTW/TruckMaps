@@ -1,3 +1,4 @@
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -26,7 +27,6 @@ class _GuestScreenState extends State<GuestScreen> {
   @override
   Widget build(BuildContext context) {
     final l = context.l;
-    final wide = MediaQuery.sizeOf(context).width >= 720;
     final open = [(l.menuWelcome, Icons.waving_hand_outlined), (l.menuMap, Icons.map_outlined)];
     final locked = [
       (l.menuRoute, Icons.route_outlined),
@@ -37,26 +37,6 @@ class _GuestScreenState extends State<GuestScreen> {
       (l.menuModules, Icons.extension_outlined),
       (l.menuAccount, Icons.person_outline),
     ];
-    final drawer = NavigationDrawer(
-      selectedIndex: _selected,
-      onDestinationSelected: (index) {
-        setState(() => _selected = index);
-        if (!wide) Navigator.of(context).maybePop();
-      },
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 16, 16, 8),
-          child: Text('TruckMaps', style: Theme.of(context).textTheme.titleSmall),
-        ),
-        for (final (title, icon) in open) NavigationDrawerDestination(icon: Icon(icon), label: Text(title)),
-        for (final (title, icon) in locked)
-          NavigationDrawerDestination(icon: Icon(icon), label: Text(title), enabled: false),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 8, 16, 16),
-          child: Text(l.guestLocked, style: Theme.of(context).textTheme.bodySmall),
-        ),
-      ],
-    );
     final body = IndexedStack(index: _selected, children: [
       LoginScreen(serverUrl: widget.serverUrl, login: widget.login, onLoggedIn: widget.onLoggedIn),
       FlutterMap(
@@ -64,10 +44,21 @@ class _GuestScreenState extends State<GuestScreen> {
         children: [mapTiles()],
       ),
     ]);
-    return Scaffold(
-      appBar: AppBar(title: Text(open[_selected].$1)),
-      drawer: wide ? null : drawer,
-      body: wide ? Row(children: [SizedBox(width: 280, child: drawer), Expanded(child: body)]) : body,
+    return TruckShell(
+      title: open[_selected].$1,
+      selected: '$_selected',
+      onSelect: (id) => setState(() => _selected = int.parse(id)),
+      items: [
+        for (final (i, (title, icon)) in open.indexed) ShellItem('$i', title, icon),
+        for (final (i, (title, icon)) in locked.indexed) ShellItem('locked-$i', title, icon, enabled: false),
+      ],
+      footer: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(l.guestLocked, style: Theme.of(context).textTheme.bodySmall),
+        ),
+      ],
+      body: body,
     );
   }
 }
