@@ -150,7 +150,8 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  // Na komputerze aplikacja startuje na pełnym ekranie (okno zmaksymalizowane, pasek zadań widoczny).
+  return ShowWindow(window_handle_, SW_SHOWMAXIMIZED);
 }
 
 // static

@@ -223,6 +223,9 @@ abstract final class TruckTheme {
   /// Szerokość menu bocznego na komputerze.
   static const sideMenuWidth = 288.0;
 
+  /// Delikatny cień menu bocznego i górnego paska (`0 1px 8px rgba(0,0,0,.04)`).
+  static const softShadow = [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 1))];
+
   static ThemeData light() => _build(Brightness.light);
   static ThemeData dark() => _build(Brightness.dark);
 
@@ -303,6 +306,7 @@ abstract final class TruckTheme {
         height: line / size,
         fontWeight: weight,
         letterSpacing: spacing,
+        fontFeatures: const [FontFeature.tabularFigures()],
         color: color);
     TextStyle body(double size, double line, FontWeight weight, {double spacing = 0}) => TextStyle(
         fontFamily: TruckFonts.body,
@@ -310,6 +314,7 @@ abstract final class TruckTheme {
         height: line / size,
         fontWeight: weight,
         letterSpacing: spacing,
+        fontFeatures: const [FontFeature.tabularFigures()],
         color: color);
     return TextTheme(
       displayLarge: head(48, 56, FontWeight.w700, spacing: -0.5),

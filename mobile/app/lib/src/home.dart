@@ -14,13 +14,14 @@ import 'company/company_screen.dart';
 import 'company/admin_access_screen.dart';
 import 'company/members_screen.dart';
 import 'dashboard_screen.dart';
-import 'operations/operations_screen.dart';
+import 'dashboard/dispatcher_dashboard.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
 import 'planner/country_bans_screen.dart';
 import 'planner/planner_screen.dart';
 import 'planner/recent.dart';
+import 'under_construction.dart';
 import 'updates.dart';
 import 'vehicles/vehicle_actions.dart' show openVehicleForm;
 import 'vehicles/vehicle_card.dart';
@@ -95,7 +96,7 @@ class SecurePageMemory implements PageMemory {
 }
 
 class _Page {
-  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0});
+  const _Page(this.id, this.title, this.icon, this.builder, {this.badge = 0, this.group, this.tag});
 
   /// Stały identyfikator: wybrany ekran zostaje wybrany, gdy menu zmienia się z rolą albo językiem.
   final String id;
@@ -106,7 +107,20 @@ class _Page {
 
   /// Liczba nowych (np. nieprzeczytane wiadomości) przy pozycji menu.
   final int badge;
+
+  /// Nagłówek grupy w menu bocznym i znacznik przy pozycji.
+  final String? group;
+  final String? tag;
 }
+
+/// Opis kafla szybkiego dostępu dla znanych modułów i licznik ze wskaźników pulpitu.
+(String?, String?) _moduleTile(AppLocalizations l, String id) => switch (id) {
+      'load' => (l.tileLoad, null),
+      'drivers' => (l.tileDrivers, 'drivers.assigned'),
+      'service' => (l.tileService, 'service.open'),
+      'documents' => (l.tileDocuments, 'documents.today'),
+      _ => (null, null),
+    };
 
 /// Ikona z licznikiem nowych.
 Widget _badged(IconData icon, int count) =>
@@ -141,6 +155,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Wejście na pulpit → świeże dane (terminy, wiadomości, sekcje modułów).
   int _dashboardVersion = 0;
+
+  /// Stan pulpitu dyspozytora (połączenie, zestawy w trasie, pilne sprawy) – karta w menu i ikona w pasku.
+  DashSummary? _summary;
 
   @override
   void dispose() {
@@ -300,12 +317,60 @@ class _HomeScreenState extends State<HomeScreen> {
   List<_Page> get _pages {
     final l = context.l;
     final module = _moduleContext;
+    final ops = l.menuGroupOps;
+    final account = l.menuGroupCompany;
+    final company = _company;
+    final manager = company != null && managesCompany(company['role'] as String?);
+    final moduleEntries = [
+      for (final access in _modules.where((m) => m.usable))
+        for (final (i, entry) in access.module!.entries(module).indexed) (access.id, i, entry),
+    ];
+    void openInbox() {
+      _inboxChanged();
+      _open('inbox');
+    }
+
+    void openVehicles() {
+      _vehiclesShown.value++;
+      _open('vehicles');
+    }
+
     return [
-      _Page(
-          'dashboard',
-          l.menuDashboard,
-          Icons.space_dashboard_outlined,
-          (_) => DashboardScreen(
+      if (company != null && manager)
+        _Page(
+            'dashboard',
+            l.menuMain,
+            Icons.grid_view_outlined,
+            group: ops,
+            (_) => DispatcherDashboard(
+                  key: ValueKey(('dashboard', company['id'])),
+                  api: widget.session.api,
+                  companyId: company['id'] as String,
+                  userName: _userName,
+                  active: _selected == null || _selected == 'dashboard',
+                  onSummary: (s) => setState(() => _summary = s),
+                  onOpenInbox: openInbox,
+                  actions: [
+                    DashAction(l.menuInbox, Icons.mail_outline, openInbox),
+                    DashAction(l.dashAssign, Icons.rv_hookup_outlined, openVehicles),
+                    DashAction(l.dashNewRoute, Icons.add_circle_outline, () => _open('route')),
+                  ],
+                  tiles: [
+                    DashTile(l.menuRoute, Icons.route_outlined, () => _open('route'), description: l.tileRoute),
+                    DashTile(l.menuVehicles, Icons.local_shipping_outlined, openVehicles,
+                        description: l.tileVehicles, kpiKey: 'fleet.available'),
+                    for (final (id, i, entry) in moduleEntries)
+                      if (_moduleTile(l, id) case (final description, final kpi))
+                        DashTile(entry.title, entry.icon, () => _open('$id/$i'), description: description, kpiKey: kpi),
+                  ],
+                ))
+      else
+        _Page(
+            'dashboard',
+            l.menuDashboard,
+            Icons.grid_view_outlined,
+            group: ops,
+            (_) => DashboardScreen(
                 key: ValueKey(('dashboard', _modules.length, _dashboardVersion)),
                 api: widget.session.api,
                 userName: _userName,
@@ -320,29 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 sections: [for (final m in _usable) ...m.dashboardSections(module)],
               )),
-      if (_company case final company? when managesCompany(company['role'] as String?))
-        _Page(
-            'operations',
-            l.menuOperations,
-            Icons.monitor_heart_outlined,
-            (_) => OperationsScreen(
-                  key: ValueKey(('operations', company['id'])),
-                  api: widget.session.api,
-                  companyId: company['id'] as String,
-                  active: _selected == 'operations',
-                  shortcuts: [
-                    OpsShortcut(l.planRoute, Icons.route_outlined, () => _open('route')),
-                    OpsShortcut(l.menuVehicles, Icons.local_shipping_outlined, () => _open('vehicles')),
-                    for (final access in _modules.where((m) => m.usable))
-                      for (final (i, entry) in access.module!.entries(module).indexed)
-                        OpsShortcut(entry.title, entry.icon, () => _open('${access.id}/$i')),
-                    OpsShortcut(l.menuInbox, Icons.mail_outline, () {
-                      _inboxChanged();
-                      _open('inbox');
-                    }),
-                  ],
-                )),
-      _Page('route', l.menuRoute, Icons.route_outlined,
+      _Page('route', l.menuRoute, Icons.route_outlined, group: ops,
           (_) => PlannerScreen(
               api: widget.session.api,
               vehiclesChanged: _vehiclesChanged,
@@ -352,6 +395,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'vehicles',
           l.menuVehicles,
           Icons.local_shipping_outlined,
+          group: ops,
           (_) => VehiclesScreen(
                 api: widget.session.api,
                 onChanged: () => _vehiclesChanged.value++,
@@ -360,13 +404,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 actions: _vehicleActions,
                 onPlanRoute: _planWith,
               )),
-      _Page('bans', l.menuBans, Icons.block_outlined,
+      if (manager)
+        _Page('live-map', l.menuLiveMap, Icons.location_on_outlined, group: ops, tag: l.tagSoon,
+            (_) => UnderConstructionScreen(
+                title: l.menuLiveMap, icon: Icons.location_on_outlined, onBack: () => _open('dashboard'))),
+      for (final (id, i, entry) in moduleEntries) _Page('$id/$i', entry.title, entry.icon, entry.builder, group: ops),
+      if (manager)
+        _Page('reports', l.menuReports, Icons.query_stats_outlined, group: ops, tag: l.tagSoon,
+            (_) => UnderConstructionScreen(
+                title: l.menuReports, icon: Icons.query_stats_outlined, onBack: () => _open('dashboard'))),
+      _Page('bans', l.menuBans, Icons.block_outlined, group: ops,
           (_) => CountryBansScreen(api: widget.session.api, standalone: false)),
-      if (_company case final company?) ...[
+      if (company != null) ...[
         _Page(
             'company',
             l.menuCompany,
             Icons.business_outlined,
+            group: account,
             (_) => CompanyScreen(
                   key: ValueKey(('company', company)),
                   api: widget.session.api,
@@ -380,6 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'members',
               l.menuMembers,
               Icons.group_outlined,
+              group: account,
               (_) => MembersScreen(
                     key: ValueKey(('members', company['id'], company['role'])),
                     api: widget.session.api,
@@ -393,30 +448,31 @@ class _HomeScreenState extends State<HomeScreen> {
               'admin-access',
               l.menuAdminAccess,
               Icons.admin_panel_settings_outlined,
+              group: account,
               (_) => AdminAccessScreen(
                     key: ValueKey(('admin-access', company['id'])),
                     api: widget.session.api,
                     companyId: company['id'] as String,
                   )),
       ],
-      for (final access in _modules.where((m) => m.usable))
-        for (final (i, entry) in access.module!.entries(module).indexed)
-          _Page('${access.id}/$i', entry.title, entry.icon, entry.builder),
       _Page(
           'inbox',
           l.menuInbox,
           Icons.mail_outline,
+          group: account,
           (_) => InboxScreen(
                 key: ValueKey(('inbox', _inboxVersion)),
                 api: widget.session.api,
                 onChanged: _loadInbox,
               ),
           badge: _unread),
-      _Page('modules', l.menuModules, Icons.extension_outlined, (_) => ModulesScreen(modules: _modules, error: _error)),
+      _Page('modules', l.menuModules, Icons.extension_outlined, group: account,
+          (_) => ModulesScreen(modules: _modules, error: _error)),
       _Page(
           'account',
           l.menuAccount,
           Icons.person_outline,
+          group: account,
           (_) => AccountScreen(
                 key: ValueKey(('account', _settings)),
                 api: widget.session.api,
@@ -426,6 +482,67 @@ class _HomeScreenState extends State<HomeScreen> {
                 onLogout: widget.onLogout,
               )),
     ];
+  }
+
+  /// Wybór firmy w górnym pasku (gdy użytkownik należy do kilku).
+  Widget _companyPicker(AppLocalizations l) {
+    final theme = Theme.of(context);
+    return PopupMenuButton<String>(
+      key: const Key('shell-company'),
+      tooltip: l.menuCompany,
+      onSelected: (id) => setState(() => _companyId = id),
+      itemBuilder: (_) => [
+        for (final c in _companies)
+          CheckedPopupMenuItem(value: c['id'] as String, checked: c['id'] == _companyId, child: Text('${c['name']}')),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: 6),
+        decoration: BoxDecoration(
+          color: TruckColors.of(context).surfaceLow,
+          borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.warehouse_outlined, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: Gap.s),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(l.menuCompany, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+            Text('${_company?['name'] ?? ''}', style: theme.textTheme.labelMedium),
+          ]),
+          const SizedBox(width: Gap.xs),
+          const Icon(Icons.expand_more, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  /// Imię, rola i awatar; menu: konto i wylogowanie.
+  Widget _accountChip(AppLocalizations l, String? role) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final name = _userName;
+    return PopupMenuButton<String>(
+      key: const Key('shell-account'),
+      tooltip: l.menuAccount,
+      onSelected: (id) => id == 'logout' ? widget.onLogout() : _open('account'),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'account', child: Text(l.menuAccount)),
+        PopupMenuItem(value: 'logout', child: Text(l.logout)),
+      ],
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+          Text(name, style: theme.textTheme.labelLarge),
+          if (role != null)
+            Text(roleLabel(l, role), style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
+        ]),
+        const SizedBox(width: Gap.m),
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          child: Text(name.isEmpty ? '?' : name.characters.first.toUpperCase(), style: theme.textTheme.labelLarge?.copyWith(color: scheme.onPrimary)),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -453,12 +570,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final driver = role == null || role == 'driver';
     // Ekrany zostają w pamięci: po powrocie do planera trasa i mapa są tam, gdzie były.
     final body = IndexedStack(index: selected, children: [for (final page in pages) page.builder(context)]);
+    final summary = _summary;
     return TruckShell(
       title: current.title,
-      subtitle: _userName,
+      subtitle: _company?['name'] as String? ?? _userName,
+      version: 'v$appVersion',
+      search: ShellSearch(hint: l.shellSearchHint),
+      context: _companies.length > 1 ? _companyPicker(l) : null,
+      account: _accountChip(l, role),
+      status: summary == null ? null : DashStatusCard(summary: summary),
       selected: current.id,
       onSelect: select,
-      items: [for (final page in pages) ShellItem(page.id, page.title, page.icon, badge: page.badge)],
+      items: [
+        for (final page in pages)
+          ShellItem(page.id, page.title, page.icon, badge: page.badge, group: page.group, tag: page.tag)
+      ],
       bottomItems: driver
           ? [
               ShellItem('route', l.menuRoute, Icons.route_outlined),
@@ -468,6 +594,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ]
           : null,
       actions: [
+        if (summary != null)
+          IconButton(
+            key: const Key('shell-alerts'),
+            tooltip: l.dashAlertsTitle,
+            onPressed: () => select('dashboard'),
+            icon: Badge(isLabelVisible: summary.critical > 0, smallSize: 8, child: const Icon(Icons.warning_amber_outlined)),
+          ),
         IconButton(
           tooltip: l.menuInbox,
           onPressed: () => select('inbox'),
