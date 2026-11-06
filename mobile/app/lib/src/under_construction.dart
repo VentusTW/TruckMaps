@@ -34,7 +34,10 @@ class UnderConstructionScreen extends StatelessWidget {
               if (onBack != null) ...[
                 const SizedBox(height: Gap.l),
                 OutlinedButton.icon(
-                    onPressed: onBack, icon: const Icon(Icons.grid_view_outlined, size: 18), label: Text(l.menuMain)),
+                    key: const Key('wip-back'),
+                    onPressed: onBack,
+                    icon: const Icon(Icons.grid_view_outlined, size: 18),
+                    label: Text(l.mainMenuDashboard)),
               ],
             ]),
           ),

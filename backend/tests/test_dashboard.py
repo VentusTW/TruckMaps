@@ -361,3 +361,60 @@ def test_stream_sends_only_changes():
 
     events = asyncio.run(run())
     assert [e.split("\n")[0] for e in events] == ["event: snapshot", ": ping", "event: snapshot"]
+
+
+def test_screen_empty_then_demo_data(client, fleet, database):
+    from truckmaps.core.dashboard_demo import STITCH, main
+
+    url = f"/api/dashboard/screen?company_id={fleet['id']}"
+    empty = client.get(url, headers=as_user("ewa")).json()
+    assert empty["company_name"] == "Trans-Miś"
+    assert empty["role"] == "dispatcher"
+    assert empty["screen"] is None
+    # Pulpit główny widzi każdy członek firmy; obcy – nie.
+    assert client.get(url, headers=as_user("jan")).status_code == 200
+    assert client.get(url, headers=as_user("obcy")).status_code in (403, 404)
+
+    main(["--company", "trans-miś"], database=database)
+    screen = client.get(url, headers=as_user("ewa")).json()
+    assert screen["screen"] == STITCH
+    assert screen["updated_at"] is not None
+    main(["--company", fleet["id"], "--remove"], database=database)
+    assert client.get(url, headers=as_user("ewa")).json()["screen"] is None
+
+
+def test_demo_fleet_is_regular_vehicles(client, fleet, database):
+    from truckmaps.core.dashboard_demo import main
+
+    main(["--company", fleet["id"], "--vehicles"], database=database)
+    main(["--company", fleet["id"], "--vehicles"], database=database)  # powtórka – bez duplikatów
+    vehicles = client.get("/api/vehicles", headers=as_user("olek")).json()
+    demo = {v["plate"]: v for v in vehicles if (v.get("vin") or "").startswith("DEMO")}
+    assert len(demo) == 10
+    volvo = demo["WI 4022P"]
+    assert volvo["in_use"] is True
+    assert volvo["driver_name"] == "Janusz Bogucki"
+    assert volvo["trailer_name"] == "Schmitz S.CS MEGA"
+    assert demo["WI 1099R"]["in_repair"] is True
+    assert demo["WI 8812M"]["assigned_driver_name"] == "Paweł Wiśniewski"
+    # Kartoteka modułu Kierowcy (tabela jest w bazie testowej, gdy moduł jest na ścieżce).
+    from sqlalchemy import select
+    from truckmaps_drivers.module import Driver
+    from truckmaps_service.module import ServiceOrder
+
+    Driver.__table__.create(database.engine, checkfirst=True)
+    ServiceOrder.__table__.create(database.engine, checkfirst=True)
+    main(["--company", fleet["id"], "--vehicles"], database=database)
+    with database.session() as db:
+        orders = list(db.scalars(select(ServiceOrder)))
+        assert len(orders) == 13
+        assert any(o.status == "done" and o.parts and o.labour_hours for o in orders)
+        from truckmaps.core.trips import VehicleTrip
+
+        assert len(list(db.scalars(select(VehicleTrip)))) >= 260
+        bogucki = db.scalar(select(Driver).where(Driver.subject == "demo-janusz-bogucki"))
+        assert bogucki is not None and bogucki.adr_tank and "C+E" in bogucki.license_categories
+
+    main(["--company", fleet["id"], "--vehicles", "--remove"], database=database)
+    vehicles = client.get("/api/vehicles", headers=as_user("olek")).json()
+    assert not [v for v in vehicles if (v.get("vin") or "").startswith("DEMO")]

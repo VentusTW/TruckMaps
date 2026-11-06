@@ -202,3 +202,111 @@ def test_axles_from_vehicle_documents():
     assert (
         supports(rigid, 7.2)[1].x == 4.0
     )  # 5,2 m od osi przedniej, która jest 1,2 m przed skrzynią
+
+
+def test_force_balance_en_12195_and_tractor_axles():
+    data = make([{"kind": "euro", "count": 33, "weight_kg": 700}], body_code="XL")
+    result = plan(data, 13.6, 2.48, 32_000, SEMITRAILER)
+    f = result.forces
+    # 23,1 t: 0,8 g → 181,3 kN, 0,5 g → 113,3 kN, tarcie μ 0,3 → 68,0 kN, reszta do przodu 113,3 kN.
+    assert (f.forward_kN, f.side_kN, f.friction_kN, f.rest_forward_kN) == (
+        181.3,
+        113.3,
+        68.0,
+        113.3,
+    )
+    # Ściana XL: 0,5 · 32 t · g = 157,0 kN – przejmuje hamowanie; pasy tylko na boki i do tyłu:
+    # rząd 2,1 t: 1,1 · 2100 · 9,81 · 0,2 / (2 · 0,3) = 755 daN → 2 pasy po 400 daN.
+    assert (f.wall_kN, f.wall_holds, f.ok) == (157.0, True, True)
+    assert {r.straps for r in result.rows} == {2} and f.straps == 22
+    assert f.tension_daN == pytest.approx(11 * 755.4, abs=2)
+    assert (result.pallet_places, result.places_used) == (33, 33)
+    tr = result.tractor
+    # Siodło 10 967 kg: 0,6 / 3,8 na oś przednią, reszta na napędową; ciągnik 7,3 t (70% z przodu).
+    assert (tr.front_kg, tr.drive_kg, tr.gvw_kg, tr.drive_share) == (6842, 11425, 37400, 0.305)
+    assert all(n.ok for n in result.norms)
+
+
+def test_weak_front_wall_needs_straps_forward_or_mats():
+    data = make([{"kind": "euro", "count": 33, "weight_kg": 700}], body_code="L")
+    result = plan(data, 13.6, 2.48, 32_000, SEMITRAILER)
+    # Kod L: najwyżej 5000 daN = 50 kN < 113,3 kN.
+    # Rząd 2,1 t do przodu (0,8 g): 1888 daN – 5 pasów, za dużo na 1,2 m.
+    assert (result.forces.wall_kN, result.forces.wall_holds) == (50.0, False)
+    assert {r.straps for r in result.rows} == {5} and not result.forces.ok
+    assert {n.id: n.ok for n in result.norms}["en12195"] is False
+    assert any("Ściana czołowa" in w for w in result.warnings)
+    assert any("Za dużo pasów" in w for w in result.warnings)
+    # Z matami (μ 0,6) do przodu zostaje 45,3 kN – ściana L wystarcza, tarcie trzyma boki.
+    mats = plan(data.model_copy(update={"mats": True}), 13.6, 2.48, 32_000, SEMITRAILER)
+    assert (mats.forces.rest_forward_kN, mats.forces.wall_holds, mats.forces.ok) == (
+        45.3,
+        True,
+        True,
+    )
+    assert mats.straps == 11
+
+
+def test_equipment_checklist_vdi_2700():
+    data = make(
+        [
+            {
+                "kind": "custom",
+                "length_m": 1.0,
+                "width_m": 1.0,
+                "count": 4,
+                "weight_kg": 500,
+                "stop": 1,
+            },
+            {"kind": "euro", "count": 3, "weight_kg": 500, "stop": 2},
+        ],
+        mats=True,
+    )
+    result = plan(data, 13.6, 2.48, None)
+    gear = {e.id: e.required for e in result.equipment}
+    # 3 rzędy po jednym pasie, 2 narożniki na pas, belka między rozładunkami, mata pod każdą
+    # sztuką, poduszka w rzędach skrzyń 1 × 1 m (2 w poprzek – luka 0,48 m).
+    assert gear == {"straps": 3, "edges": 6, "beams": 1, "mats": 7, "airbags": 2}
+    assert (result.pallet_places, result.places_used) == (33, 7)
+    assert result.tractor is None
+
+
+def test_tractor_warns_about_drive_axle_share():
+    from truckmaps_load.securing import tractor, tractor_problems
+
+    light = tractor(3_000, 20_000)
+    assert light.drive_share < 0.25 and tractor_problems(light) == ["drive_share"]
+    heavy = tractor(14_000, 20_000)
+    assert "drive" in tractor_problems(heavy)
+
+
+def test_plan_pdf_is_shared_under_a_short_link():
+    database = Database(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(database.engine)
+    app = create_app(
+        Settings(dev_grant_all=True),
+        modules=[LoadModule()],
+        token_verifier=Verifier(),
+        database=database,
+    )
+    client = TestClient(app)
+    headers = {"Authorization": "Bearer user-ola"}
+    trailer = {
+        "name": "Naczepa", "kind": "semitrailer", "height_m": 4.0, "width_m": 2.55,
+        "length_m": 13.6, "gvw_t": 39, "tare_t": 7, "axle_load_t": 9, "axle_count": 3,
+        "trailer_type": "curtain", "pallet_places": 33, "plate": "WN 9024X",
+    }  # fmt: skip
+    vehicle = client.post("/api/vehicles", json=trailer, headers=headers).json()
+    body = {
+        "vehicle_id": vehicle["id"], "body_code": "XL", "reference": "MT-849102",
+        "items": [{"count": 18, "weight_kg": 1100}, {"count": 6, "weight_kg": 400, "stack": 2}],
+        "checked": ["straps"], "approved": True,
+    }  # fmt: skip
+    link = client.post("/api/m/load/plan/pdf", json=body, headers=headers)
+    assert link.status_code == 200 and link.json()["filename"].startswith("plan-MT-849102")
+    pdf = client.get(link.json()["path"])
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")

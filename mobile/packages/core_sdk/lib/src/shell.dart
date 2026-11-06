@@ -6,7 +6,7 @@ import 'theme.dart';
 /// Pozycja menu bocznego albo dolnej nawigacji.
 class ShellItem {
   const ShellItem(this.id, this.label, this.icon,
-      {this.badge = 0, this.enabled = true, this.group, this.tag, this.tagLive = false});
+      {this.badge = 0, this.enabled = true, this.group, this.tag, this.tagLive = false, this.sub = false});
 
   final String id;
   final String label;
@@ -26,6 +26,9 @@ class ShellItem {
 
   /// Znacznik stanu na żywo – ciemnozielone tło.
   final bool tagLive;
+
+  /// Podpozycja (wcięta, mniejsza, bez ikony) pod poprzednią pozycją.
+  final bool sub;
 }
 
 /// Wyszukiwarka górnego paska: podpowiada pozycje menu; skrót Ctrl+K.
@@ -51,6 +54,7 @@ class TruckShell extends StatelessWidget {
     this.subtitle,
     this.version,
     this.search,
+    this.leading,
     this.context,
     this.actions = const [],
     this.account,
@@ -77,6 +81,9 @@ class TruckShell extends StatelessWidget {
 
   /// Wyszukiwarka w górnym pasku (komputer); `null` – w pasku tytuł ekranu.
   final ShellSearch? search;
+
+  /// Lewy brzeg górnego paska przed wyszukiwarką (np. „Cofnij” i ścieżka ekranu; komputer).
+  final Widget? leading;
 
   /// Element obok wyszukiwarki (np. wybór firmy).
   final Widget? context;
@@ -128,6 +135,7 @@ class TruckShell extends StatelessWidget {
               _TopBar(
                 title: title,
                 search: search,
+                leading: leading,
                 items: items,
                 onSelect: onSelect,
                 context: this.context,
@@ -154,6 +162,7 @@ class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
     required this.search,
+    required this.leading,
     required this.items,
     required this.onSelect,
     required this.context,
@@ -163,6 +172,7 @@ class _TopBar extends StatelessWidget {
 
   final String title;
   final ShellSearch? search;
+  final Widget? leading;
   final List<ShellItem> items;
   final ValueChanged<String> onSelect;
   final Widget? context;
@@ -179,8 +189,14 @@ class _TopBar extends StatelessWidget {
       decoration: BoxDecoration(color: colors.card.withOpacity(0.9), boxShadow: TruckTheme.softShadow),
       padding: const EdgeInsets.symmetric(horizontal: Gap.xl),
       child: Row(children: [
+        if (leading != null) ...[
+          Flexible(flex: 5, child: Align(alignment: Alignment.centerLeft, child: leading)),
+          const SizedBox(width: Gap.m),
+        ],
         if (search != null)
+          // Wyszukiwarka bierze większość wolnego miejsca (najwyżej 400 px), reszta – odstęp do ikon.
           Flexible(
+            flex: 6,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: _MenuSearch(search: search, items: items, onSelect: onSelect),
@@ -189,7 +205,7 @@ class _TopBar extends StatelessWidget {
         else
           Expanded(child: Text(title, style: theme.textTheme.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis)),
         if (this.context != null) ...[const SizedBox(width: Gap.l), this.context!],
-        if (search != null) const Spacer(),
+        if (search != null) const Spacer(flex: 1),
         ...actions,
         if (account != null) ...[
           Container(
@@ -440,6 +456,31 @@ class _MenuTile extends StatelessWidget {
     final colors = TruckColors.of(context);
     final fg = selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
     final tag = item.tag;
+    if (item.sub) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 22),
+        child: DecoratedBox(
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: colors.surfaceHigh, width: 2))),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
+            hoverColor: colors.surfaceLow,
+            onTap: item.enabled ? onTap : null,
+            child: Container(
+              height: 32,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: Gap.l),
+              color: selected ? colors.surfaceLow : null,
+              child: Text(item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: selected ? scheme.primary : scheme.onSurface,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+            ),
+          ),
+        ),
+      );
+    }
     final tile = Material(
       color: selected ? scheme.primaryContainer : Colors.transparent,
       borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
