@@ -162,6 +162,16 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   List<Map<String, dynamic>> _bases = const [];
   String? _baseId;
 
+  /// Bazy firm, w których użytkownik może trzymać ten pojazd (właściciel / dyspozytor, rodzaj pojazdu).
+  List<Map<String, dynamic>> get _selectableBases => [
+        for (final b in _bases)
+          if (_companies.any((c) =>
+              c['id'] == b['company_id'] &&
+              (c['id'] == _companyId || companyAllows(c['kind'] as String?, _kind)) &&
+              (c['role'] == 'owner' || c['role'] == 'dispatcher' || c['id'] == _companyId)))
+            b,
+      ];
+
   List<Map<String, dynamic>> get _companyBases => [
         for (final b in _bases)
           if (b['company_id'] == _companyId) b,
@@ -673,25 +683,34 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
             const SizedBox(height: 12),
           ],
           // Pojazd firmy należy do jednej z jej baz operacyjnych (lista Pojazdy filtruje po bazie).
-          if (_companyBases.isNotEmpty) ...[
+          // Wybór bazy ustawia właściciela na jej firmę – pojazd prywatny trafia do floty jednym krokiem.
+          if (_selectableBases.isNotEmpty) ...[
             DropdownButtonFormField<String>(
               key: const Key('vehicle-base'),
               isExpanded: true,
-              value: _companyBases.any((b) => b['id'] == _baseId) ? _baseId : null,
+              value: _selectableBases.any((b) => b['id'] == _baseId) ? _baseId : null,
               decoration: InputDecoration(
                 labelText: l.vehicleBase,
+                helperText: _companyId == null ? l.vehicleBaseSetsCompany : null,
                 prefixIcon: const Icon(Icons.warehouse_outlined),
                 isDense: true,
               ),
               items: [
-                for (final b in _companyBases)
+                for (final b in _selectableBases)
                   DropdownMenuItem(
                     value: b['id'] as String,
-                    child: Text([b['name'], if ('${b['code'] ?? ''}'.isNotEmpty) b['code']].join(' · ')),
+                    child: Text([
+                      b['name'],
+                      if ('${b['code'] ?? ''}'.isNotEmpty) b['code'],
+                      if (_companies.length > 1 || _companyId == null) b['company_name'],
+                    ].where((x) => x != null && '$x'.isNotEmpty).join(' · ')),
                   ),
               ],
-              validator: (value) => value == null ? l.vehicleBaseRequired : null,
-              onChanged: (value) => setState(() => _baseId = value),
+              validator: (value) => value == null && _companyBases.isNotEmpty ? l.vehicleBaseRequired : null,
+              onChanged: (value) => setState(() {
+                _baseId = value;
+                _companyId = _bases.firstWhere((b) => b['id'] == value)['company_id'] as String?;
+              }),
             ),
             const SizedBox(height: 12),
           ],

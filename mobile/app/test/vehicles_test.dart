@@ -50,6 +50,8 @@ class MemoryViewStore implements VehiclesViewStore {
 
 void main() {
   late List<Map<String, dynamic>> vehicles;
+  var bases = <Map<String, dynamic>>[];
+  var companies = <Map<String, dynamic>>[];
   late List<(String, String, Map?)> requests;
   var changes = 0;
   late ValueNotifier<int> shown;
@@ -67,8 +69,10 @@ void main() {
         switch ((request.method, request.url.path)) {
           case ('GET', '/api/vehicles'):
             return json(vehicles);
+          case ('GET', '/api/bases'):
+            return json(bases);
           case ('GET', '/api/companies'):
-            return json([]);
+            return json(companies);
           case ('GET', '/api/currencies'):
             return json({
               'currencies': [
@@ -127,6 +131,8 @@ void main() {
   setUp(() {
     shown = ValueNotifier(0);
     vehicles = [truck];
+    bases = [];
+    companies = [];
     requests = [];
     changes = 0;
   });
@@ -177,6 +183,30 @@ void main() {
 
     final sent = requests.singleWhere((r) => r.$1 == 'PUT').$3!;
     expect((sent['cost_currency'], sent['cost_per_km']), ('PLN', 5.1));
+  });
+
+  testWidgets('pojazd prywatny: wybór bazy przypisuje go do firmy bazy', (tester) async {
+    companies = [
+      {'id': 'c1', 'name': 'TransportUE', 'role': 'owner', 'kind': 'carrier'},
+    ];
+    bases = [
+      {'id': 'b1', 'name': 'Tarnów', 'company_id': 'c1', 'company_name': 'TransportUE'},
+    ];
+    await pump(tester);
+    await tester.tap(find.text('Zestaw 40 t · KTA 12345'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Zmień'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('vehicle-base')));
+    await tester.tap(find.byKey(const Key('vehicle-base')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Tarnów').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+
+    final sent = requests.singleWhere((r) => r.$1 == 'PUT').$3!;
+    expect((sent['company_id'], sent['base_id']), ('c1', 'b1'));
   });
 
   testWidgets('usunięcie pojazdu po potwierdzeniu', (tester) async {
@@ -458,12 +488,19 @@ void main() {
       {...truck, 'id': 'b', 'name': 'Auto Stryków', 'base_id': 'b2', 'base_name': 'Stryków'},
       {...truck, 'id': 'c', 'name': 'Bez przydziału'},
     ];
+    // Nowa baza bez pojazdów też jest do wyboru.
+    bases = [
+      {'id': 'b1', 'name': 'Wesoła', 'code': 'PL-WAW-01', 'company_id': 'c1'},
+      {'id': 'b2', 'name': 'Stryków', 'company_id': 'c1'},
+      {'id': 'b3', 'name': 'Komorniki', 'company_id': 'c1'},
+    ];
     await pump(tester);
     expect(find.textContaining('Zestaw Wesoła'), findsOneWidget);
     expect(find.textContaining('Auto Stryków'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('vehicles-base-filter')));
     await tester.pumpAndSettle();
+    expect(find.text('Komorniki'), findsWidgets);
     await tester.tap(find.text('Stryków').last);
     await tester.pumpAndSettle();
     expect(find.textContaining('Auto Stryków'), findsOneWidget);

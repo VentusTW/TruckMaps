@@ -860,5 +860,6 @@
   "vehicleBaseRequired": "Wybierz bazę, do której należy pojazd.",
   "vehicleBaseNone": "Bez bazy",
   "vehiclesAllBases": "Wszystkie bazy",
-  "vehiclesSortByBase": "Sortuj wg bazy"
+  "vehiclesSortByBase": "Sortuj wg bazy",
+  "vehicleBaseSetsCompany": "Wybór bazy przypisze pojazd do jej firmy."
 }

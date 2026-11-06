@@ -55,6 +55,18 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   /// Filtr bazy: `null` – wszystkie, `''` – bez bazy, inaczej id bazy.
   String? _base;
 
+  /// Wszystkie bazy firm użytkownika – także te, do których nie przypisano jeszcze pojazdu.
+  List<Map<String, dynamic>> _allBases = const [];
+
+  Future<void> _loadBases() async {
+    try {
+      final bases = (await widget.api.get('/api/bases') as List<dynamic>).cast<Map<String, dynamic>>();
+      if (mounted) setState(() => _allBases = bases);
+    } catch (_) {
+      // Bez listy baz filtr pokazuje bazy z pojazdów.
+    }
+  }
+
   /// Sortowanie po bazie (potem po nazwie).
   bool _byBase = false;
 
@@ -62,6 +74,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   void initState() {
     super.initState();
     widget.refresh?.addListener(_refresh);
+    _loadBases();
     widget.viewStore.readTable().then((table) {
       if (mounted && table != _table) setState(() => _table = table);
     });
@@ -84,6 +97,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     setState(() {
       _vehicles = vehicles;
     });
+    _loadBases();
   }
 
   void _reload() {
@@ -91,6 +105,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     setState(() {
       _vehicles = vehicles;
     });
+    _loadBases();
     widget.onChanged?.call();
   }
 
@@ -178,8 +193,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           final trailers = [for (final v in vehicles) if (!isDrivable(v)) v];
           final byId = {for (final v in vehicles) v['id']: v};
           final bases = <String, String>{
+            for (final b in _allBases)
+              '${b['id']}': [b['name'], if ('${b['code'] ?? ''}'.isNotEmpty) b['code']].join(' · '),
             for (final v in vehicles)
-              if (v['base_id'] != null) '${v['base_id']}': '${v['base_name'] ?? v['base_id']}',
+              if (v['base_id'] != null && !_allBases.any((b) => b['id'] == v['base_id']))
+                '${v['base_id']}': '${v['base_name'] ?? v['base_id']}',
           };
           final shown = [
             for (final v in vehicles)

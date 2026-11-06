@@ -730,5 +730,6 @@
   "vehicleBaseRequired": "Choose the base the vehicle belongs to.",
   "vehicleBaseNone": "No base",
   "vehiclesAllBases": "All bases",
-  "vehiclesSortByBase": "Sort by base"
+  "vehiclesSortByBase": "Sort by base",
+  "vehicleBaseSetsCompany": "Choosing a base assigns the vehicle to its company."
 }
