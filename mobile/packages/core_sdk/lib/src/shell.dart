@@ -195,29 +195,35 @@ class _MenuTile extends StatelessWidget {
     final scheme = theme.colorScheme;
     final fg = selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant;
     final tile = Material(
-      color: selected ? scheme.primaryContainer : Colors.transparent,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
-        onTap: item.enabled ? onTap : null,
-        child: SizedBox(
-          height: 44,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Gap.m),
-            child: Row(children: [
-              Badge(
-                isLabelVisible: item.badge > 0,
-                label: Text('${item.badge}'),
-                child: Icon(item.icon, size: 22, color: fg),
-              ),
-              const SizedBox(width: Gap.m),
-              Expanded(
-                child: Text(item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(color: selected ? fg : scheme.onSurface)),
-              ),
-            ]),
+      clipBehavior: Clip.antiAlias,
+      elevation: selected ? 2 : 0,
+      shadowColor: TruckPalette.brand.withOpacity(0.4),
+      child: Ink(
+        decoration: BoxDecoration(gradient: selected ? TruckGradients.brand : null),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
+          onTap: item.enabled ? onTap : null,
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Gap.m),
+              child: Row(children: [
+                Badge(
+                  isLabelVisible: item.badge > 0,
+                  label: Text('${item.badge}'),
+                  child: Icon(item.icon, size: 22, color: fg),
+                ),
+                const SizedBox(width: Gap.m),
+                Expanded(
+                  child: Text(item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(color: selected ? fg : scheme.onSurface)),
+                ),
+              ]),
+            ),
           ),
         ),
       ),

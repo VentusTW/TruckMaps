@@ -95,16 +95,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final width = (size.maxWidth - pad * 2 - Gap.m * (columns - 1)) / columns;
         final kpiColumns = size.maxWidth >= 1100 ? 5 : (size.maxWidth >= 720 ? 3 : 2);
         final kpiWidth = (size.maxWidth - pad * 2 - Gap.m * (kpiColumns - 1)) / kpiColumns;
+        const onBrand = Colors.white;
+        final light = FilledButton.styleFrom(backgroundColor: onBrand, foregroundColor: TruckPalette.brand);
+        final glass = OutlinedButton.styleFrom(
+          foregroundColor: onBrand,
+          side: BorderSide(color: onBrand.withOpacity(0.6)),
+          backgroundColor: onBrand.withOpacity(0.08),
+        );
         return ListView(padding: EdgeInsets.all(pad), children: [
-          Row(children: [
-            Expanded(
-              child: Text(widget.userName.isEmpty ? greeting : '$greeting, ${widget.userName}',
-                  style: theme.textTheme.headlineMedium),
+          // Nagłówek w gradiencie marki: powitanie, data i szybkie akcje.
+          Container(
+            padding: const EdgeInsets.all(Gap.xl),
+            decoration: BoxDecoration(
+              gradient: TruckGradients.brand,
+              borderRadius: BorderRadius.circular(TruckTheme.radius * 2),
+              boxShadow: [BoxShadow(color: TruckPalette.brand.withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 6))],
             ),
-            IconButton(tooltip: l.dashRefresh, onPressed: _refresh, icon: const Icon(Icons.refresh)),
-          ]),
-          Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()),
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text(widget.userName.isEmpty ? greeting : '$greeting, ${widget.userName}',
+                      style: theme.textTheme.headlineMedium?.copyWith(color: onBrand)),
+                ),
+                IconButton(
+                  tooltip: l.dashRefresh,
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh, color: onBrand),
+                ),
+              ]),
+              Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()),
+                  style: theme.textTheme.bodyMedium?.copyWith(color: onBrand.withOpacity(0.85))),
+              const SizedBox(height: Gap.l),
+              Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+                FilledButton.icon(
+                  key: const Key('dash-plan'),
+                  style: light,
+                  onPressed: () => widget.onPlanRoute(null),
+                  icon: const Icon(Icons.route_outlined),
+                  label: Text(l.planRoute),
+                ),
+                if (widget.memory.routes.firstOrNull case final last?)
+                  OutlinedButton.icon(
+                    key: const Key('dash-repeat'),
+                    style: glass,
+                    onPressed: () => widget.onPlanRoute(last),
+                    icon: const Icon(Icons.replay),
+                    label: Text(l.dashRepeatRoute(_short(last.to.label))),
+                  ),
+                OutlinedButton.icon(
+                  style: glass,
+                  onPressed: widget.onAddVehicle,
+                  icon: const Icon(Icons.add),
+                  label: Text(l.vehicleAdd),
+                ),
+              ]),
+            ]),
+          ),
           const SizedBox(height: Gap.l),
           _Kpis(
             vehicles: _vehicles,
@@ -113,27 +159,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onVehicles: () => widget.onOpenPage('vehicles'),
             onInbox: () => widget.onOpenPage('inbox'),
           ),
-          const SizedBox(height: Gap.l),
-          Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-            FilledButton.icon(
-              key: const Key('dash-plan'),
-              onPressed: () => widget.onPlanRoute(null),
-              icon: const Icon(Icons.route_outlined),
-              label: Text(l.planRoute),
-            ),
-            if (widget.memory.routes.firstOrNull case final last?)
-              FilledButton.tonalIcon(
-                key: const Key('dash-repeat'),
-                onPressed: () => widget.onPlanRoute(last),
-                icon: const Icon(Icons.replay),
-                label: Text(l.dashRepeatRoute(_short(last.to.label))),
-              ),
-            OutlinedButton.icon(
-              onPressed: widget.onAddVehicle,
-              icon: const Icon(Icons.add),
-              label: Text(l.vehicleAdd),
-            ),
-          ]),
           const SizedBox(height: Gap.l),
           Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
             for (final card in cards) SizedBox(width: width, child: card),

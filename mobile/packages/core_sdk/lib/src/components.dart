@@ -116,40 +116,44 @@ class KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = toneColor(context, tone);
+    final accent = tone == StatusTone.neutral ? theme.colorScheme.primary : color;
     return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(Gap.l),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SectionLabel(label),
-                const SizedBox(height: Gap.s),
-                BigNumber(
-                  value: value,
-                  unit: unit,
-                  color: tone == StatusTone.ok || tone == StatusTone.error ? color : null,
-                ),
-                if (progress != null) ...[
+      child: Ink(
+        decoration: BoxDecoration(gradient: TruckGradients.tile(context, accent, strength: 0.14)),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.l),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SectionLabel(label),
                   const SizedBox(height: Gap.s),
-                  TruckProgressBar(
-                      value: progress!,
-                      height: 6,
-                      color: tone == StatusTone.neutral ? Theme.of(context).colorScheme.primaryContainer : color),
-                ],
-                if (status != null) ...[
-                  const SizedBox(height: Gap.xs),
-                  Text(status!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(color: color)),
-                ],
-              ]),
-            ),
-            const SizedBox(width: Gap.s),
-            IconSquare(icon: icon, color: tone == StatusTone.neutral ? theme.colorScheme.primary : color),
-          ]),
+                  BigNumber(
+                    value: value,
+                    unit: unit,
+                    color: tone == StatusTone.ok || tone == StatusTone.error ? color : null,
+                  ),
+                  if (progress != null) ...[
+                    const SizedBox(height: Gap.s),
+                    TruckProgressBar(
+                        value: progress!,
+                        height: 6,
+                        color: tone == StatusTone.neutral ? Theme.of(context).colorScheme.primaryContainer : color),
+                  ],
+                  if (status != null) ...[
+                    const SizedBox(height: Gap.xs),
+                    Text(status!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(color: color)),
+                  ],
+                ]),
+              ),
+              const SizedBox(width: Gap.s),
+              IconSquare(icon: icon, color: accent),
+            ]),
+          ),
         ),
       ),
     );
@@ -234,15 +238,28 @@ class TruckProgressBar extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
+  Widget build(BuildContext context) {
+    final fill = color ?? Theme.of(context).colorScheme.primary;
+    return Container(
+      height: height,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: TruckColors.of(context).surfaceHigh,
         borderRadius: BorderRadius.circular(height),
-        child: LinearProgressIndicator(
-          value: value.clamp(0.0, 1.0),
-          minHeight: height,
-          color: color ?? Theme.of(context).colorScheme.primary,
-          backgroundColor: TruckColors.of(context).surfaceHigh,
+      ),
+      alignment: Alignment.centerLeft,
+      child: FractionallySizedBox(
+        widthFactor: value.isNaN ? 0 : value.clamp(0.0, 1.0),
+        heightFactor: 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: TruckGradients.bar(fill),
+            borderRadius: BorderRadius.circular(height),
+          ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// Kafelek wartości: etykieta i ikona, liczba z jednostką, podpis, opcjonalny pasek postępu.
@@ -273,7 +290,8 @@ class ValueTile extends StatelessWidget {
     final theme = Theme.of(context);
     final color = tone == StatusTone.neutral ? null : toneColor(context, tone);
     return Card(
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(gradient: TruckGradients.tile(context, color ?? theme.colorScheme.primary)),
         padding: const EdgeInsets.all(Gap.l),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
@@ -313,24 +331,29 @@ class AlertBanner extends StatelessWidget {
     final scheme = theme.colorScheme;
     final fg = scheme.onError;
     return Material(
-      color: scheme.error,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(TruckTheme.radius),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(Gap.l),
-          child: Row(children: [
-            IconSquare(icon: icon, color: fg, background: fg.withOpacity(0.16)),
-            const SizedBox(width: Gap.m),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: theme.textTheme.titleMedium?.copyWith(color: fg)),
-                if (subtitle != null) Text(subtitle!, style: theme.textTheme.bodyMedium?.copyWith(color: fg)),
-              ]),
-            ),
-            if (onTap != null) Icon(Icons.chevron_right, color: fg),
-          ]),
+      elevation: 2,
+      shadowColor: scheme.error.withOpacity(0.4),
+      child: Ink(
+        decoration: BoxDecoration(gradient: TruckGradients.strong(scheme.error)),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.l),
+            child: Row(children: [
+              IconSquare(icon: icon, color: fg, background: fg.withOpacity(0.16)),
+              const SizedBox(width: Gap.m),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: theme.textTheme.titleMedium?.copyWith(color: fg)),
+                  if (subtitle != null) Text(subtitle!, style: theme.textTheme.bodyMedium?.copyWith(color: fg)),
+                ]),
+              ),
+              if (onTap != null) Icon(Icons.chevron_right, color: fg),
+            ]),
+          ),
         ),
       ),
     );
@@ -362,25 +385,28 @@ class IconListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(Gap.l),
-          child: Row(children: [
-            IconSquare(icon: icon, color: toneColor(context, tone)),
-            const SizedBox(width: Gap.m),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: theme.textTheme.titleSmall),
-                if (subtitle != null)
-                  Text(subtitle!,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-              ]),
-            ),
-            if (trailing != null) trailing! else if (onTap != null) const Icon(Icons.chevron_right),
-          ]),
+      child: Ink(
+        decoration: BoxDecoration(gradient: TruckGradients.tile(context, toneColor(context, tone), strength: 0.08)),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.l),
+            child: Row(children: [
+              IconSquare(icon: icon, color: toneColor(context, tone)),
+              const SizedBox(width: Gap.m),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: theme.textTheme.titleSmall),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+              if (trailing != null) trailing! else if (onTap != null) const Icon(Icons.chevron_right),
+            ]),
+          ),
         ),
       ),
     );
