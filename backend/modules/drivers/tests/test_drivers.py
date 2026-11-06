@@ -368,3 +368,45 @@ def test_categories_cover_lower_and_adr():
     assert rules.problems(Card(), tanker, date.today()) == []
     Card.code95_until = date.today() - timedelta(days=1)
     assert len(rules.problems(Card(), tanker, date.today())) == 1
+
+
+def test_dashboard_shows_assigned_drivers_and_their_deadlines(client, company):
+    today = date.today()
+    body = {
+        "company_id": company["id"],
+        "name": "Jan Kowalski",
+        "member_id": member_id(client, company["id"], "jan"),
+        "medical_until": (today - timedelta(days=2)).isoformat(),
+        "card_until": (today + timedelta(days=20)).isoformat(),
+    }
+    driver = client.post("/api/m/drivers/drivers", json=body, headers=as_user("olek")).json()
+    client.post("/api/m/drivers/drivers", json=body | {"name": "Bez konta", "member_id": None},
+                headers=as_user("olek"))  # fmt: skip
+    assigned = client.post(
+        f"/api/m/drivers/drivers/{driver['id']}/assign",
+        json={"vehicle_id": company["tractor"]},
+        headers=as_user("olek"),
+    )
+    assert assigned.status_code == 200, assigned.text
+    params = {"company_id": company["id"]}
+    overview = client.get("/api/dashboard/overview", params=params, headers=as_user("olek")).json()
+    kpis = {k["key"]: k for k in overview["kpis"]}
+    assert (kpis["drivers.assigned"]["value"], kpis["drivers.assigned"]["total"]) == (1, 2)
+    assert (kpis["drivers.deadlines"]["value"], kpis["drivers.deadlines"]["tone"]) == (4, "error")
+    alerts = client.get("/api/dashboard/alerts", params=params, headers=as_user("olek")).json()
+    mine = [
+        a for a in alerts if a["source"] == "drivers" and a["data"]["driver_name"] == "Jan Kowalski"
+    ]
+    assert [(a["data"]["field"], a["severity"]) for a in mine] == [
+        ("medical_until", "critical"),
+        ("card_until", "info"),
+    ]
+    assert mine[0]["actions"] == ["acknowledge", "message_driver"]
+    sent = client.post(
+        f"/api/dashboard/alerts/{mine[0]['id']}/action",
+        json={"company_id": company["id"], "action": "message_driver", "text": "Badania!"},
+        headers=as_user("olek"),
+    )
+    assert sent.status_code == 200
+    inbox = client.get("/api/me/messages", headers=as_user("jan")).json()["items"]
+    assert any(m["kind"] == "dispatch_note" and m["data"]["text"] == "Badania!" for m in inbox)

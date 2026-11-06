@@ -14,6 +14,7 @@ import 'company/company_screen.dart';
 import 'company/admin_access_screen.dart';
 import 'company/members_screen.dart';
 import 'dashboard_screen.dart';
+import 'operations/operations_screen.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'modules_screen.dart';
@@ -319,6 +320,28 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 sections: [for (final m in _usable) ...m.dashboardSections(module)],
               )),
+      if (_company case final company? when managesCompany(company['role'] as String?))
+        _Page(
+            'operations',
+            l.menuOperations,
+            Icons.monitor_heart_outlined,
+            (_) => OperationsScreen(
+                  key: ValueKey(('operations', company['id'])),
+                  api: widget.session.api,
+                  companyId: company['id'] as String,
+                  active: _selected == 'operations',
+                  shortcuts: [
+                    OpsShortcut(l.planRoute, Icons.route_outlined, () => _open('route')),
+                    OpsShortcut(l.menuVehicles, Icons.local_shipping_outlined, () => _open('vehicles')),
+                    for (final access in _modules.where((m) => m.usable))
+                      for (final (i, entry) in access.module!.entries(module).indexed)
+                        OpsShortcut(entry.title, entry.icon, () => _open('${access.id}/$i')),
+                    OpsShortcut(l.menuInbox, Icons.mail_outline, () {
+                      _inboxChanged();
+                      _open('inbox');
+                    }),
+                  ],
+                )),
       _Page('route', l.menuRoute, Icons.route_outlined,
           (_) => PlannerScreen(
               api: widget.session.api,

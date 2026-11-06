@@ -253,5 +253,8 @@
   "error.permit_ways": "Select the roads covered by the permit.",
   "error.permit_forbidden": "Company permits are saved by the owner and dispatchers.",
   "error.permit_not_found": "Permit not found.",
-  "route.permitted": "{message} – covered by permit no. {number}"
+  "route.permitted": "{message} – covered by permit no. {number}",
+  "dashboard.alert_not_found": "This item is no longer on the dashboard.",
+  "dashboard.no_driver": "The vehicle has no assigned driver.",
+  "dashboard.text_required": "Enter the message text."
 }

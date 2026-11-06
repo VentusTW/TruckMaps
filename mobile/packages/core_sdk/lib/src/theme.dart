@@ -66,6 +66,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
   const TruckColors({
     required this.success,
     required this.warning,
+    required this.amber,
     required this.info,
     required this.reported,
     required this.inUse,
@@ -79,6 +80,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
   static const light = TruckColors(
     success: Color(0xFF00563A),
     warning: Color(0xFFB45F06),
+    amber: Color(0xFFD97706),
     info: Color(0xFF1E40AF),
     reported: Color(0xFFB7791F),
     inUse: Color(0xFF1E40AF),
@@ -92,6 +94,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
   static const dark = TruckColors(
     success: Color(0xFF68DBA9),
     warning: Color(0xFFFFB74D),
+    amber: Color(0xFFF59E0B),
     info: Color(0xFFB8C4FF),
     reported: Color(0xFFFFD54F),
     inUse: Color(0xFFB8C4FF),
@@ -107,6 +110,10 @@ class TruckColors extends ThemeExtension<TruckColors> {
 
   /// Termin zbliża się, wymaga uwagi.
   final Color warning;
+
+  /// Bursztyn z DESIGN.md (#D97706) – tylko elementy graficzne: paski, kropki, ikony
+  /// (tekst ostrzeżeń zostaje w [warning] ze względu na kontrast).
+  final Color amber;
   final Color info;
 
   /// Zgłoszona usterka.
@@ -138,6 +145,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
   TruckColors copyWith({
     Color? success,
     Color? warning,
+    Color? amber,
     Color? info,
     Color? reported,
     Color? inUse,
@@ -150,6 +158,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
       TruckColors(
         success: success ?? this.success,
         warning: warning ?? this.warning,
+        amber: amber ?? this.amber,
         info: info ?? this.info,
         reported: reported ?? this.reported,
         inUse: inUse ?? this.inUse,
@@ -167,6 +176,7 @@ class TruckColors extends ThemeExtension<TruckColors> {
     return TruckColors(
       success: mix(success, other.success),
       warning: mix(warning, other.warning),
+      amber: mix(amber, other.amber),
       info: mix(info, other.info),
       reported: mix(reported, other.reported),
       inUse: mix(inUse, other.inUse),
@@ -206,6 +216,9 @@ abstract final class TruckTheme {
 
   /// Przyciski, pola, pozycje menu.
   static const smallRadius = 4.0;
+
+  /// Okna dialogowe i duże sekcje pulpitu (`rounded-xl` = 12 px).
+  static const dialogRadius = 12.0;
 
   /// Szerokość menu bocznego na komputerze.
   static const sideMenuWidth = 288.0;
@@ -386,7 +399,9 @@ abstract final class TruckTheme {
         enabledBorder: fieldBorder,
         focusedBorder: fieldBorder.copyWith(borderSide: BorderSide(color: scheme.primary, width: 2)),
       ),
-      dialogTheme: DialogTheme(shape: shape, surfaceTintColor: Colors.transparent, backgroundColor: colors.card),
+      dialogTheme: DialogTheme(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(dialogRadius)),
+        surfaceTintColor: Colors.transparent, backgroundColor: colors.card),
       popupMenuTheme: PopupMenuThemeData(shape: small, surfaceTintColor: Colors.transparent, color: colors.card),
       bottomSheetTheme: BottomSheetThemeData(
         surfaceTintColor: Colors.transparent,

@@ -27,7 +27,15 @@ from sqlalchemy import JSON, DateTime, LargeBinary, String, UniqueConstraint, fu
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from truckmaps.sdk import CoreContext, Module, Principal, i18n
+from truckmaps.sdk import (
+    DASHBOARD_FEED,
+    CoreContext,
+    DashboardKpi,
+    DashboardPart,
+    Module,
+    Principal,
+    i18n,
+)
 from truckmaps.sdk.i18n import t
 from truckmaps_documents import render
 from truckmaps_documents.catalog import KINDS, Kind
@@ -614,4 +622,19 @@ class DocumentsModule(Module):
             )
             return {"path": path, "filename": name}
 
+        class Feed:
+            """Pulpit dyspozytora: dokumenty (CMR, zlecenia, karty drogowe) wystawione dziś."""
+
+            def collect(self, db: Session, company_id: str, day: date) -> DashboardPart:
+                start = datetime.combine(day, time.min, UTC)
+                count = db.scalar(
+                    select(func.count()).where(
+                        Document.company_id == company_id, Document.created_at >= start
+                    )
+                )
+                return DashboardPart(
+                    kpis=[DashboardKpi(key="documents.today", value=count or 0, order=130)]
+                )
+
+        ctx.extensions.provide(DASHBOARD_FEED, Feed())
         ctx.api.include_router(router)

@@ -456,3 +456,17 @@ def test_company_fields_labels_and_logo_in_print(client, company):
         client.get(f"{API}/profile/logo", params={"company_id": cid}, headers=owner).status_code
         == 404
     )
+
+
+def test_dashboard_counts_documents_issued_today(client, company):
+    body = {
+        "kind": "cmr",
+        "company_id": company["id"],
+        "vehicle_id": company["tractor"],
+        "data": {},
+    }
+    assert client.post(f"{API}/documents", json=body, headers=as_user("olek")).status_code == 201
+    overview = client.get(
+        "/api/dashboard/overview", params={"company_id": company["id"]}, headers=as_user("olek")
+    ).json()
+    assert next(k for k in overview["kpis"] if k["key"] == "documents.today")["value"] == 1
