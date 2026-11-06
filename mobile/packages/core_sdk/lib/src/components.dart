@@ -97,7 +97,11 @@ class KpiCard extends StatelessWidget {
     this.tone = StatusTone.neutral,
     this.onTap,
     this.progress,
+    this.badge,
   });
+
+  /// Krótka odznaka obok liczby (np. „76,8%”), w kolorze stanu.
+  final String? badge;
 
   final String label;
   final String value;
@@ -129,11 +133,27 @@ class KpiCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   SectionLabel(label),
                   const SizedBox(height: Gap.s),
-                  BigNumber(
-                    value: value,
-                    unit: unit,
-                    color: tone == StatusTone.ok || tone == StatusTone.error ? color : null,
-                  ),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Flexible(
+                      child: BigNumber(
+                        value: value,
+                        unit: unit,
+                        color: tone == StatusTone.ok || tone == StatusTone.error ? color : null,
+                      ),
+                    ),
+                    if (badge != null) ...[
+                      const SizedBox(width: Gap.s),
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
+                        ),
+                        child: Text(badge!, style: theme.textTheme.labelSmall?.copyWith(color: accent)),
+                      ),
+                    ],
+                  ]),
                   if (progress != null) ...[
                     const SizedBox(height: Gap.s),
                     TruckProgressBar(

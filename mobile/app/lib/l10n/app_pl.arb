@@ -861,5 +861,13 @@
   "vehicleBaseNone": "Bez bazy",
   "vehiclesAllBases": "Wszystkie bazy",
   "vehiclesSortByBase": "Sortuj wg bazy",
-  "vehicleBaseSetsCompany": "Wybór bazy przypisze pojazd do jej firmy."
+  "vehicleBaseSetsCompany": "Wybór bazy przypisze pojazd do jej firmy.",
+  "fleetTitle": "Tabor",
+  "fleetUnits": "Jednostek: {count}",
+  "@fleetUnits": {"placeholders": {"count": {"type": "String"}}},
+  "vehiclesAllKinds": "Wszystkie pojazdy",
+  "vehiclesQuickFilter": "Szybki filtr stanu",
+  "vehiclesColDriverBase": "Kierowca / baza",
+  "vehicleStateFree": "dostępny",
+  "vehiclesFilters": "Filtry"
 }

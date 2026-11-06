@@ -1,3 +1,4 @@
+import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
@@ -107,11 +108,59 @@ class _VehiclesTableState extends State<VehiclesTable> {
     num? number(Map<String, dynamic> v, String key) => v[key] is num ? v[key] as num : null;
     String text(Object? value) => value == null || '$value'.isEmpty ? '–' : '$value';
 
+    final theme = Theme.of(context);
+    // Pojazd: ikona w kolorze stanu, nazwa, a pod nią tablica i podpięta naczepa.
     final name = _Column(l.vehicleName, (v) => '${v['name'] ?? ''}'.toLowerCase(), (v) {
+      final details = [
+        if (v['plate'] != null) '${v['plate']}',
+        if (v['trailer_name'] != null) '+ ${v['trailer_name']}',
+      ];
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(kindIcon(v['kind'] as String?), size: 18, color: stateColor(context, vehicleState(v))),
-        const SizedBox(width: 8),
-        Flexible(child: Text(text(v['name']), overflow: TextOverflow.ellipsis)),
+        IconSquare(
+          icon: kindIcon(v['kind'] as String?),
+          color: stateColor(context, vehicleState(v)) ?? scheme.primary,
+          size: 36,
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(text(v['name']), overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+            if (details.isNotEmpty)
+              Text(details.join('  '),
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          ]),
+        ),
+      ]);
+    });
+    // Stan jako chip: wolny – miętowy, w użyciu – niebieski, usterka – bursztyn, naprawa – czerwony.
+    final status = _Column(l.vehiclesColState, (v) => vehicleState(v).index, (v) {
+      final state = vehicleState(v);
+      return StatusChip(
+        label: stateText(l, v) ?? l.vehicleStateFree,
+        uppercase: false,
+        tone: switch (state) {
+          VehicleState.repair => StatusTone.error,
+          VehicleState.reported => StatusTone.warning,
+          VehicleState.inUse => StatusTone.info,
+          VehicleState.free => StatusTone.ok,
+        },
+      );
+    });
+    // Kierowca i baza w jednej kolumnie.
+    final crew = _Column(l.vehiclesColDriverBase, (v) => '${v['base_name'] ?? '~'}'.toLowerCase(), (v) {
+      final driver = v['assigned_driver_name'] ?? v['driver_name'];
+      return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.person_outline, size: 16, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(text(driver), style: theme.textTheme.labelMedium),
+        ]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.warehouse_outlined, size: 16, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(text(v['base_name']), style: theme.textTheme.bodySmall),
+        ]),
       ]);
     });
     final plate =
@@ -136,17 +185,15 @@ class _VehiclesTableState extends State<VehiclesTable> {
     final gvw = _Column(l.vehiclesColGvw, (v) => number(v, 'gvw_t'), (v) => Text(n(v['gvw_t'])), numeric: true);
     final owner = _Column(l.vehicleOwner, (v) => v['company_id'] == null ? 0 : 1,
         (v) => Text(v['company_id'] == null ? l.vehiclePrivate : l.vehicleOfCompany));
-    final base = _Column(
-        l.vehicleBase, (v) => '${v['base_name'] ?? '~'}'.toLowerCase(), (v) => Text(text(v['base_name'])));
+
     if (widget.towed) {
       final body = _Column(l.vehicleBody, (v) => trailerLabel(l, '${v['trailer_type']}'),
           (v) => Text(trailerLabel(l, '${v['trailer_type']}')));
-      final state = _Column(l.vehiclesColState, (v) => stateText(l, v) ?? '', (v) => Text(stateText(l, v) ?? '–'));
-      return [name, plate, kind, base, body, dimensions, gvw, owner, state, next, actions];
+      return [name, plate, kind, crew, status, body, dimensions, gvw, owner, next, actions];
     }
     final coupled = _Column(
         l.vehiclesColCoupling, (v) => '${widget.byId[v['trailer_id']]?['name'] ?? ''}'.toLowerCase(), widget.coupling);
-    return [name, plate, kind, base, dimensions, gvw, owner, coupled, next, actions];
+    return [name, plate, kind, crew, status, dimensions, gvw, owner, coupled, next, actions];
   }
 
   @override
@@ -173,6 +220,10 @@ class _VehiclesTableState extends State<VehiclesTable> {
           sortAscending: _ascending,
           showCheckboxColumn: false,
           columnSpacing: 24,
+          dataRowMinHeight: 60,
+          dataRowMaxHeight: 72,
+          headingRowColor: MaterialStatePropertyAll(TruckColors.of(context).surfaceLow),
+          headingTextStyle: Theme.of(context).textTheme.labelSmall,
           columns: [
             for (final (i, c) in columns.indexed)
               DataColumn(

@@ -498,18 +498,14 @@ void main() {
     expect(find.textContaining('Zestaw Wesoła'), findsOneWidget);
     expect(find.textContaining('Auto Stryków'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('vehicles-base-filter')));
-    await tester.pumpAndSettle();
-    expect(find.text('Komorniki'), findsWidgets);
-    await tester.tap(find.text('Stryków').last);
+    expect(find.byKey(const Key('vehicles-base-b3')), findsOneWidget); // Komorniki – bez pojazdów
+    await tester.tap(find.byKey(const Key('vehicles-base-b2')));
     await tester.pumpAndSettle();
     expect(find.textContaining('Auto Stryków'), findsOneWidget);
     expect(find.textContaining('Zestaw Wesoła'), findsNothing);
     expect(find.textContaining('Bez przydziału'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('vehicles-base-filter')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Wszystkie bazy').last);
+    await tester.tap(find.byKey(const Key('vehicles-base-all')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('vehicles-sort-base')));
     await tester.pumpAndSettle();

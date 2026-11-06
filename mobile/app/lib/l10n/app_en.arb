@@ -731,5 +731,13 @@
   "vehicleBaseNone": "No base",
   "vehiclesAllBases": "All bases",
   "vehiclesSortByBase": "Sort by base",
-  "vehicleBaseSetsCompany": "Choosing a base assigns the vehicle to its company."
+  "vehicleBaseSetsCompany": "Choosing a base assigns the vehicle to its company.",
+  "fleetTitle": "Fleet",
+  "fleetUnits": "Units: {count}",
+  "@fleetUnits": {"placeholders": {"count": {"type": "String"}}},
+  "vehiclesAllKinds": "All vehicles",
+  "vehiclesQuickFilter": "Quick status filter",
+  "vehiclesColDriverBase": "Driver / base",
+  "vehicleStateFree": "available",
+  "vehiclesFilters": "Filters"
 }
