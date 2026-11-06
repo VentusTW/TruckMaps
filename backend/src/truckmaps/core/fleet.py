@@ -7,7 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from truckmaps.core import inbox, shared
-from truckmaps.core.companies import SERVICES_VEHICLES, CompanyMember, company_ids
+from truckmaps.core.companies import SERVICES_VEHICLES, Company, CompanyMember, company_ids
 from truckmaps.core.db import get_session
 from truckmaps.core.trips import VehicleTrip
 from truckmaps.core.vehicles import TrailerType, VehicleProfile, load_owned
@@ -15,6 +15,7 @@ from truckmaps.sdk import Principal
 from truckmaps.sdk.fleet import (
     PRIVATE,
     CargoInfo,
+    CompanyInfo,
     DriverAssignedHandler,
     DrivingInfo,
     MemberInfo,
@@ -76,6 +77,14 @@ class CoreFleet:
             for m in db.scalars(query.order_by(CompanyMember.display_name))
         ]
 
+    def company(self, db: Session, company_id: str) -> CompanyInfo | None:
+        company = db.get(Company, company_id)
+        if company is None:
+            return None
+        return CompanyInfo(
+            id=company.id, name=company.name, tax_id=company.tax_id, kind=str(company.kind)
+        )
+
     def driving(self, db: Session, vehicle_id: str) -> DrivingInfo | None:
         vehicle = db.get(VehicleProfile, vehicle_id)
         if vehicle is None:
@@ -96,6 +105,8 @@ class CoreFleet:
             trailer_kind=trailer.kind if trailer else None,
             trailer_gvw_t=(trailer.gvw_t or trailer.weight_t) if trailer else None,
             assigned_driver=vehicle.assigned_driver,
+            trailer_plate=trailer.plate if trailer else None,
+            odometer_km=vehicle.odometer_km,
         )
 
     def assigned(self, db: Session, company_id: str) -> dict[str, str]:

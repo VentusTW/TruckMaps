@@ -25,6 +25,7 @@ from truckmaps.sdk.extensions import (
 from truckmaps.sdk.fleet import (
     SERVICE_ROLES,
     CargoInfo,
+    CompanyInfo,
     DrivingInfo,
     Fleet,
     MemberInfo,
@@ -55,6 +56,7 @@ __all__ = [
     "ExtensionPoint",
     "Extensions",
     "Fleet",
+    "CompanyInfo",
     "MemberInfo",
     "Module",
     "Principal",

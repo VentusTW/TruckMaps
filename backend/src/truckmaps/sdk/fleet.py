@@ -57,6 +57,17 @@ class CargoInfo:
 
 
 @dataclass(frozen=True)
+class CompanyInfo:
+    """Firma: nazwa i NIP (do dokumentów)."""
+
+    id: str
+    name: str
+    tax_id: str | None
+    kind: str
+    """carrier, forwarder, shipper… (``CompanyKind`` rdzenia)."""
+
+
+@dataclass(frozen=True)
 class MemberInfo:
     """Członek firmy (konto) i jego rola."""
 
@@ -86,6 +97,10 @@ class DrivingInfo:
     trailer_gvw_t: float | None = None
     assigned_driver: str | None = None
     """Kierowca przydzielony do pojazdu (konto)."""
+    trailer_plate: str | None = None
+    """Nr rejestracyjny podpiętej naczepy / przyczepy."""
+    odometer_km: int | None = None
+    """Ostatni znany stan licznika pojazdu."""
 
 
 @dataclass(frozen=True)
@@ -156,6 +171,10 @@ class Fleet(Protocol):
 
     def members(self, db: Session, company_id: str) -> list[MemberInfo]:
         """Członkowie firmy z rolami."""
+        ...
+
+    def company(self, db: Session, company_id: str) -> CompanyInfo | None:
+        """Firma (nazwa, NIP, rodzaj) bez sprawdzania członkostwa; ``None`` – nie ma."""
         ...
 
     def driving(self, db: Session, vehicle_id: str) -> DrivingInfo | None:
