@@ -182,7 +182,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
     final currencies = _currencies.contains(_currency) ? _currencies : [_currency, ..._currencies];
     return Form(
       key: _form,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: SectionedListView(padding: const EdgeInsets.all(16), children: [
         if (widget.companies.length > 1) ...[
           DropdownButtonFormField<String>(
             value: _id,
@@ -197,7 +197,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        Text(l.companyDetails, style: theme.textTheme.titleSmall),
+        SectionHeader(l.companyDetails),
         Text(_owner ? l.companyDetailsHint : l.companyDetailsReadOnly(roleLabel(l, _role)), style: theme.textTheme.bodySmall),
         const SizedBox(height: 12),
         TextFormField(
@@ -219,7 +219,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           padding: const EdgeInsets.only(top: 4, bottom: 16),
           child: Text(companyKindHint(l, _kind), style: theme.textTheme.bodySmall),
         ),
-        Text(l.companyRates, style: theme.textTheme.titleSmall),
+        SectionHeader(l.companyRates),
         Text(l.companyRatesHint, style: theme.textTheme.bodySmall),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -250,7 +250,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           ),
         const SizedBox(height: 24),
         Row(children: [
-          Expanded(child: Text(l.basesTitle, style: theme.textTheme.titleSmall)),
+          Expanded(child: SectionHeader(l.basesTitle)),
           if (managesCompany(_role))
             TextButton.icon(onPressed: _openBase, icon: const Icon(Icons.add_location_alt_outlined), label: Text(l.baseAdd)),
         ]),

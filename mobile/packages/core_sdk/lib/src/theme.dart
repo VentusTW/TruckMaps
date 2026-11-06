@@ -383,19 +383,29 @@ abstract final class TruckTheme {
       cardTheme: CardTheme(
         color: colors.card,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withOpacity(dark ? 0.5 : 0.25),
-        elevation: 1,
+        // Wyraźny, granatowy cień – kafelki „unoszą się” nad tłem.
+        shadowColor: dark ? Colors.black : TruckPalette.brand.withOpacity(0.35),
+        elevation: 3,
         margin: EdgeInsets.zero,
         shape: shape,
         clipBehavior: Clip.antiAlias,
       ),
       listTileTheme: ListTileThemeData(shape: small, iconColor: scheme.onSurfaceVariant),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(padding: buttonPadding, shape: small)),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: buttonPadding,
+          shape: small,
+          elevation: 2,
+          shadowColor: TruckPalette.brand.withOpacity(0.5),
+        ),
+      ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(padding: buttonPadding, shape: small, side: BorderSide(color: scheme.outline)),
       ),
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: small)),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(shape: small)),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(shape: small, elevation: 2, shadowColor: TruckPalette.brand.withOpacity(0.4)),
+      ),
       segmentedButtonTheme: SegmentedButtonThemeData(style: ButtonStyle(shape: MaterialStatePropertyAll(small))),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
@@ -404,6 +414,9 @@ abstract final class TruckTheme {
       ),
       // Chipy w pełni zaokrąglone.
       chipTheme: ChipThemeData(
+        elevation: 1,
+        pressElevation: 3,
+        shadowColor: TruckPalette.brand.withOpacity(0.3),
         shape: const StadiumBorder(),
         side: BorderSide.none,
         backgroundColor: colors.surfaceLow,
@@ -469,8 +482,12 @@ class SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.s),
+        Container(
+          decoration: BoxDecoration(
+            gradient: TruckGradients.tile(context, accent ?? theme.colorScheme.primary, strength: 0.10),
+          ),
+          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.m),
+          margin: const EdgeInsets.only(bottom: Gap.m),
           child: Row(children: [
             IconSquare(icon: icon, color: accent ?? theme.colorScheme.primary, size: 32),
             const SizedBox(width: Gap.m),

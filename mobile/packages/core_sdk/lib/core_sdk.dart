@@ -10,5 +10,6 @@ export 'src/coming_soon.dart';
 export 'src/components.dart';
 export 'src/module.dart';
 export 'src/registry.dart';
+export 'src/sectioned_list.dart';
 export 'src/shell.dart';
 export 'src/theme.dart';

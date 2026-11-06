@@ -136,14 +136,14 @@ class _AdminAccessScreenState extends State<AdminAccessScreen> {
           final data = snapshot.data as Map<String, dynamic>;
           final grants = (data['grants'] as List<dynamic>).cast<Map<String, dynamic>>();
           final changes = (data['changes'] as List<dynamic>).cast<Map<String, dynamic>>();
-          return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 88), children: [
-            Text(widget.personal ? l.adminAccessPersonalTitle : l.adminAccessTitle, style: theme.textTheme.titleSmall),
+          return SectionedListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 88), children: [
+            SectionHeader(widget.personal ? l.adminAccessPersonalTitle : l.adminAccessTitle),
             Text(widget.personal ? l.adminAccessPersonalHint : l.adminAccessHint, style: theme.textTheme.bodySmall),
             if (grants.isEmpty)
               Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminAccessNone)),
             for (final grant in grants) _grantTile(l, grant),
             const SizedBox(height: 24),
-            Text(l.adminChangesTitle, style: theme.textTheme.titleSmall),
+            SectionHeader(l.adminChangesTitle),
             if (changes.isEmpty)
               Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(l.adminChangesNone)),
             for (final change in changes) _changeTile(l, change),

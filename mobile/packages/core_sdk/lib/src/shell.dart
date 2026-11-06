@@ -79,7 +79,7 @@ class TruckShell extends StatelessWidget {
         body: Row(children: [
           Material(
             color: colors.card,
-            elevation: 1,
+            elevation: 4,
             shadowColor: Colors.black26,
             child: SizedBox(width: TruckTheme.sideMenuWidth, child: menu),
           ),
