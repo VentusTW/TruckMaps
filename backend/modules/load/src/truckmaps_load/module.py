@@ -29,16 +29,33 @@ from sqlalchemy.orm import Session
 from truckmaps.sdk import CoreContext, Module, Principal, i18n
 from truckmaps.sdk.fleet import CargoInfo
 from truckmaps.sdk.i18n import t
+from truckmaps_load import report
+from truckmaps_load.securing import (
+    AIRBAG_GAP_M,
+    MAX_STRAPS_PER_M,
+    STEER_AXLE_KG,
+    TRACTOR_TARE_KG,
+    TYPICAL_TRACTOR_KG,
+    BodyCode,
+    Equipment,
+    Forces,
+    Norm,
+    Tractor,
+    equipment,
+    forces,
+    friction,
+    row_tension_daN,
+    straps_for,
+    tractor,
+    tractor_problems,
+    wall_capacity_kN,
+    wall_holds,
+)
 
 LDM_WIDTH_M = 2.4
 """Metr ładowny: 1 m długości przestrzeni o szerokości 2,4 m."""
-G = 9.81
-SAFETY = 1.1
-"""Współczynnik bezpieczeństwa ``f_s`` dla mocowania przez docisk (EN 12195-1)."""
-# Przyspieszenia w transporcie drogowym (EN 12195-1): do przodu 0,8 g, na boki i do tyłu 0,5 g.
-C_FORWARD, C_SIDE, C_BACK = 0.8, 0.5, 0.5
-FRICTION = {"none": 0.3, "mat": 0.6}
-"""Tarcie palety o podłogę: bez maty (drewno – sklejka) i z matą antypoślizgową."""
+EUR = (1.2, 0.8)
+"""Miejsce paletowe (paleta EUR) – do liczenia miejsc na podłodze."""
 # Rozsądny środek ciężkości ładunku (część długości od ściany czołowej) – gdy naciski nieznane.
 COG_MIN, COG_MAX = 0.35, 0.6
 
@@ -52,11 +69,8 @@ ROOF_M = 0.1
 DEFAULT_HEIGHT_M = 1.2
 KINGPIN_LIMIT_KG = 12_000
 """Typowy dopuszczalny nacisk siodła ciągnika – gdy nie znamy ciągnika."""
-TRACTOR_TARE_KG = 8_000
-"""Masa ciągnika w masie własnej zestawu (rodzaj „combination”) – reszta to naczepa."""
 # Dopuszczalny nacisk zespołu osi (dyrektywa 96/53/WE, rozstaw 1,3–1,8 m).
 GROUP_LIMIT_KG = {1: 10_000, 2: 18_000, 3: 24_000}
-STEER_AXLE_KG = 7_500
 TYPICAL_KINGPIN_M = 1.6
 """Sworzeń od ściany czołowej naczepy, gdy brak go w profilu."""
 RIGID_FRONT_AXLE_M = -1.2
@@ -85,6 +99,11 @@ class PlanIn(BaseModel):
     front_wall: bool = Field(default=True, description="Ładunek oparty o ścianę czołową")
     mats: bool = Field(default=False, description="Maty antypoślizgowe pod paletami")
     strap_daN: int = Field(default=400, ge=100, le=1000, description="Siła napięcia pasa STF")
+    body_code: BodyCode = Field(
+        default="unknown",
+        description="Kod nadwozia EN 12642 (ściana czołowa); „unknown” – nie wiadomo",
+    )
+    reference: str = Field(default="", max_length=40, description="Numer zlecenia")
 
 
 class Placed(BaseModel):
@@ -108,6 +127,14 @@ class Placed(BaseModel):
 
 class CheckIn(PlanIn):
     placed: list[Placed] = Field(min_length=1, max_length=400)
+
+
+class ExportIn(PlanIn):
+    placed: list[Placed] | None = Field(default=None, max_length=400)
+    """Ułożenie z ekranu (przeciągnięte); ``None`` – plan liczony od nowa."""
+    checked: list[str] = Field(default=[], max_length=10)
+    """Sprzęt potwierdzony na liście kontrolnej."""
+    approved: bool = False
 
 
 class Row(BaseModel):
@@ -151,6 +178,17 @@ class PlanOut(BaseModel):
     adjusted: bool
     """Plan przestawił ładunek, żeby nie przekroczyć nacisków."""
     warnings: list[str]
+    body_code: BodyCode = "unknown"
+    reference: str = ""
+    pallet_places: int = 0
+    """Miejsca paletowe EUR na podłodze."""
+    places_used: int = 0
+    """Zajęta podłoga w miejscach paletowych EUR."""
+    forces: Forces | None = None
+    tractor: Tractor | None = None
+    """Ciągnik siodłowy (naczepa / zestaw) – typowa geometria."""
+    equipment: list[Equipment] = []
+    norms: list[Norm] = []
     estimated: Literal[True] = True
 
 
@@ -257,17 +295,6 @@ def _row_layout(length: float, width: float, deck_width: float) -> tuple[float, 
     return along, across, per_row
 
 
-def _straps(weight_kg: float, data: PlanIn, front_wall: bool) -> int:
-    """Pasy na rząd przy mocowaniu przez docisk (pionowo, sin α = 1), wg EN 12195-1."""
-    mu = FRICTION["mat" if data.mats else "none"]
-    force = data.strap_daN * 10  # daN → N
-    needed = 0.0
-    for c in [C_SIDE, C_BACK] + ([] if front_wall else [C_FORWARD]):
-        if c > mu:
-            needed = max(needed, SAFETY * weight_kg * G * (c - mu) / (2 * mu * force))
-    return max(1, math.ceil(needed - 1e-9))
-
-
 @dataclass
 class _Row:
     stop: int
@@ -362,18 +389,26 @@ def evaluate(
     payload = cargo.payload_kg if cargo else None
     points = supports(cargo, deck_length)
     front_wall = data.front_wall and offset < STEP_M
+    weight = sum(p.weight_kg for p in placed)
+    mu = friction(data.mats)
+    wall = wall_capacity_kN(data.body_code, payload)
+    rest_forward = max(0.0, (0.8 - mu) * weight * 9.81 / 1000)
+    holds = wall_holds(front_wall, data.body_code, wall, rest_forward)
     # Rzędy: sztuki zaczynające się w tym samym miejscu (po przeciągnięciu – każda osobno).
     by_x: dict[float, list[Placed]] = {}
     for p in placed:
         by_x.setdefault(round(p.x_m, 2), []).append(p)
+    tensions = {
+        x: row_tension_daN(sum(p.weight_kg for p in ps), mu, forward=not holds)
+        for x, ps in by_x.items()
+    }
     rows = [
         Row(
             x_m=x, length_m=max(p.length_m for p in ps), weight_kg=sum(p.weight_kg for p in ps),
-            straps=_straps(sum(p.weight_kg for p in ps), data, front_wall),
+            straps=straps_for(tensions[x], data.strap_daN),
         )
         for x, ps in sorted(by_x.items())
     ]  # fmt: skip
-    weight = sum(p.weight_kg for p in placed)
     total = sum(i.count * i.weight_kg for i in data.items)  # także sztuki niezmieszczone
     cog = sum((p.x_m + p.length_m / 2) * p.weight_kg for p in placed) / weight if weight else None
     axles = axle_loads(placed, points)
@@ -406,6 +441,21 @@ def evaluate(
         warnings.append(t("load.no_front_wall"))
     if inner is not None and any(p.height_m > inner + 1e-6 and p.height_known for p in placed):
         warnings.append(t("load.too_high", height=inner))
+    if front_wall and not holds:
+        warnings.append(t("load.wall_weak", wall=wall or 0, force=round(rest_forward, 1)))
+    straps_ok = all(r.straps <= max(1, math.floor(r.length_m * MAX_STRAPS_PER_M)) for r in rows)
+    if not straps_ok:
+        warnings.append(t("load.too_many_straps"))
+    tractor_info = None
+    if cargo and cargo.kind in ("semitrailer", "combination") and len(axles) == 2:
+        own = TRACTOR_TARE_KG if cargo.kind == "combination" else TYPICAL_TRACTOR_KG
+        tractor_info = tractor(axles[0].load_kg, axles[1].load_kg, own)
+        for problem in tractor_problems(tractor_info):
+            warnings.append(
+                t(f"load.tractor_{problem}", front=round(tractor_info.front_kg),
+                  drive=round(tractor_info.drive_kg), gvw=round(tractor_info.gvw_kg),
+                  share=round(tractor_info.drive_share * 100))
+            )  # fmt: skip
     outside = [
         p for p in placed
         if p.x_m < -1e-6 or p.y_m < -1e-6 or p.x_m + p.length_m > deck_length + 1e-6
@@ -416,6 +466,25 @@ def evaluate(
     if _overlaps(placed):
         warnings.append(t("load.overlap"))
     ok_axles = not any(a.over for a in axles)
+    straps = sum(r.straps for r in rows)
+    airbags = sum(
+        1 for ps in by_x.values() if deck_width - sum(p.width_m for p in ps) >= AIRBAG_GAP_M
+    )
+    gear = equipment(
+        straps, len({p.stop for p in placed}), offset >= STEP_M,
+        len(placed) if data.mats else 0, airbags,
+    )  # fmt: skip
+    fits = not unplaced and (payload is None or total <= payload) and ok_axles and not outside
+    secured = straps_ok and bool(placed)
+    tractor_ok = tractor_info is None or not tractor_problems(tractor_info)
+    norms = [
+        Norm(id="en12642", ok=data.body_code != "unknown" and (holds or not front_wall)),
+        Norm(id="en12195", ok=secured),
+        Norm(id="vdi2700", ok=secured and not _overlaps(placed) and not outside),
+        Norm(id="art61", ok=fits and tractor_ok),
+    ]
+    places = int(deck_length / EUR[0] + 1e-9) * int(deck_width / EUR[1] + 1e-9)
+    used = round(sum(p.length_m * p.width_m for p in placed) / (EUR[0] * EUR[1]))
     return PlanOut(
         deck_length_m=deck_length,
         deck_width_m=deck_width,
@@ -424,16 +493,34 @@ def evaluate(
         used_length_m=round(end, 2),
         weight_kg=round(total, 1),
         payload_kg=payload,
-        fits=not unplaced and (payload is None or total <= payload) and ok_axles and not outside,
+        fits=fits,
         placed=placed,
         unplaced=unplaced,
         rows=rows,
-        straps=sum(r.straps for r in rows),
+        straps=straps,
         cog_m=round(cog, 2) if cog is not None else None,
         axles=axles,
         offset_m=offset,
         adjusted=adjusted,
         warnings=warnings,
+        body_code=data.body_code,
+        reference=data.reference,
+        pallet_places=places,
+        places_used=min(used, places) if places else used,
+        forces=forces(
+            weight,
+            mu,
+            wall,
+            front_wall,
+            data.body_code,
+            sum(tensions.values()),
+            straps,
+            data.strap_daN,
+            secured,
+        ),
+        tractor=tractor_info,
+        equipment=gear,
+        norms=norms,
     )
 
 
@@ -492,19 +579,37 @@ class LoadModule(Module):
             length, width, cargo = deck(data, user, db)
             return plan(data, length, width, cargo.payload_kg, cargo)
 
+        def checked(data: PlanIn, placed: list[Placed], length, width, cargo) -> PlanOut:
+            for p in placed:
+                if p.item >= len(data.items):
+                    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("load.bad_item"))
+            # Ile sztuk z pozycji nie ma na planie (np. przeciągnięte poza – usunięte).
+            shown = sum(p.pieces for p in placed)
+            unplaced = max(0, sum(i.count for i in data.items) - shown)
+            offset = min((p.x_m for p in placed), default=0.0)
+            return evaluate(placed, unplaced, data, length, width, cargo, round(max(0, offset), 2))
+
         @router.post("/plan/check")
         def check_plan(data: CheckIn, user: User, db: Db) -> PlanOut:
             """Sprawdzenie ułożenia przeciągniętego przez użytkownika (bez przestawiania)."""
             length, width, cargo = deck(data, user, db)
-            for p in data.placed:
-                if p.item >= len(data.items):
-                    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("load.bad_item"))
-            # Ile sztuk z pozycji nie ma na planie (np. przeciągnięte poza – usunięte).
-            shown = sum(p.pieces for p in data.placed)
-            unplaced = max(0, sum(i.count for i in data.items) - shown)
-            offset = min((p.x_m for p in data.placed), default=0.0)
-            return evaluate(
-                data.placed, unplaced, data, length, width, cargo, round(max(0, offset), 2)
-            )
+            return checked(data, data.placed, length, width, cargo)
+
+        @router.post("/plan/pdf")
+        def plan_pdf(data: ExportIn, user: User, db: Db) -> dict:
+            """PDF pod krótkim linkiem (15 min): rzut, naciski, siły, lista sprzętu VDI 2700."""
+            length, width, cargo = deck(data, user, db)
+            if data.placed:
+                out = checked(data, data.placed, length, width, cargo)
+            else:
+                out = plan(data, length, width, cargo.payload_kg, cargo)
+            vehicle = ctx.fleet.vehicle(db, user, data.vehicle_id)
+            body = report.to_pdf(out, data.items, vehicle, set(data.checked), data.approved)
+            name = "-".join(x for x in ("plan", data.reference, vehicle.plate or "") if x)
+            name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
+            return {
+                "path": ctx.storage.share(db, body, "application/pdf", f"{name}.pdf"),
+                "filename": name,
+            }
 
         ctx.api.include_router(router)

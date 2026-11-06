@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import DateTime, String, Text, func, select
+from sqlalchemy import JSON, DateTime, String, Text, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -73,6 +73,30 @@ class AlertAck(Base):
     by_name: Mapped[str] = mapped_column(String(200), default="")
     note: Mapped[str | None] = mapped_column(Text)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class DashboardScreen(Base):
+    """Treść kart pulpitu głównego (powitanie, wskaźniki, alerty, korytarze, moduły, komunikaty) –
+    dla danych, których rdzeń jeszcze nie liczy (telematyka, korytarze, marża). Wypełnia ją
+    np. ``python -m truckmaps.core.dashboard_demo``; bez wiersza aplikacja pokazuje stany puste."""
+
+    __tablename__ = "dashboard_screens"
+
+    company_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ScreenOut(BaseModel):
+    company_id: str
+    company_name: str
+    user_name: str
+    role: str
+    bases: list[str]
+    generated_at: datetime
+    updated_at: datetime | None = None
+    screen: dict | None = None
+    """Treść kart z ``dashboard_screens``; ``None`` – brak danych (stany puste)."""
 
 
 class Handled(BaseModel):
@@ -510,6 +534,24 @@ def build_router(current_user) -> APIRouter:
             raise HTTPException(status.HTTP_404_NOT_FOUND, t("dashboard.alert_not_found"))
         db.delete(ack)
         db.commit()
+
+    @router.get("/screen")
+    def screen(company_id: CompanyId, user: User, db: Db) -> ScreenOut:
+        """Pulpit główny: dane firmy i treść kart (każdy członek firmy)."""
+        member = require_member(db, company_id, user)
+        company = db.get(Company, company_id)
+        row = db.get(DashboardScreen, company_id)
+        bases = db.scalars(select(CompanyBase.name).where(CompanyBase.company_id == company_id))
+        return ScreenOut(
+            company_id=company_id,
+            company_name=company.name if company else "",
+            user_name=member.display_name,
+            role=member.role,
+            bases=list(bases),
+            generated_at=_now(),
+            updated_at=_aware(row.updated_at) if row else None,
+            screen=row.payload if row else None,
+        )
 
     @router.get("/stream")
     async def stream(

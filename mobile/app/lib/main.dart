@@ -9,7 +9,7 @@ import 'package:module_service/module_service.dart';
 import 'src/auth.dart';
 import 'src/home.dart';
 import 'src/l10n.dart';
-import 'src/guest.dart';
+import 'src/login.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');
@@ -28,7 +28,7 @@ Locale resolveLocale(Locale? device, Iterable<Locale> supported) {
 }
 
 class TruckMapsApp extends StatefulWidget {
-  const TruckMapsApp({super.key, this.session, this.login, this.locale, this.themeMode = ThemeMode.system});
+  const TruckMapsApp({super.key, this.session, this.login, this.locale, this.themeMode = ThemeMode.light});
 
   /// Sesja podana z góry (testy); zwykle przywrócona z poprzedniego uruchomienia albo z logowania.
   final Session? session;
@@ -102,7 +102,7 @@ class _TruckMapsAppState extends State<TruckMapsApp> {
       home: _restoring
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : session == null
-              ? GuestScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start)
+              ? Scaffold(body: LoginScreen(serverUrl: serverUrl, login: _login, onLoggedIn: _start))
               : HomeScreen(
                   session: session,
                   registry: modules,

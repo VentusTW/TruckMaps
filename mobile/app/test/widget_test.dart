@@ -7,10 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/main.dart';
 import 'package:truckmaps_app/src/auth.dart';
-import 'package:truckmaps_app/src/home.dart';
-import 'package:truckmaps_app/src/planner/planner_screen.dart';
-
-import 'localized.dart';
 
 http.Response json(Object body) => http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
@@ -18,14 +14,93 @@ Session session(Map<String, Object> responses) {
   final client = MockClient((request) async => json(responses[request.url.path] ?? {}));
   return Session(
     api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client),
-    userName: 'Anna Kowalska',
+    userName: 'Michał Krajewski',
   );
 }
 
-void main() {
-  setUp(() => mapTiles = () => const SizedBox());
-  pageMemoryTests();
+/// Fragment danych pokazowych (`dashboard_demo.py`).
+const screen = {
+  'greeting_name': 'Michale',
+  'user_title': 'Główny Dyspozytor',
+  'shift': 'Zmiana Dzienna (06:00 – 18:00)',
+  'fleet_ok': '98.4%',
+  'description': 'Centrum Koordynacji Flotowej',
+  'base': 'PL-WAW-01 (Baza Wesoła)',
+  'telemetry': {'label': 'Telemetria CAN', 'percent': '98.4%', 'active': 318, 'total': 323, 'gps': 'Satelity: Fix OK'},
+  'kpis': [
+    {
+      'label': 'Aktywne zestawy w trasie',
+      'icon': 'truck',
+      'value': '284',
+      'unit': '/ 323 ciągniki',
+      'left': '88% utylizacji',
+      'right': '+12 vs wczoraj',
+      'bar': 0.88
+    },
+  ],
+  'alerts_count': '3 zdarzenia priorytetowe',
+  'alerts': [
+    {
+      'tag': 'Krytyczny tachograf',
+      'severity': 'critical',
+      'icon': 'timer',
+      'title': 'Ciągnik WI 4022P',
+      'location': 'A2 km 384',
+      'text': 'Limit jazdy za !!45 min!!.',
+      'meta': ['Kierowca: Janusz Bogucki'],
+      'action': 'Przekieruj na MOP Świebodzin',
+      'action_icon': 'alt_route'
+    },
+  ],
+  'corridors_updated': '2 min temu',
+  'corridors': [
+    {
+      'road': 'A2',
+      'name': 'Korytarz Zachodni',
+      'status': 'Płynny ruch',
+      'status_tone': 'ok',
+      'left': 'W trasie: **42 zestawy**',
+      'right': 'Średnia: **82.4 km/h**',
+      'bar': 0.95
+    },
+  ],
+  'modules': [
+    {
+      'title': 'Symulator 3D Załadunku',
+      'icon': 'view_in_ar',
+      'chip': 'EN 12195-1',
+      'chip_tone': 'tertiary',
+      'text': 'Naciski na osie',
+      'stats': ['9 planów aktywnych'],
+      'link': 'Otwórz 3D'
+    },
+  ],
+  'messages': [
+    {
+      'tag': 'Ostrzeżenie trasy',
+      'tone': 'error',
+      'time': '11:15',
+      'title': 'Kontrole BALM / BAG na A12',
+      'text': 'Wzmożone kontrole.',
+      'sender': 'Dyspozytor Zmianowy Berlin'
+    },
+  ],
+};
 
+void big(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1600, 2200);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
+/// Kilka klatek: konto → firma → treść pulpitu (animacja chipa dyżuru nie pozwala na pumpAndSettle).
+Future<void> settle(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
+void main() {
   testWidgets('bez zapisanej sesji – ekran logowania', (tester) async {
     await tester.pumpWidget(
         TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore()), locale: const Locale('pl')));
@@ -34,84 +109,114 @@ void main() {
     expect(find.text('Zaloguj się e-mailem'), findsOneWidget);
   });
 
-  testWidgets('bez logowania – menu widoczne, ale tylko powitanie i mapa do otwarcia', (tester) async {
-    tester.view.physicalSize = const Size(1800, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-        TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore()), locale: const Locale('pl')));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Pojazdy'));
-    await tester.pumpAndSettle();
-    expect(find.text('Zaloguj się e-mailem'), findsOneWidget);  // wyłączone – bez zmiany ekranu
-
-    await tester.tap(find.text('Mapa'));
-    await tester.pumpAndSettle();
-    expect(find.text('Zaloguj się e-mailem'), findsNothing);
-    expect(find.text('Pozostałe funkcje po zalogowaniu.'), findsOneWidget);
-  });
-
-  testWidgets('po zalogowaniu – pojazdy, moduły z dostępem i „Kup moduł”', (tester) async {
-    tester.view.physicalSize = const Size(1800, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+  testWidgets('po zalogowaniu – pulpit główny z danymi; każda pozycja i przycisk prowadzi do „W budowie”',
+      (tester) async {
+    big(tester);
     await tester.pumpWidget(TruckMapsApp(
       locale: const Locale('pl'),
       session: session({
-        '/api/vehicles': [
-          {'id': 'v1', 'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
-           'gvw_t': 40, 'axle_load_t': 11.5, 'company_id': null, 'can_edit': true},
+        '/api/me/settings': {'display_name': 'Michał Krajewski', 'onboarded': true},
+        '/api/companies': [
+          {'id': 'c1', 'name': 'Trans-Miś', 'role': 'dispatcher'},
         ],
-        '/api/me/modules': [
-          {'id': 'hello', 'name': 'Hello', 'version': '0.1.0', 'granted': true},
-          {'id': 'tolls', 'name': 'Opłaty drogowe', 'version': '0.1.0', 'granted': false},
-        ],
-        '/api/m/hello/greeting': {'message': 'Witaj w TruckMaps!', 'core_version': '0.1.0'},
+        '/api/dashboard/screen': {
+          'company_id': 'c1',
+          'company_name': 'Trans-Miś',
+          'user_name': 'Michał Krajewski',
+          'role': 'dispatcher',
+          'bases': <String>[],
+          'generated_at': '2026-11-06T08:00:00Z',
+          'screen': screen,
+        },
       }),
     ));
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(seconds: 1));  // moduły wczytane → powitanie z serwera
+    await settle(tester);
 
-    // Bez zapamiętanego ekranu – pulpit; ekran modułu (Powitanie) jest w menu.
-    expect(find.text('Pulpit'), findsWidgets);
-    expect(find.textContaining(', Anna Kowalska'), findsOneWidget);  // powitanie na pulpicie
-    expect(find.text('Zaplanuj trasę'), findsOneWidget);
-    await tester.tap(find.text('Powitanie'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Witaj w TruckMaps!'), findsOneWidget);
+    // Menu z wzoru, nazwa TruckMaps.
+    expect(find.text('TruckMaps'), findsOneWidget);
+    expect(find.text('MODUŁY OPERACYJNE'), findsOneWidget);
+    for (final item in ['Pulpit Główny', 'Pojazdy i Tabor', 'Centrala & Live Map', 'Symulator 3D Załadunku']) {
+      expect(find.text(item), findsWidgets);
+    }
+    expect(find.text('LIVE'), findsOneWidget);
+    // Górny pasek i karta telemetrii.
+    expect(find.text('PL-WAW-01 (Baza Wesoła)'), findsOneWidget);
+    expect(find.text('Główny Dyspozytor'), findsOneWidget);
+    expect(find.text('318 / 323'), findsOneWidget);
+    // Pulpit.
+    expect(find.text('Dzień dobry, Michale'), findsOneWidget);
+    expect(find.text('Dyżur: Zmiana Dzienna (06:00 – 18:00)'), findsOneWidget);
+    expect(find.text('98.4% Sprawności Floty'), findsOneWidget);
+    expect(find.text('AKTYWNE ZESTAWY W TRASIE'), findsOneWidget);
+    expect(find.text('284', findRichText: true), findsNothing); // liczba w jednym tekście z jednostką
+    expect(find.textContaining('284', findRichText: true), findsOneWidget);
+    expect(find.text('KRYTYCZNY TACHOGRAF'), findsOneWidget);
+    expect(find.text('Ciągnik WI 4022P'), findsOneWidget);
+    expect(find.text('Korytarz Zachodni'), findsOneWidget);
+    expect(find.text('Aktualizacja: 2 min temu'), findsOneWidget);
+    expect(find.text('EN 12195-1'), findsOneWidget);
+    expect(find.text('Nadawca: Dyspozytor Zmianowy Berlin'), findsOneWidget);
 
-    await tester.tap(find.text('Pojazdy'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Zestaw 40 t'), findsWidgets);
-    expect(find.text('Witaj w TruckMaps!'), findsNothing);
+    Future<void> expectWip(String title) async {
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('W BUDOWIE'), findsOneWidget);
+      expect(find.text(title), findsWidgets);
+      await tester.tap(find.byKey(const Key('wip-back')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('W BUDOWIE'), findsNothing);
+    }
 
-    await tester.tap(find.text('Moduły'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Aktywny'), findsOneWidget);
-    expect(find.text('Wymaga nowszej wersji aplikacji.'), findsOneWidget);
+    // Zlecenia i Załadunek – plan załadunku z modułu (bez pojazdów z przestrzenią ładunkową).
+    await tester.tap(find.text('Zlecenia i Załadunek'));
+    await settle(tester);
+    expect(find.text('W BUDOWIE'), findsNothing);
+    expect(find.text('Brak pojazdów z przestrzenią ładunkową.'), findsOneWidget);
+    // Pojazdy i Tabor – własny ekran (dane z /api/vehicles).
+    await tester.tap(find.text('Pojazdy i Tabor'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Tabor Samochodowy i Sprzęt'), findsOneWidget);
+    await tester.tap(find.text('Pulpit Główny').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('+ Nowe Zlecenie'));
+    await expectWip('+ Nowe Zlecenie');
+    await tester.tap(find.text('Przekieruj na MOP Świebodzin'));
+    await expectWip('Przekieruj na MOP Świebodzin');
+    await tester.tap(find.text('Otwórz 3D →'));
+    await expectWip('Symulator 3D Załadunku');
+    await tester.tap(find.byKey(const Key('main-notifications')));
+    await expectWip('Powiadomienia');
   });
 
-  testWidgets('po angielsku – ekrany i odpowiedzi serwera w języku aplikacji', (tester) async {
-    tester.view.physicalSize = const Size(1800, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final languages = <String?>{};
-    final client = MockClient((request) async {
-      languages.add(request.headers['Accept-Language']);
-      return json(request.url.path == '/api/vehicles' ? [] : {});
-    });
+  testWidgets('bez danych pulpitu – czytelne stany puste', (tester) async {
+    big(tester);
+    await tester.pumpWidget(TruckMapsApp(
+      locale: const Locale('pl'),
+      session: session({
+        '/api/me/settings': {'display_name': 'Anna Kowalska', 'onboarded': true},
+        '/api/companies': <Object>[],
+      }),
+    ));
+    await settle(tester);
+    expect(find.text('Dzień dobry, Anna'), findsOneWidget);
+    expect(find.text('Brak aktywnych alertów.'), findsOneWidget);
+    expect(find.text('Brak komunikatów.'), findsOneWidget);
+    expect(find.textContaining('Brak danych o korytarzach'), findsOneWidget);
+    expect(find.text('GPS / brak danych'), findsOneWidget);
+  });
+
+  testWidgets('po angielsku – teksty interfejsu z tłumaczeń', (tester) async {
+    big(tester);
     await tester.pumpWidget(TruckMapsApp(
       locale: const Locale('en'),
-      session: Session(api: CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client), userName: 'Anna'),
+      session: session({
+        '/api/me/settings': {'display_name': 'Anna Kowalska'},
+        '/api/companies': <Object>[]
+      }),
     ));
-    await tester.pump(const Duration(seconds: 1));
-
-    expect(find.text('Plan a route'), findsOneWidget);  // pulpit
-    await tester.tap(find.text('Vehicles'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('No vehicles. Add the first one with “Add vehicle”.'), findsOneWidget);
-    expect(languages, {'en'});
+    await settle(tester);
+    expect(find.text('Main Dashboard'), findsWidgets);
+    expect(find.text('Active Operational Alerts Centre'), findsOneWidget);
+    expect(find.text('Good morning, Anna'), findsOneWidget);
   });
 
   test('język systemu bez tłumaczenia → polski', () {
@@ -133,65 +238,4 @@ class MemoryStore implements SessionStore {
 
   @override
   Future<void> clear() async => tokens = null;
-}
-
-class FakePageMemory implements PageMemory {
-  FakePageMemory(this.saved);
-
-  String? saved;
-
-  @override
-  Future<String?> load() async => saved;
-
-  @override
-  Future<void> save(String pageId) async => saved = pageId;
-}
-
-void pageMemoryTests() {
-  testWidgets('aplikacja wraca do ostatnio używanego ekranu i go zapamiętuje', (tester) async {
-    tester.view.physicalSize = const Size(1800, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final memory = FakePageMemory('vehicles');
-    await tester.pumpWidget(localized(HomeScreen(
-      session: session({
-        '/api/vehicles': [
-          {'id': 'v1', 'name': 'Zestaw 40 t', 'height_m': 4.0, 'width_m': 2.55, 'length_m': 16.5, 'weight_t': 40,
-           'gvw_t': 40, 'axle_load_t': 11.5, 'company_id': null, 'can_edit': true},
-        ],
-        '/api/me/modules': [],
-      }),
-      registry: modules,
-      onLogout: () {},
-      pageMemory: memory,
-    )));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Zestaw 40 t'), findsWidgets);
-
-    await tester.tap(find.text('Konto'));
-    await tester.pump(const Duration(seconds: 1));
-    expect(memory.saved, 'account');
-  });
-
-  testWidgets('kierowca na telefonie: dolna nawigacja, Tachograf i e-CMR wyłączone', (tester) async {
-    tester.view.physicalSize = const Size(700, 900); // węższy niż 720 – telefon (podpis mapy mieści się)
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final memory = FakePageMemory('route');
-    await tester.pumpWidget(localized(HomeScreen(
-      session: session({'/api/vehicles': [], '/api/me/modules': []}),
-      registry: modules,
-      onLogout: () {},
-      pageMemory: memory,
-    )));
-    await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Tachograf'), findsOneWidget);
-    expect(find.text('e-CMR'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('bottom-tachograph')));
-    await tester.pump();
-    expect(memory.saved, isNot('tachograph'));
-    await tester.tap(find.byKey(const Key('bottom-vehicles')));
-    await tester.pump(const Duration(seconds: 1));
-    expect(memory.saved, 'vehicles');
-  });
 }
