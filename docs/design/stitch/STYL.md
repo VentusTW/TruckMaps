@@ -44,9 +44,24 @@ Nazwa „MapsTrucker” z projektu nie jest przenoszona – aplikacja to TruckMa
 | label-lg / md / sm | 14/20, 12/16, 11/14 | 600, 600, 700 |
 | numeric-data | 14/20 | 500 |
 
+## Rozbieżności DESIGN.md (tokeny YAML vs opis tekstowy) – rozstrzygnięcie
+
+Plik `DESIGN.md` ze Stitch („Fleet Operational System”) ma te same tokeny YAML co powyżej, ale opis tekstowy
+podaje wartości z palety Tailwind Slate. **Źródłem prawdy są tokeny YAML** (z nich zbudowany jest motyw w `core_sdk`);
+z opisu przejmujemy tylko to, czego tokeny nie mają albo co potwierdzają.
+
+| Kwestia | Opis tekstowy | Decyzja w TruckMaps |
+|---|---|---|
+| Tło aplikacji | Slate `#F1F5F9` | **zostaje `#F8F9FF`** (`background`/`surface` z YAML); `#F1F5F9` to inna paleta (szara zamiast chłodnoniebieskiej) i rozjechałaby się z resztą powierzchni. |
+| Obramowania kart | 1 px `#E2E8F0` | **karty bez obramowania**, z delikatnym cieniem (jak dotąd); linie tabel i separatory w kartach – `surfaceContainerHigh` `#DCE9FF` (odpowiednik „ghost outline” w palecie YAML). |
+| Kolor ostrzegawczy | bursztyn `#D97706` / `#F59E0B` | YAML nie ma tokenu ostrzeżenia → **nowy token `TruckColors.amber` `#D97706`** (ciemny motyw `#F59E0B`) dla pasków, kropek i ikon; **tekst** ostrzeżeń zostaje `TruckColors.warning` `#B45F06` (kontrast `#D97706` na białym 3,2:1 – za mało dla tekstu wg WCAG AA). |
+| Promień `xl` | 12 px dla okien i dużych sekcji | **przyjęte** – zgodne z YAML (`xl: 0.75rem`); `TruckTheme.dialogRadius = 12`, `DialogTheme` używa 12 px. Wcześniejszy zapis „karty 8 px (`xl`)” był błędny: 8 px to `lg`. |
+| Primary | `#1E40AF` / `#2563EB` | bez zmian: `primary #00288E`, `primaryContainer #1E40AF` (YAML). |
+| Czerwień alarmowa | `#DC2626` | bez zmian: `error #BA1A1A` (YAML). |
+
 ## Kształty i odstępy
 
-- Promienie: karty 8 px (`xl`), przyciski/pola 4 px (`lg`), chipy pełne.
+- Promienie: karty 8 px (`lg`), okna dialogowe i duże sekcje 12 px (`xl`), przyciski/pola 4 px (`DEFAULT`), chipy pełne.
 - Cień kart: bardzo delikatny (`0 1px 8px rgba(0,0,0,.04)`), bez obramowań.
 - Odstępy: 4 / 8 / 12 / 16 / 20 / 32 px; margines ekranu 16 px (telefon), 24 px (komputer).
 
@@ -121,3 +136,12 @@ Tokeny we wszystkich ekranach są identyczne (powyżej). „✔” = dane są w 
 - ⚡ Prędkość, paliwo / AdBlue, TPMS, kody DTC, temperatura chłodni, telemetria CAN – wymagają telematyki.
 - ✚ Filtr baz, eksport CEPiK, rezerwacja SKP, stanowiska warsztatowe, średni wiek taboru, polisy flotowe, kategorie typu
   „naczepy chłodnie” z licznikami (dziś dwie zakładki: z napędem / naczepy i przyczepy).
+
+## Ekran „Pulpit operacyjny” (dyspozytor, `operations/operations_screen.dart`)
+
+- Nagłówek: tytuł, firma · data, bazy; chip „Na żywo” (miętowy, pulsująca kropka) / „Bez połączenia” (neutralny), godzina stanu, odśwież.
+- Karty KPI w siatce 4 / 3 / 2 kolumny (komputer / tablet / telefon); etykiety z kluczy serwera, nieznane klucze pomijane.
+- Komputer ≥ 1100 px: sprawy 8/12 (karta z promieniem `xl` 12 px), prawa kolumna 4/12: szybkie akcje i karta „Telematyka”.
+- Sprawa: obrys 1 px `surfaceContainerHigh`, promień 4 px, pasek wagi 4 px po lewej – pilne `error`, uwaga `TruckColors.amber`, informacja `primary`;
+  przyciski „Napisz do kierowcy” (tonalny) i „Obsłużone” (obrysowy); obsłużone – tło `surfaceContainerLow` i „Przywróć”.
+- Kafle ⚡ (spalanie, TPMS, chłodnia, punktualność) – ukryte; zamiast nich karta z informacją o braku integracji telematycznej.

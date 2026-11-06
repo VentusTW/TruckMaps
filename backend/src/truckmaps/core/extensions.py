@@ -55,6 +55,14 @@ class ExtensionRegistry:
             return self._defaults[point.key], "core"  # type: ignore[return-value]
         raise LookupError(f"Brak implementacji gniazda '{point.key}'")
 
+    def all_allowed[T](
+        self, point: ExtensionPoint[T], allowed: Callable[[str], bool]
+    ) -> list[tuple[T, str]]:
+        """Wszystkie implementacje gniazda od dozwolonych dostawców (gniazda zbiorcze, np. części
+        pulpitu od kilku modułów): (implementacja, kto ją dostarcza), w kolejności rejestracji."""
+        providers = [p for p in self._providers.get(point.key, []) if allowed(p.owner)]
+        return [(p.implementation, p.owner) for p in sorted(providers, key=lambda p: p.order)]  # type: ignore[misc]
+
     def owner(self, point: ExtensionPoint) -> str:
         """Kto dostarcza aktualną implementację – do diagnostyki."""
         providers = self._providers.get(point.key)

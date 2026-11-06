@@ -253,5 +253,8 @@
   "error.permit_ways": "Wskaż drogi objęte zezwoleniem.",
   "error.permit_forbidden": "Zezwolenia firmy zapisują właściciel i dyspozytorzy.",
   "error.permit_not_found": "Nie znaleziono zezwolenia.",
-  "route.permitted": "{message} – objęte zezwoleniem nr {number}"
+  "route.permitted": "{message} – objęte zezwoleniem nr {number}",
+  "dashboard.alert_not_found": "Nie znaleziono tej sprawy na pulpicie – mogła już zniknąć.",
+  "dashboard.no_driver": "Pojazd nie ma przypisanego kierowcy.",
+  "dashboard.text_required": "Wpisz treść wiadomości."
 }

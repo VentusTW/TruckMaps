@@ -22,7 +22,18 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import JSON, Date, DateTime, String, Text, UniqueConstraint, delete, select, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from truckmaps.sdk import DRIVER_CHECK, CoreContext, Module, Principal, TripInfo, i18n
+from truckmaps.sdk import (
+    DASHBOARD_FEED,
+    DRIVER_CHECK,
+    CoreContext,
+    DashboardAlert,
+    DashboardKpi,
+    DashboardPart,
+    Module,
+    Principal,
+    TripInfo,
+    i18n,
+)
 from truckmaps.sdk.i18n import t
 from truckmaps_drivers import rules
 
@@ -823,5 +834,60 @@ class DriversModule(Module):
                     for text in rules.problems(driver, info, today())
                 ]
 
+        class Feed:
+            """Pulpit dyspozytora: kierowcy w pracy i ich terminy (badania, karta, kod 95…)."""
+
+            def collect(self, db: Session, company_id: str, day: date) -> DashboardPart:
+                drivers = list(db.scalars(select(Driver).where(Driver.company_id == company_id)))
+                active = db.scalars(
+                    select(Assignment.driver_id).where(
+                        Assignment.driver_id.in_([d.id for d in drivers]),
+                        Assignment.ended_at.is_(None),
+                    )
+                ).all()
+                alerts = []
+                for driver in drivers:
+                    for field, when, state in rules.dues(driver, day):
+                        if state == "ok":
+                            continue
+                        left = (when - day).days
+                        severity = (
+                            "critical" if state == "overdue" else "warning" if left <= 7 else "info"
+                        )
+                        alerts.append(
+                            DashboardAlert(
+                                id=f"drivers:due:{driver.id}:{field}:{when.isoformat()}",
+                                kind="drivers.due",
+                                severity=severity,
+                                data={
+                                    "driver_name": driver.name,
+                                    "field": field,
+                                    "day": when.isoformat(),
+                                    "overdue": state == "overdue",
+                                },
+                                driver_subject=driver.subject,
+                                due=when,
+                            )
+                        )
+                overdue = sum(1 for a in alerts if a.severity == "critical")
+                return DashboardPart(
+                    kpis=[
+                        DashboardKpi(
+                            key="drivers.assigned",
+                            value=len(set(active)),
+                            total=len(drivers),
+                            order=100,
+                        ),
+                        DashboardKpi(
+                            key="drivers.deadlines",
+                            value=len(alerts),
+                            tone="error" if overdue else ("warning" if alerts else "ok"),
+                            order=110,
+                        ),
+                    ],
+                    alerts=alerts,
+                )
+
         ctx.extensions.provide(DRIVER_CHECK, Check())
+        ctx.extensions.provide(DASHBOARD_FEED, Feed())
         ctx.api.include_router(router)

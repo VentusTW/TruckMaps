@@ -247,3 +247,22 @@ def test_photos_messages_protocol_and_costs(client, fleet):
     ).json()
     assert other == []
     assert client.get("/api/m/service/costs", headers=as_user("jan")).json() == []  # kierowca
+
+
+def test_dashboard_shows_open_orders(client, fleet):
+    company_id = client.get(f"/api/vehicles/{fleet}", headers=as_user("olek")).json()["company_id"]
+    for urgency in ("stopped", "can_drive"):
+        client.post(
+            "/api/m/service/orders",
+            json={"vehicle_id": fleet, "description": "Wycieka olej", "urgency": urgency},
+            headers=as_user("jan"),
+        )
+    params = {"company_id": company_id}
+    overview = client.get("/api/dashboard/overview", params=params, headers=as_user("olek")).json()
+    open_orders = next(k for k in overview["kpis"] if k["key"] == "service.open")
+    assert (open_orders["value"], open_orders["tone"]) == (2, "error")
+    alerts = client.get("/api/dashboard/alerts", params=params, headers=as_user("olek")).json()
+    orders = [a for a in alerts if a["kind"] == "service.order"]
+    assert [a["severity"] for a in orders] == ["critical", "warning"]
+    assert orders[0]["data"]["description"] == "Wycieka olej"
+    assert orders[0]["vehicle_name"]

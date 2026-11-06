@@ -24,6 +24,7 @@ class _Module extends TruckMapsModule {
 
 void main() {
   tokenTests();
+  sseTests();
 
   test('kontrakt: moduł bez sekcji nic nie dokłada; kolory znaczeniowe bez motywu', () {
     final context = ModuleContext(api: CoreApi(baseUrl: 'http://x', token: 't'), userName: 'Anna');
@@ -102,5 +103,24 @@ void tokenTests() {
 
     expect(await api.get('/api/vehicles'), isEmpty);
     expect(tokens.refreshes, 1);
+  });
+}
+
+void sseTests() {
+  test('zdarzenia SSE: nazwa i dane JSON, komentarze pomijane, błąd jako ApiException', () async {
+    final client = MockClient((request) async {
+      expect(request.headers['Accept'], 'text/event-stream');
+      if (request.url.path == '/zle') {
+        return http.Response.bytes(utf8.encode('{"detail": "Brak dostępu."}'), 403);
+      }
+      return http.Response(': ping\n\nevent: snapshot\ndata: {"a":\ndata: 1}\n\ndata: [2]\n\n', 200);
+    });
+    final api = CoreApi(baseUrl: 'http://serwer.test', token: 't', client: client);
+
+    final events = await api.events('/strumien').toList();
+    expect(events.map((e) => e.event), ['snapshot', 'message']);
+    expect(events.first.data, {'a': 1});
+    expect(events.last.data, [2]);
+    expect(api.events('/zle').toList(), throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)));
   });
 }
