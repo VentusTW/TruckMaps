@@ -206,6 +206,8 @@ class VehicleProfile(Base):
     """Zgłoszona usterka (moduł Serwis), pojazd jeszcze jeździ – do zamknięcia zlecenia."""
     in_use_by: Mapped[str | None] = mapped_column(String(255))
     assigned_driver: Mapped[str | None] = mapped_column(String(255))
+    assigned_driver_label: Mapped[str | None] = mapped_column(String(200))
+    """Nazwa kierowcy z kartoteki (moduł Kierowcy) – także kierowcy bez konta."""
     """Kierowca przydzielony do pojazdu firmy (konto członka firmy)."""
     fifth_wheel_m: Mapped[float | None]
     """Ciągnik: siodło od przodu ciągnika (z dokumentów)."""
@@ -586,6 +588,7 @@ def build_router(current_user) -> APIRouter:
             for handler in request.app.state.modules.driver_handlers:
                 handler(db, vehicle.id, subject, user)
         vehicle.assigned_driver = subject
+        vehicle.assigned_driver_label = None
         db.commit()
         return vehicle_outs(db, [vehicle], roles, user)[0]
 
@@ -830,8 +833,9 @@ def vehicle_outs(
                     "driver_name": names.get((v.company_id, driving)) if driving else None,
                     "assigned_member_id": members.get((v.company_id, v.assigned_driver)),
                     "assigned_driver_name": names.get((v.company_id, v.assigned_driver))
+                    or v.assigned_driver_label
                     if v.assigned_driver
-                    else None,
+                    else v.assigned_driver_label,
                     "assigned_to_me": v.assigned_driver is not None
                     and v.assigned_driver == user.subject,
                 }

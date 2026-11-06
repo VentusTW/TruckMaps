@@ -243,7 +243,7 @@ def test_assignment_with_warnings_and_history(client, company):
     assert taken.json()["warnings"] == []
     assert client.get(url, headers=as_user("olek")).json()["vehicles"] == []
     vehicle = client.get(f"/api/vehicles/{tractor}", headers=as_user("olek")).json()
-    assert vehicle["assigned_driver_name"] is None
+    assert vehicle["assigned_driver_name"] == "Piotr Nowak"  # kierowca z kartoteki, bez konta
 
     # Przydział zmieniony w „Pojazdach” – historia modułu nadąża.
     members = client.get(f"/api/companies/{company['id']}", headers=as_user("olek")).json()

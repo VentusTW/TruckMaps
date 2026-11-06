@@ -788,7 +788,7 @@ class _Actions extends StatelessWidget {
         if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
         if (onStats != null)
           PopupMenuItem(value: 'stats', child: Text(l.vehicleStatsAction)),
-        if (onDriver != null && canAssignDriver(vehicle))
+        if (onDriver != null && canAssignDriver(vehicle) && !moduleActions.any((a) => a.id == assignDriverActionId))
           PopupMenuItem(value: 'driver', child: Text(l.vehicleDriverAction)),
         if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
       ],

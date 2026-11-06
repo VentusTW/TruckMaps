@@ -167,9 +167,12 @@ class Fleet(Protocol):
         """Pojazdy firmy z przydzielonym kierowcą: id pojazdu → konto kierowcy."""
         ...
 
-    def assign_driver(self, db: Session, vehicle_id: str, subject: str | None) -> None:
-        """Przydział kierowcy (konto członka firmy) albo zwolnienie pojazdu – zapis razem
-        z sesją modułu, bez sprawdzania uprawnień (sprawdza moduł)."""
+    def assign_driver(
+        self, db: Session, vehicle_id: str, subject: str | None, name: str | None = None
+    ) -> None:
+        """Przydział kierowcy (konto członka firmy albo kierowca z kartoteki bez konta – wtedy
+        ``name`` do wyświetlenia) albo zwolnienie pojazdu – zapis razem z sesją modułu,
+        bez sprawdzania uprawnień (sprawdza moduł)."""
         ...
 
     def on_driver_assigned(self, handler: DriverAssignedHandler) -> None:

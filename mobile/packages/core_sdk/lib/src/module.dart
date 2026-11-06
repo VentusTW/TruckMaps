@@ -73,6 +73,10 @@ class VehicleSection {
 }
 
 /// Szybka akcja pojazdu. [run] zwraca `true`, gdy coś zmieniła – karta odświeża dane.
+/// Id akcji modułu, która przydziela kierowcę (np. z kartoteki modułu Kierowcy) – zastępuje
+/// w powłoce wybór członka firmy.
+const assignDriverActionId = 'assign-driver';
+
 class VehicleAction {
   const VehicleAction({required this.id, required this.label, required this.icon, required this.run, this.applies});
 

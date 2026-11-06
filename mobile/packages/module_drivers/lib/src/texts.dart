@@ -53,6 +53,11 @@ class DriversTexts {
   String get vehicles => _t('Pojazdy', 'Vehicles');
   String get noVehicles => _t('Brak przydzielonych pojazdów.', 'No vehicles assigned.');
   String get assign => _t('Przydziel pojazd', 'Assign vehicle');
+  String get assignDriver => _t('Przydziel kierowcę', 'Assign driver');
+  String assignDriverTitle(String vehicle) => _t('Kierowca pojazdu $vehicle', 'Driver of $vehicle');
+  String get noDriver => _t('Bez kierowcy', 'No driver');
+  String get noDriversToAssign => _t('Brak kierowców w kartotece firmy – dodaj ich w module Kierowcy.',
+      'No drivers in the company register – add them in the Drivers module.');
   String get release => _t('Zwolnij', 'Release');
   String get chooseVehicle => _t('Wybierz pojazd', 'Choose a vehicle');
   String get noCompanyVehicles => _t('Firma nie ma pojazdów do przydziału.', 'The company has no vehicles to assign.');
