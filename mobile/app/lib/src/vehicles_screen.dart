@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'l10n.dart';
+import 'vehicles/fleet_widgets.dart';
 import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_actions.dart';
 import 'vehicles/vehicle_card.dart';
@@ -175,12 +176,43 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           final shownTrailers = [for (final v in shown) if (!isDrivable(v)) v];
           final empty = _query.trim().isEmpty ? null : l.vehiclesNoMatch;
           final states = {for (final v in shown) vehicleState(v)}..remove(VehicleState.free);
-          if (_table) {
-            return Column(children: [
+          final width = MediaQuery.sizeOf(context).width;
+          // Komputer: liczby floty nad listą, „wymaga uwagi” obok – jak w projekcie taboru.
+          Widget framed(Widget content) {
+            final header = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              if (width >= 720)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: LayoutBuilder(builder: (context, size) {
+                    final width = (size.maxWidth - Gap.m * 3) / 4;
+                    return FleetKpis(vehicles: vehicles, width: width);
+                  }),
+                ),
               _toolbar(l, states),
-              Expanded(child: _tables(l, shownMotors, shownTrailers, trailers, byId, empty)),
+            ]);
+            final main = Column(children: [header, Expanded(child: content)]);
+            if (width < 1300) return main;
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: main),
+              SizedBox(
+                width: 360,
+                child: ListView(padding: const EdgeInsets.fromLTRB(0, 12, 12, 88), children: [
+                  SectionCard(
+                    title: l.dashVehiclesTitle,
+                    icon: Icons.event_note_outlined,
+                    child: VehiclesAttention(
+                      vehicles: vehicles,
+                      onOpen: _card,
+                      limit: 12,
+                      empty: Text(l.dashVehiclesOk),
+                    ),
+                  ),
+                ]),
+              ),
             ]);
           }
+
+          if (_table) return framed(_tables(l, shownMotors, shownTrailers, trailers, byId, empty));
 
           Widget motorCard(Map<String, dynamic> v) => _VehicleCard(
                 vehicle: v,
@@ -229,21 +261,13 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           final trailerList = section(l.vehiclesTowed, shownTrailers, trailerCard, empty ?? l.vehiclesTowedEmpty);
           const padding = EdgeInsets.fromLTRB(12, 4, 12, 88);
           // Szeroki ekran: samochody po lewej, naczepy i przyczepy po prawej (przeciąganie na pojazd).
-          if (MediaQuery.sizeOf(context).width >= 900) {
-            return Column(children: [
-              _toolbar(l, states),
-              Expanded(
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: ListView(padding: padding, children: motorList)),
-                  Expanded(child: ListView(padding: padding, children: trailerList)),
-                ]),
-              ),
-            ]);
+          if (width >= 900) {
+            return framed(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: ListView(padding: padding, children: motorList)),
+              Expanded(child: ListView(padding: padding, children: trailerList)),
+            ]));
           }
-          return Column(children: [
-            _toolbar(l, states),
-            Expanded(child: ListView(padding: padding, children: [...motorList, ...trailerList])),
-          ]);
+          return framed(ListView(padding: padding, children: [...motorList, ...trailerList]));
         },
       ),
     );
@@ -252,7 +276,10 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   /// Wybór widoku, wyszukiwanie po nazwie albo tablicy i objaśnienie kolorów.
   Widget _toolbar(AppLocalizations l, Set<VehicleState> states) => Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.m),
+            child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           SegmentedButton<bool>(
             segments: [
               ButtonSegment(value: false, icon: const Icon(Icons.grid_view), label: Text(l.vehiclesViewCards)),
@@ -269,13 +296,14 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 isDense: true,
                 prefixIcon: const Icon(Icons.search),
                 hintText: l.vehiclesSearch,
-                border: const OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => _query = value),
             ),
           ),
           if (states.isNotEmpty) StateLegend(states: states),
-        ]),
+            ]),
+          ),
+        ),
       );
 
   /// Tabela w dwóch zakładkach: pojazdy z napędem oraz naczepy i przyczepy.
@@ -326,12 +354,17 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         // Zakładki jako wyraźne przyciski: wybrana wypełniona kolorem.
         Container(
           margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: scheme.surfaceVariant, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: TruckColors.of(context).card,
+            borderRadius: BorderRadius.circular(TruckTheme.radius),
+            boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 1))],
+          ),
           child: TabBar(
             indicatorSize: TabBarIndicatorSize.tab,
-            indicator: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(9)),
-            labelColor: scheme.onPrimary,
+            indicator: BoxDecoration(
+                color: scheme.primaryContainer, borderRadius: BorderRadius.circular(TruckTheme.smallRadius)),
+            labelColor: scheme.onPrimaryContainer,
             unselectedLabelColor: scheme.onSurfaceVariant,
             labelStyle: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             dividerColor: Colors.transparent,

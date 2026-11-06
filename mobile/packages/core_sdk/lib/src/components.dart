@@ -93,12 +93,16 @@ class KpiCard extends StatelessWidget {
     this.status,
     this.tone = StatusTone.neutral,
     this.onTap,
+    this.progress,
   });
 
   final String label;
   final String value;
   final String? unit;
   final IconData icon;
+
+  /// Pasek pod liczbą (0–1, np. udział we flocie), w kolorze [tone].
+  final double? progress;
 
   /// Linia pod liczbą (np. „2 po terminie”), w kolorze [tone].
   final String? status;
@@ -120,6 +124,10 @@ class KpiCard extends StatelessWidget {
                 SectionLabel(label),
                 const SizedBox(height: Gap.s),
                 BigNumber(value: value, unit: unit),
+                if (progress != null) ...[
+                  const SizedBox(height: Gap.s),
+                  TruckProgressBar(value: progress!, height: 6, color: tone == StatusTone.neutral ? null : color),
+                ],
                 if (status != null) ...[
                   const SizedBox(height: Gap.xs),
                   Text(status!,

@@ -828,5 +828,8 @@
   "kpiDueSoon": "wkrótce – do zaplanowania",
   "kpiAllFine": "wszystkie w porządku",
   "kpiUnread": "nieprzeczytane",
-  "cardRepairBanner": "Pojazd w naprawie – wyłączony z użytku"
+  "cardRepairBanner": "Pojazd w naprawie – wyłączony z użytku",
+  "kpiInUseTitle": "W użyciu",
+  "kpiShare": "{percent}% floty",
+  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}}
 }

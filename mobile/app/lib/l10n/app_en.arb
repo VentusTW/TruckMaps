@@ -698,5 +698,8 @@
   "kpiDueSoon": "due soon – plan ahead",
   "kpiAllFine": "all in order",
   "kpiUnread": "unread",
-  "cardRepairBanner": "Vehicle in repair – out of service"
+  "cardRepairBanner": "Vehicle in repair – out of service",
+  "kpiInUseTitle": "In use",
+  "kpiShare": "{percent}% of the fleet",
+  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}}
 }

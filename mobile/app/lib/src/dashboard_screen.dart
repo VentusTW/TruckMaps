@@ -5,10 +5,7 @@ import 'package:intl/intl.dart';
 import 'inbox_screen.dart' show inboxTitle;
 import 'l10n.dart';
 import 'planner/recent.dart';
-import 'vehicles/service_dates.dart';
-import 'vehicles/vehicle_actions.dart' show vehicleTitle;
-import 'vehicles/vehicle_form.dart' show kindIcon;
-import 'vehicles/vehicle_state.dart';
+import 'vehicles/fleet_widgets.dart';
 
 /// Pulpit startowy: szybkie akcje i to, co wymaga uwagi – terminy i stan pojazdów, nowe
 /// wiadomości, ostatnie trasy oraz sekcje modułów (np. otwarte usterki, terminy kierowców).
@@ -147,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-/// Liczby floty z danych serwera: pojazdy, wolne, w naprawie, terminy, nieprzeczytane wiadomości.
+/// Liczby floty i nieprzeczytane wiadomości z danych serwera.
 class _Kpis extends StatelessWidget {
   const _Kpis({
     required this.vehicles,
@@ -171,70 +168,24 @@ class _Kpis extends StatelessWidget {
       builder: (context, snapshot) {
         final data = snapshot.data;
         if (data == null || data[0] is! List) return const SizedBox.shrink();
-        final list = _maps(data[0]);
-        final states = [for (final v in list) vehicleState(v)];
-        int count(VehicleState s) => states.where((x) => x == s).length;
-        final repair = count(VehicleState.repair);
-        final reported = count(VehicleState.reported);
-        var overdue = 0;
-        var soon = 0;
-        for (final v in list) {
-          final urgent = mostUrgent(v);
-          final km = serviceKmLeft(v);
-          if ((urgent?.overdue ?? false) || (km != null && km < 0)) {
-            overdue++;
-          } else if (urgent != null || km != null) {
-            soon++;
-          }
-        }
         final messages = data[1];
         final unread = messages is Map ? (messages['unread'] as int? ?? 0) : null;
-        final cards = [
-          KpiCard(
-            label: l.menuVehicles,
-            value: l.number(list.length),
-            icon: Icons.local_shipping_outlined,
-            status: l.kpiInUse(l.number(count(VehicleState.inUse))),
-            tone: StatusTone.info,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiAvailable,
-            value: l.number(count(VehicleState.free)),
-            icon: Icons.check_circle_outline,
-            status: l.kpiAvailableHint,
-            tone: StatusTone.ok,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiRepair,
-            value: l.number(repair),
-            icon: Icons.build_outlined,
-            status: reported > 0 ? l.kpiReported(l.number(reported)) : l.kpiNoReports,
-            tone: repair + reported > 0 ? StatusTone.error : StatusTone.ok,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiDeadlines,
-            value: l.number(overdue + soon),
-            icon: Icons.event_note_outlined,
-            status: overdue > 0 ? l.kpiOverdue(l.number(overdue)) : (soon > 0 ? l.kpiDueSoon : l.kpiAllFine),
-            tone: overdue > 0 ? StatusTone.error : (soon > 0 ? StatusTone.warning : StatusTone.ok),
-            onTap: onVehicles,
-          ),
-          if (unread != null)
-            KpiCard(
-              label: l.menuInbox,
-              value: l.number(unread),
-              icon: Icons.mail_outline,
-              status: l.kpiUnread,
-              tone: unread > 0 ? StatusTone.info : StatusTone.neutral,
-              onTap: onInbox,
-            ),
-        ];
-        return Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
-          for (final card in cards) SizedBox(width: width, child: card),
-        ]);
+        return FleetKpis(
+          vehicles: _maps(data[0]),
+          width: width,
+          onTap: onVehicles,
+          extra: [
+            if (unread != null)
+              KpiCard(
+                label: l.menuInbox,
+                value: l.number(unread),
+                icon: Icons.mail_outline,
+                status: l.kpiUnread,
+                tone: unread > 0 ? StatusTone.info : StatusTone.neutral,
+                onTap: onInbox,
+              ),
+          ],
+        );
       },
     );
   }
@@ -270,34 +221,7 @@ class _VehiclesAttention extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) return Text('${snapshot.error}');
           if (!snapshot.hasData) return const LinearProgressIndicator();
-          final items = <(int, Widget)>[];
-          for (final v in _maps(snapshot.data)) {
-            final state = vehicleState(v);
-            final urgent = mostUrgent(v);
-            final km = serviceKmLeft(v);
-            final notes = [
-              if (state == VehicleState.repair || state == VehicleState.reported) stateText(l, v)!,
-              if (urgent != null)
-                (urgent.overdue ? l.vehicleOverdue : l.vehicleDueSoon)(
-                    serviceDateLabel(l, urgent.key), DateFormat.yMd(l.localeName).format(urgent.day)),
-              if (km != null) km < 0 ? l.vehicleServiceKmOverdue(l.number(-km)) : l.vehicleServiceKmSoon(l.number(km)),
-            ];
-            if (notes.isEmpty) continue;
-            final overdue = state == VehicleState.repair || (urgent?.overdue ?? false) || (km != null && km < 0);
-            items.add((
-              overdue ? 0 : 1,
-              AttentionTile(
-                title: vehicleTitle(v),
-                subtitle: notes.join(' · '),
-                overdue: overdue,
-                icon: kindIcon(v['kind'] as String?),
-                onTap: () => onOpen(v),
-              ),
-            ));
-          }
-          if (items.isEmpty) return _AllGood(text: l.dashVehiclesOk);
-          items.sort((a, b) => a.$1.compareTo(b.$1));
-          return Column(children: [for (final (_, tile) in items.take(6)) tile]);
+          return VehiclesAttention(vehicles: _maps(snapshot.data), onOpen: onOpen, empty: _AllGood(text: l.dashVehiclesOk));
         },
       ),
     );

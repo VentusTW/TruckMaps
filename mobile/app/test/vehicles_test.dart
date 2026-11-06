@@ -451,6 +451,16 @@ void main() {
     expect(find.textContaining('Sprawdź wysokość'), findsOneWidget);
   });
 
+  testWidgets('komputer: liczby floty nad listą, „wymaga uwagi” obok', (tester) async {
+    vehicles = [
+      {...truck, 'in_repair': true}
+    ];
+    await pump(tester, size: const Size(1600, 1200));
+    expect(find.text('W UŻYCIU'), findsOneWidget);
+    expect(find.text('W SERWISIE'), findsOneWidget);
+    expect(find.text('Pojazdy – wymaga uwagi'), findsOneWidget);
+  });
+
   testWidgets('wejście na ekran odświeża listę: pojazd w naprawie na czerwono', (tester) async {
     await pump(tester);
     expect(find.textContaining('w naprawie'), findsNothing);
@@ -462,8 +472,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('w naprawie'), findsNWidgets(2)); // kafelek + objaśnienie kolorów
-    final card = tester.widget<Card>(find.byType(Card).first);
-    expect(card.color, Theme.of(tester.element(find.byType(Card).first)).colorScheme.errorContainer);
+    final tile = find.ancestor(of: find.textContaining('${truck['name']}').first, matching: find.byType(Card)).first;
+    expect(tester.widget<Card>(tile).color, Theme.of(tester.element(tile)).colorScheme.errorContainer);
     expect(changes, 0); // samo odświeżenie nie powiadamia planera
   });
 
