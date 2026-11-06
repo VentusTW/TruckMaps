@@ -701,5 +701,16 @@
   "cardRepairBanner": "Vehicle in repair – out of service",
   "kpiInUseTitle": "In use",
   "kpiShare": "{percent}% of the fleet",
-  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}}
+  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}},
+  "soonTitle": "Coming soon",
+  "soonInspections": "Inspections and test station booking",
+  "soonCepik": "CEPiK export",
+  "soonBases": "Base filter",
+  "soonTelemetry": "CAN telemetry: fuel, AdBlue, speed",
+  "soonTpms": "Tyre pressure (TPMS)",
+  "soonDtc": "Fault codes (DTC)",
+  "soonReefer": "Reefer temperature",
+  "soonWorkshop": "Workshop bays",
+  "soonPolicies": "Fleet insurance policies",
+  "soonFleetAge": "Average fleet age"
 }

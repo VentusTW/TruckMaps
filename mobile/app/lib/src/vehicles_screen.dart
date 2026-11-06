@@ -178,8 +178,25 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           final states = {for (final v in shown) vehicleState(v)}..remove(VehicleState.free);
           final width = MediaQuery.sizeOf(context).width;
           // Komputer: liczby floty nad listą, „wymaga uwagi” obok – jak w projekcie taboru.
+          final soonTiles = [
+            SoonTile(title: l.soonTelemetry, icon: Icons.sensors),
+            SoonTile(title: l.soonTpms, icon: Icons.tire_repair),
+            SoonTile(title: l.soonDtc, icon: Icons.error_outline),
+            SoonTile(title: l.soonReefer, icon: Icons.ac_unit),
+            SoonTile(title: l.soonWorkshop, icon: Icons.handyman_outlined),
+            SoonTile(title: l.soonPolicies, icon: Icons.shield_outlined),
+            SoonTile(title: l.soonFleetAge, icon: Icons.eco_outlined),
+          ];
           Widget framed(Widget content) {
             final header = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+                  SoonButton(label: l.soonInspections, icon: Icons.event_available_outlined),
+                  SoonButton(label: l.soonCepik, icon: Icons.file_download_outlined),
+                  SoonButton(label: l.soonBases, icon: Icons.warehouse_outlined),
+                ]),
+              ),
               if (width >= 720)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
@@ -207,6 +224,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                       empty: Text(l.dashVehiclesOk),
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, Gap.l, 4, Gap.s),
+                    child: SectionLabel(l.soonTitle),
+                  ),
+                  for (final tile in soonTiles) Padding(padding: const EdgeInsets.only(bottom: Gap.s), child: tile),
                 ]),
               ),
             ]);
@@ -267,7 +289,14 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               Expanded(child: ListView(padding: padding, children: trailerList)),
             ]));
           }
-          return framed(ListView(padding: padding, children: [...motorList, ...trailerList]));
+          return framed(ListView(padding: padding, children: [
+            ...motorList,
+            ...trailerList,
+            if (width < 1300) ...[
+              Padding(padding: const EdgeInsets.fromLTRB(4, 16, 4, 8), child: SectionLabel(l.soonTitle)),
+              for (final tile in soonTiles) Padding(padding: const EdgeInsets.only(bottom: 8), child: tile),
+            ],
+          ]));
         },
       ),
     );

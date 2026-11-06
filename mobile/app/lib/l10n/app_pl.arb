@@ -831,5 +831,16 @@
   "cardRepairBanner": "Pojazd w naprawie – wyłączony z użytku",
   "kpiInUseTitle": "W użyciu",
   "kpiShare": "{percent}% floty",
-  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}}
+  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}},
+  "soonTitle": "Wkrótce",
+  "soonInspections": "Przeglądy i rezerwacje SKP",
+  "soonCepik": "Eksport CEPiK",
+  "soonBases": "Filtr baz",
+  "soonTelemetry": "Telemetria CAN: paliwo, AdBlue, prędkość",
+  "soonTpms": "Ciśnienie w oponach (TPMS)",
+  "soonDtc": "Kody błędów (DTC)",
+  "soonReefer": "Temperatura chłodni",
+  "soonWorkshop": "Stanowiska warsztatowe",
+  "soonPolicies": "Polisy flotowe",
+  "soonFleetAge": "Średni wiek taboru"
 }

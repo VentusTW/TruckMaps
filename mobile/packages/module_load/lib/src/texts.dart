@@ -98,6 +98,12 @@ class LoadTexts {
   String get no => _t('nie', 'no');
   String deckDims(String length, String width, String height) => _t(
       'Długość: $length · szerokość: $width · wysokość: $height', 'Length: $length · width: $width · height: $height');
+  String get soonTitle => _t('Wkrótce', 'Coming soon');
+  String get soon3d => _t('Widok 3D ładunku', '3D load view');
+  String get soonForces => _t('Bilans sił EN 12195-1 (cx, cy)', 'EN 12195-1 force balance (cx, cy)');
+  String get soonEquipment => _t('Lista sprzętu mocującego (VDI 2700)', 'Securing equipment list (VDI 2700)');
+  String get soonPdf => _t('Eksport planu do PDF', 'Export plan to PDF');
+  String get soonApprove => _t('Zatwierdzenie planu załadunku', 'Load plan approval');
   String get disclaimerTitle => _t('Zastrzeżenie', 'Disclaimer');
   String get disclaimerLaw => _t(
       'Rozmieszczenie i zabezpieczenie ładunku zgodnie z art. 61 ustawy Prawo o ruchu drogowym, Konwencją CMR i normą PN-EN 12195-1 – na odpowiedzialność kierowcy oraz załadowcy / nadawcy.',

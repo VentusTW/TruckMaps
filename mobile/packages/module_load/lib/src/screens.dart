@@ -250,6 +250,27 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
                     ),
                   ]
                 : PlanResult.panels(plan, mats: _mats, frontWall: _frontWall, checking: _checking);
+            final soon = SectionCard(
+              title: t.soonTitle,
+              icon: Icons.construction,
+              child: Column(children: [
+                for (final (title, icon) in [
+                  (t.soon3d, Icons.view_in_ar_outlined),
+                  (t.soonForces, Icons.functions),
+                  (t.soonEquipment, Icons.inventory_outlined),
+                  (t.soonPdf, Icons.picture_as_pdf_outlined),
+                  (t.soonApprove, Icons.check_circle_outline),
+                ])
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: IconSquare(icon: icon, size: 32),
+                    title: Text(title),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => openUnderConstruction(context, title, icon: icon),
+                  ),
+              ]),
+            );
             Widget column(List<Widget> children) => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -262,14 +283,14 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(flex: 8, child: column([form, if (deck != null) deck])),
                   const SizedBox(width: Gap.xl),
-                  Expanded(flex: 4, child: column(side)),
+                  Expanded(flex: 4, child: column([...side, soon])),
                 ]),
                 const SizedBox(height: Gap.l),
                 const LoadDisclaimer(),
               ]);
             }
             return ListView(padding: EdgeInsets.all(pad), children: [
-              column([form, if (plan != null) ...side, if (deck != null) deck, const LoadDisclaimer()]),
+              column([form, if (plan != null) ...side, if (deck != null) deck, soon, const LoadDisclaimer()]),
             ]);
           }),
         );

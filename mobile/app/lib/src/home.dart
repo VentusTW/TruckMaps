@@ -416,6 +416,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (selected < 0) selected = 0;
     final current = pages[selected];
     void select(String id) {
+      // Zapowiedziane funkcje kierowcy – ekran „W budowie”, bez zmiany bieżącego ekranu.
+      final soon = {'tachograph': context.l.navTachograph, 'ecmr': context.l.navEcmr}[id];
+      if (soon != null) {
+        openUnderConstruction(context, soon);
+        return;
+      }
       if (id == 'inbox' && _selected != 'inbox') _inboxChanged();
       // Stan pojazdów zmienia się poza tym ekranem (serwis, nawigacja innych kierowców).
       if (id == 'vehicles') _vehiclesShown.value++;
@@ -439,8 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomItems: driver
           ? [
               ShellItem('route', l.menuRoute, Icons.route_outlined),
-              ShellItem('tachograph', l.navTachograph, Icons.timer_outlined, enabled: false),
-              ShellItem('ecmr', l.navEcmr, Icons.inventory_2_outlined, enabled: false),
+              ShellItem('tachograph', l.navTachograph, Icons.timer_outlined),
+              ShellItem('ecmr', l.navEcmr, Icons.inventory_2_outlined),
               ShellItem('vehicles', l.navVehicle, Icons.local_shipping_outlined),
             ]
           : null,
