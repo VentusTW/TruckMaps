@@ -45,6 +45,11 @@ forbidden_modules =
     truckmaps_hello
     truckmaps_load
     truckmaps_service
+# Wyjątek: narzędzie danych pokazowych (uruchamiane ręcznie) wypełnia tabele modułów,
+# gdy są zainstalowane – import w try/except ImportError, serwer z niego nie korzysta.
+ignore_imports =
+    truckmaps.core.dashboard_demo -> truckmaps_drivers.module
+    truckmaps.core.dashboard_demo -> truckmaps_service.module
 
 [importlinter:contract:modules-independent]
 name = Moduły nie importują się nawzajem

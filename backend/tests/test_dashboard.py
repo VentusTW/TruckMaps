@@ -397,23 +397,29 @@ def test_demo_fleet_is_regular_vehicles(client, fleet, database):
     assert volvo["trailer_name"] == "Schmitz S.CS MEGA"
     assert demo["WI 1099R"]["in_repair"] is True
     assert demo["WI 8812M"]["assigned_driver_name"] == "Paweł Wiśniewski"
-    # Kartoteka modułu Kierowcy (tabela jest w bazie testowej, gdy moduł jest na ścieżce).
+    # Kartoteka Kierowców i zlecenia Serwisu – tylko gdy oba moduły są zainstalowane
+    # (testy samego rdzenia i pojedynczych modułów ich nie mają).
     from sqlalchemy import select
-    from truckmaps_drivers.module import Driver
-    from truckmaps_service.module import ServiceOrder
 
-    Driver.__table__.create(database.engine, checkfirst=True)
-    ServiceOrder.__table__.create(database.engine, checkfirst=True)
-    main(["--company", fleet["id"], "--vehicles"], database=database)
-    with database.session() as db:
-        orders = list(db.scalars(select(ServiceOrder)))
-        assert len(orders) == 13
-        assert any(o.status == "done" and o.parts and o.labour_hours for o in orders)
-        from truckmaps.core.trips import VehicleTrip
+    from truckmaps.core.trips import VehicleTrip
 
-        assert len(list(db.scalars(select(VehicleTrip)))) >= 260
-        bogucki = db.scalar(select(Driver).where(Driver.subject == "demo-janusz-bogucki"))
-        assert bogucki is not None and bogucki.adr_tank and "C+E" in bogucki.license_categories
+    try:
+        from truckmaps_drivers.module import Driver
+        from truckmaps_service.module import ServiceOrder
+    except ImportError:
+        Driver = ServiceOrder = None
+    if Driver is not None and ServiceOrder is not None:
+        Driver.__table__.create(database.engine, checkfirst=True)
+        ServiceOrder.__table__.create(database.engine, checkfirst=True)
+        main(["--company", fleet["id"], "--vehicles"], database=database)
+        with database.session() as db:
+            orders = list(db.scalars(select(ServiceOrder)))
+            assert len(orders) == 13
+            assert any(o.status == "done" and o.parts and o.labour_hours for o in orders)
+            assert len(list(db.scalars(select(VehicleTrip)))) >= 260
+            bogucki = db.scalar(select(Driver).where(Driver.subject == "demo-janusz-bogucki"))
+            assert bogucki is not None and bogucki.adr_tank
+            assert "C+E" in bogucki.license_categories
 
     main(["--company", fleet["id"], "--vehicles", "--remove"], database=database)
     vehicles = client.get("/api/vehicles", headers=as_user("olek")).json()
