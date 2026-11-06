@@ -209,6 +209,16 @@ void main() {
     expect((sent['company_id'], sent['base_id']), ('c1', 'b1'));
   });
 
+  testWidgets('pojazd prywatny: przy kierowcy podpowiedź i „Wybierz bazę” (formularz)', (tester) async {
+    await pump(tester);
+    await tester.tap(find.text('Zestaw 40 t · KTA 12345'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('najpierw wybierz bazę'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('card-choose-base')));
+    await tester.pumpAndSettle();
+    expect(find.text('Zmień pojazd'), findsOneWidget);
+  });
+
   testWidgets('usunięcie pojazdu po potwierdzeniu', (tester) async {
     await pump(tester);
 

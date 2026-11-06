@@ -869,5 +869,7 @@
   "vehiclesQuickFilter": "Szybki filtr stanu",
   "vehiclesColDriverBase": "Kierowca / baza",
   "vehicleStateFree": "dostępny",
-  "vehiclesFilters": "Filtry"
+  "vehiclesFilters": "Filtry",
+  "cardDriverNeedsCompany": "Kierowcę przydziela się do pojazdu firmy – najpierw wybierz bazę operacyjną.",
+  "cardChooseBase": "Wybierz bazę"
 }

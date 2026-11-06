@@ -364,10 +364,21 @@ class _CrewSection extends StatelessWidget {
           title: Text(v['assigned_driver_name'] != null
               ? l.vehicleAssignedDriver('${v['assigned_driver_name']}')
               : l.cardDriverNone),
-          subtitle: v['driver_name'] != null ? Text(l.cardDrivingNow('${v['driver_name']}')) : null,
+          subtitle: v['driver_name'] != null
+              ? Text(l.cardDrivingNow('${v['driver_name']}'))
+              // Pojazd prywatny: kierowcę przydziela się w firmie – najpierw baza (przypisuje firmę).
+              : editable && v['company_id'] == null
+                  ? Text(l.cardDriverNeedsCompany, style: TextStyle(color: TruckColors.of(context).warning))
+                  : null,
           trailing: canAssignDriver(v)
               ? TextButton(onPressed: () => onChanged(assignDriver(context, api, v)), child: Text(l.edit))
-              : null,
+              : editable && v['company_id'] == null
+                  ? TextButton(
+                      key: const Key('card-choose-base'),
+                      onPressed: () => onChanged(openVehicleForm(context, api, v)),
+                      child: Text(l.cardChooseBase),
+                    )
+                  : null,
         ),
       if (towed)
         ListTile(

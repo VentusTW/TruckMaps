@@ -739,5 +739,7 @@
   "vehiclesQuickFilter": "Quick status filter",
   "vehiclesColDriverBase": "Driver / base",
   "vehicleStateFree": "available",
-  "vehiclesFilters": "Filters"
+  "vehiclesFilters": "Filters",
+  "cardDriverNeedsCompany": "Drivers are assigned to company vehicles – choose an operational base first.",
+  "cardChooseBase": "Choose base"
 }
