@@ -95,35 +95,6 @@ class _InboxScreenState extends State<InboxScreen> {
   String _vehicleName(Map<String, dynamic> data) =>
       [data['vehicle_name'], if (data['plate'] != null) data['plate']].join(' · ');
 
-  /// Przypomnienie o terminie pojazdu: data „ważny do” albo serwis według przebiegu.
-  String _dueText(AppLocalizations l, Map<String, dynamic> data) {
-    final overdue = data['overdue'] == true;
-    if (data['field'] == 'service_due_km') {
-      final left = (data['km_left'] as num? ?? 0).round();
-      return overdue ? l.vehicleServiceKmOverdue(l.number(-left)) : l.vehicleServiceKmSoon(l.number(left));
-    }
-    final day = parseDate(data['day']);
-    final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
-    return (overdue ? l.vehicleOverdue : l.vehicleDueSoon)(serviceDateLabel(l, '${data['field']}'), when);
-  }
-
-  /// Przypomnienie o terminie kierowcy (moduł Kierowcy).
-  String _driverDueText(AppLocalizations l, Map<String, dynamic> data) {
-    final day = parseDate(data['day']);
-    final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
-    final what = switch (data['field']) {
-      'license_until' => l.driverFieldLicense,
-      'code95_until' => l.driverFieldCode95,
-      'medical_until' => l.driverFieldMedical,
-      'psych_until' => l.driverFieldPsych,
-      'card_until' => l.driverFieldCard,
-      'card_download_until' => l.driverFieldCardDownload,
-      'adr_until' => l.driverFieldAdr,
-      _ => l.driverFieldAttestation,
-    };
-    return (data['overdue'] == true ? l.driverOverdue : l.driverDueSoon)(what, when);
-  }
-
   Widget _message(AppLocalizations l, Map<String, dynamic> message) {
     final theme = Theme.of(context);
     final actionable = _actionable(message);
@@ -155,9 +126,16 @@ class _InboxScreenState extends State<InboxScreen> {
       'service.order_done' => (l.inboxServiceDone(_vehicleName(data)), l.inboxServiceMechanic('${data['mechanic_name']}')),
       'vehicle_due' => (
           l.inboxVehicleDue(_vehicleName(data)),
-          _dueText(l, data)
+          vehicleDueText(l, data)
         ),
-      'drivers.due' => (l.inboxDriverDue('${data['driver_name']}'), _driverDueText(l, data)),
+      'drivers.due' => (l.inboxDriverDue('${data['driver_name']}'), driverDueText(l, data)),
+      'dispatch_note' => (
+          l.inboxDispatchNote(admin),
+          [
+            '${data['text'] ?? ''}',
+            if (data['vehicle_name'] != null) _vehicleName(data),
+          ].join('\n')
+        ),
       _ => ('${message['kind']}', ''),
     };
     return Card(
@@ -173,6 +151,7 @@ class _InboxScreenState extends State<InboxScreen> {
                     'vehicle_due' => Icons.event_note_outlined,
                     'drivers.due' => Icons.badge_outlined,
                     'service.order_new' || 'service.order_done' => Icons.build_outlined,
+                    'dispatch_note' => Icons.support_agent,
                     _ => Icons.mail_outline,
                   }),
             const SizedBox(width: 8),
@@ -219,6 +198,36 @@ String inboxTitle(AppLocalizations l, Map<String, dynamic> message) {
     'service.order_done' => l.inboxServiceDone(vehicle),
     'vehicle_due' => l.inboxVehicleDue(vehicle),
     'drivers.due' => l.inboxDriverDue('${data['driver_name']}'),
+    'dispatch_note' => l.inboxDispatchNote(admin),
     _ => '${message['kind']}',
   };
+}
+
+/// Przypomnienie o terminie pojazdu: data „ważny do” albo serwis według przebiegu.
+String vehicleDueText(AppLocalizations l, Map<String, dynamic> data) {
+  final overdue = data['overdue'] == true;
+  if (data['field'] == 'service_due_km') {
+    final left = (data['km_left'] as num? ?? 0).round();
+    return overdue ? l.vehicleServiceKmOverdue(l.number(-left)) : l.vehicleServiceKmSoon(l.number(left));
+  }
+  final day = parseDate(data['day']);
+  final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
+  return (overdue ? l.vehicleOverdue : l.vehicleDueSoon)(serviceDateLabel(l, '${data['field']}'), when);
+}
+
+/// Przypomnienie o terminie kierowcy (moduł Kierowcy).
+String driverDueText(AppLocalizations l, Map<String, dynamic> data) {
+  final day = parseDate(data['day']);
+  final when = day == null ? '' : DateFormat.yMd(l.localeName).format(day);
+  final what = switch (data['field']) {
+    'license_until' => l.driverFieldLicense,
+    'code95_until' => l.driverFieldCode95,
+    'medical_until' => l.driverFieldMedical,
+    'psych_until' => l.driverFieldPsych,
+    'card_until' => l.driverFieldCard,
+    'card_download_until' => l.driverFieldCardDownload,
+    'adr_until' => l.driverFieldAdr,
+    _ => l.driverFieldAttestation,
+  };
+  return (data['overdue'] == true ? l.driverOverdue : l.driverDueSoon)(what, when);
 }

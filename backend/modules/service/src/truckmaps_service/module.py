@@ -24,7 +24,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, Date, DateTime, LargeBinary, String, Text, func, select, update
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-from truckmaps.sdk import SERVICE_ROLES, CoreContext, Module, Principal, VehicleInfo, i18n
+from truckmaps.sdk import (
+    DASHBOARD_FEED,
+    SERVICE_ROLES,
+    CoreContext,
+    DashboardAlert,
+    DashboardKpi,
+    DashboardPart,
+    Module,
+    Principal,
+    VehicleInfo,
+    i18n,
+)
 from truckmaps.sdk.i18n import language, t
 
 MAX_PHOTOS = 10
@@ -567,4 +578,41 @@ class ServiceModule(Module):
             order.reject_reason = data.reason.strip()
             return save(db, order, vehicle)
 
+        class Feed:
+            """Pulpit dyspozytora: otwarte zlecenia serwisowe; pojazd stojący – sprawa pilna."""
+
+            def collect(self, db: Session, company_id: str, day: date) -> DashboardPart:
+                orders = list(
+                    db.scalars(
+                        select(ServiceOrder).where(
+                            ServiceOrder.company_id == company_id, ServiceOrder.status.in_(OPEN)
+                        )
+                    )
+                )
+                alerts = [
+                    DashboardAlert(
+                        id=f"service:order:{o.id}:{o.status}",
+                        kind="service.order",
+                        severity="critical" if o.urgency == "stopped" else "warning",
+                        data={
+                            "status": o.status,
+                            "urgency": o.urgency,
+                            "description": o.description[:200],
+                            "reporter_name": o.reporter_name,
+                            "mechanic_name": o.mechanic_name,
+                        },
+                        vehicle_id=o.vehicle_id,
+                    )
+                    for o in orders
+                ]
+                stopped = sum(1 for o in orders if o.urgency == "stopped")
+                tone = "error" if stopped else ("warning" if orders else "ok")
+                return DashboardPart(
+                    kpis=[
+                        DashboardKpi(key="service.open", value=len(orders), tone=tone, order=120)
+                    ],
+                    alerts=alerts,
+                )
+
+        ctx.extensions.provide(DASHBOARD_FEED, Feed())
         ctx.api.include_router(router)

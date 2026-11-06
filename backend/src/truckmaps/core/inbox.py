@@ -28,6 +28,8 @@ class Kind(StrEnum):
     """Administrator skończył zmiany i zamknął dostęp."""
     VEHICLE_DUE = "vehicle_due"
     """Zbliża się albo minął termin pojazdu (przegląd, ubezpieczenie, serwis wg przebiegu)."""
+    DISPATCH_NOTE = "dispatch_note"
+    """Wiadomość dyspozytora do kierowcy z pulpitu operacyjnego (tekst w ``data["text"]``)."""
 
 
 def _now() -> datetime:

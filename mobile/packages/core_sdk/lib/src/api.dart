@@ -64,6 +64,48 @@ class CoreApi {
 
   Future<dynamic> delete(String path) => _send((headers) => _client.delete(uri(path), headers: headers));
 
+  /// Zdarzenia Server-Sent Events (np. pulpit operacyjny na żywo): nazwa i dane JSON.
+  /// Anulowanie subskrypcji zamyka połączenie.
+  Stream<({String event, dynamic data})> events(String path) async* {
+    Future<http.StreamedResponse> attempt() async {
+      final request = http.Request('GET', uri(path))
+        ..headers.addAll({
+          'Authorization': 'Bearer ${await _tokens.token()}',
+          'Accept': 'text/event-stream',
+          if (language != null) 'Accept-Language': language!,
+        });
+      return _client.send(request);
+    }
+
+    var response = await attempt();
+    if (response.statusCode == 401 && await _tokens.refresh()) response = await attempt();
+    if (response.statusCode >= 400) {
+      final text = await response.stream.bytesToString();
+      dynamic body;
+      try {
+        body = text.isEmpty ? null : jsonDecode(text);
+      } on FormatException {
+        body = null;
+      }
+      throw ApiException(response.statusCode, _message(body, response.statusCode));
+    }
+    var event = 'message';
+    final data = StringBuffer();
+    await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+      if (line.isEmpty) {
+        if (data.isNotEmpty) yield (event: event, data: jsonDecode(data.toString()));
+        event = 'message';
+        data.clear();
+      } else if (line.startsWith('event:')) {
+        event = line.substring(6).trim();
+      } else if (line.startsWith('data:')) {
+        if (data.isNotEmpty) data.write('\n');
+        data.write(line.substring(5).trimLeft());
+      }
+      // Linie zaczynające się od „:” to komentarze podtrzymujące połączenie.
+    }
+  }
+
   Future<dynamic> _send(Future<http.Response> Function(Map<String, String> headers) request) async {
     Future<http.Response> attempt() async => request({
           'Authorization': 'Bearer ${await _tokens.token()}',

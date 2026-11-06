@@ -139,3 +139,50 @@ class NoDriverCheck:
 
 
 DRIVER_CHECK = ExtensionPoint("driver_check", DriverCheck)
+
+
+class DashboardKpi(BaseModel):
+    """Wskaźnik na pulpicie operacyjnym; etykietę dobiera aplikacja po ``key`` (teksty w .arb)."""
+
+    key: str
+    """Np. "drivers.active", "service.open" – prefiks to moduł."""
+    value: float
+    total: float | None = None
+    """Mianownik (np. 12 z 15 pojazdów); brak – sama liczba."""
+    unit: str = ""
+    """"%", "km" albo kod waluty."""
+    tone: Literal["ok", "warning", "error", "info"] = "info"
+    order: int = 100
+
+
+class DashboardAlert(BaseModel):
+    """Sprawa wymagająca uwagi dyspozytora; tekst składa aplikacja z ``kind`` i ``data``."""
+
+    id: str
+    """Stały identyfikator sprawy (np. "drivers:due:<id>:medical_until:2026-11-20") – po nim
+    pulpit pamięta, że sprawę obsłużono; nowa sprawa (inny termin) dostaje nowy id."""
+    kind: str
+    severity: Literal["critical", "warning", "info"]
+    data: dict = {}
+    vehicle_id: str | None = None
+    driver_subject: str | None = None
+    """Konto kierowcy – do akcji „wyślij wiadomość”."""
+    due: date | None = None
+    """Termin sprawy – sortowanie w obrębie tej samej wagi."""
+
+
+class DashboardPart(BaseModel):
+    kpis: list[DashboardKpi] = []
+    alerts: list[DashboardAlert] = []
+
+
+@runtime_checkable
+class DashboardFeed(Protocol):
+    """Część pulpitu operacyjnego dostarczana przez moduł (może ich być wiele naraz)."""
+
+    def collect(self, db: Session, company_id: str, today: date) -> DashboardPart:
+        """Wskaźniki i sprawy firmy ``company_id`` na dzień ``today``."""
+        ...
+
+
+DASHBOARD_FEED = ExtensionPoint("dashboard_feed", DashboardFeed)

@@ -12,7 +12,8 @@ extension L10nContext on BuildContext {
 /// Liczby, daty i waluty według języka (separator dziesiętny, nazwy dni, symbol waluty).
 extension Formats on AppLocalizations {
   /// Liczba bez zbędnych zer, np. "4,05" / "4.05", "40".
-  String number(num value, {int decimals = 2}) => NumberFormat('0.${'#' * decimals}', localeName).format(value);
+  String number(num value, {int decimals = 2}) =>
+      NumberFormat(decimals == 0 ? '0' : '0.${'#' * decimals}', localeName).format(value);
 
   /// Kilometry z jednym miejscem po przecinku, np. "12,3".
   String km(double value) => NumberFormat('0.0', localeName).format(value);
