@@ -89,7 +89,8 @@ class CompanyMember(Base):
 
 
 class CompanyBase(Base):
-    """Baza firmy – miejsce, skąd wyjeżdżają pojazdy (podpowiadane w polach adresu)."""
+    """Baza operacyjna firmy – miejsce, skąd wyjeżdżają pojazdy (podpowiadane w polach adresu),
+    z danymi teleadresowymi; pojazdy firmy są przypisane do baz."""
 
     __tablename__ = "company_bases"
 
@@ -99,6 +100,14 @@ class CompanyBase(Base):
     label: Mapped[str] = mapped_column(String(300), default="")
     lat: Mapped[float]
     lon: Mapped[float]
+    code: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    """Krótki kod bazy, np. „PL-WAW-01”."""
+    phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    email: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    contact_person: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    hours: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    """Godziny pracy, np. „pn–pt 6:00–22:00”."""
+    note: Mapped[str] = mapped_column(String(1000), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -171,6 +180,14 @@ class BaseIn(BaseModel):
     label: str = Field(default="", max_length=300, description="Adres, np. z wyszukiwarki")
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
+    code: str = Field(default="", max_length=20, examples=["PL-WAW-01"])
+    phone: str = Field(default="", max_length=40)
+    email: str = Field(default="", max_length=200)
+    contact_person: str = Field(
+        default="", max_length=200, description="Kierownik / dyspozytor bazy"
+    )
+    hours: str = Field(default="", max_length=200, description="Godziny pracy")
+    note: str = Field(default="", max_length=1000)
 
 
 class BaseOut(BaseIn):

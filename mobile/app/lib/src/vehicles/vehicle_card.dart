@@ -212,6 +212,7 @@ class _Header extends StatelessWidget {
     final facts = [
       kindLabel(l, kind),
       v['company_id'] != null ? l.vehicleOfCompany : l.vehiclePrivate,
+      if (v['base_name'] != null) '${v['base_name']}',
       if (v['trailer_type'] != null && v['trailer_type'] != 'none') trailerLabel(l, '${v['trailer_type']}'),
       if (v['hazmat'] == true) 'ADR',
     ];

@@ -452,6 +452,37 @@ void main() {
     expect(find.textContaining('Sprawdź wysokość'), findsOneWidget);
   });
 
+  testWidgets('filtr i sortowanie po bazie operacyjnej', (tester) async {
+    vehicles = [
+      {...truck, 'id': 'a', 'name': 'Zestaw Wesoła', 'base_id': 'b1', 'base_name': 'Wesoła'},
+      {...truck, 'id': 'b', 'name': 'Auto Stryków', 'base_id': 'b2', 'base_name': 'Stryków'},
+      {...truck, 'id': 'c', 'name': 'Bez przydziału'},
+    ];
+    await pump(tester);
+    expect(find.textContaining('Zestaw Wesoła'), findsOneWidget);
+    expect(find.textContaining('Auto Stryków'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vehicles-base-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stryków').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Auto Stryków'), findsOneWidget);
+    expect(find.textContaining('Zestaw Wesoła'), findsNothing);
+    expect(find.textContaining('Bez przydziału'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('vehicles-base-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Wszystkie bazy').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('vehicles-sort-base')));
+    await tester.pumpAndSettle();
+    // Stryków przed Wesołą, pojazd bez bazy na końcu.
+    final y = [
+      for (final n in ['Auto Stryków', 'Zestaw Wesoła', 'Bez przydziału']) tester.getTopLeft(find.textContaining(n)).dy
+    ];
+    expect(y[0] < y[1] && y[1] < y[2], isTrue);
+  });
+
   testWidgets('komputer: liczby floty nad listą, „wymaga uwagi” obok', (tester) async {
     vehicles = [
       {...truck, 'in_repair': true}

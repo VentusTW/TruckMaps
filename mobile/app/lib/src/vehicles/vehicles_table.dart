@@ -136,15 +136,17 @@ class _VehiclesTableState extends State<VehiclesTable> {
     final gvw = _Column(l.vehiclesColGvw, (v) => number(v, 'gvw_t'), (v) => Text(n(v['gvw_t'])), numeric: true);
     final owner = _Column(l.vehicleOwner, (v) => v['company_id'] == null ? 0 : 1,
         (v) => Text(v['company_id'] == null ? l.vehiclePrivate : l.vehicleOfCompany));
+    final base = _Column(
+        l.vehicleBase, (v) => '${v['base_name'] ?? '~'}'.toLowerCase(), (v) => Text(text(v['base_name'])));
     if (widget.towed) {
       final body = _Column(l.vehicleBody, (v) => trailerLabel(l, '${v['trailer_type']}'),
           (v) => Text(trailerLabel(l, '${v['trailer_type']}')));
       final state = _Column(l.vehiclesColState, (v) => stateText(l, v) ?? '', (v) => Text(stateText(l, v) ?? '–'));
-      return [name, plate, kind, body, dimensions, gvw, owner, state, next, actions];
+      return [name, plate, kind, base, body, dimensions, gvw, owner, state, next, actions];
     }
     final coupled = _Column(
         l.vehiclesColCoupling, (v) => '${widget.byId[v['trailer_id']]?['name'] ?? ''}'.toLowerCase(), widget.coupling);
-    return [name, plate, kind, dimensions, gvw, owner, coupled, next, actions];
+    return [name, plate, kind, base, dimensions, gvw, owner, coupled, next, actions];
   }
 
   @override

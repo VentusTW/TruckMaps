@@ -23,6 +23,7 @@ from truckmaps.core.companies import (
     MANAGES_VEHICLES,
     SERVICES_VEHICLES,
     Company,
+    CompanyBase,
     CompanyKind,
     CompanyMember,
     company_ids,
@@ -219,6 +220,10 @@ class VehicleProfile(Base):
     company_id: Mapped[str | None] = mapped_column(
         ForeignKey("companies.id", ondelete="SET NULL"), index=True
     )
+    base_id: Mapped[str | None] = mapped_column(
+        ForeignKey("company_bases.id", ondelete="SET NULL"), index=True
+    )
+    """Baza operacyjna firmy, do której należy pojazd."""
     name: Mapped[str] = mapped_column(String(100))
     plate: Mapped[str | None] = mapped_column(String(15))
     height_m: Mapped[float]
@@ -339,6 +344,7 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
     company_id: str | None = Field(
         default=None, description="Firma, do której należy pojazd; brak = pojazd prywatny"
     )
+    base_id: str | None = Field(default=None, description="Baza operacyjna tej samej firmy")
     plate: str | None = Field(
         default=None, max_length=15, description="Tablica rejestracyjna", examples=["KTA 12345"]
     )
@@ -450,6 +456,8 @@ class VehicleOut(VehicleData):
     """Czy może zmienić terminy przeglądów (także mechanik firmy)."""
     trailer_id: str | None = None
     trailer_name: str | None = None
+    base_name: str | None = None
+    """Nazwa bazy operacyjnej pojazdu."""
     coupled_to_id: str | None = None
     """Naczepa / przyczepa: do którego pojazdu jest podpięta."""
     coupled_to_name: str | None = None
@@ -751,6 +759,10 @@ def _check_target(db: Session, data: "VehicleData", roles: dict) -> None:
     """Pojazd można zapisać w firmie tylko jako jej właściciel albo dyspozytor
     i tylko taki, jaki ma firma tego rodzaju (spedycja – żadnych, autobusy – transport osób)."""
     company_id = data.company_id
+    if data.base_id is not None:
+        base = db.get(CompanyBase, data.base_id)
+        if base is None or base.company_id != company_id:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.base_not_found"))
     if company_id is None:
         return
     if company_id not in roles:
@@ -781,6 +793,10 @@ def vehicle_outs(
         t.id: t
         for t in db.scalars(select(VehicleProfile).where(VehicleProfile.id.in_(trailer_ids)))
     }
+    base_ids = {v.base_id for v in vehicles if v.base_id}
+    bases = {
+        b.id: b.name for b in db.scalars(select(CompanyBase).where(CompanyBase.id.in_(base_ids)))
+    }
     names: dict[tuple[str | None, str], str] = {}
     assigned = {(v.company_id, v.assigned_driver) for v in vehicles if v.assigned_driver}
     members: dict[tuple[str | None, str], str] = {}
@@ -807,6 +823,7 @@ def vehicle_outs(
                     "can_edit": _can_edit(v, roles, user),
                     "can_service": _can_service(v, roles, user),
                     "trailer_name": trailer.name if trailer else None,
+                    "base_name": bases.get(v.base_id) if v.base_id else None,
                     "coupled_to_id": holder.id if holder else None,
                     "coupled_to_name": holder.name if holder else None,
                     "in_use": _driven(v) or holder is not None,

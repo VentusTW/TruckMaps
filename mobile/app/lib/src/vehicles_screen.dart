@@ -52,6 +52,12 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   bool _table = false;
   String _query = '';
 
+  /// Filtr bazy: `null` – wszystkie, `''` – bez bazy, inaczej id bazy.
+  String? _base;
+
+  /// Sortowanie po bazie (potem po nazwie).
+  bool _byBase = false;
+
   @override
   void initState() {
     super.initState();
@@ -171,7 +177,18 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           if (vehicles.isEmpty) return Center(child: Text(l.vehiclesEmpty));
           final trailers = [for (final v in vehicles) if (!isDrivable(v)) v];
           final byId = {for (final v in vehicles) v['id']: v};
-          final shown = [for (final v in vehicles) if (matchesVehicle(v, _query)) v];
+          final bases = <String, String>{
+            for (final v in vehicles)
+              if (v['base_id'] != null) '${v['base_id']}': '${v['base_name'] ?? v['base_id']}',
+          };
+          final shown = [
+            for (final v in vehicles)
+              if (matchesVehicle(v, _query) && (_base == null || (v['base_id'] ?? '') == _base)) v,
+          ];
+          if (_byBase) {
+            String key(Map<String, dynamic> v) => '${v['base_name'] ?? '~'} ${v['name']}'.toLowerCase();
+            shown.sort((a, b) => key(a).compareTo(key(b)));
+          }
           final shownMotors = [for (final v in shown) if (isDrivable(v)) v];
           final shownTrailers = [for (final v in shown) if (!isDrivable(v)) v];
           final empty = _query.trim().isEmpty ? null : l.vehiclesNoMatch;
@@ -194,7 +211,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 child: Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
                   SoonButton(label: l.soonInspections, icon: Icons.event_available_outlined),
                   SoonButton(label: l.soonCepik, icon: Icons.file_download_outlined),
-                  SoonButton(label: l.soonBases, icon: Icons.warehouse_outlined),
+                  _baseFilter(l, bases),
                 ]),
               ),
               if (width >= 720)
@@ -301,6 +318,41 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       ),
     );
   }
+
+  /// Filtr bazy operacyjnej i sortowanie po bazie (firma może mieć kilka baz).
+  Widget _baseFilter(AppLocalizations l, Map<String, String> bases) => Wrap(
+        spacing: Gap.s,
+        runSpacing: Gap.s,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(
+            width: 240,
+            child: DropdownButtonFormField<String?>(
+              key: const Key('vehicles-base-filter'),
+              isExpanded: true,
+              value: _base == null || _base == '' || bases.containsKey(_base) ? _base : null,
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.warehouse_outlined),
+                labelText: l.vehicleBase,
+              ),
+              items: [
+                DropdownMenuItem(value: null, child: Text(l.vehiclesAllBases)),
+                for (final e in bases.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+                DropdownMenuItem(value: '', child: Text(l.vehicleBaseNone)),
+              ],
+              onChanged: (value) => setState(() => _base = value),
+            ),
+          ),
+          FilterChip(
+            key: const Key('vehicles-sort-base'),
+            avatar: const Icon(Icons.sort, size: 18),
+            label: Text(l.vehiclesSortByBase),
+            selected: _byBase,
+            onSelected: (on) => setState(() => _byBase = on),
+          ),
+        ],
+      );
 
   /// Wybór widoku, wyszukiwanie po nazwie albo tablicy i objaśnienie kolorów.
   Widget _toolbar(AppLocalizations l, Set<VehicleState> states) => Padding(

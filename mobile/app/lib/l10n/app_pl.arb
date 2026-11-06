@@ -845,5 +845,20 @@
   "soonFleetAge": "Średni wiek taboru",
   "tagService": "Serwis",
   "tagUrgent": "Pilne",
-  "tagDueSoon": "Zbliża się termin"
+  "tagDueSoon": "Zbliża się termin",
+  "baseLocationTitle": "Baza operacyjna",
+  "baseContactsTitle": "Dane teleadresowe",
+  "baseCode": "Kod bazy",
+  "baseCodeHint": "np. PL-WAW-01",
+  "baseContactPerson": "Osoba kontaktowa / kierownik bazy",
+  "basePhone": "Telefon",
+  "baseEmail": "E-mail",
+  "baseHours": "Godziny pracy",
+  "baseHoursHint": "np. pn–pt 6:00–22:00, sob 8:00–14:00",
+  "baseNote": "Uwagi (dojazd, brama, parking)",
+  "vehicleBase": "Baza operacyjna",
+  "vehicleBaseRequired": "Wybierz bazę, do której należy pojazd.",
+  "vehicleBaseNone": "Bez bazy",
+  "vehiclesAllBases": "Wszystkie bazy",
+  "vehiclesSortByBase": "Sortuj wg bazy"
 }

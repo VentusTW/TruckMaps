@@ -157,6 +157,15 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   late final Map<String, DateTime?> _dates;
   String? _companyId;
   List<Map<String, dynamic>> _companies = const [];
+
+  /// Bazy operacyjne firm użytkownika; pojazd firmy przypisany do jednej z baz swojej firmy.
+  List<Map<String, dynamic>> _bases = const [];
+  String? _baseId;
+
+  List<Map<String, dynamic>> get _companyBases => [
+        for (final b in _bases)
+          if (b['company_id'] == _companyId) b,
+      ];
   List<Map<String, dynamic>> _currencies = const [];
   Map<String, double> _perEur = const {};
   bool _busy = false;
@@ -213,6 +222,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
     _hazmat = v['hazmat'] == true;
     _currency = v['cost_currency'] as String? ?? 'EUR';
     _companyId = v['company_id'] as String?;
+    _baseId = v['base_id'] as String?;
     _loadChoices();
   }
 
@@ -243,6 +253,12 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   }
 
   Future<void> _loadChoices() async {
+    try {
+      final bases = (await widget.api.get('/api/bases') as List<dynamic>).cast<Map<String, dynamic>>();
+      if (mounted) setState(() => _bases = bases);
+    } catch (_) {
+      // Bez listy baz – pojazd zapisuje się bez zmiany bazy.
+    }
     try {
       final companies = (await widget.api.get('/api/companies') as List<dynamic>).cast<Map<String, dynamic>>();
       final currencies = await widget.api.get('/api/currencies') as Map<String, dynamic>;
@@ -360,6 +376,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'cost_per_hour': _number('cost_per_hour'),
       'cost_currency': _currency,
       'company_id': _companyId,
+      'base_id': _companyBases.any((b) => b['id'] == _baseId) ? _baseId : null,
       'vin': _fields['vin']!.text.trim(),
       'production_year': _number('production_year')?.round(),
       'emission_class': towedKinds.contains(_kind) ? null : _emission,
@@ -648,7 +665,33 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
                   if (c['id'] == _companyId || companyAllows(c['kind'] as String?, _kind))
                     DropdownMenuItem(value: c['id'] as String, child: Text('${c['name']}')),
               ],
-              onChanged: (value) => setState(() => _companyId = value),
+              onChanged: (value) => setState(() {
+                _companyId = value;
+                if (!_companyBases.any((b) => b['id'] == _baseId)) _baseId = null;
+              }),
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Pojazd firmy należy do jednej z jej baz operacyjnych (lista Pojazdy filtruje po bazie).
+          if (_companyBases.isNotEmpty) ...[
+            DropdownButtonFormField<String>(
+              key: const Key('vehicle-base'),
+              isExpanded: true,
+              value: _companyBases.any((b) => b['id'] == _baseId) ? _baseId : null,
+              decoration: InputDecoration(
+                labelText: l.vehicleBase,
+                prefixIcon: const Icon(Icons.warehouse_outlined),
+                isDense: true,
+              ),
+              items: [
+                for (final b in _companyBases)
+                  DropdownMenuItem(
+                    value: b['id'] as String,
+                    child: Text([b['name'], if ('${b['code'] ?? ''}'.isNotEmpty) b['code']].join(' · ')),
+                  ),
+              ],
+              validator: (value) => value == null ? l.vehicleBaseRequired : null,
+              onChanged: (value) => setState(() => _baseId = value),
             ),
             const SizedBox(height: 12),
           ],
