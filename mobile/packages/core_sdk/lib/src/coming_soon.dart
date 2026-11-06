@@ -73,8 +73,8 @@ class SoonTile extends StatelessWidget {
         icon: icon,
         title: title,
         subtitle: subtitle,
-        tone: StatusTone.neutral,
-        trailing: StatusChip(label: _t(context, 'Wkrótce', 'Soon'), tone: StatusTone.neutral),
+        tone: StatusTone.info,
+        trailing: StatusChip(label: _t(context, 'Wkrótce', 'Soon'), tone: StatusTone.info),
         onTap: () => openUnderConstruction(context, title, icon: icon),
       );
 }

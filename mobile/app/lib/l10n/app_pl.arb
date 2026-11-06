@@ -842,5 +842,8 @@
   "soonReefer": "Temperatura chłodni",
   "soonWorkshop": "Stanowiska warsztatowe",
   "soonPolicies": "Polisy flotowe",
-  "soonFleetAge": "Średni wiek taboru"
+  "soonFleetAge": "Średni wiek taboru",
+  "tagService": "Serwis",
+  "tagUrgent": "Pilne",
+  "tagDueSoon": "Zbliża się termin"
 }

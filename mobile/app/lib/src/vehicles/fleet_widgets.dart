@@ -126,6 +126,9 @@ class VehiclesAttention extends StatelessWidget {
           title: vehicleTitle(v),
           subtitle: notes.join(' · '),
           overdue: overdue,
+          tag: state == VehicleState.repair || state == VehicleState.reported
+              ? l.tagService
+              : (overdue ? l.tagUrgent : l.tagDueSoon),
           icon: kindIcon(v['kind'] as String?),
           onTap: () => onOpen(v),
         ),

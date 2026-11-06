@@ -255,6 +255,7 @@ class _MessagesCard extends StatelessWidget {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const IconSquare(icon: Icons.mark_email_unread_outlined),
+                tileColor: TruckColors.of(context).surfaceLow,
                 title: Text(inboxTitle(l, m), maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(l.when(DateTime.parse('${m['created_at']}').toLocal())),
                 onTap: onOpen,

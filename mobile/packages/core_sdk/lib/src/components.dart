@@ -51,11 +51,14 @@ class SectionLabel extends StatelessWidget {
 
 /// Duża liczba z jednostką obok (mniejszą, w kolorze pomocniczym).
 class BigNumber extends StatelessWidget {
-  const BigNumber({super.key, required this.value, this.unit, this.size = 28});
+  const BigNumber({super.key, required this.value, this.unit, this.size = 28, this.color});
 
   final String value;
   final String? unit;
   final double size;
+
+  /// Kolor liczby; domyślnie kolor tekstu.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +73,7 @@ class BigNumber extends StatelessWidget {
             height: 1.2,
             fontWeight: FontWeight.w700,
             letterSpacing: -0.02 * size,
-            color: theme.colorScheme.onSurface,
+            color: color ?? theme.colorScheme.onSurface,
           ),
         ),
         if (unit != null)
@@ -123,10 +126,17 @@ class KpiCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SectionLabel(label),
                 const SizedBox(height: Gap.s),
-                BigNumber(value: value, unit: unit),
+                BigNumber(
+                  value: value,
+                  unit: unit,
+                  color: tone == StatusTone.ok || tone == StatusTone.error ? color : null,
+                ),
                 if (progress != null) ...[
                   const SizedBox(height: Gap.s),
-                  TruckProgressBar(value: progress!, height: 6, color: tone == StatusTone.neutral ? null : color),
+                  TruckProgressBar(
+                      value: progress!,
+                      height: 6,
+                      color: tone == StatusTone.neutral ? Theme.of(context).colorScheme.primaryContainer : color),
                 ],
                 if (status != null) ...[
                   const SizedBox(height: Gap.xs),

@@ -442,8 +442,8 @@ class SectionCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.s),
           child: Row(children: [
-            Icon(icon, size: 20, color: accent ?? theme.colorScheme.primary),
-            const SizedBox(width: Gap.s),
+            IconSquare(icon: icon, color: accent ?? theme.colorScheme.primary, size: 32),
+            const SizedBox(width: Gap.m),
             Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
             if (action != null) action!,
           ]),
@@ -463,6 +463,7 @@ class AttentionTile extends StatelessWidget {
     this.overdue = false,
     this.icon,
     this.onTap,
+    this.tag,
   });
 
   final String title;
@@ -473,17 +474,64 @@ class AttentionTile extends StatelessWidget {
   final IconData? icon;
   final VoidCallback? onTap;
 
+  /// Krótka etykieta nad tytułem (np. „Pilne”), w kolorze pilności.
+  final String? tag;
+
   @override
   Widget build(BuildContext context) {
-    final color = overdue ? Theme.of(context).colorScheme.error : TruckColors.of(context).warning;
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: IconSquare(icon: icon ?? (overdue ? Icons.error_outline : Icons.schedule), color: color),
-      title: Text(title),
-      subtitle: subtitle == null ? null : Text(subtitle!, style: TextStyle(color: color)),
-      trailing: onTap == null ? null : const Icon(Icons.chevron_right),
-      onTap: onTap,
+    final theme = Theme.of(context);
+    final color = overdue ? theme.colorScheme.error : TruckColors.of(context).warning;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Gap.s),
+      child: Material(
+        color: Color.alphaBlend(color.withOpacity(0.08), TruckColors.of(context).card),
+        borderRadius: BorderRadius.circular(TruckTheme.radius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(TruckTheme.radius),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.m),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              IconSquare(
+                icon: icon ?? (overdue ? Icons.error_outline : Icons.schedule),
+                color: color,
+                background: color.withOpacity(0.16),
+              ),
+              const SizedBox(width: Gap.m),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (tag != null) ...[TagLabel(tag!, color: color), const SizedBox(height: Gap.xs)],
+                  Text(title, style: theme.textTheme.titleSmall),
+                  if (subtitle != null)
+                    Text(subtitle!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface)),
+                ]),
+              ),
+              if (onTap != null) Icon(Icons.chevron_right, color: color),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Etykieta kategorii: pełne kolorowe tło, biały tekst wielkimi literami (np. „PILNE”, „ALERT”).
+class TagLabel extends StatelessWidget {
+  const TagLabel(this.text, {super.key, this.color});
+
+  final String text;
+
+  /// Tło; domyślnie kolor marki.
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = color ?? Theme.of(context).colorScheme.primaryContainer;
+    final fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : Colors.black;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(2)),
+      child: Text(text.toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: fg)),
     );
   }
 }
@@ -504,7 +552,7 @@ class IconSquare extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background ?? Color.alphaBlend(fg.withOpacity(0.10), TruckColors.of(context).surfaceLow),
+        color: background ?? Color.alphaBlend(fg.withOpacity(0.14), TruckColors.of(context).card),
         borderRadius: BorderRadius.circular(TruckTheme.radius),
       ),
       child: Icon(icon, color: fg, size: size * 0.55),

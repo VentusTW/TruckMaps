@@ -391,6 +391,7 @@ void main() {
 
     await tester.tap(find.text('Firanka'));
     await tester.pumpAndSettle();
+    await tester.dragUntilVisible(find.text('Pojazd ciągnący'), find.byType(ListView).last, const Offset(0, -200));
     expect(find.text('Pojazd ciągnący'), findsOneWidget); // karta pojazdu
     expect(find.text('w użyciu – podpięta do: Zestaw 40 t'), findsWidgets);
   });

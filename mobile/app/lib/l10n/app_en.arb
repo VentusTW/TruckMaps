@@ -712,5 +712,8 @@
   "soonReefer": "Reefer temperature",
   "soonWorkshop": "Workshop bays",
   "soonPolicies": "Fleet insurance policies",
-  "soonFleetAge": "Average fleet age"
+  "soonFleetAge": "Average fleet age",
+  "tagService": "Service",
+  "tagUrgent": "Urgent",
+  "tagDueSoon": "Due soon"
 }
