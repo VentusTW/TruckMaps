@@ -53,7 +53,15 @@ const cargoGroupColors = <String, Color>{
 /// Wygląd pozycji ładunku: rodzaj palety (`kind`), kształt, grupa i nazwa rodzaju towaru.
 class CargoLook {
   const CargoLook(this.kind,
-      {this.shape = 'pallet', this.group = 'pallets', this.name = '', this.securing = 'top', this.gear = const []});
+      {this.shape = 'pallet',
+      this.group = 'pallets',
+      this.name = '',
+      this.securing = 'top',
+      this.gear = const [],
+      this.stack = 2});
+
+  /// Ile sztuk najwyżej w stosie (z rodzaju towaru).
+  final int stack;
 
   final String kind;
   final String shape;

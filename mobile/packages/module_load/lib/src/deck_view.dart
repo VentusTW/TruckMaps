@@ -3,6 +3,7 @@ import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
+import 'sim_view.dart' show CargoLook;
 import 'texts.dart';
 
 /// Kolory rozładunków (1, 2, 3…) – te same w widoku z góry i z boku.
@@ -31,6 +32,17 @@ class Piece {
   double get width => _num(json['width_m']);
   double get height => json['height_m'] == null ? 1.2 : _num(json['height_m']);
   int get stop => json['stop'] as int;
+  int get item => (json['item'] as int?) ?? 0;
+  int get pieces => (json['pieces'] as int?) ?? 1;
+  double get weight => _num(json['weight_kg']);
+
+  /// Sztuki nachodzą na siebie (więcej niż 5 cm w obu kierunkach).
+  bool overlaps(Piece other) {
+    const tolerance = 0.05;
+    final dx = (x + length).clamp(other.x, other.x + other.length) - x.clamp(other.x, other.x + other.length);
+    final dy = (y + width).clamp(other.y, other.y + other.width) - y.clamp(other.y, other.y + other.width);
+    return dx > tolerance && dy > tolerance;
+  }
 
   Map<String, dynamic> toJson() => {...json, 'x_m': _round(x), 'y_m': _round(y)};
 
@@ -44,11 +56,21 @@ class Piece {
 /// [moving] – przeciąganie palet (z góry: wzdłuż i w poprzek, z boku: wzdłuż); inaczej
 /// palce przesuwają i przybliżają obraz. Po puszczeniu palety – [onMoved] z nowym ułożeniem.
 class DeckView extends StatefulWidget {
-  const DeckView({super.key, required this.plan, required this.moving, required this.onMoved});
+  const DeckView(
+      {super.key,
+      required this.plan,
+      required this.moving,
+      required this.onMoved,
+      this.looks = const [],
+      this.names = const []});
 
   final Map<String, dynamic> plan;
   final bool moving;
   final ValueChanged<List<Map<String, dynamic>>> onMoved;
+
+  /// Limit stosu pozycji (piętrowanie) i ich nazwy do pytania o postawienie na towarze.
+  final List<CargoLook> looks;
+  final List<String> names;
 
   @override
   State<DeckView> createState() => _DeckViewState();
@@ -57,6 +79,14 @@ class DeckView extends StatefulWidget {
 class _DeckViewState extends State<DeckView> {
   late List<Piece> _pieces = _read();
   Piece? _dragged;
+
+  /// Miejsce przeciąganej sztuki przed przeciągnięciem (powrót po kolizji).
+  Offset? _origin;
+
+  /// Przeciągana sztuka nachodzi na inną.
+  bool _blocked = false;
+
+  Piece? _hit(Piece piece) => _pieces.where((p) => !identical(p, piece) && piece.overlaps(p)).firstOrNull;
   final _transform = TransformationController();
 
   List<Piece> _read() =>
@@ -85,7 +115,13 @@ class _DeckViewState extends State<DeckView> {
     final mx = local.dx / scale - _margin, my = local.dy / scale - _margin;
     for (final piece in _pieces.reversed) {
       final hit = top ? piece.contains(mx, my) : mx >= piece.x && mx <= piece.x + piece.length;
-      if (hit) return setState(() => _dragged = piece);
+      if (hit) {
+        return setState(() {
+          _dragged = piece;
+          _origin = Offset(piece.x, piece.y);
+          _blocked = false;
+        });
+      }
     }
   }
 
@@ -98,14 +134,84 @@ class _DeckViewState extends State<DeckView> {
     setState(() {
       piece.x = (piece.x + delta.dx / scale).clamp(0.0, _length - piece.length);
       if (top) piece.y = (piece.y + delta.dy / scale).clamp(0.0, _width - piece.width);
+      _blocked = _hit(piece) != null;
     });
   }
 
-  void _end() {
-    if (_dragged == null) return;
-    setState(() => _dragged = null);
-    widget.onMoved([for (final p in _pieces) p.toJson()]);
+  /// Dlaczego nie można postawić [top] na [bottom]; `null` – można (po potwierdzeniu).
+  String? _stackProblem(LoadTexts t, Piece top, Piece bottom) {
+    final look = bottom.item < widget.looks.length ? widget.looks[bottom.item] : const CargoLook('euro');
+    final name = _name(t, bottom);
+    if (bottom.pieces + top.pieces > look.stack) return t.stackLimit(name, look.stack);
+    if (bottom.height + top.height > _inner + 1e-6) return t.stackTooHigh(name, t.number(_inner));
+    final a = [top.length, top.width]..sort(), b = [bottom.length, bottom.width]..sort();
+    if (a[0] > b[0] + 0.1 || a[1] > b[1] + 0.1) return t.stackFootprint(name);
+    return null;
   }
+
+  String _name(LoadTexts t, Piece piece) =>
+      piece.item < widget.names.length ? widget.names[piece.item] : t.kind('euro');
+
+  Future<void> _end() async {
+    final piece = _dragged, origin = _origin;
+    if (piece == null) return;
+    final t = LoadTexts.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final bottom = _hit(piece);
+    var changed = origin == null || piece.x != origin.dx || piece.y != origin.dy;
+    if (bottom != null) {
+      final problem = _stackProblem(t, piece, bottom);
+      final stack = problem == null && await _confirmStack(t, piece, bottom);
+      if (!mounted) return;
+      if (stack) {
+        // Na towarze: jedna sztuka-stos w miejscu dolnej (masa, wysokość i liczba sztuk razem).
+        final merged = Piece({
+          ...bottom.toJson(),
+          'pieces': bottom.pieces + piece.pieces,
+          'weight_kg': bottom.weight + piece.weight,
+          'height_m': double.parse((bottom.height + piece.height).toStringAsFixed(2)),
+          'height_known': bottom.json['height_known'] == true && piece.json['height_known'] == true,
+        });
+        _pieces = [
+          for (final p in _pieces)
+            if (!identical(p, piece)) identical(p, bottom) ? merged : p
+        ];
+      } else {
+        // Nie może nachodzić – wraca na poprzednie miejsce.
+        if (origin != null) {
+          piece.x = origin.dx;
+          piece.y = origin.dy;
+        }
+        changed = false;
+        messenger?.showSnackBar(SnackBar(content: Text(problem ?? t.overlapReverted)));
+      }
+    }
+    setState(() {
+      _dragged = null;
+      _origin = null;
+      _blocked = false;
+    });
+    if (changed) widget.onMoved([for (final p in _pieces) p.toJson()]);
+  }
+
+  Future<bool> _confirmStack(LoadTexts t, Piece top, Piece bottom) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text(t.stackTitle),
+          content: Text(t.stackQuestion(_name(t, top), _name(t, bottom), bottom.pieces + top.pieces,
+              t.number(double.parse((bottom.height + top.height).toStringAsFixed(2))))),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: Text(t.cancel)),
+            FilledButton(
+              key: const Key('stack-confirm'),
+              onPressed: () => Navigator.of(dialog).pop(true),
+              child: Text(t.stackYes),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   /// Odstęp rysunku od brzegu [m] (miejsce na oś przednią solówki i podpisy).
   static const _margin = 1.6;
@@ -128,8 +234,8 @@ class _DeckViewState extends State<DeckView> {
               key: ValueKey(top ? 'deck-top' : 'deck-side'),
               size: Size(size.maxWidth, height),
               painter: top
-                  ? TopPainter(_pieces, _length, _width, scale, _margin, colors, _dragged)
-                  : SidePainter(_pieces, widget.plan, _inner, scale, _margin, colors, t, _dragged),
+                  ? TopPainter(_pieces, _length, _width, scale, _margin, colors, _dragged, blocked: _blocked)
+                  : SidePainter(_pieces, widget.plan, _inner, scale, _margin, colors, t, _dragged, blocked: _blocked),
             ),
           );
       final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -159,7 +265,11 @@ void _label(Canvas canvas, String text, Offset center, Color color, {double size
 
 /// Z góry: podłoga, palety w kolorach rozładunków z numerem rozładunku.
 class TopPainter extends CustomPainter {
-  TopPainter(this.pieces, this.length, this.width, this.scale, this.margin, this.colors, this.dragged);
+  TopPainter(this.pieces, this.length, this.width, this.scale, this.margin, this.colors, this.dragged,
+      {this.blocked = false});
+
+  /// Przeciągana sztuka nachodzi na inną – czerwona obwódka.
+  final bool blocked;
 
   final List<Piece> pieces;
   final double length;
@@ -196,10 +306,10 @@ class TopPainter extends CustomPainter {
             rect,
             Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = 2
-              ..color = colors.onSurface);
+              ..strokeWidth = blocked ? 4 : 2
+              ..color = blocked ? colors.error : colors.onSurface);
       }
-      _label(canvas, '${p.stop}', rect.center, colors.onPrimary);
+      _label(canvas, p.pieces > 1 ? '${p.stop} · ${p.pieces}L' : '${p.stop}', rect.center, colors.onPrimary);
     }
   }
 
@@ -210,7 +320,10 @@ class TopPainter extends CustomPainter {
 /// Z boku: stosy na wysokość, granica wysokości przestrzeni, podpory (siodło / osie)
 /// z naciskiem i dopuszczalną wartością – na czerwono przy przekroczeniu.
 class SidePainter extends CustomPainter {
-  SidePainter(this.pieces, this.plan, this.inner, this.scale, this.margin, this.colors, this.texts, this.dragged);
+  SidePainter(this.pieces, this.plan, this.inner, this.scale, this.margin, this.colors, this.texts, this.dragged,
+      {this.blocked = false});
+
+  final bool blocked;
 
   final List<Piece> pieces;
   final Map<String, dynamic> plan;
@@ -248,7 +361,8 @@ class SidePainter extends CustomPainter {
           rect,
           Paint()
             ..style = PaintingStyle.stroke
-            ..color = color);
+            ..strokeWidth = identical(p, dragged) && blocked ? 4 : 1
+            ..color = identical(p, dragged) && blocked ? colors.error : color);
     }
     for (final axle in (plan['axles'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>()) {
       final x = left + _num(axle['x_m']) * scale;

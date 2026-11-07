@@ -235,6 +235,26 @@ class LoadTexts {
   String get colHave => _t('Masz', 'You have');
   String statusShort(int count) => _t('Brakuje $count', '$count missing');
 
+  // ---- Ręczne układanie: kolizje i piętrowanie
+  String get overlapReverted => _t('Towar nie może nachodzić na inny – wrócił na poprzednie miejsce.',
+      'Cargo cannot overlap other cargo – it went back to its previous place.');
+  String get stackTitle => _t('Postawić na innym towarze?', 'Place on top of other cargo?');
+  String stackQuestion(String top, String bottom, int pieces, String height) => _t(
+      '„$top” zostanie postawiony na „$bottom” (stos: $pieces szt., $height m). Czy na pewno można stawiać na tym towarze (wytrzymałość opakowania, równa powierzchnia, zabezpieczenie górnej warstwy)?',
+      '“$top” will be placed on “$bottom” (stack: $pieces pcs, $height m). Is it really safe to stack on this cargo (packaging strength, flat top, securing of the upper layer)?');
+  String get stackYes => _t('Tak, postaw', 'Yes, stack it');
+  String stackLimit(String name, int limit) => limit <= 1
+      ? _t('Na „$name” nie można stawiać innego towaru – wrócił na poprzednie miejsce.',
+          'Nothing may be stacked on “$name” – the cargo went back to its previous place.')
+      : _t('„$name”: najwyżej $limit w stosie – towar wrócił na poprzednie miejsce.',
+          '“$name”: at most $limit per stack – the cargo went back to its previous place.');
+  String stackTooHigh(String name, String height) => _t(
+      'Stos na „$name” byłby wyższy niż przestrzeń ładunkowa ($height m) – towar wrócił na poprzednie miejsce.',
+      'A stack on “$name” would be higher than the cargo space ($height m) – the cargo went back to its previous place.');
+  String stackFootprint(String name) => _t(
+      'Towar jest większy niż „$name” pod nim – nie można go postawić, wrócił na poprzednie miejsce.',
+      'The cargo is larger than “$name” below it – it cannot be stacked and went back to its previous place.');
+
   String get gearHoverHint => _t(
       'Najedź na pozycję (na ekranie dotykowym – stuknij nazwę), żeby zobaczyć ją na rysunku.',
       'Hover over an item (on a touch screen – tap its name) to see it on the drawing.');
