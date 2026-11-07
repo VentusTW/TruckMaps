@@ -109,24 +109,26 @@ class _PickerDialogState<T> extends State<_PickerDialog<T>> {
               onChanged: (q) => setState(() => _query = q),
             ),
             const SizedBox(height: Gap.s),
-            SizedBox(
-              height: 40,
-              child: ListView(scrollDirection: Axis.horizontal, children: [
-                for (final (i, label) in [
-                  (null, widget.texts.all),
-                  for (final (i, g) in widget.groups.indexed) (i, g.title)
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: Gap.xs),
-                    child: ChoiceChip(
+            // Wszystkie grupy widoczne naraz – zawijane do kolejnych wierszy (bez przewijania w bok,
+            // przy którym ostatnie były ucięte). Przy bardzo wielu grupach – przewijany obszar.
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: size.height * 0.22),
+              child: SingleChildScrollView(
+                child: Wrap(spacing: Gap.xs, runSpacing: Gap.xs, children: [
+                  for (final (i, label) in [
+                    (null, widget.texts.all),
+                    for (final (i, g) in widget.groups.indexed) (i, '${g.title} (${g.options.length})')
+                  ])
+                    ChoiceChip(
                       key: ValueKey('picker-group-$i'),
                       label: Text(label),
                       selected: _group == i,
                       showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
                       onSelected: (_) => setState(() => _group = i),
                     ),
-                  ),
-              ]),
+                ]),
+              ),
             ),
             const SizedBox(height: Gap.s),
             Flexible(
