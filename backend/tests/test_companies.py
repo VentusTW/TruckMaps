@@ -366,6 +366,50 @@ def test_company_bases_are_shared_with_members_and_managed_by_dispatchers(client
     assert client.get("/api/bases", headers=as_user("olek")).json() == []
 
 
+def test_base_contacts_and_vehicles_assigned_to_base(client):
+    company_id = new_company(client)
+    other = new_company(client, owner="ola", name="Inna")
+    base = {
+        "name": "Baza Wesoła",
+        "lat": 52.2,
+        "lon": 21.2,
+        "code": "PL-WAW-01",
+        "phone": "+48 22 123 45 67",
+        "email": "wesola@example.com",
+        "contact_person": "Anna Nowak",
+        "hours": "pn–pt 6:00–22:00",
+    }
+    base_id = client.post(
+        f"/api/companies/{company_id}/bases", json=base, headers=as_user("olek")
+    ).json()["id"]
+    foreign = client.post(
+        f"/api/companies/{other}/bases",
+        json={"name": "Obca", "lat": 50, "lon": 20},
+        headers=as_user("ola"),
+    ).json()["id"]
+
+    (seen,) = client.get("/api/bases", headers=as_user("olek")).json()
+    assert (seen["code"], seen["phone"], seen["contact_person"]) == (
+        "PL-WAW-01",
+        "+48 22 123 45 67",
+        "Anna Nowak",
+    )
+    vehicle = client.post(
+        "/api/vehicles",
+        json={**TRUCK, "company_id": company_id, "base_id": base_id},
+        headers=as_user("olek"),
+    )
+    assert vehicle.status_code == 201
+    assert (vehicle.json()["base_id"], vehicle.json()["base_name"]) == (base_id, "Baza Wesoła")
+
+    # Baza innej firmy albo pojazd prywatny z bazą – odrzucone.
+    for body in (
+        {**TRUCK, "company_id": company_id, "base_id": foreign},
+        {**TRUCK, "base_id": base_id},
+    ):
+        assert client.post("/api/vehicles", json=body, headers=as_user("olek")).status_code == 422
+
+
 def test_deleting_company_removes_its_bases(client):
     company_id = new_company(client)
     base = {"name": "Baza", "lat": 50.0, "lon": 20.0}

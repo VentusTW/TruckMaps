@@ -146,8 +146,8 @@ class _MembersScreenState extends State<MembersScreen> {
         icon: const Icon(Icons.person_add_alt),
         label: Text(l.invite),
       ),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 88), children: [
-        Text(l.membersTitle, style: theme.textTheme.titleSmall),
+      body: SectionedListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 88), children: [
+        SectionHeader(l.membersTitle),
         FutureBuilder<dynamic>(
           future: _company,
           builder: (context, snapshot) {
@@ -158,7 +158,7 @@ class _MembersScreenState extends State<MembersScreen> {
           },
         ),
         const SizedBox(height: 24),
-        Text(l.invitesTitle, style: theme.textTheme.titleSmall),
+        SectionHeader(l.invitesTitle),
         Text(_owner ? l.invitesHint : l.inviteDriversOnly, style: theme.textTheme.bodySmall),
         FutureBuilder<dynamic>(
           future: _invites,

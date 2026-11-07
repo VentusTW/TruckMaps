@@ -115,10 +115,13 @@ class CoreFleet:
         )
         return {vehicle_id: subject for vehicle_id, subject in db.execute(query)}
 
-    def assign_driver(self, db: Session, vehicle_id: str, subject: str | None) -> None:
+    def assign_driver(
+        self, db: Session, vehicle_id: str, subject: str | None, name: str | None = None
+    ) -> None:
         vehicle = db.get(VehicleProfile, vehicle_id)
         if vehicle is not None:
             vehicle.assigned_driver = subject
+            vehicle.assigned_driver_label = name
 
     def trips(
         self,

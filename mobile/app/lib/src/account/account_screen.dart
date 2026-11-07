@@ -123,8 +123,8 @@ class _AccountScreenState extends State<AccountScreen> {
     ];
     return Form(
       key: _form,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
-        Text(l.accountProfile, style: theme.textTheme.titleSmall),
+      child: SectionedListView(padding: const EdgeInsets.all(16), children: [
+        SectionHeader(l.accountProfile),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Expanded(
@@ -178,7 +178,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   : l.accountEmailTo('${widget.settings['email']}')),
         ),
         const SizedBox(height: 16),
-        Text(l.accountCompanies, style: theme.textTheme.titleSmall),
+        SectionHeader(l.accountCompanies),
         const SizedBox(height: 8),
         Wrap(spacing: 12, runSpacing: 8, children: [
           OutlinedButton.icon(
@@ -193,7 +193,7 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
         ]),
         const SizedBox(height: 24),
-        Text(l.accountSecurity, style: theme.textTheme.titleSmall),
+        SectionHeader(l.accountSecurity),
         const SizedBox(height: 8),
         Wrap(spacing: 12, runSpacing: 8, children: [
           OutlinedButton.icon(

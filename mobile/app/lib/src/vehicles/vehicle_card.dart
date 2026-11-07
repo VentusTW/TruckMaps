@@ -127,7 +127,8 @@ class _VehicleCardScreenState extends State<VehicleCardScreen> {
       if (service)
         action(
             Icons.event_note_outlined, l.vehicleServiceAction, () => _after(openServiceDates(context, widget.api, v))),
-      if (canAssignDriver(v))
+      // Moduł Kierowcy przydziela kierowcę z kartoteki (jego akcja jest niżej) – zamiast konta.
+      if (canAssignDriver(v) && !moduleActions.any((a) => a.id == assignDriverActionId))
         action(Icons.person_pin_outlined, l.vehicleDriverAction, () => _after(assignDriver(context, widget.api, v))),
       for (final a in moduleActions)
         action(a.icon, a.label, () => _after(a.run(context, v)), key: Key('card-action-${a.id}')),
@@ -164,6 +165,7 @@ class _VehicleCardScreenState extends State<VehicleCardScreen> {
             _CrewSection(
               api: widget.api,
               vehicle: v,
+              assign: moduleActions.where((a) => a.id == assignDriverActionId).firstOrNull,
               all: _all,
               onChanged: (action) => _after(action),
             ),
@@ -212,6 +214,7 @@ class _Header extends StatelessWidget {
     final facts = [
       kindLabel(l, kind),
       v['company_id'] != null ? l.vehicleOfCompany : l.vehiclePrivate,
+      if (v['base_name'] != null) '${v['base_name']}',
       if (v['trailer_type'] != null && v['trailer_type'] != 'none') trailerLabel(l, '${v['trailer_type']}'),
       if (v['hazmat'] == true) 'ADR',
     ];
@@ -336,9 +339,13 @@ class _DatesSection extends StatelessWidget {
 
 /// Kierowca (przydzielony i jadący teraz) oraz naczepa / pojazd ciągnący.
 class _CrewSection extends StatelessWidget {
-  const _CrewSection({required this.api, required this.vehicle, required this.all, required this.onChanged});
+  const _CrewSection(
+      {required this.api, required this.vehicle, required this.all, required this.onChanged, this.assign});
 
   final CoreApi api;
+
+  /// Przydział kierowcy z modułu (kartoteka kierowców); bez niego – członek firmy.
+  final VehicleAction? assign;
   final Map<String, dynamic> vehicle;
   final List<Map<String, dynamic>> all;
   final ValueChanged<Future<bool>> onChanged;
@@ -363,10 +370,25 @@ class _CrewSection extends StatelessWidget {
           title: Text(v['assigned_driver_name'] != null
               ? l.vehicleAssignedDriver('${v['assigned_driver_name']}')
               : l.cardDriverNone),
-          subtitle: v['driver_name'] != null ? Text(l.cardDrivingNow('${v['driver_name']}')) : null,
+          subtitle: v['driver_name'] != null
+              ? Text(l.cardDrivingNow('${v['driver_name']}'))
+              // Pojazd prywatny: kierowcę przydziela się w firmie – najpierw baza (przypisuje firmę).
+              : editable && v['company_id'] == null
+                  ? Text(l.cardDriverNeedsCompany, style: TextStyle(color: TruckColors.of(context).warning))
+                  : null,
           trailing: canAssignDriver(v)
-              ? TextButton(onPressed: () => onChanged(assignDriver(context, api, v)), child: Text(l.edit))
-              : null,
+              ? TextButton(
+                  key: const Key('card-driver-edit'),
+                  onPressed: () => onChanged(assign != null ? assign!.run(context, v) : assignDriver(context, api, v)),
+                  child: Text(l.edit),
+                )
+              : editable && v['company_id'] == null
+                  ? TextButton(
+                      key: const Key('card-choose-base'),
+                      onPressed: () => onChanged(openVehicleForm(context, api, v)),
+                      child: Text(l.cardChooseBase),
+                    )
+                  : null,
         ),
       if (towed)
         ListTile(

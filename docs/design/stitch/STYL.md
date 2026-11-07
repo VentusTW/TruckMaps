@@ -128,6 +128,15 @@ Tokeny we wszystkich ekranach są identyczne (powyżej). „✔” = dane są w 
 - ✚ Widok 3D, bilans sił cx/cy, lista sprzętu VDI 2700 z atestami, certyfikat EN 12642 XL, eksport PDF/VDI, „Zatwierdź plan” –
   nowe funkcje, do osobnej decyzji.
 
+## Ekran „Pojazdy i tabor” (projekt dyspozytora, wdrożony na ekranie Pojazdy)
+
+- ✔ Rząd KPI z paskiem udziału we flocie: w użyciu, dostępne, w serwisie (+ zgłoszone usterki), terminy (po terminie / wkrótce);
+  pasek narzędzi w karcie (widok kafelki/tabela, wyszukiwarka, objaśnienie kolorów); zakładki z licznikami w stylu segmentów;
+  na szerokim ekranie (≥ 1300 px) panel „Pojazdy – wymaga uwagi” obok listy. Te same KPI na pulpicie.
+- ⚡ Prędkość, paliwo / AdBlue, TPMS, kody DTC, temperatura chłodni, telemetria CAN – wymagają telematyki.
+- ✚ Filtr baz, eksport CEPiK, rezerwacja SKP, stanowiska warsztatowe, średni wiek taboru, polisy flotowe, kategorie typu
+  „naczepy chłodnie” z licznikami (dziś dwie zakładki: z napędem / naczepy i przyczepy).
+
 ## Ekran „Pulpit operacyjny” (dyspozytor, `operations/operations_screen.dart`)
 
 - Nagłówek: tytuł, firma · data, bazy; chip „Na żywo” (miętowy, pulsująca kropka) / „Bez połączenia” (neutralny), godzina stanu, odśwież.
