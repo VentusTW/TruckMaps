@@ -25,6 +25,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('OGÓLNE'), findsOneWidget);
     expect(find.text('PŁYNY'), findsOneWidget);
+    // Filtry grup: wszystkie widoczne w całości, z liczbą pozycji.
+    for (final key in ['picker-group-null', 'picker-group-0', 'picker-group-1']) {
+      final chip = tester.getRect(find.byKey(ValueKey(key)));
+      final dialog = tester.getRect(find.byType(Dialog));
+      expect(dialog.contains(chip.topLeft) && dialog.contains(chip.bottomRight), isTrue, reason: key);
+    }
+    expect(find.text('Płyny (2)'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('picker-search')), 'cyster');
     await tester.pumpAndSettle();
