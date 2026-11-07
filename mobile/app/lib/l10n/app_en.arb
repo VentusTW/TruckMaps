@@ -1,6 +1,5 @@
 {
   "@@locale": "en",
-
   "menuRoute": "Route",
   "menuVehicles": "Vehicles",
   "menuModules": "Modules",
@@ -9,7 +8,6 @@
   "ok": "OK",
   "mapAttribution": "© OpenStreetMap contributors",
   "modulesLoadFailed": "Could not load modules: {error}",
-
   "loginTagline": "A route that fits your truck.",
   "loginWebLater": "Logging in from the browser version is coming later – use the desktop or phone app.",
   "loginPending": "Finish logging in in the browser…",
@@ -20,7 +18,6 @@
   "loginFailed": "Login failed.",
   "loginFailedWithReason": "Login failed: {reason}",
   "loginBrowserDone": "You are logged in. You can go back to the TruckMaps app.",
-
   "modulesEmpty": "There are no modules on the server yet.",
   "moduleNeedsUpdate": "Requires a newer version of the app.",
   "moduleActive": "Active",
@@ -29,11 +26,9 @@
   "moduleVersion": "Version {version}",
   "buyInStoreSoon": "Buy in the store – coming soon",
   "moduleFromCompanyLicense": "Module from a company licence? The company owner assigns it in the fleet panel.",
-
   "vehiclesEmpty": "No vehicles. Add the first one with “Add vehicle”.",
   "vehicleSummary": "height {height} m · width {width} m · length {length} m · GVW {gvw} t · axle load {axle} t",
   "vehicleReadOnly": "Company vehicle – read only",
-
   "addVehicleFirst": "Add a vehicle first.",
   "chooseStartAndEnd": "Choose the start (A) and destination (B).",
   "routeFailedTitle": "Cannot plan the route",
@@ -68,7 +63,6 @@
   "routeAlternative": "Alternative {number}: {summary}",
   "placeAtKm": "km {km} – {message}",
   "routeSummary": "{km} km · {hours} h {minutes} min",
-
   "navigationTitle": "Navigation",
   "gpsDisabled": "Location is turned off.",
   "gpsDenied": "No location permission – navigation runs in simulation.",
@@ -88,13 +82,11 @@
   "onRouteRemaining": "On the route – {km} km to go",
   "offRoute": "Off the route",
   "offRouteRecalculating": "Off the route – recalculating…",
-
   "voiceIn": "In {distance}, {instruction}",
   "distanceMeters": "{meters} m",
   "distanceKm": "{km} km",
   "voiceOn": "Voice on – tap to mute",
   "voiceOff": "Voice muted – tap to turn on",
-
   "reportTitle": "Report at this place",
   "reportHint": "One tap is enough. Other drivers will see the report and confirm it or mark it as outdated.",
   "reportDeliveryTitle": "Delivery point",
@@ -127,7 +119,6 @@
   "reportStillValid": "Still valid",
   "reportOutdated": "Outdated",
   "reportConfirmations": "{count, plural, =1{1 confirmation} other{{count} confirmations}}",
-
   "stopDragHint": "{label} – drag to move",
   "vehicleAdd": "Add vehicle",
   "vehicleAddTitle": "New vehicle",
@@ -170,7 +161,6 @@
   "cancel": "Cancel",
   "delete": "Delete",
   "edit": "Edit",
-
   "languageName": "English",
   "menuCompany": "Company",
   "menuMembers": "Members",
@@ -262,7 +252,6 @@
   "accountCurrencyAuto": "As the vehicle's company or rates",
   "accountCurrencyHint": "The planner shows estimated route costs in this currency.",
   "accountCompanies": "Companies",
-
   "updateTitle": "A new version is available",
   "updateRollbackTitle": "Back to the previous version",
   "updateVersion": "TruckMaps {installed} → {version} ({size} MB)",
@@ -270,7 +259,6 @@
   "updateWifiHint": "Download over Wi-Fi if you can, and not while driving.",
   "updateLater": "Later",
   "updateDownload": "Download",
-
   "loginRegister": "Create account",
   "loginForgotPassword": "Forgot your password?",
   "passwordResetTitle": "New password",
@@ -288,7 +276,6 @@
   "passwordRules": "At least 8 characters, an upper and lower case letter, a digit and a symbol.",
   "passwordChange": "Change password",
   "passwordChanged": "Password changed.",
-
   "vehicleKind": "Type",
   "kindCombination": "Combination (tractor with semi-trailer / truck with trailer)",
   "kindRigid": "Rigid truck",
@@ -299,12 +286,10 @@
   "vehicleBody": "Body",
   "vehicleTankVolume": "Tank volume",
   "vehicleOfCompany": "company",
-
   "kindBus": "Bus / coach (passengers)",
   "vehicleSeats": "Seats",
   "vehicleStanding": "Standing places",
   "vehicleSeatsSummary": "{seats} seats + {standing} standing",
-
   "vehiclesMotor": "Vehicles",
   "vehiclesMotorEmpty": "No vehicles.",
   "vehiclesTowed": "Semi-trailers and trailers",
@@ -322,11 +307,29 @@
   "adminAccessHint": "A TruckMaps administrator can see your company data but changes it only with your consent – usually for one hour, in the scope you choose. You can extend or close the access at any time, and every change is listed in the log below.",
   "adminAccessNone": "No access granted – the administrator cannot change anything.",
   "adminAccessUntil": "active until {when}",
-  "@adminAccessUntil": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessUntil": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminAccessExpired": "expired {when}",
-  "@adminAccessExpired": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessExpired": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminAccessRevoked": "revoked {when}",
-  "@adminAccessRevoked": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessRevoked": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminGrant": "Grant access",
   "adminGrantTitle": "Access to changes",
   "adminGrantHint": "What the administrator may change:",
@@ -366,7 +369,6 @@
   "inboxExtend": "Extend by {time}",
   "inboxNewRequest": "A TruckMaps administrator asks for access to change your company data.",
   "inboxShow": "Show",
-
   "companyKind": "Type of company",
   "companyKindCarrier": "Goods carrier",
   "companyKindCarrierHint": "Own fleet (tractors, trucks, vans, semi-trailers, trailers) and drivers.",
@@ -374,10 +376,8 @@
   "companyKindForwarderHint": "Orders and carriers; no fleet or drivers of its own – owner and forwarders.",
   "companyKindPassenger": "Passenger transport",
   "companyKindPassengerHint": "Buses and coaches (with trailers) and drivers.",
-
   "vehicleTare": "Empty weight",
   "vehicleTareSummary": "empty {tare} t · payload {payload} t",
-
   "roleMechanic": "Mechanic",
   "vehicleIdentity": "Identification",
   "vehicleVin": "VIN",
@@ -451,7 +451,6 @@
   "registrationEu": "Certificate from another EU country",
   "registrationEuHint": "Photo of the data page – text recognised on the phone, fields A, D.1, D.3, E, F.1, F.2, G, J, L, S.1 are read",
   "adminScopeVehicles": "Vehicles (assignment, merging duplicates by VIN)",
-
   "routeReviewOpen": "Next – route review",
   "routeReviewTitle": "Route review",
   "startDriving": "Start driving",
@@ -685,16 +684,34 @@
   "navEcmr": "e-CMR",
   "navVehicle": "Vehicle",
   "kpiInUse": "in use: {count}",
-  "@kpiInUse": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiInUse": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiAvailable": "Available",
   "kpiAvailableHint": "free, no faults",
   "kpiRepair": "In service",
   "kpiReported": "reported faults: {count}",
-  "@kpiReported": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiReported": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiNoReports": "no reported faults",
   "kpiDeadlines": "Deadlines",
   "kpiOverdue": "overdue: {count}",
-  "@kpiOverdue": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiOverdue": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiDueSoon": "due soon – plan ahead",
   "kpiAllFine": "all in order",
   "kpiUnread": "unread",
@@ -1394,5 +1411,57 @@
   "tcoExcise": "Fuel excise refunds (TICPE / DKV Tax)",
   "tcoExciseNote": "Fuel transactions from France and Belgium – require fuel cards.",
   "tcoErp": "SAP FI-CO accounting sync",
-  "tcoErpNote": "Posting fuel, toll and bonus costs to tractor cost centres."
+  "tcoErpNote": "Posting fuel, toll and bonus costs to tractor cost centres.",
+  "bodyGroupGeneral": "General and palletised cargo",
+  "bodyGroupTemperature": "Temperature controlled",
+  "bodyGroupFlat": "Flatbeds, stakes and coils (steel, long goods)",
+  "bodyGroupHeavy": "Heavy and oversize",
+  "bodyGroupTimber": "Timber",
+  "bodyGroupBulk": "Bulk",
+  "bodyGroupLiquid": "Liquids and gases (tankers)",
+  "bodyGroupContainers": "Containers and swap bodies",
+  "bodyGroupSpecial": "Special",
+  "bodyCurtain": "Curtainsider",
+  "bodyMega": "Mega (3 m height)",
+  "bodyBox": "Box body",
+  "bodyJumbo": "Jumbo (low floor)",
+  "bodyDoubleDeck": "Double deck",
+  "bodySlidingRoof": "Sliding roof curtainsider",
+  "bodyReefer": "Reefer",
+  "bodyIsotherm": "Insulated body",
+  "bodyMultitemp": "Multi-temperature reefer",
+  "bodyFlatbed": "Flatbed",
+  "bodyStake": "Stake body",
+  "bodyCoil": "Coil (steel coil well)",
+  "bodyLowloader": "Low-loader",
+  "bodyExtendable": "Extendable (telescopic)",
+  "bodyModular": "Modular (multi-axle)",
+  "bodyTimber": "Timber / log carrier",
+  "bodyTipper": "Tipper",
+  "bodyWalkingFloor": "Walking floor",
+  "bodySilo": "Silo (bulk powder tanker)",
+  "bodyHopper": "Hopper",
+  "bodyTanker": "Tanker",
+  "bodyTankerFood": "Food-grade tanker",
+  "bodyTankerChem": "Chemical tanker (ADR)",
+  "bodyTankerGas": "Gas tanker",
+  "bodyTankerFuel": "Fuel tanker",
+  "bodyContainer": "Container chassis",
+  "bodySwapBody": "Swap body (BDF)",
+  "bodyCarTransporter": "Car transporter",
+  "bodyLivestock": "Livestock carrier",
+  "bodyGlass": "Glass carrier (inloader)",
+  "bodyBeverage": "Beverage body (side doors)",
+  "bodyDescCurtain": "pallets, general cargo – side and rear loading",
+  "bodyDescMega": "light, bulky goods up to 3 m high",
+  "bodyDescCoil": "steel coils in a well along the trailer",
+  "bodyDescLowloader": "construction machinery, tall loads",
+  "bodyDescWalkingFloor": "wood chips, waste, crops",
+  "bodyDescSilo": "cement, flour, granules",
+  "bodyDescTipper": "sand, gravel, aggregate, grain",
+  "bodyDescStake": "pipes, bars, timber between stakes",
+  "bodyPickerTitle": "Body type (semi-trailer, trailer, body)",
+  "bodyPickerSearch": "Search: e.g. reefer, coil, tanker…",
+  "pickerEmpty": "Nothing found.",
+  "pickerAll": "All"
 }

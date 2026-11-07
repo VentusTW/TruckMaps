@@ -177,6 +177,69 @@ class LoadTexts {
 
   String get gearTitle =>
       _t('Zestawienie sprzętu i zabezpieczeń (checklista VDI 2700)', 'Equipment and securing (VDI 2700 checklist)');
+  // ---- Rodzaje towaru
+  String get cargoType => _t('Rodzaj towaru', 'Cargo type');
+  String get cargoPickerTitle => _t('Rodzaj towaru', 'Cargo type');
+  String get cargoSearch => _t('Szukaj: np. siano, krąg stalowy, beczka…', 'Search: e.g. hay, steel coil, drum…');
+  String get pickerEmpty => _t('Nic nie znaleziono.', 'Nothing found.');
+  String get pickerAll => _t('Wszystkie', 'All');
+  String get addCustomCargo => _t('Dodaj własny rodzaj', 'Add a custom type');
+  String get customCargoTitle => _t('Własny rodzaj towaru', 'Custom cargo type');
+  String get customName => _t('Nazwa', 'Name');
+  String get customGroup => _t('Grupa', 'Group');
+  String get customShape => _t('Kształt', 'Shape');
+  String get customMu => _t('Tarcie o podłogę μ (bez maty)', 'Friction on the floor μ (no mat)');
+  String get customSecuring => _t('Mocowanie', 'Securing');
+  String get customStack => _t('Najwyżej w stosie', 'Max. per stack');
+  String get customWeight => _t('Masa sztuki', 'Weight each');
+  String get customHint => _t(
+      'Typowe μ wg EN 12195-1: drewno – sklejka 0,45, stal – drewno 0,2–0,3, beton – drewno 0,55, mata gumowa 0,6.',
+      'Typical μ per EN 12195-1: timber – plywood 0.45, steel – timber 0.2–0.3, concrete – timber 0.55, rubber mat 0.6.');
+  String get save => _t('Zapisz', 'Save');
+  String get cancel => _t('Anuluj', 'Cancel');
+  String get delete => _t('Usuń', 'Delete');
+  String deleteCargo(String name) => _t('Usunąć własny rodzaj „$name”?', 'Delete the custom type “$name”?');
+  String get customBadge => _t('własny', 'custom');
+  String shape(String value) => switch (value) {
+        'pallet' => _t('Paleta / jednostka paletowa', 'Pallet / pallet unit'),
+        'box' => _t('Skrzynia / paczka', 'Box / package'),
+        'drum' => _t('Beczka (stojąca)', 'Drum (upright)'),
+        'roll' => _t('Rola / krąg stojący', 'Reel / upright coil'),
+        'coil' => _t('Krąg / rola leżąca wzdłuż', 'Coil / reel lying lengthwise'),
+        'bale' => _t('Bela prostokątna', 'Square bale'),
+        'bale_round' => _t('Bela okrągła (leżąca w poprzek)', 'Round bale (lying across)'),
+        'bag' => _t('Worek / big bag', 'Sack / big bag'),
+        'long' => _t('Dłużyca (pręty, rury, kłody)', 'Long goods (bars, pipes, logs)'),
+        'vehicle' => _t('Pojazd / maszyna', 'Vehicle / machine'),
+        _ => _t('Luzem (sypki, płynny)', 'Bulk (solid, liquid)'),
+      };
+  String securingName(String value) => switch (value) {
+        'direct' => _t('Bezpośrednie (łańcuchy, odciągi)', 'Direct (chains, lashings)'),
+        'none' => _t('Zabudowa (bez pasów – sypkie, płynne)', 'Body (no straps – bulk, liquid)'),
+        _ => _t('Pasy dociskowe', 'Top-over straps'),
+      };
+  String cargoDetails(String dims, String weight, String mu) =>
+      _t('$dims · $weight · μ $mu', '$dims · $weight · μ $mu');
+
+  // ---- Wyposażenie użytkownika
+  String get myEquipment => _t('Moje wyposażenie', 'My equipment');
+  String get myEquipmentTitle => _t('Moje wyposażenie do mocowania', 'My securing equipment');
+  String get useEquipment => _t('Uwzględniaj w planie – dobierz rozwiązanie do tego, co mam',
+      'Use in the plan – find a solution with what I have');
+  String get equipmentHint => _t(
+      'Wpisz, ile sztuk masz w pojeździe. Plan spróbuje ułożyć i zabezpieczyć ładunek tylko tym sprzętem (np. zaproponuje maty zamiast brakujących pasów), a jeśli się nie da – powie, czego brakuje.',
+      'Enter how many pieces you carry. The plan will try to place and secure the load with this equipment only (e.g. propose mats instead of missing straps) and, if it cannot, tell you what is missing.');
+  String equipmentOn(int kinds) =>
+      _t('Uwzględniam moje wyposażenie ($kinds rodz.)', 'Using my equipment ($kinds types)');
+  String get equipmentOff => _t('Bez ograniczeń sprzętu', 'No equipment limits');
+  String get colHave => _t('Masz', 'You have');
+  String statusShort(int count) => _t('Brakuje $count', '$count missing');
+
+  String get gearHoverHint => _t(
+      'Najedź na pozycję (na ekranie dotykowym – stuknij nazwę), żeby zobaczyć ją na rysunku.',
+      'Hover over an item (on a touch screen – tap its name) to see it on the drawing.');
+  String get moveViewHintDesktop => _t('Rysunek mieści się w całości – kółko myszy przewija stronę.',
+      'The whole drawing fits – the mouse wheel scrolls the page.');
   String get gearVerified => _t('Komplet sprzętowy zweryfikowany', 'Equipment set verified');
   String get gearPending => _t('Potwierdź założony sprzęt', 'Confirm the fitted equipment');
   String get colNo => _t('Lp.', 'No.');
@@ -191,6 +254,10 @@ class LoadTexts {
         'beams' => _t('Belki rozporowe (Shoring Beam)', 'Shoring beams'),
         'mats' => _t('Maty antypoślizgowe', 'Anti-slip mats'),
         'airbags' => _t('Poduszki powietrzne sztauerskie', 'Dunnage airbags'),
+        'chains' => _t('Łańcuchy / odciągi (mocowanie bezpośrednie)', 'Chains / lashings (direct)'),
+        'chocks' => _t('Kliny (podkłady klinowe)', 'Wedges (chocks)'),
+        'net' => _t('Siatka zabezpieczająca', 'Cargo net'),
+        'stakes' => _t('Kłonice (słupki boczne)', 'Stakes (side posts)'),
         _ => id,
       };
   String gearSpec(String id, int strapDaN) => switch (id) {
@@ -202,6 +269,16 @@ class LoadTexts {
             'Locking bar between the side walls – after each unloading stop and at a front gap'),
         'mats' => _t('Grubość 8 mm, μ = 0,6 – pod każdą sztuką', '8 mm thick, μ = 0.6 – under every piece'),
         'airbags' => _t('Wypełnienie luk w poprzek rzędu (od 15 cm)', 'Fills gaps across a row (from 15 cm)'),
+        _ => '',
+      };
+  String gearSpecMore(String id) => switch (id) {
+        'chains' => _t('Łańcuch 8 mm kl. 8, LC 5000 daN – 4 odciągi na sztukę (ukośnie, ok. 45°)',
+            'Chain 8 mm grade 8, LC 5,000 daN – 4 lashings per piece (diagonal, approx. 45°)'),
+        'chocks' =>
+          _t('Po 2 na krąg, rolę, beczkę leżącą lub koło pojazdu', 'Two per coil, reel, lying drum or vehicle wheel'),
+        'net' => _t('Siatka na bele i ładunek luźny – 1 na ok. 4 m długości',
+            'Net over bales and loose cargo – 1 per approx. 4 m'),
+        'stakes' => _t('Po obu stronach dłużycy, co ok. 3 m', 'On both sides of long goods, approx. every 3 m'),
         _ => '',
       };
   String pieces(int count) => _t('$count szt.', '$count pcs');

@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:module_load/module_load.dart';
+import 'package:module_load/src/sim_view.dart';
 
 http.Response json(Object? body, [int status = 200]) => http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 
@@ -39,13 +41,29 @@ Map<String, dynamic> planJson({bool checked = false, bool wallOk = true}) => {
       'pallet_places': 33,
       'places_used': 28,
       'forces': {
-        'mass_kg': 16500, 'mu': 0.3, 'forward_kN': 129.5, 'side_kN': 80.9, 'friction_kN': 48.6,
-        'rest_forward_kN': 80.9, 'rest_side_kN': 32.4, 'wall_kN': 157.0, 'wall_holds': wallOk,
-        'tension_daN': 7000, 'straps': 2, 'strap_daN': 400, 'ok': wallOk,
+        'mass_kg': 16500,
+        'mu': 0.3,
+        'forward_kN': 129.5,
+        'side_kN': 80.9,
+        'friction_kN': 48.6,
+        'rest_forward_kN': 80.9,
+        'rest_side_kN': 32.4,
+        'wall_kN': 157.0,
+        'wall_holds': wallOk,
+        'tension_daN': 7000,
+        'straps': 2,
+        'strap_daN': 400,
+        'ok': wallOk,
       },
       'tractor': {
-        'front_kg': 6400, 'front_limit_kg': 7500, 'drive_kg': 10900, 'drive_limit_kg': 11500,
-        'gvw_kg': 38400, 'gvw_limit_kg': 40000, 'drive_share': 0.284, 'estimated': true,
+        'front_kg': 6400,
+        'front_limit_kg': 7500,
+        'drive_kg': 10900,
+        'drive_limit_kg': 11500,
+        'gvw_kg': 38400,
+        'gvw_limit_kg': 40000,
+        'drive_share': 0.284,
+        'estimated': true,
       },
       'equipment': [
         {'id': 'straps', 'required': 2},
@@ -63,6 +81,29 @@ Map<String, dynamic> planJson({bool checked = false, bool wallOk = true}) => {
       'estimated': true,
     };
 
+Map<String, dynamic> cargo(String id, String name, String group, String shape,
+        {String kind = 'custom', double l = 1.2, double w = 0.8, double h = 1.2, double kg = 500, int stack = 1}) =>
+    {
+      'id': id,
+      'group': group,
+      'name': name,
+      'shape': shape,
+      'length_m': l,
+      'width_m': w,
+      'height_m': h,
+      'weight_kg': kg,
+      'mu': 0.4,
+      'securing': 'top',
+      'stack': stack,
+      'bodies': <String>[],
+      'gear': <String>[],
+      'kind': kind,
+      'adr': false,
+      'custom': false,
+    };
+
+late Map<String, dynamic> catalog;
+
 void main() {
   late List<(String, String, Object?)> requests;
   late List<Uri> opened;
@@ -79,11 +120,30 @@ void main() {
               {'id': 'n1', 'name': 'Naczepa', 'plate': 'KTA 1', 'kind': 'semitrailer'},
             ]);
           }
+          if (request.url.path == '/api/m/load/cargo-types' && request.method == 'GET') {
+            return json(catalog);
+          }
+          if (request.url.path == '/api/m/load/cargo-types' && request.method == 'POST') {
+            final created = {...cargo('own-1', 'Skrzynie z gumą', 'packages', 'box'), ...(body as Map), 'custom': true};
+            catalog['types'] = [...(catalog['types'] as List), created];
+            return json(created, 201);
+          }
+          if (request.url.path == '/api/m/load/equipment') {
+            return json(request.method == 'PUT' ? body : {'items': <String, int>{}, 'enabled': false});
+          }
           if (request.url.path == '/api/m/load/plan/pdf') {
             return json({'path': '/api/shared/abc', 'filename': 'plan-MT-1'});
           }
           if (request.url.path.startsWith('/api/m/load/plan')) {
-            return json(planJson(checked: request.url.path.endsWith('/check')));
+            final out = planJson(checked: request.url.path.endsWith('/check'));
+            final have = (body as Map)['available'] as Map?;
+            if (have != null) {
+              out.addAll({
+                'mats': true,
+                'shortages': {'edges': (4 - (have['edges'] as int)).clamp(0, 4)}
+              });
+            }
+            return json(out);
           }
           return json(null, 404);
         }),
@@ -115,6 +175,20 @@ void main() {
   }
 
   setUp(() {
+    catalog = {
+      'groups': [
+        {'id': 'pallets', 'name': 'Palety'},
+        {'id': 'agri', 'name': 'Rolnicze'},
+        {'id': 'steel', 'name': 'Stal i metale'},
+        {'id': 'packages', 'name': 'Opakowania'},
+        {'id': 'other', 'name': 'Inne i własne'},
+      ],
+      'types': [
+        cargo('pallet_euro', 'Paleta EUR', 'pallets', 'pallet', kind: 'euro'),
+        cargo('hay_square', 'Bele siana prostokątne', 'agri', 'bale', l: 2.4, w: 1.2, h: 0.9, kg: 450, stack: 3),
+        cargo('coil_eye_horizontal', 'Krąg stalowy', 'steel', 'coil', l: 1.5, w: 1.8, h: 1.8, kg: 15000),
+      ],
+    };
     requests = [];
     opened = [];
   });
@@ -169,6 +243,108 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('sim-section')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sim-view-section')), findsOneWidget);
+  });
+
+  testWidgets('lista sprzętu: najechanie podświetla zabezpieczenie na rysunku; rysunek bez przybliżania',
+      (tester) async {
+    await open(tester, const Size(1400, 3200));
+    await calculate(tester);
+    final view = find.byKey(const ValueKey('sim-view-iso'));
+    String? lit() => (tester.widget<CustomPaint>(view).painter! as SimPainter).highlight;
+    expect(find.ancestor(of: view, matching: find.byType(InteractiveViewer)), findsNothing);
+    expect(lit(), isNull);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('gear-row-straps'))));
+    await tester.pumpAndSettle();
+    expect(lit(), 'straps');
+    await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('gear-row-edges'))));
+    await tester.pumpAndSettle();
+    expect(lit(), 'edges');
+    await mouse.moveTo(Offset.zero);
+    await tester.pumpAndSettle();
+    expect(lit(), isNull);
+
+    // Dotyk: stuknięcie w nazwę włącza i wyłącza podświetlenie.
+    await tester.tap(find.byKey(const ValueKey('gear-row-beams')));
+    await tester.pumpAndSettle();
+    expect(lit(), 'beams');
+    await tester.tap(find.byKey(const ValueKey('gear-row-beams')));
+    await tester.pumpAndSettle();
+    expect(lit(), isNull);
+  });
+
+  testWidgets('rodzaj towaru: wybór z grup z wyszukiwarką, wymiary z katalogu, własny rodzaj', (tester) async {
+    await open(tester, const Size(1400, 3200));
+    await tester.tap(find.byKey(const ValueKey('cargo-field-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('ROLNICZE'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('picker-search')), 'siana');
+    await tester.pumpAndSettle();
+    expect(find.text('Krąg stalowy'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('picker-hay_square')));
+    await tester.pumpAndSettle();
+    expect(find.text('Bele siana prostokątne'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextFormField, 'Stacked'), '5');
+    await tester.ensureVisible(find.text('Calculate plan'));
+    await tester.tap(find.text('Calculate plan'));
+    await tester.pumpAndSettle();
+    final sent = (requests.singleWhere((r) => r.$2 == '/api/m/load/plan').$3 as Map)['items'] as List;
+    expect(sent.single, {
+      'kind': 'custom',
+      'cargo': 'hay_square',
+      'count': 1,
+      'weight_kg': 450.0,
+      'stack': 5,
+      'stop': 1,
+      'length_m': 2.4,
+      'width_m': 1.2,
+      'height_m': 0.9,
+    });
+
+    // Własny rodzaj: okno z wymiarami, tarciem i mocowaniem → zapis na serwerze i wybór w pozycji.
+    await tester.ensureVisible(find.byKey(const ValueKey('cargo-field-0')));
+    await tester.tap(find.byKey(const ValueKey('cargo-field-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('cargo-add-custom')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('custom-name')), 'Skrzynie z gumą');
+    await tester.enterText(find.byKey(const Key('custom-mu')), '0,6');
+    await tester.tap(find.byKey(const Key('custom-save')));
+    await tester.pumpAndSettle();
+    final posted = requests.singleWhere((r) => r.$1 == 'POST' && r.$2 == '/api/m/load/cargo-types').$3 as Map;
+    expect(
+        (posted['name'], posted['mu'], posted['group'], posted['securing']), ('Skrzynie z gumą', 0.6, 'other', 'top'));
+    expect(find.text('Skrzynie z gumą'), findsOneWidget);
+  });
+
+  testWidgets('moje wyposażenie: zapis, plan z dostępnym sprzętem, kolumna „Masz” i braki', (tester) async {
+    await open(tester, const Size(1400, 3400));
+    expect(find.text('No equipment limits'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('my-equipment')));
+    await tester.tap(find.byKey(const Key('my-equipment')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('equipment-straps')), '10');
+    await tester.enterText(find.byKey(const Key('equipment-mats')), '20');
+    await tester.tap(find.byKey(const Key('equipment-save')));
+    await tester.pumpAndSettle();
+    final put = requests.singleWhere((r) => r.$1 == 'PUT').$3 as Map;
+    expect((put['enabled'], (put['items'] as Map)['straps'], (put['items'] as Map)['mats']), (true, 10, 20));
+    expect(find.text('Using my equipment (2 types)'), findsOneWidget);
+
+    await calculate(tester);
+    final sent = requests.singleWhere((r) => r.$2 == '/api/m/load/plan').$3 as Map;
+    expect((sent['available'] as Map)['straps'], 10);
+    expect(find.text('YOU HAVE'), findsOneWidget);
+    expect(find.text('4 missing'), findsOneWidget); // narożników nie ma w wyposażeniu
+
+    // Ręczne ułożenie sprawdzane z matami, które zaproponował plan.
+    await tester.tap(find.byKey(const ValueKey('sim-edit')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Recalculate inertia forces (EN 12195)'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('tryb sztaplowany: piętrowanie pozycji i plan od nowa', (tester) async {

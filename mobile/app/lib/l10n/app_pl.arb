@@ -1,6 +1,5 @@
 {
   "@@locale": "pl",
-
   "menuRoute": "Trasa",
   "menuVehicles": "Pojazdy",
   "menuModules": "Moduły",
@@ -9,55 +8,102 @@
   "ok": "OK",
   "mapAttribution": "© współtwórcy OpenStreetMap",
   "modulesLoadFailed": "Nie udało się pobrać modułów: {error}",
-  "@modulesLoadFailed": {"placeholders": {"error": {"type": "String"}}},
-
+  "@modulesLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "loginTagline": "Trasa dopasowana do twojej ciężarówki.",
   "loginWebLater": "Logowanie w wersji przeglądarkowej będzie później – użyj aplikacji na komputer albo telefon.",
   "loginPending": "Dokończ logowanie w przeglądarce…",
   "loginWithEmail": "Zaloguj się e-mailem",
   "loginServer": "Serwer: {url}",
-  "@loginServer": {"placeholders": {"url": {"type": "String"}}},
+  "@loginServer": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
   "loginBrowserFailed": "Nie udało się otworzyć przeglądarki.",
   "loginTimeout": "Logowanie trwało zbyt długo.",
   "loginFailed": "Logowanie nie powiodło się.",
   "loginFailedWithReason": "Logowanie nie powiodło się: {reason}",
-  "@loginFailedWithReason": {"placeholders": {"reason": {"type": "String"}}},
+  "@loginFailedWithReason": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "loginBrowserDone": "Zalogowano. Możesz wrócić do aplikacji TruckMaps.",
-  "@loginBrowserDone": {"description": "Strona w przeglądarce po udanym logowaniu."},
-
+  "@loginBrowserDone": {
+    "description": "Strona w przeglądarce po udanym logowaniu."
+  },
   "modulesEmpty": "Na serwerze nie ma jeszcze modułów.",
   "moduleNeedsUpdate": "Wymaga nowszej wersji aplikacji.",
   "moduleActive": "Aktywny",
   "moduleInactive": "Nieaktywny – kup moduł, żeby z niego korzystać.",
   "buyModule": "Kup moduł",
   "moduleVersion": "Wersja {version}",
-  "@moduleVersion": {"placeholders": {"version": {"type": "String"}}},
+  "@moduleVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "buyInStoreSoon": "Kup w sklepie – wkrótce",
   "moduleFromCompanyLicense": "Moduł z firmowej licencji? Właściciel firmy przydzieli go w panelu floty.",
-
   "vehiclesEmpty": "Brak pojazdów. Dodaj pierwszy przyciskiem „Dodaj pojazd”.",
   "vehicleSummary": "wys. {height} m · szer. {width} m · dł. {length} m · DMC {gvw} t · nacisk osi {axle} t",
   "@vehicleSummary": {
     "description": "Wymiary pojazdu w jednej linii.",
     "placeholders": {
-      "height": {"type": "String"}, "width": {"type": "String"}, "length": {"type": "String"},
-      "gvw": {"type": "String"}, "axle": {"type": "String"}
+      "height": {
+        "type": "String"
+      },
+      "width": {
+        "type": "String"
+      },
+      "length": {
+        "type": "String"
+      },
+      "gvw": {
+        "type": "String"
+      },
+      "axle": {
+        "type": "String"
+      }
     }
   },
   "vehicleReadOnly": "Pojazd firmy – tylko do odczytu",
-
   "addVehicleFirst": "Najpierw dodaj pojazd.",
   "chooseStartAndEnd": "Wybierz start (A) i cel (B).",
   "routeFailedTitle": "Nie da się wyznaczyć trasy",
   "viaTapToRemove": "Punkt pośredni {number} – dotknij, żeby usunąć",
-  "@viaTapToRemove": {"placeholders": {"number": {"type": "String"}}},
+  "@viaTapToRemove": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "vehicle": "Pojazd",
   "fromLabel": "Skąd – adres, miejscowość, GPS",
   "toLabel": "Dokąd – adres, miejscowość, GPS",
   "removeVia": "Usuń punkt pośredni",
   "departureNow": "Wyjazd: teraz",
   "departureAt": "Wyjazd: {time}",
-  "@departureAt": {"placeholders": {"time": {"type": "String"}}},
+  "@departureAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "addViaOnMap": "+ punkt pośredni na mapie",
   "avoidDifficult": "Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd",
   "calculating": "Liczę trasę…",
@@ -74,30 +120,101 @@
   "levelRed": "Trasa nieprzejezdna dla tego pojazdu",
   "timeBansTitle": "Zakazy ruchu w czasie",
   "arrival": "Przyjazd ok. {time} (czas jazdy bez przerw kierowcy).",
-  "@arrival": {"placeholders": {"time": {"type": "String"}}},
+  "@arrival": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "arrivalWithWait": "Przyjazd ok. {time}, w tym postój {hours} h {minutes} min (czas jazdy bez przerw kierowcy).",
-  "@arrivalWithWait": {"placeholders": {"time": {"type": "String"}, "hours": {"type": "int"}, "minutes": {"type": "int"}}},
+  "@arrivalWithWait": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      },
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "departWithoutWaiting": "Wyjedź {time} – bez postoju",
-  "@departWithoutWaiting": {"placeholders": {"time": {"type": "String"}}},
+  "@departWithoutWaiting": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "onRouteTitle": "Na trasie",
   "routesTitle": "Trasy",
   "routeProposed": "Proponowana: {summary}",
-  "@routeProposed": {"placeholders": {"summary": {"type": "String"}}},
+  "@routeProposed": {
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "routeAlternative": "Alternatywa {number}: {summary}",
-  "@routeAlternative": {"placeholders": {"number": {"type": "int"}, "summary": {"type": "String"}}},
+  "@routeAlternative": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "placeAtKm": "km {km} – {message}",
-  "@placeAtKm": {"placeholders": {"km": {"type": "String"}, "message": {"type": "String"}}},
+  "@placeAtKm": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "routeSummary": "{km} km · {hours} h {minutes} min",
-  "@routeSummary": {"placeholders": {"km": {"type": "int"}, "hours": {"type": "int"}, "minutes": {"type": "int"}}},
-
+  "@routeSummary": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      },
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "navigationTitle": "Nawigacja",
   "gpsDisabled": "Lokalizacja jest wyłączona.",
   "gpsDenied": "Brak zgody na lokalizację – nawigacja działa w symulacji.",
   "corridorFailed": "Brak danych o drogach wokół trasy: {error}",
-  "@corridorFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@corridorFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "rerouted": "Trasa przeliczona od twojej pozycji.",
   "rerouteFailed": "Poza trasą – wróć na trasę (nie udało się przeliczyć: {error}).",
-  "@rerouteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@rerouteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "followingVehicle": "Mapa podąża za pojazdem",
   "backToVehicle": "Wróć do pojazdu",
   "alarmTitle": "STOP – ta droga jest nieprzejezdna",
@@ -109,19 +226,45 @@
   "loadingCorridor": "Pobieram dane o drogach wokół trasy…",
   "waitingForPosition": "Czekam na pozycję (GPS albo dotknij mapy).",
   "onRouteRemaining": "Na trasie – zostało {km} km",
-  "@onRouteRemaining": {"placeholders": {"km": {"type": "String"}}},
+  "@onRouteRemaining": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "offRoute": "Poza trasą",
   "offRouteRecalculating": "Poza trasą – przeliczam trasę…",
-
   "voiceIn": "Za {distance} {instruction}",
-  "@voiceIn": {"description": "Zapowiedź głosowa manewru, np. „Za 300 m skręć w prawo w DK94.”", "placeholders": {"distance": {"type": "String"}, "instruction": {"type": "String"}}},
+  "@voiceIn": {
+    "description": "Zapowiedź głosowa manewru, np. „Za 300 m skręć w prawo w DK94.”",
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      },
+      "instruction": {
+        "type": "String"
+      }
+    }
+  },
   "distanceMeters": "{meters} m",
-  "@distanceMeters": {"placeholders": {"meters": {"type": "int"}}},
+  "@distanceMeters": {
+    "placeholders": {
+      "meters": {
+        "type": "int"
+      }
+    }
+  },
   "distanceKm": "{km} km",
-  "@distanceKm": {"placeholders": {"km": {"type": "String"}}},
+  "@distanceKm": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "voiceOn": "Głos włączony – dotknij, żeby wyciszyć",
   "voiceOff": "Głos wyciszony – dotknij, żeby włączyć",
-
   "reportTitle": "Zgłoś w tym miejscu",
   "reportHint": "Jedno dotknięcie wystarczy. Inni kierowcy zobaczą zgłoszenie i potwierdzą je albo oznaczą jako nieaktualne.",
   "reportDeliveryTitle": "Punkt dostawy",
@@ -146,7 +289,13 @@
   "back": "Wstecz",
   "reportButton": "Zgłoś",
   "reportSaved": "Zapisano: {message}. Dziękujemy!",
-  "@reportSaved": {"placeholders": {"message": {"type": "String"}}},
+  "@reportSaved": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "reportThanks": "Dziękujemy – głos zapisany.",
   "reportLongPressHint": "Przytrzymaj mapę, żeby zgłosić bramę, rampę, godziny przyjęć albo problem na drodze.",
   "atDestinationTitle": "Przy celu (zgłoszenia kierowców)",
@@ -155,10 +304,21 @@
   "reportStillValid": "Nadal aktualne",
   "reportOutdated": "Nieaktualne",
   "reportConfirmations": "{count, plural, =1{1 potwierdzenie} few{{count} potwierdzenia} other{{count} potwierdzeń}}",
-  "@reportConfirmations": {"placeholders": {"count": {"type": "int"}}},
-
+  "@reportConfirmations": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "stopDragHint": "{label} – przeciągnij, żeby przesunąć",
-  "@stopDragHint": {"placeholders": {"label": {"type": "String"}}},
+  "@stopDragHint": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleAdd": "Dodaj pojazd",
   "vehicleAddTitle": "Nowy pojazd",
   "vehicleEditTitle": "Zmień pojazd",
@@ -185,10 +345,25 @@
   "vehiclePrivate": "Mój (prywatny)",
   "vehicleNumberRequired": "Wpisz liczbę.",
   "vehicleOutOfRange": "Od {min} do {max}.",
-  "@vehicleOutOfRange": {"placeholders": {"min": {"type": "String"}, "max": {"type": "String"}}},
+  "@vehicleOutOfRange": {
+    "placeholders": {
+      "min": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleDeleteTitle": "Usunąć pojazd?",
   "vehicleDeleteQuestion": "Pojazd „{name}” zniknie z listy. Tego nie da się cofnąć.",
-  "@vehicleDeleteQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@vehicleDeleteQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "trailerNone": "Bez naczepy (solo)",
   "trailerCurtain": "Plandeka (firanka)",
   "trailerBox": "Kontener / furgon",
@@ -202,7 +377,6 @@
   "cancel": "Anuluj",
   "delete": "Usuń",
   "edit": "Zmień",
-
   "languageName": "Polski",
   "menuCompany": "Firma",
   "menuMembers": "Członkowie",
@@ -231,7 +405,13 @@
   "companyDetails": "Dane firmy",
   "companyDetailsHint": "Stawki firmy liczą koszt trasy pojazdów, które nie mają własnych.",
   "companyDetailsReadOnly": "Twoja rola: {role}. Dane firmy zmienia właściciel.",
-  "@companyDetailsReadOnly": {"placeholders": {"role": {"type": "String"}}},
+  "@companyDetailsReadOnly": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
   "companyRates": "Stawki",
   "companyRatesHint": "Puste pole = bez stawki.",
   "companyRateInvalid": "Wpisz liczbę, co najmniej 0.",
@@ -239,11 +419,23 @@
   "companyLeave": "Opuść firmę",
   "companyLeaveTitle": "Opuścić firmę?",
   "companyLeaveQuestion": "Stracisz dostęp do pojazdów i baz firmy „{name}”. Wrócisz tylko z nowym kodem.",
-  "@companyLeaveQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@companyLeaveQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "companyDelete": "Usuń firmę",
   "companyDeleteTitle": "Usunąć firmę?",
   "companyDeleteQuestion": "Firma „{name}”, jej bazy, członkowie i zaproszenia znikną. Pojazdy wrócą do tych, którzy je dodali.",
-  "@companyDeleteQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@companyDeleteQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "companyNeedsOwner": "Firma musi mieć właściciela: najpierw przekaż tę rolę komuś innemu.",
   "basesTitle": "Bazy firmy",
   "basesHint": "Miejsca, skąd wyjeżdżają pojazdy – podpowiadane w polach adresu.",
@@ -258,17 +450,41 @@
   "basePlaceRequired": "Wybierz adres z podpowiedzi albo wpisz współrzędne GPS.",
   "baseDeleteTitle": "Usunąć bazę?",
   "baseDeleteQuestion": "Baza „{name}” zniknie z podpowiedzi wszystkich członków firmy.",
-  "@baseDeleteQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@baseDeleteQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "membersTitle": "Członkowie firmy",
   "memberMe": "{name} (ty)",
-  "@memberMe": {"placeholders": {"name": {"type": "String"}}},
+  "@memberMe": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "memberActions": "Rola i usunięcie",
   "memberMakeRole": "Zmień rolę na: {role}",
-  "@memberMakeRole": {"placeholders": {"role": {"type": "String"}}},
+  "@memberMakeRole": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
   "memberRemove": "Usuń z firmy",
   "memberRemoveTitle": "Usunąć z firmy?",
   "memberRemoveQuestion": "{name} straci dostęp do pojazdów i baz firmy.",
-  "@memberRemoveQuestion": {"placeholders": {"name": {"type": "String"}}},
+  "@memberRemoveQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "invitesTitle": "Aktywne zaproszenia",
   "invitesHint": "Kod jest jednorazowy i ważny 7 dni. Rolę nadajesz w zaproszeniu.",
   "invitesEmpty": "Brak aktywnych zaproszeń.",
@@ -281,13 +497,34 @@
   "inviteCreate": "Utwórz kod",
   "inviteCreated": "Kod zaproszenia",
   "inviteCodeHint": "Przekaż kod osobie, którą zapraszasz. Rola: {role}. Ważny do {until}.",
-  "@inviteCodeHint": {"placeholders": {"role": {"type": "String"}, "until": {"type": "String"}}},
+  "@inviteCodeHint": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      },
+      "until": {
+        "type": "String"
+      }
+    }
+  },
   "inviteExpires": "ważne do {until}",
-  "@inviteExpires": {"placeholders": {"until": {"type": "String"}}},
+  "@inviteExpires": {
+    "placeholders": {
+      "until": {
+        "type": "String"
+      }
+    }
+  },
   "inviteCancel": "Anuluj zaproszenie",
   "inviteCancelTitle": "Anulować zaproszenie?",
   "inviteCancelQuestion": "Kod {code} przestanie działać.",
-  "@inviteCancelQuestion": {"placeholders": {"code": {"type": "String"}}},
+  "@inviteCancelQuestion": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "joinTitle": "Dołącz do firmy",
   "joinHint": "Wpisz kod zaproszenia od właściciela albo dyspozytora firmy.",
   "joinCode": "Kod zaproszenia",
@@ -304,16 +541,26 @@
   "accountCurrencyAuto": "Jak firma pojazdu albo jego stawki",
   "accountCurrencyHint": "W tej walucie planer pokazuje szacowany koszt trasy.",
   "accountCompanies": "Firmy",
-
   "updateTitle": "Jest nowa wersja",
   "updateRollbackTitle": "Powrót do poprzedniej wersji",
   "updateVersion": "TruckMaps {installed} → {version} ({size} MB)",
-  "@updateVersion": {"placeholders": {"installed": {"type": "String"}, "version": {"type": "String"}, "size": {"type": "String"}}},
+  "@updateVersion": {
+    "placeholders": {
+      "installed": {
+        "type": "String"
+      },
+      "version": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "updateRollbackHint": "Zainstalowaną wersję wycofano – zalecamy powrót do poprzedniej, sprawdzonej.",
   "updateWifiHint": "Pobieraj najlepiej przez Wi-Fi i nie w trakcie jazdy.",
   "updateLater": "Później",
   "updateDownload": "Pobierz",
-
   "loginRegister": "Utwórz konto",
   "loginForgotPassword": "Nie pamiętasz hasła?",
   "passwordResetTitle": "Nowe hasło",
@@ -331,7 +578,6 @@
   "passwordRules": "Co najmniej 8 znaków, wielka i mała litera, cyfra i symbol.",
   "passwordChange": "Zmień hasło",
   "passwordChanged": "Hasło zmienione.",
-
   "vehicleKind": "Rodzaj",
   "kindCombination": "Zestaw (ciągnik z naczepą / samochód z przyczepą)",
   "kindRigid": "Samochód ciężarowy",
@@ -342,40 +588,95 @@
   "vehicleBody": "Zabudowa",
   "vehicleTankVolume": "Pojemność cysterny",
   "vehicleOfCompany": "firmowy",
-
   "kindBus": "Autobus / bus (przewóz osób)",
   "vehicleSeats": "Miejsca siedzące",
   "vehicleStanding": "Miejsca stojące",
   "vehicleSeatsSummary": "{seats} miejsc siedz. + {standing} stoj.",
-  "@vehicleSeatsSummary": {"placeholders": {"seats": {"type": "String"}, "standing": {"type": "String"}}},
-
+  "@vehicleSeatsSummary": {
+    "placeholders": {
+      "seats": {
+        "type": "String"
+      },
+      "standing": {
+        "type": "String"
+      }
+    }
+  },
   "vehiclesMotor": "Samochody",
   "vehiclesMotorEmpty": "Brak samochodów.",
   "vehiclesTowed": "Naczepy i przyczepy",
   "vehiclesTowedEmpty": "Brak naczep i przyczep.",
   "vehicleInUse": "w użyciu",
   "vehicleCoupledTo": "w użyciu – podpięta do: {vehicle}",
-  "@vehicleCoupledTo": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@vehicleCoupledTo": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "couplingEmpty": "Przeciągnij tu: {kind}",
-  "@couplingEmpty": {"placeholders": {"kind": {"type": "String"}}},
+  "@couplingEmpty": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
   "couplingWith": "Podpięta: {trailer}",
-  "@couplingWith": {"placeholders": {"trailer": {"type": "String"}}},
+  "@couplingWith": {
+    "placeholders": {
+      "trailer": {
+        "type": "String"
+      }
+    }
+  },
   "couplingAdd": "Podepnij",
   "couplingRemove": "Odepnij",
   "couplingChoose": "Podepnij do: {vehicle}",
-  "@couplingChoose": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@couplingChoose": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "couplingNone": "Brak pasujących: {kind}.",
-  "@couplingNone": {"placeholders": {"kind": {"type": "String"}}},
+  "@couplingNone": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
   "menuAdminAccess": "Dostęp admina",
   "adminAccessTitle": "Dostęp administratora TruckMaps",
   "adminAccessHint": "Administrator TruckMaps widzi dane firmy, ale zmienia je tylko po Twojej zgodzie – zwykle przez godzinę, w wybranym zakresie. Dostęp możesz przedłużyć albo zamknąć w każdej chwili, a każda zmiana jest w dzienniku poniżej.",
   "adminAccessNone": "Nie udzielono dostępu – administrator niczego nie zmieni.",
   "adminAccessUntil": "aktywny do {when}",
-  "@adminAccessUntil": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessUntil": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminAccessExpired": "wygasł {when}",
-  "@adminAccessExpired": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessExpired": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminAccessRevoked": "cofnięty {when}",
-  "@adminAccessRevoked": {"placeholders": {"when": {"type": "String"}}},
+  "@adminAccessRevoked": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
   "adminGrant": "Udziel dostępu",
   "adminGrantTitle": "Dostęp do zmian",
   "adminGrantHint": "Co administrator może zmienić:",
@@ -395,37 +696,99 @@
   "adminFieldAddress": "Adres",
   "adminFieldPosition": "Położenie",
   "durationMinutes": "{minutes} min",
-  "@durationMinutes": {"placeholders": {"minutes": {"type": "int"}}},
+  "@durationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "durationHours": "{hours, plural, =1{1 godz.} other{{hours} godz.}}",
-  "@durationHours": {"placeholders": {"hours": {"type": "int"}}},
+  "@durationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
   "adminStatePending": "czeka na Twoją zgodę",
   "adminStateRejected": "odrzucona",
   "adminRequestedBy": "prosi: {name}",
-  "@adminRequestedBy": {"placeholders": {"name": {"type": "String"}}},
+  "@adminRequestedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "adminTimeLeft": "zostało {time}",
-  "@adminTimeLeft": {"placeholders": {"time": {"type": "String"}}},
+  "@adminTimeLeft": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "adminExtend": "Przedłuż",
   "adminExtendBy": "Przedłuż o {time}",
-  "@adminExtendBy": {"placeholders": {"time": {"type": "String"}}},
+  "@adminExtendBy": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "menuInbox": "Wiadomości",
   "inboxEmpty": "Brak wiadomości.",
   "inboxAdmin": "Administrator TruckMaps",
   "inboxAccessRequest": "{admin} prosi o dostęp do zmian",
-  "@inboxAccessRequest": {"placeholders": {"admin": {"type": "String"}}},
+  "@inboxAccessRequest": {
+    "placeholders": {
+      "admin": {
+        "type": "String"
+      }
+    }
+  },
   "inboxAccessRequestHint": "Po zgodzie administrator ma godzinę na zmiany; każda trafi do dziennika w „Dostęp admina”.",
   "inboxExtensionRequest": "{admin} prosi o przedłużenie dostępu o {time}",
-  "@inboxExtensionRequest": {"placeholders": {"admin": {"type": "String"}, "time": {"type": "String"}}},
+  "@inboxExtensionRequest": {
+    "placeholders": {
+      "admin": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "inboxExtensionHint": "Bez przedłużenia dostęp wygaśnie o czasie.",
   "inboxAccessClosed": "{admin}: zmiany zakończone, dostęp zamknięty",
-  "@inboxAccessClosed": {"placeholders": {"admin": {"type": "String"}}},
+  "@inboxAccessClosed": {
+    "placeholders": {
+      "admin": {
+        "type": "String"
+      }
+    }
+  },
   "inboxAccept": "Zgoda ({time})",
-  "@inboxAccept": {"placeholders": {"time": {"type": "String"}}},
+  "@inboxAccept": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "inboxReject": "Odmowa",
   "inboxExtend": "Przedłuż o {time}",
-  "@inboxExtend": {"placeholders": {"time": {"type": "String"}}},
+  "@inboxExtend": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "inboxNewRequest": "Administrator TruckMaps prosi o dostęp do zmian w firmie.",
   "inboxShow": "Pokaż",
-
   "companyKind": "Rodzaj firmy",
   "companyKindCarrier": "Przewoźnik towarów",
   "companyKindCarrierHint": "Własna flota (ciągniki, solówki, dostawcze, naczepy, przyczepy) i kierowcy.",
@@ -433,11 +796,18 @@
   "companyKindForwarderHint": "Zlecenia i przewoźnicy; bez własnej floty i kierowców – właściciel i spedytorzy.",
   "companyKindPassenger": "Transport osób",
   "companyKindPassengerHint": "Autobusy i busy (z przyczepami) oraz kierowcy.",
-
   "vehicleTare": "Masa własna (pusty)",
   "vehicleTareSummary": "masa własna {tare} t · ładowność {payload} t",
-  "@vehicleTareSummary": {"placeholders": {"tare": {"type": "String"}, "payload": {"type": "String"}}},
-
+  "@vehicleTareSummary": {
+    "placeholders": {
+      "tare": {
+        "type": "String"
+      },
+      "payload": {
+        "type": "String"
+      }
+    }
+  },
   "roleMechanic": "Mechanik",
   "vehicleIdentity": "Identyfikacja",
   "vehicleVin": "VIN",
@@ -450,7 +820,13 @@
   "vehicleEmission": "Klasa emisji spalin",
   "emissionElectric": "Elektryczny",
   "emissionEuro": "Euro {n}",
-  "@emissionEuro": {"placeholders": {"n": {"type": "String"}}},
+  "@emissionEuro": {
+    "placeholders": {
+      "n": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleDates": "Terminy",
   "vehicleDatesHint": "Ostrzeżenie na liście pojazdów pojawi się 30 dni przed terminem. Terminy zmieniają też mechanicy firmy.",
   "vehicleLastInspection": "Ostatni przegląd techniczny",
@@ -462,12 +838,36 @@
   "vehicleDateNone": "— nie podano —",
   "vehicleDateClear": "Wyczyść",
   "vehicleDatesTitle": "Terminy: {vehicle}",
-  "@vehicleDatesTitle": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@vehicleDatesTitle": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleServiceAction": "Terminy przeglądów",
   "vehicleOverdue": "Po terminie – {what}: {date}",
-  "@vehicleOverdue": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "@vehicleOverdue": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleDueSoon": "Wkrótce – {what}: {date}",
-  "@vehicleDueSoon": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "@vehicleDueSoon": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleInRepair": "w naprawie",
   "vehiclesViewCards": "Kafelki",
   "vehiclesViewTable": "Tabela",
@@ -498,16 +898,34 @@
   "fuelHydrogen": "wodór",
   "vehicleCo2Class": "Klasa CO₂ (myto w Niemczech)",
   "vehicleCo2ClassValue": "klasa {value}",
-  "@vehicleCo2ClassValue": {"placeholders": {"value": {"type": "int"}}},
+  "@vehicleCo2ClassValue": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
   "vehicleConsumptionEmpty": "Spalanie bez ładunku",
   "vehicleConsumptionLoaded": "Spalanie z ładunkiem",
   "vehicleAdBlue": "AdBlue (% spalania)",
   "vehicleFuelPrice": "Własna cena paliwa",
   "vehicleAdBluePrice": "Własna cena AdBlue",
   "vehicleHeadlineWeight": "{weight} t",
-  "@vehicleHeadlineWeight": {"placeholders": {"weight": {"type": "String"}}},
+  "@vehicleHeadlineWeight": {
+    "placeholders": {
+      "weight": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleHeadlineHeight": "{height} m",
-  "@vehicleHeadlineHeight": {"placeholders": {"height": {"type": "String"}}},
+  "@vehicleHeadlineHeight": {
+    "placeholders": {
+      "height": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleAtpUntil": "Świadectwo ATP chłodni do",
   "vehicleTachographDownloadUntil": "Pobranie danych z tachografu do",
   "vehicleLeasingUntil": "Koniec leasingu",
@@ -518,7 +936,6 @@
   "registrationEu": "Dowód z innego kraju UE",
   "registrationEuHint": "Zdjęcie strony z danymi – tekst rozpoznawany na telefonie, czytane pola A, D.1, D.3, E, F.1, F.2, G, J, L, S.1",
   "adminScopeVehicles": "Pojazdy (przypisanie, scalanie dubli po VIN)",
-
   "routeReviewOpen": "Dalej – przegląd trasy",
   "routeReviewTitle": "Przegląd trasy",
   "startDriving": "Rozpocznij jazdę",
@@ -533,12 +950,39 @@
   "countriesForProposed": "Dla trasy proponowanej.",
   "countryStart": "start trasy",
   "borderAt": "granica: km {km}, ok. {time}",
-  "@borderAt": {"placeholders": {"km": {"type": "String"}, "time": {"type": "String"}}},
+  "@borderAt": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "bansByCountryTitle": "Zakazy ruchu w krajach",
   "countryBanSummary": "{country}: {summary}",
-  "@countryBanSummary": {"placeholders": {"country": {"type": "String"}, "summary": {"type": "String"}}},
+  "@countryBanSummary": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      },
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
   "hoursMinutes": "{hours} h {minutes} min",
-  "@hoursMinutes": {"placeholders": {"hours": {"type": "int"}, "minutes": {"type": "int"}}},
+  "@hoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "avoidedTitle": "Ominięte – trasa jedzie objazdem",
   "avoidedMark": "ominięto",
   "reportedMark": "zgłoszenie kierowców",
@@ -549,49 +993,160 @@
   "adminAccessPersonalTitle": "Dostęp administratora do moich pojazdów",
   "adminAccessPersonalHint": "Administrator TruckMaps zmienia Twoje pojazdy prywatne (scalenie zdublowanych po VIN, przeniesienie do Twojej firmy) tylko po Twojej zgodzie – zwykle przez godzinę. Zgodę możesz przedłużyć albo cofnąć w każdej chwili, a każda zmiana jest w dzienniku poniżej.",
   "costFuelPart": "w tym paliwo {fuel} ({consumption}/100 km)",
-  "@costFuelPart": {"placeholders": {"fuel": {"type": "String"}, "consumption": {"type": "String"}}},
+  "@costFuelPart": {
+    "placeholders": {
+      "fuel": {
+        "type": "String"
+      },
+      "consumption": {
+        "type": "String"
+      }
+    }
+  },
   "costAdBluePart": "AdBlue {adblue}",
-  "@costAdBluePart": {"placeholders": {"adblue": {"type": "String"}}},
+  "@costAdBluePart": {
+    "placeholders": {
+      "adblue": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleAcUntil": "Autocasco (AC) ważne do",
   "vehicleOcpUntil": "OC przewoźnika (OCP) ważne do",
   "vehicleUdtUntil": "Dozór UDT (HDS, winda) ważny do",
   "vehicleOdometer": "Stan licznika",
   "vehicleServiceDueKm": "Następny serwis przy",
   "vehicleServiceKmSoon": "Wkrótce – serwis za {km} km",
-  "@vehicleServiceKmSoon": {"placeholders": {"km": {"type": "String"}}},
+  "@vehicleServiceKmSoon": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleServiceKmOverdue": "Po terminie – serwis {km} km temu",
-  "@vehicleServiceKmOverdue": {"placeholders": {"km": {"type": "String"}}},
+  "@vehicleServiceKmOverdue": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "inboxVehicleDue": "Termin pojazdu: {vehicle}",
-  "@inboxVehicleDue": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@inboxVehicleDue": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "costCountryLine": "{country}: {items}",
-  "@costCountryLine": {"placeholders": {"country": {"type": "String"}, "items": {"type": "String"}}},
+  "@costCountryLine": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      },
+      "items": {
+        "type": "String"
+      }
+    }
+  },
   "costFuelItem": "paliwo {amount}",
-  "@costFuelItem": {"placeholders": {"amount": {"type": "String"}}},
+  "@costFuelItem": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "costTollItem": "myto {amount} ({km} km)",
-  "@costTollItem": {"placeholders": {"amount": {"type": "String"}, "km": {"type": "String"}}},
+  "@costTollItem": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "costTollUnknown": "myto – {km} km płatnych dróg, kwota w kalkulatorze operatora",
-  "@costTollUnknown": {"placeholders": {"km": {"type": "String"}}},
+  "@costTollUnknown": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "costFuelPricesDay": "ceny ON z biuletynu KE z {date}",
-  "@costFuelPricesDay": {"placeholders": {"date": {"type": "String"}}},
+  "@costFuelPricesDay": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "inboxServiceNew": "Nowe zgłoszenie usterki: {vehicle}",
-  "@inboxServiceNew": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@inboxServiceNew": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "inboxServiceDone": "Naprawa zakończona: {vehicle}",
-  "@inboxServiceDone": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@inboxServiceDone": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "inboxServiceReporter": "zgłosił(a): {name}",
-  "@inboxServiceReporter": {"placeholders": {"name": {"type": "String"}}},
+  "@inboxServiceReporter": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "inboxServiceMechanic": "mechanik: {name}",
-  "@inboxServiceMechanic": {"placeholders": {"name": {"type": "String"}}},
+  "@inboxServiceMechanic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "inboxServiceStopped": "Pojazd stoi – niedostępny do jazdy",
   "accountEmailNotifications": "Powiadomienia e-mail",
   "accountEmailTo": "Nowe wiadomości ze skrzynki (terminy, zgłoszenia, prośby administratora) na {email}",
-  "@accountEmailTo": {"placeholders": {"email": {"type": "String"}}},
+  "@accountEmailTo": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
   "accountEmailMissing": "Konto logowania nie ma adresu e-mail",
   "accountEmailUnavailable": "Serwer nie wysyła jeszcze e-maili",
   "vehicleStatsAction": "Statystyki",
   "vehicleStatsTitle": "Statystyki: {name}",
-  "@vehicleStatsTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@vehicleStatsTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleStatsMonths": "{count} mies.",
-  "@vehicleStatsMonths": {"placeholders": {"count": {"type": "int"}}},
+  "@vehicleStatsMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "vehicleStatsEmpty": "Brak zapisanych przejazdów w tym okresie.",
   "vehicleStatsKm": "Przejechane",
   "vehicleStatsTrips": "Przejazdy",
@@ -601,32 +1156,116 @@
   "vehicleStatsCostPerKm": "≈ koszt na km",
   "vehicleStatsByMonth": "W miesiącach",
   "vehicleStatsMonthLine": "{km} km · przejazdy: {trips} · {hours} h · {cost}",
-  "@vehicleStatsMonthLine": {"placeholders": {"km": {"type": "String"}, "trips": {"type": "int"}, "hours": {"type": "String"}, "cost": {"type": "String"}}},
+  "@vehicleStatsMonthLine": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      },
+      "trips": {
+        "type": "int"
+      },
+      "hours": {
+        "type": "String"
+      },
+      "cost": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleStatsHint": "Przejazd zapisuje się po zakończeniu nawigacji (km według GPS). Koszt – szacunkowy, ze stawek i paliwa w chwili planowania trasy. Koszty napraw – w module Serwis.",
   "navExit": "Zjazd {exit}",
-  "@navExit": {"placeholders": {"exit": {"type": "String"}}},
+  "@navExit": {
+    "placeholders": {
+      "exit": {
+        "type": "String"
+      }
+    }
+  },
   "navRoundaboutExit": "{number}. zjazd",
-  "@navRoundaboutExit": {"placeholders": {"number": {"type": "int"}}},
+  "@navRoundaboutExit": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "navToward": "Kierunek: {places}",
-  "@navToward": {"placeholders": {"places": {"type": "String"}}},
+  "@navToward": {
+    "placeholders": {
+      "places": {
+        "type": "String"
+      }
+    }
+  },
   "navThen": "Potem: {street}",
-  "@navThen": {"placeholders": {"street": {"type": "String"}}},
+  "@navThen": {
+    "placeholders": {
+      "street": {
+        "type": "String"
+      }
+    }
+  },
   "navNow": "teraz",
   "navSpeedChange": "{kmh} za {distance}",
-  "@navSpeedChange": {"placeholders": {"kmh": {"type": "int"}, "distance": {"type": "String"}}},
+  "@navSpeedChange": {
+    "placeholders": {
+      "kmh": {
+        "type": "int"
+      },
+      "distance": {
+        "type": "String"
+      }
+    }
+  },
   "navSpeedLimit": "Ograniczenie prędkości ze znaku",
   "navSpeedTruckLimit": "Ograniczenie prędkości dla ciężarówek (przepisy kraju)",
   "navKmh": "km/h",
   "navEnd": "Zakończ nawigację",
   "navLate": "Spóźnienie na okno rozładunku",
   "navNextVia": "Punkt {index}/{count} – {time}, {km} km",
-  "@navNextVia": {"placeholders": {"index": {"type": "int"}, "count": {"type": "int"}, "time": {"type": "String"}, "km": {"type": "String"}}},
+  "@navNextVia": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      },
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "navMinutes": "{minutes} min",
-  "@navMinutes": {"placeholders": {"minutes": {"type": "int"}}},
+  "@navMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "navHours": "{hours} h {minutes} min",
-  "@navHours": {"placeholders": {"hours": {"type": "int"}, "minutes": {"type": "int"}}},
+  "@navHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "navStopAdded": "Dodano przystanek: {name}.",
-  "@navStopAdded": {"placeholders": {"name": {"type": "String"}}},
+  "@navStopAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "navReportAction": "Zgłoś problem na drodze",
   "navAddStop": "Dodaj przystanek: parking lub MOP",
   "navThemeAuto": "Mapa: dzień i noc automatycznie (po zmroku ciemna)",
@@ -638,23 +1277,56 @@
   "navPoiHint": "Parkingi dla ciężarówek i MOP-y z OSM do 20 km. Wybrany staje się przystankiem na trasie. Stacje paliw i myjnie – później.",
   "navPoiEmpty": "Brak parkingów dla ciężarówek w promieniu 20 km.",
   "navPoiCapacity": "miejsc dla ciężarówek: {count}",
-  "@navPoiCapacity": {"placeholders": {"count": {"type": "int"}}},
+  "@navPoiCapacity": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "navPoiGo": "Jedź tutaj",
   "eventLevelCrossing": "Przejazd kolejowy",
   "eventSpeedCamera": "Fotoradar",
   "eventSpeedCameraLimit": "Fotoradar {kmh}",
-  "@eventSpeedCameraLimit": {"placeholders": {"kmh": {"type": "int"}}},
+  "@eventSpeedCameraLimit": {
+    "placeholders": {
+      "kmh": {
+        "type": "int"
+      }
+    }
+  },
   "eventTrafficSignals": "Sygnalizacja świetlna",
   "eventAverageSpeed": "Odcinkowy pomiar prędkości",
   "eventAverageSpeedLimit": "Odcinkowy pomiar prędkości, średnio {kmh} km/h",
-  "@eventAverageSpeedLimit": {"placeholders": {"kmh": {"type": "int"}}},
+  "@eventAverageSpeedLimit": {
+    "placeholders": {
+      "kmh": {
+        "type": "int"
+      }
+    }
+  },
   "eventNoOvertaking": "Zakaz wyprzedzania",
   "eventVia": "Punkt pośredni {index}",
-  "@eventVia": {"placeholders": {"index": {"type": "int"}}},
+  "@eventVia": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
   "eventDestination": "Cel",
   "eventBan": "Zakaz ruchu",
   "costWithLocal": "{amount} ({local})",
-  "@costWithLocal": {"placeholders": {"amount": {"type": "String"}, "local": {"type": "String"}}},
+  "@costWithLocal": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      },
+      "local": {
+        "type": "String"
+      }
+    }
+  },
   "reportAccident": "Wypadek",
   "reportHazard": "Zagrożenie na drodze",
   "reportSpeedCheck": "Kontrola prędkości",
@@ -664,7 +1336,13 @@
   "reportTemporaryHint": "Zgłoszenia na krótko (wypadek, policja, kontrola) znikają same po 1–2 h, jeśli nikt ich nie potwierdzi.",
   "menuBans": "Zakazy ruchu",
   "bansTitle": "Zakazy ruchu: {country}",
-  "@bansTitle": {"placeholders": {"country": {"type": "String"}}},
+  "@bansTitle": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "bansVehicles": "Kogo dotyczy",
   "bansNext30": "Najbliższe 30 dni",
   "bansNone": "W tym okresie brak zakazów.",
@@ -672,22 +1350,58 @@
   "bansCheck": "sprawdź w przepisach",
   "bansRegional": "Święta regionalne",
   "bansRegionalLine": "{day} – {name}: {regions}",
-  "@bansRegionalLine": {"placeholders": {"day": {"type": "String"}, "name": {"type": "String"}, "regions": {"type": "String"}}},
+  "@bansRegionalLine": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      },
+      "regions": {
+        "type": "String"
+      }
+    }
+  },
   "bansExceptions": "Wyjątki",
   "bansHint": "Zakazy według przepisów państw (godziny czasu lokalnego). Wyjątki zależą od ładunku – sprawdź przed wyjazdem.",
   "bansOnRoute": "Na trasie zakaz ruchu – sprawdź przed wyjazdem",
   "bansShowCountry": "Zakazy: {country}",
-  "@bansShowCountry": {"placeholders": {"country": {"type": "String"}}},
+  "@bansShowCountry": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "menuWelcome": "Powitanie",
   "menuMap": "Mapa",
   "guestLocked": "Pozostałe funkcje po zalogowaniu.",
   "vehicleDrivenBy": "Jedzie: {name}",
-  "@vehicleDrivenBy": {"placeholders": {"name": {"type": "String"}}},
+  "@vehicleDrivenBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleAssignedDriver": "Kierowca: {name}",
-  "@vehicleAssignedDriver": {"placeholders": {"name": {"type": "String"}}},
+  "@vehicleAssignedDriver": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleDriverAction": "Przydziel kierowcę",
   "vehicleDriverTitle": "Kierowca pojazdu {name}",
-  "@vehicleDriverTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@vehicleDriverTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleNoDriver": "Bez przydziału",
   "vehicleGeometry": "Wymiary z dokumentów",
   "vehicleGeometryHint": "Opcjonalnie – dokładna długość zestawu i naciski osi przy planie załadunku; bez nich – typowe wartości.",
@@ -699,15 +1413,36 @@
   "vehicleStatsEmptyUnknown": "nie oznaczono",
   "vehicleStatsIdle": "Przestoje (h)",
   "vehicleStatsVsPrevious": "{change} do poprzedniego okresu",
-  "@vehicleStatsVsPrevious": {"placeholders": {"change": {"type": "String"}}},
+  "@vehicleStatsVsPrevious": {
+    "placeholders": {
+      "change": {
+        "type": "String"
+      }
+    }
+  },
   "vehicleStatsRepairs": "Koszty napraw",
   "vehicleStatsRepairOrders": "napraw: {count}",
-  "@vehicleStatsRepairOrders": {"placeholders": {"count": {"type": "int"}}},
+  "@vehicleStatsRepairOrders": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "vehicleStatsByDriver": "Kierowcy",
   "vehicleStatsTrailers": "Naczepy i przyczepy",
   "vehicleStatsTowedBy": "Pojazdy, które ją ciągnęły",
   "vehicleStatsShareLine": "{km} km · przejazdy: {trips}",
-  "@vehicleStatsShareLine": {"placeholders": {"km": {"type": "String"}, "trips": {"type": "int"}}},
+  "@vehicleStatsShareLine": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      },
+      "trips": {
+        "type": "int"
+      }
+    }
+  },
   "navLoaded": "Z ładunkiem – dotknij, gdy jedziesz pusty",
   "navEmpty": "Pusty przejazd – dotknij, gdy jedziesz z ładunkiem",
   "permitsTitle": "Zezwolenia na przejazd",
@@ -719,9 +1454,21 @@
   "permitNumberRequired": "Podaj numer zezwolenia.",
   "permitIssuer": "Wydawca (np. urząd miasta, GDDKiA)",
   "permitFrom": "Ważne od {day}",
-  "@permitFrom": {"placeholders": {"day": {"type": "String"}}},
+  "@permitFrom": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
   "permitTo": "Ważne do {day}",
-  "@permitTo": {"placeholders": {"day": {"type": "String"}}},
+  "@permitTo": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
   "permitCovers": "Czego dotyczy",
   "permitCoversHint": "Wpisz tylko to, na co zezwolenie pozwala – np. masa do 40 t przy zakazie 12 t.",
   "permitWeight": "Masa / DMC do",
@@ -741,38 +1488,134 @@
   "permitVehicles": "Pojazdy",
   "permitVehiclesHint": "Bez wyboru – wszystkie Twoje pojazdy prywatne. Zezwolenie firmy: pojazdy jednej firmy.",
   "permitMaxWeight": "masa do {value} t",
-  "@permitMaxWeight": {"placeholders": {"value": {"type": "String"}}},
+  "@permitMaxWeight": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "permitMaxAxle": "nacisk osi do {value} t",
-  "@permitMaxAxle": {"placeholders": {"value": {"type": "String"}}},
+  "@permitMaxAxle": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "permitMaxLength": "długość do {value} m",
-  "@permitMaxLength": {"placeholders": {"value": {"type": "String"}}},
+  "@permitMaxLength": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "permitMaxWidth": "szerokość do {value} m",
-  "@permitMaxWidth": {"placeholders": {"value": {"type": "String"}}},
+  "@permitMaxWidth": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "permitMaxHeight": "wysokość do {value} m",
-  "@permitMaxHeight": {"placeholders": {"value": {"type": "String"}}},
+  "@permitMaxHeight": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "permitScopeCountryValue": "cały kraj: {country}",
-  "@permitScopeCountryValue": {"placeholders": {"country": {"type": "String"}}},
+  "@permitScopeCountryValue": {
+    "placeholders": {
+      "country": {
+        "type": "String"
+      }
+    }
+  },
   "permitScopeCircleValue": "{place} (do {km} km)",
-  "@permitScopeCircleValue": {"placeholders": {"place": {"type": "String"}, "km": {"type": "String"}}},
+  "@permitScopeCircleValue": {
+    "placeholders": {
+      "place": {
+        "type": "String"
+      },
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "permitScopeWaysValue": "wybrane drogi: {count}",
-  "@permitScopeWaysValue": {"placeholders": {"count": {"type": "int"}}},
+  "@permitScopeWaysValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "permitValid": "{from} – {to}",
-  "@permitValid": {"placeholders": {"from": {"type": "String"}, "to": {"type": "String"}}},
+  "@permitValid": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
   "permitsChoose": "Zezwolenia: wszystkie ważne",
   "permitsChosen": "Zezwolenia: {count}",
-  "@permitsChosen": {"placeholders": {"count": {"type": "int"}}},
+  "@permitsChosen": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "permitsHave": "Mam zezwolenia",
   "permitsNoneValid": "Brak zezwoleń ważnych w dniu wyjazdu dla tego pojazdu.",
   "permitsManage": "Dodaj albo zmień zezwolenia",
   "permitsUsed": "Użyte zezwolenia: {numbers}",
-  "@permitsUsed": {"placeholders": {"numbers": {"type": "String"}}},
+  "@permitsUsed": {
+    "placeholders": {
+      "numbers": {
+        "type": "String"
+      }
+    }
+  },
   "driverWarningsTitle": "Uwagi o kierowcy",
   "inboxDriverDue": "Termin kierowcy: {driver}",
-  "@inboxDriverDue": {"placeholders": {"driver": {"type": "String"}}},
+  "@inboxDriverDue": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
   "driverDueSoon": "{what} – termin {day}",
-  "@driverDueSoon": {"placeholders": {"what": {"type": "String"}, "day": {"type": "String"}}},
+  "@driverDueSoon": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
   "driverOverdue": "{what} – po terminie ({day})",
-  "@driverOverdue": {"placeholders": {"what": {"type": "String"}, "day": {"type": "String"}}},
+  "@driverOverdue": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
   "driverFieldLicense": "Prawo jazdy",
   "driverFieldCode95": "Kod 95 (kwalifikacja zawodowa)",
   "driverFieldMedical": "Badania lekarskie",
@@ -792,10 +1635,22 @@
   "cardCouplingTitle": "Pojazd ciągnący",
   "cardDriverNone": "Bez przydzielonego kierowcy",
   "cardDrivingNow": "Teraz jedzie: {name}",
-  "@cardDrivingNow": {"placeholders": {"name": {"type": "String"}}},
+  "@cardDrivingNow": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "cardNotCoupled": "Niepodpięta",
   "cardCoupleQuick": "Podepnij {trailer}",
-  "@cardCoupleQuick": {"placeholders": {"trailer": {"type": "String"}}},
+  "@cardCoupleQuick": {
+    "placeholders": {
+      "trailer": {
+        "type": "String"
+      }
+    }
+  },
   "cardPermitsEmpty": "Brak zezwoleń ważnych dziś.",
   "cardStatsTitle": "Ostatnie 12 miesięcy",
   "cardMore": "Szczegóły",
@@ -804,7 +1659,13 @@
   "dashGreetingEvening": "Dobry wieczór",
   "dashRefresh": "Odśwież",
   "dashRepeatRoute": "Znowu do: {place}",
-  "@dashRepeatRoute": {"placeholders": {"place": {"type": "String"}}},
+  "@dashRepeatRoute": {
+    "placeholders": {
+      "place": {
+        "type": "String"
+      }
+    }
+  },
   "dashVehiclesTitle": "Pojazdy – wymaga uwagi",
   "dashVehiclesOk": "Terminy i stan pojazdów w porządku.",
   "dashMessagesTitle": "Nowe wiadomości",
@@ -815,24 +1676,57 @@
   "navEcmr": "e-CMR",
   "navVehicle": "Pojazd",
   "kpiInUse": "w użyciu: {count}",
-  "@kpiInUse": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiInUse": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiAvailable": "Dostępne",
   "kpiAvailableHint": "wolne, bez usterek",
   "kpiRepair": "W serwisie",
   "kpiReported": "zgłoszone usterki: {count}",
-  "@kpiReported": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiReported": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiNoReports": "bez zgłoszonych usterek",
   "kpiDeadlines": "Terminy",
   "kpiOverdue": "po terminie: {count}",
-  "@kpiOverdue": {"placeholders": {"count": {"type": "String"}}},
+  "@kpiOverdue": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "kpiDueSoon": "wkrótce – do zaplanowania",
   "kpiAllFine": "wszystkie w porządku",
   "kpiUnread": "nieprzeczytane",
   "cardRepairBanner": "Pojazd w naprawie – wyłączony z użytku",
   "opsHeader": "{company} · {date}",
-  "@opsHeader": {"placeholders": {"company": {"type": "String"}, "date": {"type": "String"}}},
+  "@opsHeader": {
+    "placeholders": {
+      "company": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "opsBases": "Bazy: {bases}",
-  "@opsBases": {"placeholders": {"bases": {"type": "String"}}},
+  "@opsBases": {
+    "placeholders": {
+      "bases": {
+        "type": "String"
+      }
+    }
+  },
   "opsLive": "Na żywo",
   "opsOffline": "Bez połączenia – ponawiam",
   "opsRefresh": "Odśwież",
@@ -851,9 +1745,21 @@
   "opsKpiServiceOpen": "Otwarte zlecenia serwisowe",
   "opsKpiDocuments": "Dokumenty wystawione dziś",
   "opsOf": "z {total}",
-  "@opsOf": {"placeholders": {"total": {"type": "String"}}},
+  "@opsOf": {
+    "placeholders": {
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "opsUtilization": "wykorzystanie {percent}%",
-  "@opsUtilization": {"placeholders": {"percent": {"type": "String"}}},
+  "@opsUtilization": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "opsHealthHint": "bez przeterminowanych terminów i napraw",
   "opsDeadlinesHint": "w ciągu 30 dni lub po terminie",
   "opsPlanHint": "km przejechane / zaplanowane, 7 dni",
@@ -861,35 +1767,86 @@
   "opsShowHandled": "Pokaż obsłużone",
   "opsOrderNew": "czeka na mechanika",
   "opsOrderAccepted": "przyjęte przez: {name}",
-  "@opsOrderAccepted": {"placeholders": {"name": {"type": "String"}}},
+  "@opsOrderAccepted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "opsOrderInProgress": "w naprawie",
   "opsOrderStopped": "pojazd stoi",
   "opsDriver": "Kierowca: {name}",
-  "@opsDriver": {"placeholders": {"name": {"type": "String"}}},
+  "@opsDriver": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "opsAck": "Obsłużone",
   "opsMessage": "Napisz do kierowcy",
   "opsMessageTitle": "Wiadomość do: {name}",
-  "@opsMessageTitle": {"placeholders": {"name": {"type": "String"}}},
+  "@opsMessageTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "opsMessageHint": "Polecenie dla kierowcy",
   "opsSend": "Wyślij",
   "opsSent": "Wysłano do kierowcy",
   "opsAcked": "Oznaczono jako obsłużone",
   "opsAlreadyHandled": "Ta sprawa była już obsłużona",
   "opsHandledBy": "Obsłużone: {name}, {time}",
-  "@opsHandledBy": {"placeholders": {"name": {"type": "String"}, "time": {"type": "String"}}},
+  "@opsHandledBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "opsReopen": "Przywróć",
   "opsTelematics": "Telematyka",
   "opsTelematicsNone": "Brak integracji telematycznej. Spalanie z CAN, ciśnienie w oponach, temperatura chłodni i punktualność z GPS pojawią się po jej podłączeniu – teraz pulpit liczy dane z pojazdów, przejazdów, kierowców i serwisu.",
   "inboxDispatchNote": "Polecenie dyspozytora: {sender}",
-  "@inboxDispatchNote": {"placeholders": {"sender": {"type": "String"}}},
+  "@inboxDispatchNote": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
   "underConstruction": "W budowie",
   "underConstructionText": "Ten ekran jest w przygotowaniu. Pojawi się w jednej z kolejnych wersji TruckMaps.",
   "mainHello": "Dzień dobry, {name}",
-  "@mainHello": {"placeholders": {"name": {"type": "String"}}},
+  "@mainHello": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "mainShift": "Dyżur: {shift}",
-  "@mainShift": {"placeholders": {"shift": {"type": "String"}}},
+  "@mainShift": {
+    "placeholders": {
+      "shift": {
+        "type": "String"
+      }
+    }
+  },
   "mainFleetOk": "{percent} Sprawności Floty",
-  "@mainFleetOk": {"placeholders": {"percent": {"type": "String"}}},
+  "@mainFleetOk": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "mainReport": "Pobierz Raport Dnia",
   "mainAssign": "+ Przypisz Zestaw",
   "mainNewOrder": "+ Nowe Zlecenie",
@@ -900,18 +1857,36 @@
   "mainCorridorsTitle": "Przegląd Głównych Korytarzy Transportowych",
   "mainCorridorsSubtitle": "Stan przepustowości, natężenie flotowe i utrudnienia na kluczowych szlakach",
   "mainUpdated": "Aktualizacja: {time}",
-  "@mainUpdated": {"placeholders": {"time": {"type": "String"}}},
+  "@mainUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "mainNoCorridors": "Brak danych o korytarzach – wymagają źródła danych drogowych.",
   "mainModulesTitle": "Szybki Dostęp do Modułów",
   "mainMessagesTitle": "Komunikaty Flotowe",
   "mainNoMessages": "Brak komunikatów.",
   "mainSender": "Nadawca: {name}",
-  "@mainSender": {"placeholders": {"name": {"type": "String"}}},
+  "@mainSender": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "mainChannel": "Otwórz Kanał Dyspozytorów Głównych",
   "mainTelemetry": "Telemetria CAN",
   "mainActiveUnits": "Aktywne jednostki:",
   "mainGps": "GPS / {status}",
-  "@mainGps": {"placeholders": {"status": {"type": "String"}}},
+  "@mainGps": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
   "mainTelemetryNone": "brak danych",
   "mainMenuGroup": "Moduły Operacyjne",
   "mainMenuDashboard": "Pulpit Główny",
@@ -923,7 +1898,13 @@
   "mainMenuService": "Warsztat i Serwis",
   "mainMenuReports": "Raporty i Analityka",
   "mainEditionNote": "Wydanie Flotowe v{version}",
-  "@mainEditionNote": {"placeholders": {"version": {"type": "String"}}},
+  "@mainEditionNote": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "mainSearchHint": "Szukaj w bazie: VIN, nr rejestracyjny, kierowca…",
   "mainBase": "Baza macierzysta",
   "mainAlertsIcon": "Alerty",
@@ -933,7 +1914,13 @@
   "fleetCrumbHub": "Hub Ewidencji Flotowej",
   "fleetTitle": "Tabor Samochodowy i Sprzęt",
   "fleetUnits": "Baza: {count} Aktywne Jednostki",
-  "@fleetUnits": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetUnits": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetInspections": "Przeglądy UDT/TDT",
   "fleetExport": "Eksport CEPiK",
   "fleetAdd": "+ Dodaj Pojazd do Bazy",
@@ -950,29 +1937,71 @@
   "fleetKpiRampsNote": "Średni czas doku:",
   "fleetKpiReady": "Gotowe do podpięcia",
   "fleetKpiUnassigned": "Bez kierowcy: {count}",
-  "@fleetKpiUnassigned": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetKpiUnassigned": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetKpiReadyNote": "Bezpośrednia dyspozycja",
   "fleetKpiService": "Serwis i awarie",
   "fleetKpiInRepair": "{count} w naprawie",
-  "@fleetKpiInRepair": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetKpiInRepair": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetKpiReported": "{count} zgłoszone",
-  "@fleetKpiReported": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetKpiReported": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetKpiAge": "Średni wiek taboru",
   "fleetKpiYears": "roku",
   "fleetKpiEuro6": "Norma Euro 6: {percent}",
-  "@fleetKpiEuro6": {"placeholders": {"percent": {"type": "String"}}},
+  "@fleetKpiEuro6": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "fleetKpiWarranty": "Gwarancja fabryczna",
   "fleetSearchHint": "Nr rej., VIN, kierowca",
   "fleetClear": "ESC CZYŚĆ",
   "fleetAllBases": "Wszystkie bazy",
   "fleetQuickFilter": "Szybki filtr statusu:",
   "fleetFilterDriving": "W drodze ({count})",
-  "@fleetFilterDriving": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetFilterDriving": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetFilterRamps": "Na rampach",
   "fleetFilterReady": "Dostępne ({count})",
-  "@fleetFilterReady": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetFilterReady": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetFilterService": "Alarm CAN / Warsztat ({count})",
-  "@fleetFilterService": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetFilterService": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetCanRefresh": "CAN Refresh",
   "fleetColVehicle": "Ciągnik & Naczepa",
   "fleetColDriver": "Kierowca / Baza",
@@ -980,7 +2009,19 @@
   "fleetColTelemetry": "Telemetria CAN & płyny",
   "fleetEmpty": "Brak pojazdów spełniających filtr.",
   "fleetShown": "Wyświetlono: {from}-{to} z {total} zarejestrowanych jednostek",
-  "@fleetShown": {"placeholders": {"from": {"type": "String"}, "to": {"type": "String"}, "total": {"type": "String"}}},
+  "@fleetShown": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "fleetPrev": "Poprzednia",
   "fleetNext": "Następna",
   "fleetTagService": "Serwis",
@@ -998,16 +2039,46 @@
   "fleetDriverNone": "Dostępny od zaraz",
   "fleetDriverAssigned": "Przydzielony kierowca",
   "fleetNextDue": "{what} do {date}",
-  "@fleetNextDue": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "@fleetNextDue": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "fleetConsumption": "{value} l/100 km",
-  "@fleetConsumption": {"placeholders": {"value": {"type": "String"}}},
+  "@fleetConsumption": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "fleetTyres": "Stan ogumienia (flota)",
   "fleetTyresNote": "Bieżnik i ciśnienie z czujników TPMS",
   "fleetPolicies": "Polisy flotowe OC / AC / OCP",
   "fleetPoliciesOc": "Ważne OC: {count} z {total} pojazdów",
-  "@fleetPoliciesOc": {"placeholders": {"count": {"type": "String"}, "total": {"type": "String"}}},
+  "@fleetPoliciesOc": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "fleetPoliciesOcp": "OCP przewoźnika: {count}",
-  "@fleetPoliciesOcp": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetPoliciesOcp": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetBurn": "Średnie spalanie",
   "fleetBurnNote": "Dane z kart pojazdów (bez CAN)",
   "fleetCanTitle": "Kondycja Floty & CAN-Bus",
@@ -1018,35 +2089,104 @@
   "fleetCalendar": "Kalendarz",
   "fleetSkp": "Badania techniczne SKP (<14 dni)",
   "fleetSkpNote": "Pojazdy do rezerwacji stacji: {count}",
-  "@fleetSkpNote": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetSkpNote": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetBook": "Rezerwuj",
   "fleetOk": "Zgodne",
   "fleetTacho": "Legalizacja tachografu",
   "fleetTachoNote": "W ciągu 30 dni: {count}",
-  "@fleetTachoNote": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetTachoNote": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetDueOn": "Termin: {date}",
-  "@fleetDueOn": {"placeholders": {"date": {"type": "String"}}},
+  "@fleetDueOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "fleetUdt": "Dozór UDT windy załadowczej",
   "fleetUdtNote": "Pojazdy z dozorem UDT: {count}",
-  "@fleetUdtNote": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetUdtNote": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetUdtDue": "Do odnowienia: {count}",
-  "@fleetUdtDue": {"placeholders": {"count": {"type": "String"}}},
+  "@fleetUdtDue": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "fleetAxlesTitle": "Podgląd Obciążeń Osi",
   "fleetAxlesSample": "Zestaw wzorcowy: {name}",
-  "@fleetAxlesSample": {"placeholders": {"name": {"type": "String"}}},
+  "@fleetAxlesSample": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "fleetDmc": "DMC: {value} t",
-  "@fleetDmc": {"placeholders": {"value": {"type": "String"}}},
+  "@fleetDmc": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "fleetAxlesParams": "Osie: {count} • dopuszczalny nacisk osi: {load} t",
-  "@fleetAxlesParams": {"placeholders": {"count": {"type": "String"}, "load": {"type": "String"}}},
+  "@fleetAxlesParams": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "load": {
+        "type": "String"
+      }
+    }
+  },
   "fleetAxlesLoads": "Naciski z czujników zawieszenia pneumatycznego",
   "fleetOpen3d": "Otwórz Symulator 3D →",
   "fleetHomologation": "Parametry Techniczne i Homologacje",
   "mainUnitsOf": "/ {total} ciągniki",
-  "@mainUnitsOf": {"placeholders": {"total": {"type": "String"}}},
+  "@mainUnitsOf": {
+    "placeholders": {
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "mainUtilization": "{percent}% utylizacji",
-  "@mainUtilization": {"placeholders": {"percent": {"type": "String"}}},
+  "@mainUtilization": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "mainPriority": "{count, plural, =1{1 zdarzenie priorytetowe} few{{count} zdarzenia priorytetowe} other{{count} zdarzeń priorytetowych}}",
-  "@mainPriority": {"placeholders": {"count": {"type": "int"}}},
+  "@mainPriority": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mainKindVehicleDue": "Termin pojazdu",
   "mainKindReported": "Zgłoszona usterka",
   "mainKindRepair": "W naprawie",
@@ -1078,9 +2218,21 @@
   "drvCardCountry": "Kraj wydania karty",
   "drvCardNo": "Numer karty kierowcy",
   "drvCardRead": "Karta – odczyt {days} dni temu",
-  "@drvCardRead": {"placeholders": {"days": {"type": "String"}}},
+  "@drvCardRead": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "drvCardUntil": "Karta ważna do {date}",
-  "@drvCardUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@drvCardUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "drvCardUntil2": "Ważność karty kierowcy",
   "drvCategories": "Kategorie uprawnień",
   "drvCepik": "Weryfikacja CEPiK",
@@ -1089,12 +2241,24 @@
   "drvCode95": "Kod 95 ważność",
   "drvCode95Box": "Kod 95 – kwalifikacja wstępna / szkolenie okresowe",
   "drvCode95Until": "Kod 95 do: {date}",
-  "@drvCode95Until": {"placeholders": {"date": {"type": "String"}}},
+  "@drvCode95Until": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "drvCode95Until2": "Wpis Kodu 95 do dnia",
   "drvContactTitle": "Centrum Kontaktu Kabiny",
   "drvContract": "Forma zatrudnienia",
   "drvCount": "{count} kierowców",
-  "@drvCount": {"placeholders": {"count": {"type": "String"}}},
+  "@drvCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "drvCrew": "Tryb załogi",
   "drvDdd": "Zdalny zrzut DDD",
   "drvDelegation": "Cykl delegacji (pakiet)",
@@ -1123,12 +2287,24 @@
   "drvIceRelation": "Relacja / pokrewieństwo",
   "drvIceTitle": "Kontakt awaryjny ICE (In Case of Emergency)",
   "drvId": "ID: {id}",
-  "@drvId": {"placeholders": {"id": {"type": "String"}}},
+  "@drvId": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "drvItd": "Raport ITD",
   "drvLanguages": "Języki komunikacji",
   "drvLastName": "Nazwisko",
   "drvLastSync": "Ostatni odczyt karty: {date}",
-  "@drvLastSync": {"placeholders": {"date": {"type": "String"}}},
+  "@drvLastSync": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "drvLeave": "Urlop wypoczynkowy",
   "drvLicenseCountry": "Kraj wydania prawa jazdy",
   "drvLicenseNo": "Numer prawa jazdy",
@@ -1141,7 +2317,16 @@
   "drvMobilityNote": "System będzie monitorował obowiązek 4-tygodniowego zjazdu kierowcy do bazy zgodnie z Dyrektywą UE 2020/1055 (Pakiet Mobilności).",
   "drvNameRequired": "Podaj imię i nazwisko.",
   "drvNextDue": "{what}: {date}",
-  "@drvNextDue": {"placeholders": {"what": {"type": "String"}, "date": {"type": "String"}}},
+  "@drvNextDue": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "drvNextRead": "Następny odczyt karty do",
   "drvNoModule": "Moduł Kierowcy nie jest aktywny dla tego konta – kartoteka (terminy, kontakt, kategorie) w budowie.",
   "drvNoVehicle": "Brak przydzielonego pojazdu",
@@ -1155,14 +2340,26 @@
   "drvReader": "Przypisany czytnik flotowy",
   "drvRegister": "Kartoteka kierowców",
   "drvRemoteRead": "Odczyt zdalny: za {days} dni",
-  "@drvRemoteRead": {"placeholders": {"days": {"type": "String"}}},
+  "@drvRemoteRead": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "drvRoadCard": "Generuj kartę drogową",
   "drvRotation": "Preferowany cykl rotacji",
   "drvSalary": "Stawka bazowa / zaszeregowanie",
   "drvSave": "Zapisz zmiany w profilu",
   "drvSaved": "Zapisano profil kierowcy",
   "drvSchedule": "Grafik: {month}",
-  "@drvSchedule": {"placeholders": {"month": {"type": "String"}}},
+  "@drvSchedule": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
+  },
   "drvSearch": "Szukaj kierowcy",
   "drvSecFiles": "Załączniki i Dokumenty Cyfrowe",
   "drvSecFilesSub": "Centralne repozytorium skanów, deklaracji IMI oraz formularzy ZUS",
@@ -1196,21 +2393,51 @@
   "drvTachoWeek": "Czas tygodniowy",
   "drvToday": "Dzisiaj",
   "drvTractor": "Pojazd: {name}",
-  "@drvTractor": {"placeholders": {"name": {"type": "String"}}},
+  "@drvTractor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "drvTractorLabel": "Ciągnik",
   "drvTractorTile": "Przypisany ciągnik",
   "drvTrailerLabel": "Naczepa",
   "drvTripDays": "Dni z przejazdami: {count}",
-  "@drvTripDays": {"placeholders": {"count": {"type": "String"}}},
+  "@drvTripDays": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "drvViolations": "Historia naruszeń (ITD)",
   "drvWeek": "Tydzień {number}",
-  "@drvWeek": {"placeholders": {"number": {"type": "String"}}},
+  "@drvWeek": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "drvWorkPhone": "Telefon służbowy",
   "drvWorkTime": "Bieżący stan czasu pracy (Rozporządzenie UE 561/2006)",
   "mainDriversCount": "{count} kierowców",
-  "@mainDriversCount": {"placeholders": {"count": {"type": "String"}}},
+  "@mainDriversCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "vehAcUntil": "AC do {date}",
-  "@vehAcUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@vehAcUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehAcUntilLabel": "Ważność polisy AC",
   "vehAdblue": "Poziom AdBlue",
   "vehAdbluePct": "AdBlue (% spalania)",
@@ -1218,14 +2445,44 @@
   "vehAdrUntil": "Świadectwo ADR pojazdu do",
   "vehAtp": "ATP / FRC (chłodnia)",
   "vehAvgDay": "Średnia: {km} km / dzień",
-  "@vehAvgDay": {"placeholders": {"km": {"type": "String"}}},
+  "@vehAvgDay": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "vehAxle": "Oś {number}",
-  "@vehAxle": {"placeholders": {"number": {"type": "String"}}},
+  "@vehAxle": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "vehAxleLimit": "Nacisk dopuszczalny: {load} t",
-  "@vehAxleLimit": {"placeholders": {"load": {"type": "String"}}},
+  "@vehAxleLimit": {
+    "placeholders": {
+      "load": {
+        "type": "String"
+      }
+    }
+  },
   "vehAxleLoad": "Dop. nacisk osi",
   "vehAxleSummary": "{count} osie • nacisk {load} t • DMC {gvw} t",
-  "@vehAxleSummary": {"placeholders": {"count": {"type": "String"}, "load": {"type": "String"}, "gvw": {"type": "String"}}},
+  "@vehAxleSummary": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "load": {
+        "type": "String"
+      },
+      "gvw": {
+        "type": "String"
+      }
+    }
+  },
   "vehAxles": "Liczba osi",
   "vehAxlesSubtitle": "Architektura zestawu z karty pojazdu; ciśnienie kół i temperatury piast z czujników TPMS",
   "vehAxlesTitle": "Układ Jezdny & Telemetria TPMS CAN-Bus",
@@ -1236,7 +2493,13 @@
   "vehCategory": "Kategoria N3 / O4",
   "vehCerts": "Atesty nadwozia i uprawnienia ładunkowe",
   "vehCo2": "klasa CO₂ {value}",
-  "@vehCo2": {"placeholders": {"value": {"type": "String"}}},
+  "@vehCo2": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "vehColor": "Malowanie / kolor lakieru",
   "vehComplianceTitle": "Dozory i Zgodność Prawna",
   "vehCostHour": "Koszt na godzinę",
@@ -1245,7 +2508,13 @@
   "vehCurrency": "Waluta stawek",
   "vehCurrentOrder": "Zlecenie bieżące",
   "vehDaysLeft": "{days} dni",
-  "@vehDaysLeft": {"placeholders": {"days": {"type": "String"}}},
+  "@vehDaysLeft": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
   "vehDriver": "Przypisany kierowca",
   "vehDriving": "W trasie",
   "vehDtc": "Diagnostyka DTC",
@@ -1260,13 +2529,25 @@
   "vehFms": "Pobierz FMS",
   "vehFmsModem": "Modem telematyczny FMS",
   "vehFooter": "Zmiany w pojeździe {plate} zostaną zapisane w rejestrze taboru.",
-  "@vehFooter": {"placeholders": {"plate": {"type": "String"}}},
+  "@vehFooter": {
+    "placeholders": {
+      "plate": {
+        "type": "String"
+      }
+    }
+  },
   "vehFuel": "Paliwo w zbiornikach",
   "vehFuelDiesel": "Diesel (ON)",
   "vehFuelElectric": "Elektryczny",
   "vehFuelLabel": "Napęd",
   "vehFuelType": "Napęd: {fuel}",
-  "@vehFuelType": {"placeholders": {"fuel": {"type": "String"}}},
+  "@vehFuelType": {
+    "placeholders": {
+      "fuel": {
+        "type": "String"
+      }
+    }
+  },
   "vehGdp": "Atest Pharma GDP",
   "vehGps": "Jednostka pokładowa GPS / blackbox",
   "vehGvw": "DMC pojazdu",
@@ -1282,12 +2563,24 @@
   "vehKindTrailer": "Przyczepa",
   "vehKindVan": "Samochód dostawczy",
   "vehLastInspection": "Ostatnie badanie: {date}",
-  "@vehLastInspection": {"placeholders": {"date": {"type": "String"}}},
+  "@vehLastInspection": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehLastSkp": "Ostatnie badanie SKP",
   "vehLeasingUntil": "Koniec umowy leasingu",
   "vehLength": "Długość",
   "vehMassLimit": "/ limit prawny: {limit} t",
-  "@vehMassLimit": {"placeholders": {"limit": {"type": "String"}}},
+  "@vehMassLimit": {
+    "placeholders": {
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
   "vehMassNote": "Masy własne z kart pojazdów (bez ładunku)",
   "vehMassTitle": "Masa własna zestawu",
   "vehMassUse": "Wykorzystanie DMC (masa własna)",
@@ -1301,7 +2594,13 @@
   "vehNotes": "Uwagi dyspozytorskie",
   "vehOcUntil": "Ważność polisy OC",
   "vehOcpUntil": "OCP do {date}",
-  "@vehOcpUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@vehOcpUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehOcpUntilLabel": "Polisa OCP (ruch międzynarodowy)",
   "vehOdometer": "Przebieg całkowity",
   "vehOdometerNote": "Stan licznika z karty pojazdu",
@@ -1310,7 +2609,13 @@
   "vehOrderService": "Zleć serwis",
   "vehOverdue": "Po terminie",
   "vehPlate": "Nr rej.: {plate}",
-  "@vehPlate": {"placeholders": {"plate": {"type": "String"}}},
+  "@vehPlate": {
+    "placeholders": {
+      "plate": {
+        "type": "String"
+      }
+    }
+  },
   "vehPlateLabel": "Numer rejestracyjny",
   "vehPolicy": "Polisa OC / AC",
   "vehPolicyNo": "Numer polisy OC/AC",
@@ -1329,15 +2634,33 @@
   "vehSec5": "Przypisanie Operacyjne & Baza Logistyczna",
   "vehSec5Sub": "Obsada kierowców, stała agregacja zestawu i stawki kosztowe",
   "vehServiceAt": "Serwis przy {km} km",
-  "@vehServiceAt": {"placeholders": {"km": {"type": "String"}}},
+  "@vehServiceAt": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "vehServiceBook": "Ostatnie wpisy w książce serwisowej",
   "vehServiceDue": "Następny serwis przy przebiegu",
   "vehServiceHistory": "Historia warsztatu",
   "vehServiceIn": "za {km} km",
-  "@vehServiceIn": {"placeholders": {"km": {"type": "String"}}},
+  "@vehServiceIn": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "vehServiceNone": "Ustaw przebieg następnego serwisu w karcie pojazdu.",
   "vehServiceOver": "{km} km po terminie",
-  "@vehServiceOver": {"placeholders": {"km": {"type": "String"}}},
+  "@vehServiceOver": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "vehServiceTitle": "Eksploatacja, Klocki Hamulcowe i Harmonogram Serwisowy",
   "vehSet": "Zestaw transportowy",
   "vehSideNo": "Numer boczny (ID taboru)",
@@ -1375,15 +2698,33 @@
   "vehUnitTrailer": "Naczepa",
   "vehValidTo": "Ważne do",
   "vehValidUntil": "Ważne do: {date}",
-  "@vehValidUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@vehValidUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "vehVin": "VIN: {vin}",
-  "@vehVin": {"placeholders": {"vin": {"type": "String"}}},
+  "@vehVin": {
+    "placeholders": {
+      "vin": {
+        "type": "String"
+      }
+    }
+  },
   "vehVinLabel": "Numer nadwozia (VIN – 17 znaków)",
   "vehWeight": "DMC zespołu (do trasy)",
   "vehWidth": "Szerokość",
   "vehXl": "Certyfikat Kod XL",
   "vehYear": "(rocznik {year})",
-  "@vehYear": {"placeholders": {"year": {"type": "String"}}},
+  "@vehYear": {
+    "placeholders": {
+      "year": {
+        "type": "String"
+      }
+    }
+  },
   "vehYearLabel": "Rok produkcji",
   "mainMenuGroupService": "Obsługa & Serwis",
   "mainMenuGroupAnalysis": "Analiza & Koszty",
@@ -1399,44 +2740,119 @@
   "wsNewOrder": "Nowe zlecenie naprawy (WO)",
   "wsAvailability": "Dostępność floty",
   "wsActiveOf": "Aktywne: {active} z {total}",
-  "@wsActiveOf": {"placeholders": {"active": {"type": "String"}, "total": {"type": "String"}}},
+  "@wsActiveOf": {
+    "placeholders": {
+      "active": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "wsInService": "{count} w serwisie",
-  "@wsInService": {"placeholders": {"count": {"type": "String"}}},
+  "@wsInService": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsMttr": "Czas przestoju (MTTR)",
   "wsHours": "godz",
   "wsMttrNote": "Średnio z {count} zakończonych zleceń",
-  "@wsMttrNote": {"placeholders": {"count": {"type": "String"}}},
+  "@wsMttrNote": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsMttrTarget": "Cel serwisowy",
   "wsOpen": "Otwarte zlecenia",
   "wsCritical": "{count} krytyczne (VOR)",
-  "@wsCritical": {"placeholders": {"count": {"type": "String"}}},
+  "@wsCritical": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsNewCount": "{count} nowe",
-  "@wsNewCount": {"placeholders": {"count": {"type": "String"}}},
+  "@wsNewCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsProgressCount": "{count} w realizacji",
-  "@wsProgressCount": {"placeholders": {"count": {"type": "String"}}},
+  "@wsProgressCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsMonthCost": "Koszty napraw (miesiąc)",
   "wsMonthOrders": "Zakończone zlecenia: {count}",
-  "@wsMonthOrders": {"placeholders": {"count": {"type": "String"}}},
+  "@wsMonthOrders": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsBudget": "Budżet miesięczny",
   "wsBaysTitle": "Stanowiska serwisowe",
   "wsBaysSubtitle": "Zlecenia w realizacji (przyjęte i w naprawie) – przypisanie do fizycznych stanowisk w budowie",
   "wsBusy": "{count} zajęte",
-  "@wsBusy": {"placeholders": {"count": {"type": "String"}}},
+  "@wsBusy": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsBay": "Stanowisko {number}",
-  "@wsBay": {"placeholders": {"number": {"type": "String"}}},
+  "@wsBay": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "wsFree": "Wolne",
   "wsFreeNote": "Stanowisko gotowe do przyjęcia pojazdu.",
   "wsBringIn": "Wprowadź pojazd teraz",
   "wsVor": "VOR",
   "wsTask": "Zadanie",
   "wsMechanic": "Mechanik: {name}",
-  "@wsMechanic": {"placeholders": {"name": {"type": "String"}}},
+  "@wsMechanic": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "wsProgress": "Postęp zadania: {status}",
-  "@wsProgress": {"placeholders": {"status": {"type": "String"}}},
+  "@wsProgress": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
   "wsQueueTitle": "Kolejka zleceń napraw i zgłoszeń",
   "wsQueueSubtitle": "Zgłoszenia kierowców i dyspozytorów z modułu Serwis",
   "wsOpenCount": "{count} otwartych",
-  "@wsOpenCount": {"placeholders": {"count": {"type": "String"}}},
+  "@wsOpenCount": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "wsSearch": "Filtruj: nr rej., opis, WO…",
   "wsColNo": "Nr zlecenia / data",
   "wsColVehicle": "Pojazd & model",
@@ -1451,7 +2867,16 @@
   "wsStandard": "Standard",
   "wsUnassigned": "Nieprzypisany",
   "wsShown": "Wyświetlono {count} z {total} otwartych zleceń",
-  "@wsShown": {"placeholders": {"count": {"type": "String"}, "total": {"type": "String"}}},
+  "@wsShown": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "wsRoadside": "Pogotowie techniczne 24/7",
   "wsRoadsideNote": "Mobilny serwis drogowy, lokalizacja ekipy i ETA pojawią się po integracji z serwisem mobilnym.",
   "wsParts": "Magazyn & części zamienne",
@@ -1468,23 +2893,65 @@
   "rpProgress": "W toku",
   "rpWaiting": "Oczekujące na przyjęcie",
   "rpDone": "Zakończone (dziś {count})",
-  "@rpDone": {"placeholders": {"count": {"type": "String"}}},
+  "@rpDone": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "rpSearch": "Szukaj: WO, nr rej., opis",
   "rpReport": "Zgłoszenie",
   "rpReceived": "Wpłynęło: {time}",
-  "@rpReceived": {"placeholders": {"time": {"type": "String"}}},
+  "@rpReceived": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "rpMechanic": "Odpowiedzialny mechanik",
   "rpRate": "Stawka: {rate} {currency} / rbh",
-  "@rpRate": {"placeholders": {"rate": {"type": "String"}, "currency": {"type": "String"}}},
+  "@rpRate": {
+    "placeholders": {
+      "rate": {
+        "type": "String"
+      },
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
   "rpPlanning": "Planowanie dyspozytorskie",
   "rpOdometer": "Przebieg przy zgłoszeniu: {km} km",
-  "@rpOdometer": {"placeholders": {"km": {"type": "String"}}},
+  "@rpOdometer": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "rpInspection": "Badanie techniczne ważne do {date}",
-  "@rpInspection": {"placeholders": {"date": {"type": "String"}}},
+  "@rpInspection": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "rpStatus": "Status operacyjny",
   "rpElapsed": "Czas od zgłoszenia",
   "rpDuration": "{hours} h {minutes} min",
-  "@rpDuration": {"placeholders": {"hours": {"type": "String"}, "minutes": {"type": "String"}}},
+  "@rpDuration": {
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "String"
+      }
+    }
+  },
   "rpWorkTitle": "Zakres prac i pomiary diagnostyczne",
   "rpWorkDone": "Wykonane prace",
   "rpWorkNone": "Mechanik jeszcze nie opisał prac.",
@@ -1497,22 +2964,52 @@
   "rpNoParts": "Brak wydanych części.",
   "rpLabour": "Robocizna mechaniczna",
   "rpHours": "{hours} rbh",
-  "@rpHours": {"placeholders": {"hours": {"type": "String"}}},
+  "@rpHours": {
+    "placeholders": {
+      "hours": {
+        "type": "String"
+      }
+    }
+  },
   "rpPartsSum": "Suma części:",
   "rpLabourSum": "Suma robocizny:",
   "rpNet": "Łączny koszt netto:",
   "rpGross": "Brutto: {amount} (VAT 23%)",
-  "@rpGross": {"placeholders": {"amount": {"type": "String"}}},
+  "@rpGross": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "rpRequest": "Zgłoś zapotrzebowanie do magazynu",
   "rpHistoryTitle": "Historia serwisowa & TCO – {vehicle} (12 miesięcy)",
-  "@rpHistoryTitle": {"placeholders": {"vehicle": {"type": "String"}}},
+  "@rpHistoryTitle": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
   "rpHistoryTotal": "Łączne nakłady: {amount} PLN",
-  "@rpHistoryTotal": {"placeholders": {"amount": {"type": "String"}}},
+  "@rpHistoryTotal": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "rpChartTitle": "Koszty warsztatowe (PLN / m-c)",
   "rpPlanned": "Naprawy planowe",
   "rpUrgent": "Awarie nagłe",
   "rpAvgCost": "Średni koszt naprawy: {amount} PLN",
-  "@rpAvgCost": {"placeholders": {"amount": {"type": "String"}}},
+  "@rpAvgCost": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "rpPrevious": "Poprzednie interwencje techniczne",
   "rpNoPrevious": "Brak wcześniejszych napraw.",
   "rpProtocol": "Gotowość do wygenerowania protokołu odbioru",
@@ -1523,13 +3020,28 @@
   "anSource": "Przejazdy TruckMaps + moduł Serwis",
   "anTitle": "Analityka Flotowa & Rentowność Operacyjna",
   "anSubtitle": "Bilans {count} pojazdów z napędem – {company}",
-  "@anSubtitle": {"placeholders": {"count": {"type": "String"}, "company": {"type": "String"}}},
+  "@anSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "company": {
+        "type": "String"
+      }
+    }
+  },
   "anKpiConfig": "Konfiguruj KPI",
   "anSchedule": "Zaplanuj raport BI",
   "anExport": "Eksportuj PDF/XLSX",
   "anRange": "Zakres analizy",
   "anLastMonths": "Ostatnie {count} miesięcy",
-  "@anLastMonths": {"placeholders": {"count": {"type": "String"}}},
+  "@anLastMonths": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "anVehicles": "Wybór pojazdów",
   "anAllVehicles": "Wszystkie pojazdy",
   "anSpec": "Specyfikacja taboru",
@@ -1537,31 +3049,82 @@
   "anHub": "Hub dyspozytorski",
   "anTotalKm": "Całkowity przebieg floty",
   "anLoaded": "Ładowny: {percent}",
-  "@anLoaded": {"placeholders": {"percent": {"type": "String"}}},
+  "@anLoaded": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "anEmpty": "Pusty bieg: {percent}",
-  "@anEmpty": {"placeholders": {"percent": {"type": "String"}}},
+  "@anEmpty": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "anCostKm": "Średni koszt wozokilometra",
   "anRouteCosts": "• Trasy (szacunek planera): {value} PLN/km",
-  "@anRouteCosts": {"placeholders": {"value": {"type": "String"}}},
+  "@anRouteCosts": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "anServiceCosts": "• Serwis i naprawy: {value} PLN/km",
-  "@anServiceCosts": {"placeholders": {"value": {"type": "String"}}},
+  "@anServiceCosts": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "anRevenue": "Przychód flotowy m/m",
   "anBurn": "Średnie spalanie",
   "anBurnNote": "Z kart pojazdów (z ładunkiem)",
   "anEuro6": "Euro 6 / EV: {count} z {total}",
-  "@anEuro6": {"placeholders": {"count": {"type": "String"}, "total": {"type": "String"}}},
+  "@anEuro6": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "anTrend": "Trend kosztów floty",
   "anTrendNote": "Miesięczne koszty tras i napraw (PLN)",
   "anLegendRoutes": "Koszty tras",
   "anLegendService": "Serwis",
   "anBestMonth": "Najwięcej kilometrów: {month} ({km} km)",
-  "@anBestMonth": {"placeholders": {"month": {"type": "String"}, "km": {"type": "String"}}},
+  "@anBestMonth": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "anCorridors": "Rentowność korytarzy",
   "anCorridorsNote": "Zysk na km trasy wymaga przychodów ze zleceń – pojawi się z modułem Zlecenia i Załadunek.",
   "anRanking": "Ranking taboru",
   "anRankingNote": "Przebieg, koszty tras i napraw, koszt na km",
   "anTop": "Top {count} z {total}",
-  "@anTop": {"placeholders": {"count": {"type": "String"}, "total": {"type": "String"}}},
+  "@anTop": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "anColVehicle": "Pojazd",
   "anColKm": "Przebieg (km)",
   "anColBurn": "Spalanie",
@@ -1575,7 +3138,16 @@
   "anConnector": "Źródło danych",
   "anSynced": "Dane z TruckMaps",
   "anSyncedNote": "Przejazdy: {trips} • zlecenia serwisowe: {orders}",
-  "@anSyncedNote": {"placeholders": {"trips": {"type": "String"}, "orders": {"type": "String"}}},
+  "@anSyncedNote": {
+    "placeholders": {
+      "trips": {
+        "type": "String"
+      },
+      "orders": {
+        "type": "String"
+      }
+    }
+  },
   "tcoBadge": "FIN-TCO & Fuel",
   "tcoSource": "Przejazdy TruckMaps + moduł Serwis",
   "tcoTitle": "Koszty TCO & Analityka Paliwowa Floty",
@@ -1590,7 +3162,13 @@
   "tcoStructure": "Struktura kosztowa 1 wozokilometra (TCO/km)",
   "tcoStructureNote": "Rozbicie kosztów znanych w TruckMaps",
   "tcoBase": "Baza: {km} km",
-  "@tcoBase": {"placeholders": {"km": {"type": "String"}}},
+  "@tcoBase": {
+    "placeholders": {
+      "km": {
+        "type": "String"
+      }
+    }
+  },
   "tcoRoutes": "Koszty tras (paliwo, myto – szacunek)",
   "tcoRoutesNote": "Z przejazdów zapisanych w TruckMaps",
   "tcoService": "Serwis, naprawy, części",
@@ -1604,18 +3182,48 @@
   "tcoBenchmark": "Benchmark producentów (OEM)",
   "tcoBenchmarkNote": "Koszt tras na km i spalanie z kart pojazdów",
   "tcoUnits": "{count} szt.",
-  "@tcoUnits": {"placeholders": {"count": {"type": "String"}}},
+  "@tcoUnits": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "tcoBurn": "Śr. spalanie: {value} l / 100 km",
-  "@tcoBurn": {"placeholders": {"value": {"type": "String"}}},
+  "@tcoBurn": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "tcoBurnUnknown": "Spalanie: brak w kartach pojazdów",
   "tcoInsight": "{best} wykazuje o {percent}% niższy koszt tras na km niż {worst}.",
-  "@tcoInsight": {"placeholders": {"best": {"type": "String"}, "percent": {"type": "String"}, "worst": {"type": "String"}}},
+  "@tcoInsight": {
+    "placeholders": {
+      "best": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      },
+      "worst": {
+        "type": "String"
+      }
+    }
+  },
   "tcoTonnage": "Zużycie wg tonażu ładunku",
   "tcoTonnageNote": "Spalanie pusty / pełny z kart pojazdów",
   "tcoEmpty": "Pusty",
   "tcoFull": "FTL",
   "tcoDelta": "Przyrost przy pełnym ładunku: +{value} l / 100 km",
-  "@tcoDelta": {"placeholders": {"value": {"type": "String"}}},
+  "@tcoDelta": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "tcoFuelPrices": "Geofencing & ceny paliw",
   "tcoFuelPricesNote": "Ceny na stacjach i oszczędności z tankowań – wymagają kart flotowych.",
   "tcoAnomalies": "Detektor anomalii CAN-Bus",
@@ -1635,5 +3243,57 @@
   "tcoExcise": "Zwroty akcyzy paliwowej (TICPE / DKV Tax)",
   "tcoExciseNote": "Transakcje paliwowe z Francji i Belgii – wymagają kart flotowych.",
   "tcoErp": "Synchronizacja księgowa SAP FI-CO",
-  "tcoErpNote": "Dekretowanie kosztów paliwa, myta i premii do MPK ciągników."
+  "tcoErpNote": "Dekretowanie kosztów paliwa, myta i premii do MPK ciągników.",
+  "bodyGroupGeneral": "Ładunki ogólne i paletowe",
+  "bodyGroupTemperature": "Temperatura kontrolowana",
+  "bodyGroupFlat": "Platformy, kłonice i kręgi (stal, wyroby długie)",
+  "bodyGroupHeavy": "Ciężkie i ponadgabarytowe",
+  "bodyGroupTimber": "Drewno",
+  "bodyGroupBulk": "Sypkie i masowe",
+  "bodyGroupLiquid": "Płyny i gazy (cysterny)",
+  "bodyGroupContainers": "Kontenery i nadwozia wymienne",
+  "bodyGroupSpecial": "Specjalne",
+  "bodyCurtain": "Plandeka (firanka)",
+  "bodyMega": "Mega (3 m wysokości)",
+  "bodyBox": "Kontener (skrzynia zamknięta)",
+  "bodyJumbo": "Jumbo (obniżona podłoga)",
+  "bodyDoubleDeck": "Piętrowa (podwójna podłoga)",
+  "bodySlidingRoof": "Plandeka z przesuwnym dachem",
+  "bodyReefer": "Chłodnia",
+  "bodyIsotherm": "Izoterma",
+  "bodyMultitemp": "Chłodnia wielokomorowa",
+  "bodyFlatbed": "Platforma",
+  "bodyStake": "Kłonicowa",
+  "bodyCoil": "Coil (wanna na kręgi stalowe)",
+  "bodyLowloader": "Niskopodwoziowa",
+  "bodyExtendable": "Rozciągana (teleskopowa)",
+  "bodyModular": "Modułowa (wieloosiowa)",
+  "bodyTimber": "Do drewna (dłużycowa)",
+  "bodyTipper": "Wywrotka",
+  "bodyWalkingFloor": "Ruchoma podłoga",
+  "bodySilo": "Silos (cysterna na sypkie)",
+  "bodyHopper": "Zsypowa (lejowa)",
+  "bodyTanker": "Cysterna",
+  "bodyTankerFood": "Cysterna spożywcza",
+  "bodyTankerChem": "Cysterna chemiczna (ADR)",
+  "bodyTankerGas": "Cysterna gazowa",
+  "bodyTankerFuel": "Cysterna paliwowa",
+  "bodyContainer": "Podwozie kontenerowe",
+  "bodySwapBody": "Nadwozie wymienne (BDF)",
+  "bodyCarTransporter": "Autotransporter / laweta",
+  "bodyLivestock": "Do przewozu zwierząt",
+  "bodyGlass": "Do szkła (inloader)",
+  "bodyBeverage": "Do napojów (burty uchylne)",
+  "bodyDescCurtain": "palety, drobnica – załadunek z boku i z tyłu",
+  "bodyDescMega": "lekki, objętościowy towar do 3 m wysokości",
+  "bodyDescCoil": "kręgi stalowe w wannie wzdłuż naczepy",
+  "bodyDescLowloader": "maszyny budowlane, ładunki wysokie",
+  "bodyDescWalkingFloor": "zrębka, odpady, płody rolne",
+  "bodyDescSilo": "cement, mąka, granulaty",
+  "bodyDescTipper": "piasek, żwir, kruszywa, zboże",
+  "bodyDescStake": "rury, pręty, drewno między kłonicami",
+  "bodyPickerTitle": "Rodzaj zabudowy (naczepa, przyczepa, skrzynia)",
+  "bodyPickerSearch": "Szukaj: np. chłodnia, coil, cysterna…",
+  "pickerEmpty": "Nic nie znaleziono.",
+  "pickerAll": "Wszystkie"
 }

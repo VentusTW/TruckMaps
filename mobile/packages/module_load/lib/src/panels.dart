@@ -202,7 +202,7 @@ class SimLegend extends StatelessWidget {
   const SimLegend({super.key, required this.plan, required this.kinds});
 
   final Map<String, dynamic> plan;
-  final List<String> kinds;
+  final List<CargoLook> kinds;
 
   @override
   Widget build(BuildContext context) {
@@ -212,11 +212,20 @@ class SimLegend extends StatelessWidget {
     final scene = SimScene(plan, kinds);
     final groups = <CargoGroup, List<double>>{};
     final counts = <CargoGroup, int>{};
+    // Towar inny niż palety – osobno każdy rodzaj (nazwa, kolor grupy towaru).
+    final others = <String, (Color, List<double>, int)>{};
     for (final p in scene.pieces) {
-      groups.putIfAbsent(p.group, () => []).add(p.weight / math.max(1, p.pieces));
+      final each = p.weight / math.max(1, p.pieces);
+      if (p.group == CargoGroup.bulk) {
+        final name = p.look.name.isEmpty ? t.group('bulk') : p.look.name;
+        final (color, weights, count) = others[name] ?? (p.color, <double>[], 0);
+        others[name] = (color, weights..add(each), count + p.pieces);
+        continue;
+      }
+      groups.putIfAbsent(p.group, () => []).add(each);
       counts[p.group] = (counts[p.group] ?? 0) + p.pieces;
     }
-    final units = counts.values.fold<int>(0, (s, c) => s + c);
+    final units = counts.values.fold<int>(0, (s, c) => s + c) + others.values.fold<int>(0, (s, o) => s + o.$3);
     final free = math.max(0, (plan['pallet_places'] as int? ?? 0) - (plan['places_used'] as int? ?? 0));
     String range(List<double> w) {
       final lo = w.reduce(math.min).round(), hi = w.reduce(math.max).round();
@@ -257,6 +266,14 @@ class SimLegend extends StatelessWidget {
                 Expanded(child: Text(t.groupLine(t.group(g.name), range(groups[g]!), counts[g]!), style: caption)),
               ]),
             ),
+        for (final MapEntry(key: name, value: (color, weights, count)) in others.entries)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(children: [
+              dot(color),
+              Expanded(child: Text(t.groupLine(name, range(weights), count), style: caption)),
+            ]),
+          ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(children: [
@@ -490,15 +507,33 @@ const _gearIcons = {
   'beams': Icons.horizontal_rule,
   'mats': Icons.layers_outlined,
   'airbags': Icons.air,
+  'chains': Icons.link_outlined,
+  'chocks': Icons.change_history,
+  'net': Icons.grid_on,
+  'stakes': Icons.view_week_outlined,
 };
 
 /// Lista sprzętu VDI 2700: wymagane z obliczeń, założone – potwierdzane w aplikacji.
 class GearTable extends StatelessWidget {
-  const GearTable({super.key, required this.plan, required this.checked, required this.onChecked});
+  const GearTable({
+    super.key,
+    required this.plan,
+    required this.checked,
+    required this.onChecked,
+    this.highlight,
+    this.onHighlight,
+    this.available,
+  });
 
+  /// Wyposażenie użytkownika (kolumna „Masz”); `null` – bez ograniczeń.
+  final Map<String, int>? available;
   final Map<String, dynamic> plan;
   final Set<String> checked;
   final void Function(String id, bool on) onChecked;
+
+  /// Pozycja podświetlona na rysunku; [onHighlight] – najechanie myszą (na dotyku: stuknięcie w nazwę).
+  final String? highlight;
+  final ValueChanged<String?>? onHighlight;
 
   @override
   Widget build(BuildContext context) {
@@ -512,23 +547,45 @@ class GearTable extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: Gap.s, horizontal: Gap.xs),
           child: SectionLabel(text),
         );
-    Widget cell(Widget child) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: Gap.m, horizontal: Gap.xs),
-          child: child,
-        );
+    final shortages = (plan['shortages'] as Map<String, dynamic>? ?? const {});
+    int short(String id) => (shortages[id] as int?) ?? 0;
     TableRow gearRow(int i, Map<String, dynamic> g) {
       final id = g['id'] as String;
       final required = g['required'] as int;
       final on = checked.contains(id);
-      return TableRow(children: [
+      final lit = highlight == id;
+      // Cała komórka reaguje na kursor – wiersz podświetla sprzęt na rysunku.
+      Widget cell(Widget child, {bool tap = false}) => MouseRegion(
+            key: tap ? ValueKey('gear-row-$id') : null,
+            onEnter: (_) => onHighlight?.call(id),
+            onExit: (_) => onHighlight?.call(null),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: tap ? () => onHighlight?.call(lit ? null : id) : null,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: Gap.m, horizontal: Gap.xs),
+                child: child,
+              ),
+            ),
+          );
+      return TableRow(decoration: BoxDecoration(color: lit ? glowColor.withOpacity(0.18) : null), children: [
         cell(Text((i + 1).toString().padLeft(2, '0'), style: caption)),
-        cell(Row(children: [
-          Icon(_gearIcons[id] ?? Icons.build_outlined, size: 18, color: theme.colorScheme.primary),
-          const SizedBox(width: Gap.s),
-          Expanded(child: Text(t.gear(id), style: theme.textTheme.labelLarge)),
-        ])),
-        cell(Text(t.gearSpec(id, strapDaN), style: caption)),
+        cell(
+            tap: true,
+            Row(children: [
+              Icon(lit ? Icons.visibility : (_gearIcons[id] ?? Icons.build_outlined),
+                  size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: Gap.s),
+              Expanded(
+                  child: Text(t.gear(id),
+                      style: theme.textTheme.labelLarge?.copyWith(fontWeight: lit ? FontWeight.w800 : null))),
+            ])),
+        cell(Text(t.gearSpec(id, strapDaN).isEmpty ? t.gearSpecMore(id) : t.gearSpec(id, strapDaN), style: caption)),
         cell(Text(t.pieces(required), style: theme.textTheme.labelLarge)),
+        if (available != null)
+          cell(Text(t.pieces(available![id] ?? 0),
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(color: short(id) > 0 ? theme.colorScheme.error : null, fontWeight: FontWeight.w700))),
         cell(required == 0
             ? const SizedBox.shrink()
             : Checkbox(
@@ -539,16 +596,20 @@ class GearTable extends StatelessWidget {
         cell(Align(
           alignment: Alignment.centerLeft,
           child: StatusChip(
-            label: required == 0
-                ? t.statusNotNeeded
-                : on
-                    ? t.statusConfirmed
-                    : t.statusMissing,
-            tone: required == 0
-                ? StatusTone.neutral
-                : on
-                    ? StatusTone.ok
-                    : StatusTone.warning,
+            label: short(id) > 0
+                ? t.statusShort(short(id))
+                : required == 0
+                    ? t.statusNotNeeded
+                    : on
+                        ? t.statusConfirmed
+                        : t.statusMissing,
+            tone: short(id) > 0
+                ? StatusTone.error
+                : required == 0
+                    ? StatusTone.neutral
+                    : on
+                        ? StatusTone.ok
+                        : StatusTone.warning,
             uppercase: false,
           ),
         )),
@@ -556,13 +617,14 @@ class GearTable extends StatelessWidget {
     }
 
     final table = Table(
-      columnWidths: const {
-        0: FixedColumnWidth(40),
-        1: FlexColumnWidth(2.2),
-        2: FlexColumnWidth(2.6),
-        3: FlexColumnWidth(1.1),
-        4: FixedColumnWidth(80),
-        5: FlexColumnWidth(1.4),
+      columnWidths: {
+        0: const FixedColumnWidth(40),
+        1: const FlexColumnWidth(2.2),
+        2: const FlexColumnWidth(2.6),
+        3: const FlexColumnWidth(1.1),
+        if (available != null) 4: const FlexColumnWidth(0.9),
+        (available != null ? 5 : 4): const FixedColumnWidth(80),
+        (available != null ? 6 : 5): const FlexColumnWidth(1.4),
       },
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       border: TableBorder(horizontalInside: BorderSide(color: theme.dividerColor)),
@@ -572,6 +634,7 @@ class GearTable extends StatelessWidget {
           head(t.colItem),
           head(t.colSpec),
           head(t.colRequired),
+          if (available != null) head(t.colHave),
           head(t.colInstalled),
           head(t.colStatus),
         ]),
@@ -589,10 +652,13 @@ class GearTable extends StatelessWidget {
           uppercase: false,
         ),
       ),
-      child: LayoutBuilder(builder: (context, size) {
-        if (size.maxWidth >= 720) return table;
-        return SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(width: 720, child: table));
-      }),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(t.gearHoverHint, style: caption),
+        LayoutBuilder(builder: (context, size) {
+          if (size.maxWidth >= 720) return table;
+          return SingleChildScrollView(scrollDirection: Axis.horizontal, child: SizedBox(width: 720, child: table));
+        }),
+      ]),
     );
   }
 }

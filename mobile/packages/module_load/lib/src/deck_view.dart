@@ -1,11 +1,16 @@
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
 import 'texts.dart';
 
 /// Kolory rozładunków (1, 2, 3…) – te same w widoku z góry i z boku.
 const stopColors = TruckPalette.series;
+
+/// Komputer (mysz): bez przybliżania kółkiem.
+bool get desktop =>
+    const {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(defaultTargetPlatform);
 
 /// Krok przesuwania palety [m].
 const snapM = 0.05;
@@ -137,7 +142,9 @@ class _DeckViewState extends State<DeckView> {
       if (widget.moving) {
         return ClipRect(child: Transform(transform: _transform.value, child: content));
       }
-      return InteractiveViewer(transformationController: _transform, minScale: 1, maxScale: 6, child: content);
+      // Na komputerze kółko myszy przewija stronę – przybliżanie tylko palcami na ekranie dotykowym.
+      return InteractiveViewer(
+          transformationController: _transform, minScale: 1, maxScale: 6, scaleEnabled: !desktop, child: content);
     });
   }
 }

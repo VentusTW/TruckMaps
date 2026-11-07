@@ -222,9 +222,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Naczepa').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Zabudowa'));
+    // Zabudowa – okno z grupami i wyszukiwarką.
+    await tester.tap(find.byKey(const Key('body-field')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cysterna').last);
+    expect(find.text('PŁYNY I GAZY (CYSTERNY)'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('picker-search')), 'cyster');
+    await tester.pumpAndSettle();
+    expect(find.text('Cysterna spożywcza'), findsOneWidget);
+    expect(find.text('Chłodnia'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('picker-tanker')));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextFormField, 'Nazwa'), 'Cysterna 32');
     await tester.enterText(find.widgetWithText(TextFormField, 'Pojemność cysterny'), '32');

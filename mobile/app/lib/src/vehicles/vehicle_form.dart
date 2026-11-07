@@ -5,21 +5,11 @@ import 'package:flutter/services.dart';
 import '../account/common.dart' show companyAllows;
 import '../l10n.dart';
 import 'registration_scan.dart';
+import 'body_types.dart';
 import 'service_dates.dart';
 
-/// Rodzaje naczep (te same co na serwerze).
-const trailerTypes = ['none', 'curtain', 'box', 'reefer', 'tanker', 'flatbed', 'container', 'lowloader'];
-
-String trailerLabel(AppLocalizations l, String type) => switch (type) {
-      'none' => l.trailerNone,
-      'curtain' => l.trailerCurtain,
-      'box' => l.trailerBox,
-      'reefer' => l.trailerReefer,
-      'tanker' => l.trailerTanker,
-      'flatbed' => l.trailerFlatbed,
-      'container' => l.trailerContainer,
-      _ => l.trailerLowloader,
-    };
+/// Rodzaj zabudowy do wyświetlenia (`none` – „brak”).
+String trailerLabel(AppLocalizations l, String type) => type == 'none' ? l.trailerNone : bodyLabel(l, type);
 
 /// Rodzaje pojazdów do wyboru (te same co na serwerze). „combination” – dawne wpisy zestawu
 /// jako całości: można je zmieniać, ale nowych się nie dodaje.
@@ -352,7 +342,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'axle_count': _number('axle_count')!.round(),
       'kind': _kind,
       'trailer_type': _trailer,
-      'tank_volume_m3': _trailer == 'tanker' ? _number('tank_volume_m3') : null,
+      'tank_volume_m3': tankBodies.contains(_trailer) ? _number('tank_volume_m3') : null,
       'seats': _kind == 'bus' ? _number('seats')?.round() : null,
       'standing_places': _kind == 'bus' ? _number('standing_places')?.round() : null,
       'hazmat': _hazmat,
@@ -367,7 +357,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       'co2_class': towedKinds.contains(_kind) ? null : _co2,
       for (final key in ['consumption_empty', 'consumption_loaded', 'fuel_price']) key: _number(key),
       for (final key in ['adblue_percent', 'adblue_price']) key: _hasAdBlue ? _number(key) : null,
-      'pallet_places': bodyKinds.contains(_kind) && _trailer != 'tanker' ? _number('pallet_places')?.round() : null,
+      'pallet_places':
+          bodyKinds.contains(_kind) && !tankBodies.contains(_trailer) ? _number('pallet_places')?.round() : null,
       for (final key in const ['fifth_wheel_m', 'kingpin_m', 'axles_m', 'wheelbase_m'])
         key: geometryKeys(_kind).contains(key) ? _number(key) : null,
       for (final e in _dates.entries) e.key: e.value == null ? null : isoDate(e.value!),
@@ -517,18 +508,14 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
           ]),
           if (hasBody) ...[
             section(l.vehicleBodySection),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
+            BodyField(
+              label: l.vehicleBody,
               value: _trailer,
-              decoration: InputDecoration(labelText: l.vehicleBody, border: const OutlineInputBorder(), isDense: true),
-              items: [
-                for (final t in trailerTypes)
-                  if (t != 'none' || _kind == 'combination') DropdownMenuItem(value: t, child: Text(trailerLabel(l, t))),
-              ],
-              onChanged: (value) => setState(() => _trailer = value ?? _trailer),
+              none: _kind == 'combination',
+              onChanged: (value) => setState(() => _trailer = value),
             ),
             const SizedBox(height: 12),
-            if (_trailer == 'tanker')
+            if (tankBodies.contains(_trailer))
               _numberField('tank_volume_m3', l.vehicleTankVolume, suffix: 'm³', required: false)
             else
               _numberField('pallet_places', l.vehiclePallets, required: false, integer: true),

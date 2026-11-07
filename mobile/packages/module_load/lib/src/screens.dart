@@ -15,6 +15,219 @@ const cargoKinds = {'combination', 'rigid', 'van', 'semitrailer', 'trailer'};
 const itemKinds = ['euro', 'industrial', 'half', 'custom'];
 const bodyCodes = ['unknown', 'L', 'XL'];
 
+/// Ikony kształtów towaru (wybór rodzaju i okno własnego rodzaju).
+const _shapeIcons = <String, IconData>{
+  'pallet': Icons.view_module_outlined,
+  'box': Icons.inventory_2_outlined,
+  'drum': Icons.propane_tank_outlined,
+  'roll': Icons.album_outlined,
+  'coil': Icons.donut_large,
+  'bale': Icons.grass,
+  'bale_round': Icons.circle_outlined,
+  'bag': Icons.shopping_bag_outlined,
+  'long': Icons.straighten,
+  'vehicle': Icons.agriculture_outlined,
+  'bulk': Icons.landslide_outlined,
+};
+
+/// Sprzęt z listy VDI 2700 (te same identyfikatory co na serwerze).
+const gearIds = ['straps', 'edges', 'beams', 'mats', 'airbags', 'chains', 'chocks', 'net', 'stakes'];
+
+/// Okno „Moje wyposażenie”: ile sztuk sprzętu ma użytkownik i czy uwzględniać je w planie.
+class EquipmentDialog extends StatefulWidget {
+  const EquipmentDialog({super.key, required this.items, required this.enabled});
+
+  final Map<String, int> items;
+  final bool enabled;
+
+  @override
+  State<EquipmentDialog> createState() => _EquipmentDialogState();
+}
+
+class _EquipmentDialogState extends State<EquipmentDialog> {
+  late final _fields = {for (final id in gearIds) id: TextEditingController(text: '${widget.items[id] ?? 0}')};
+  late bool _enabled = widget.enabled || widget.items.isEmpty;
+
+  @override
+  void dispose() {
+    for (final c in _fields.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    return AlertDialog(
+      title: Text(t.myEquipmentTitle),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            Text(t.equipmentHint, style: Theme.of(context).textTheme.bodySmall),
+            SwitchListTile(
+              key: const Key('equipment-enabled'),
+              contentPadding: EdgeInsets.zero,
+              value: _enabled,
+              onChanged: (on) => setState(() => _enabled = on),
+              title: Text(t.useEquipment),
+            ),
+            Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
+              for (final id in gearIds)
+                SizedBox(
+                  width: 260,
+                  child: TextField(
+                    key: Key('equipment-$id'),
+                    controller: _fields[id],
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: _field(t.gear(id), suffix: t.pieces(0).replaceAll('0', '').trim()),
+                  ),
+                ),
+            ]),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.cancel)),
+        FilledButton(
+          key: const Key('equipment-save'),
+          onPressed: () => Navigator.of(context).pop((
+            {for (final e in _fields.entries) e.key: int.tryParse(e.value.text) ?? 0},
+            _enabled,
+          )),
+          child: Text(t.save),
+        ),
+      ],
+    );
+  }
+}
+
+/// Okno własnego rodzaju towaru: nazwa, grupa, kształt, wymiary, masa, tarcie, mocowanie, stos.
+class CustomCargoDialog extends StatefulWidget {
+  const CustomCargoDialog({super.key, required this.groups});
+
+  final List<Map<String, dynamic>> groups;
+
+  @override
+  State<CustomCargoDialog> createState() => _CustomCargoDialogState();
+}
+
+class _CustomCargoDialogState extends State<CustomCargoDialog> {
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _fields = {
+    'length_m': TextEditingController(text: '1.2'),
+    'width_m': TextEditingController(text: '0.8'),
+    'height_m': TextEditingController(text: '1.0'),
+    'weight_kg': TextEditingController(text: '500'),
+    'mu': TextEditingController(text: '0.3'),
+    'stack': TextEditingController(text: '1'),
+  };
+
+  /// Grupa „Inne i własne”, a gdy jej nie ma – pierwsza z katalogu.
+  late String _group =
+      widget.groups.any((g) => g['id'] == 'other') ? 'other' : '${widget.groups.firstOrNull?['id'] ?? 'other'}';
+  String _shape = 'box';
+  String _securing = 'top';
+
+  @override
+  void dispose() {
+    for (final c in [_name, ..._fields.values]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = LoadTexts.of(context);
+    final numbers = [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))];
+    String? number(String? text) => _parse(text ?? '') == null ? t.numberInvalid : null;
+    Widget field(String key, String label, {String? suffix}) => SizedBox(
+          width: 160,
+          child: TextFormField(
+            key: Key('custom-$key'),
+            controller: _fields[key],
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: numbers,
+            decoration: _field(label, suffix: suffix),
+            validator: number,
+          ),
+        );
+    Widget drop(String label, String value, List<(String, String)> items, ValueChanged<String> on) => SizedBox(
+          width: 330,
+          child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            value: value,
+            decoration: _field(label),
+            items: [for (final (v, l) in items) DropdownMenuItem(value: v, child: Text(l))],
+            onChanged: (v) => setState(() => on(v ?? value)),
+          ),
+        );
+    return AlertDialog(
+      title: Text(t.customCargoTitle),
+      content: SizedBox(
+        width: 680,
+        child: Form(
+          key: _form,
+          child: SingleChildScrollView(
+            child: Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
+              SizedBox(
+                width: 680,
+                child: TextFormField(
+                  key: const Key('custom-name'),
+                  controller: _name,
+                  maxLength: 60,
+                  decoration: _field(t.customName),
+                  validator: (v) => (v ?? '').trim().isEmpty ? t.numberInvalid : null,
+                ),
+              ),
+              drop(t.customGroup, _group, [for (final g in widget.groups) ('${g['id']}', '${g['name']}')],
+                  (v) => _group = v),
+              drop(t.customShape, _shape, [for (final s in _shapeIcons.keys) (s, t.shape(s))], (v) => _shape = v),
+              field('length_m', t.length, suffix: 'm'),
+              field('width_m', t.width, suffix: 'm'),
+              field('height_m', t.height, suffix: 'm'),
+              field('weight_kg', t.customWeight, suffix: 'kg'),
+              field('mu', t.customMu),
+              field('stack', t.customStack),
+              drop(
+                  t.customSecuring,
+                  _securing,
+                  [
+                    for (final s in ['top', 'direct', 'none']) (s, t.securingName(s))
+                  ],
+                  (v) => _securing = v),
+              Text(t.customHint, style: Theme.of(context).textTheme.bodySmall),
+            ]),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.cancel)),
+        FilledButton(
+          key: const Key('custom-save'),
+          onPressed: () {
+            if (!_form.currentState!.validate()) return;
+            final v = {for (final e in _fields.entries) e.key: _parse(e.value.text)!};
+            Navigator.of(context).pop({
+              'name': _name.text.trim(),
+              'group': _group,
+              'shape': _shape,
+              'securing': _securing,
+              ...v,
+              'stack': v['stack']!.round(),
+            });
+          },
+          child: Text(t.save),
+        ),
+      ],
+    );
+  }
+}
+
 /// Wymiary palet – do zamiany palet na „inny wymiar” (tryb bezpaletowy).
 const _footprints = {'euro': ('1.2', '0.8'), 'industrial': ('1.2', '1.0'), 'half': ('0.8', '0.6')};
 
@@ -30,6 +243,9 @@ InputDecoration _field(String label, {String? suffix}) =>
 /// Pozycja ładunku w formularzu.
 class _Item {
   String kind = 'euro';
+
+  /// Rodzaj towaru z katalogu (`null` – paleta wg [kind]).
+  String? cargo;
   final count = TextEditingController(text: '1');
   final weight = TextEditingController();
   final stack = TextEditingController(text: '1');
@@ -42,6 +258,7 @@ class _Item {
 
   Map<String, dynamic> json() => {
         'kind': kind,
+        if (cargo != null) 'cargo': cargo,
         'count': _parse(count.text)?.round() ?? 1,
         'weight_kg': _parse(weight.text),
         'stack': _parse(stack.text)?.round() ?? 1,
@@ -69,6 +286,161 @@ class LoadPlanScreen extends StatefulWidget {
 
 class _LoadPlanScreenState extends State<LoadPlanScreen> {
   late final Future<dynamic> _vehicles = widget.api.get('/api/vehicles');
+
+  /// Katalog rodzajów towaru (grupy i rodzaje, także własne); `null` – jeszcze nie ma.
+  Map<String, dynamic>? _catalog;
+
+  Map<String, Map<String, dynamic>> get _types => {
+        for (final c in (_catalog?['types'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>())
+          '${c['id']}': c,
+      };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCatalog();
+    _loadEquipment();
+  }
+
+  Future<void> _loadCatalog() async {
+    try {
+      final catalog = await widget.api.get('$_base/cargo-types');
+      if (mounted && catalog is Map<String, dynamic>) setState(() => _catalog = catalog);
+    } catch (_) {
+      // Bez katalogu zostają palety i „inny wymiar”.
+    }
+  }
+
+  /// Wygląd pozycji na rysunku: kształt i grupa rodzaju towaru.
+  CargoLook _look(_Item item) {
+    final type = _types[item.cargo];
+    return CargoLook(
+      item.kind,
+      shape: '${type?['shape'] ?? (item.kind == 'custom' ? 'box' : 'pallet')}',
+      group: '${type?['group'] ?? (item.kind == 'custom' ? 'other' : 'pallets')}',
+      name: '${type?['name'] ?? ''}',
+      securing: '${type?['securing'] ?? 'top'}',
+      gear: [for (final g in (type?['gear'] as List<dynamic>? ?? const [])) '$g'],
+    );
+  }
+
+  String _cargoName(LoadTexts t, _Item item) => '${_types[item.cargo]?['name'] ?? t.kind(item.kind)}';
+
+  String _num(num value) => '$value'.replaceAll(RegExp(r'\.0$'), '');
+
+  /// Rodzaj wybrany: paleta standardowa albo wymiary, wysokość i masa z katalogu (do zmiany).
+  void _applyCargo(_Item item, Map<String, dynamic> type) {
+    _changed(() {
+      item.cargo = '${type['id']}';
+      item.kind = '${type['kind']}';
+      if (item.kind == 'custom') {
+        item.length.text = _num(type['length_m'] as num);
+        item.width.text = _num(type['width_m'] as num);
+      }
+      if (item.height.text.trim().isEmpty && item.kind == 'custom') item.height.text = _num(type['height_m'] as num);
+      if (item.weight.text.trim().isEmpty) item.weight.text = _num(type['weight_kg'] as num);
+      final max = (type['stack'] as int?) ?? 1;
+      if ((_parse(item.stack.text) ?? 1) > max) item.stack.text = '$max';
+    });
+  }
+
+  Future<void> _pickCargo(_Item item) async {
+    final t = LoadTexts.of(context);
+    final catalog = _catalog;
+    if (catalog == null) return;
+    final groups = (catalog['groups'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final types = (catalog['types'] as List<dynamic>).cast<Map<String, dynamic>>();
+    String details(Map<String, dynamic> c) => t.cargoDetails(
+        '${t.number(c['length_m'] as num)} × ${t.number(c['width_m'] as num)} × ${t.number(c['height_m'] as num)} m',
+        '${t.number(c['weight_kg'] as num)} kg',
+        t.number(c['mu'] as num));
+    final picked = await showGroupedPicker<String>(
+      context,
+      texts: PickerTexts(title: t.cargoPickerTitle, search: t.cargoSearch, empty: t.pickerEmpty, all: t.pickerAll),
+      selected: item.cargo,
+      groups: [
+        for (final g in groups)
+          if (types.any((c) => c['group'] == g['id']))
+            PickerGroup('${g['name']}', [
+              for (final c in types)
+                if (c['group'] == g['id'])
+                  PickerOption(
+                    '${c['id']}',
+                    c['custom'] == true ? '${c['name']} (${t.customBadge})' : '${c['name']}',
+                    subtitle: details(c),
+                    icon: _shapeIcons['${c['shape']}'],
+                    trailing: c['custom'] == true
+                        ? Builder(
+                            builder: (dialog) => IconButton(
+                              key: ValueKey('cargo-delete-${c['id']}'),
+                              tooltip: t.delete,
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => Navigator.of(dialog).pop('delete:${c['id']}'),
+                            ),
+                          )
+                        : null,
+                  ),
+            ]),
+      ],
+      actions: (dialog) => [
+        TextButton.icon(
+          key: const Key('cargo-add-custom'),
+          onPressed: () => Navigator.of(dialog).pop('new'),
+          icon: const Icon(Icons.add),
+          label: Text(t.addCustomCargo),
+        ),
+      ],
+    );
+    if (!mounted || picked == null) return;
+    if (picked == 'new') return _addCustom(item);
+    if (picked.startsWith('delete:')) return _deleteCustom(item, picked.substring(7));
+    final type = _types[picked];
+    if (type != null) _applyCargo(item, type);
+  }
+
+  Future<void> _addCustom(_Item item) async {
+    final groups = (_catalog?['groups'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => CustomCargoDialog(groups: groups),
+    );
+    if (data == null || !mounted) return;
+    try {
+      final created = await widget.api.post('$_base/cargo-types', data) as Map<String, dynamic>;
+      await _loadCatalog();
+      if (mounted) _applyCargo(item, created);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
+  Future<void> _deleteCustom(_Item item, String id) async {
+    final t = LoadTexts.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        content: Text(t.deleteCargo('${_types[id]?['name'] ?? ''}')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: Text(t.cancel)),
+          FilledButton(
+              key: const Key('cargo-delete-confirm'),
+              onPressed: () => Navigator.of(dialog).pop(true),
+              child: Text(t.delete)),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.api.delete('$_base/cargo-types/$id');
+      for (final i in _items.where((i) => i.cargo == id)) {
+        i.cargo = null;
+      }
+      await _loadCatalog();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+  }
+
   final _form = GlobalKey<FormState>();
   final _items = [_Item()];
   final _deck = TextEditingController();
@@ -86,6 +458,48 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
   bool _straps = true;
   bool _vectors = true;
   final _checked = <String>{};
+
+  /// Wyposażenie użytkownika (ile sztuk sprzętu ma) i czy uwzględniać je w planie.
+  Map<String, int> _equipment = {};
+  bool _useEquipment = false;
+
+  /// Plan zaproponował maty (z wyposażenia) – sprawdzenie ręcznego ułożenia i PDF też z matami.
+  bool get _planMats => _plan?['mats'] == true;
+
+  Future<void> _loadEquipment() async {
+    try {
+      final data = await widget.api.get('$_base/equipment') as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _equipment = {for (final e in (data['items'] as Map<String, dynamic>).entries) e.key: e.value as int};
+        _useEquipment = data['enabled'] == true;
+      });
+    } catch (_) {
+      // Bez zapisanego wyposażenia – plan bez ograniczeń sprzętu.
+    }
+  }
+
+  Future<void> _editEquipment() async {
+    final result = await showDialog<(Map<String, int>, bool)>(
+      context: context,
+      builder: (_) => EquipmentDialog(items: _equipment, enabled: _useEquipment),
+    );
+    if (result == null || !mounted) return;
+    final (items, enabled) = result;
+    _changed(() {
+      _equipment = items;
+      _useEquipment = enabled;
+    });
+    try {
+      await widget.api.put('$_base/equipment', {'items': items, 'enabled': enabled});
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
+    if (_plan != null && mounted) await _recalculate();
+  }
+
+  /// Sprzęt z listy pod kursorem – podświetlony na rysunku.
+  String? _gearHover;
   bool _approved = false;
 
   Map<String, dynamic> _body() => {
@@ -96,6 +510,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
         'mats': _mats,
         'body_code': _bodyCode,
         'reference': _reference.text.trim(),
+        if (_useEquipment) 'available': _equipment,
       };
 
   /// Każda zmiana danych cofa zatwierdzenie planu.
@@ -128,7 +543,8 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
   /// Ręczne ułożenie (przeciągnięte palety): serwer liczy naciski i ostrzeżenia od nowa.
   Future<void> _check(List<Map<String, dynamic>> placed) {
     _manual = true;
-    return _run(() => widget.api.post('$_base/plan/check', {..._body(), 'placed': placed}), check: true);
+    return _run(() => widget.api.post('$_base/plan/check', {..._body(), 'mats': _mats || _planMats, 'placed': placed}),
+        check: true);
   }
 
   Future<void> _calculate() async {
@@ -153,6 +569,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
       final link = await widget.api.post('$_base/plan/pdf', {
         ..._body(),
         if (_manual && _plan != null) 'placed': _plan!['placed'],
+        if (_manual) 'mats': _mats || _planMats,
         'checked': _checked.toList(),
         'approved': _approved,
       }) as Map<String, dynamic>;
@@ -192,10 +609,16 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
             }
             item.kind = 'custom';
           case 'stacked':
-            if (item.kind == 'custom') item.kind = 'euro';
+            if (item.kind == 'custom') {
+              item.kind = 'euro';
+              item.cargo = null;
+            }
             item.stack.text = '2';
           default:
-            if (item.kind == 'custom') item.kind = 'euro';
+            if (item.kind == 'custom') {
+              item.kind = 'euro';
+              item.cargo = null;
+            }
             item.stack.text = '1';
         }
       }
@@ -256,7 +679,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
         final form = _orderForm(context, vehicles);
         final simulator = SimulatorCard(
           plan: plan,
-          kinds: [for (final i in _items) i.kind],
+          kinds: [for (final i in _items) _look(i)],
           mode: _mode,
           onMode: _busy ? null : _setMode,
           view: _view,
@@ -265,6 +688,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
           onStraps: (v) => setState(() => _straps = v),
           vectors: _vectors,
           onVectors: (v) => setState(() => _vectors = v),
+          highlight: _gearHover,
           edit: plan == null
               ? null
               : PlanDeck(plan: plan, onMoved: _check, onRearrange: _busy ? null : _calculate, embedded: true),
@@ -275,6 +699,11 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
                 plan: plan,
                 checked: _checked,
                 onChecked: (id, on) => _changed(() => on ? _checked.add(id) : _checked.remove(id)),
+                available: _useEquipment ? _equipment : null,
+                highlight: _gearHover,
+                onHighlight: (id) {
+                  if (id != _gearHover) setState(() => _gearHover = id);
+                },
               );
         final side = plan == null
             ? <Widget>[
@@ -391,13 +820,21 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
             child: Column(children: [
               Row(children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: item.kind,
-                    decoration: _field(t.items).copyWith(fillColor: fill),
-                    items: [for (final k in itemKinds) DropdownMenuItem(value: k, child: Text(t.kind(k)))],
-                    onChanged: (k) => _changed(() => item.kind = k ?? 'euro'),
-                  ),
+                  child: _catalog == null
+                      ? DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          value: item.kind,
+                          decoration: _field(t.items).copyWith(fillColor: fill),
+                          items: [for (final k in itemKinds) DropdownMenuItem(value: k, child: Text(t.kind(k)))],
+                          onChanged: (k) => _changed(() => item.kind = k ?? 'euro'),
+                        )
+                      : PickerField(
+                          key: ValueKey('cargo-field-$index'),
+                          label: t.cargoType,
+                          value: _cargoName(t, item),
+                          icon: _shapeIcons[_look(item).shape],
+                          onTap: () => _pickCargo(item),
+                        ),
                 ),
                 if (_items.length > 1)
                   IconButton(
@@ -429,6 +866,22 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
               ]),
             ]),
           ),
+        Padding(
+          padding: const EdgeInsets.only(top: Gap.m),
+          child: Wrap(spacing: Gap.m, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            OutlinedButton.icon(
+              key: const Key('my-equipment'),
+              onPressed: _editEquipment,
+              icon: const Icon(Icons.handyman_outlined),
+              label: Text(t.myEquipment),
+            ),
+            StatusChip(
+              label: _useEquipment ? t.equipmentOn(_equipment.values.where((v) => v > 0).length) : t.equipmentOff,
+              tone: _useEquipment ? StatusTone.info : StatusTone.neutral,
+              uppercase: false,
+            ),
+          ]),
+        ),
         Wrap(spacing: Gap.xl, children: [
           for (final (value, label, set) in [
             (_frontWall, t.frontWall, (bool on) => _frontWall = on),
@@ -508,7 +961,8 @@ class _PlanDeckState extends State<PlanDeck> {
           ),
       ]),
       const SizedBox(height: Gap.s),
-      Text(_moving ? t.moveItemsHint : t.moveViewHint, style: theme.textTheme.bodySmall),
+      Text(_moving ? t.moveItemsHint : (desktop ? t.moveViewHintDesktop : t.moveViewHint),
+          style: theme.textTheme.bodySmall),
       Text(t.front, style: theme.textTheme.bodySmall),
       DeckView(plan: plan, moving: _moving && widget.onMoved != null, onMoved: widget.onMoved ?? (_) {}),
       const SizedBox(height: Gap.s),
@@ -545,10 +999,13 @@ class SimulatorCard extends StatelessWidget {
     required this.vectors,
     required this.onVectors,
     this.edit,
+    this.highlight,
   });
 
+  /// Sprzęt podświetlony z listy VDI 2700.
+  final String? highlight;
   final Map<String, dynamic>? plan;
-  final List<String> kinds;
+  final List<CargoLook> kinds;
   final String mode;
   final ValueChanged<String>? onMode;
   final String view;
@@ -630,6 +1087,7 @@ class SimulatorCard extends StatelessWidget {
             vectors: vectors,
             onStraps: onStraps,
             onVectors: onVectors,
+            highlight: highlight,
           ),
         if (plan != null) ...[
           const SizedBox(height: Gap.m),
@@ -649,10 +1107,12 @@ class _Drawing extends StatelessWidget {
     required this.vectors,
     required this.onStraps,
     required this.onVectors,
+    this.highlight,
   });
 
+  final String? highlight;
   final Map<String, dynamic> plan;
-  final List<String> kinds;
+  final List<CargoLook> kinds;
   final SimView view;
   final bool straps;
   final bool vectors;
@@ -688,13 +1148,17 @@ class _Drawing extends StatelessWidget {
           color: background,
           child: AspectRatio(
             aspectRatio: view == SimView.top ? 2.6 : (view == SimView.section ? 2.4 : 1.9),
-            child: InteractiveViewer(
-              maxScale: 5,
-              child: CustomPaint(
-                key: ValueKey('sim-view-${view.name}'),
-                painter: SimPainter(scene: scene, view: view, straps: straps, vectors: vectors, texts: t, dark: dark),
-                child: const SizedBox.expand(),
-              ),
+            child: CustomPaint(
+              key: ValueKey('sim-view-${view.name}'),
+              painter: SimPainter(
+                  scene: scene,
+                  view: view,
+                  straps: straps,
+                  vectors: vectors,
+                  texts: t,
+                  dark: dark,
+                  highlight: highlight),
+              child: const SizedBox.expand(),
             ),
           ),
         ),

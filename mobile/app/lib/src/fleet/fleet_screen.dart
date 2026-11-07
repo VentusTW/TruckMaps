@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../vehicles/body_types.dart';
 
 const _towed = {'semitrailer', 'trailer'};
 
@@ -19,6 +20,12 @@ FleetStatus fleetStatus(Map<String, dynamic> v) {
 
 /// Kategorie zakładek (jak we wzorze); `null` – wszystkie.
 enum FleetTab { all, tractors, curtains, reefers, swap }
+
+/// Zakładka „Plandeki”: naczepy z plandeką (także mega i z przesuwnym dachem).
+const _curtains = {'curtain', 'mega', 'sliding_roof'};
+
+/// Zakładka „Wymienne”: kontenery i nadwozia wymienne.
+const _swap = {'container', 'swap_body'};
 
 /// Ekran „Pojazdy i Tabor” według projektu Stitch. Dane z `/api/vehicles` (pojazdy firmy);
 /// czego API jeszcze nie ma (telemetria CAN, rampy, opony, naciski osi) – znacznik „W budowie”.
@@ -128,18 +135,18 @@ class _FleetScreenState extends State<FleetScreen> {
     return switch (tab) {
       FleetTab.all => true,
       FleetTab.tractors => v['kind'] == 'tractor',
-      FleetTab.curtains => trailer?['trailer_type'] == 'curtain',
-      FleetTab.reefers => trailer?['trailer_type'] == 'reefer' || v['trailer_type'] == 'reefer',
-      FleetTab.swap => trailer?['trailer_type'] == 'container' || v['trailer_type'] == 'container',
+      FleetTab.curtains => _curtains.contains(trailer?['trailer_type']),
+      FleetTab.reefers => atpBodies.contains(trailer?['trailer_type']) || atpBodies.contains(v['trailer_type']),
+      FleetTab.swap => _swap.contains(trailer?['trailer_type']) || _swap.contains(v['trailer_type']),
     };
   }
 
   int _tabCount(FleetTab tab) => switch (tab) {
         FleetTab.all => _all.length,
         FleetTab.tractors => _all.where((v) => v['kind'] == 'tractor').length,
-        FleetTab.curtains => _trailers.where((v) => v['trailer_type'] == 'curtain').length,
-        FleetTab.reefers => _trailers.where((v) => v['trailer_type'] == 'reefer').length,
-        FleetTab.swap => _all.where((v) => v['trailer_type'] == 'container').length,
+        FleetTab.curtains => _trailers.where((v) => _curtains.contains(v['trailer_type'])).length,
+        FleetTab.reefers => _trailers.where((v) => atpBodies.contains(v['trailer_type'])).length,
+        FleetTab.swap => _all.where((v) => _swap.contains(v['trailer_type'])).length,
       };
 
   List<Map<String, dynamic>> get _rows {
@@ -682,7 +689,7 @@ class _FleetScreenState extends State<FleetScreen> {
                   if (trailer != null) ...[
                     const SizedBox(height: Gap.xs),
                     Row(children: [
-                      Icon(trailer['trailer_type'] == 'reefer' ? Icons.ac_unit_outlined : Icons.rv_hookup_outlined,
+                      Icon(atpBodies.contains(trailer['trailer_type']) ? Icons.ac_unit_outlined : Icons.rv_hookup_outlined,
                           size: 14, color: scheme.outline),
                       const SizedBox(width: 6),
                       Flexible(

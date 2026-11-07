@@ -493,9 +493,9 @@ class _WelcomeCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final colors = TruckColors.of(context);
-    final name = uiStr(screen['greeting_name']).isNotEmpty
-        ? uiStr(screen['greeting_name'])
-        : userName.trim().split(RegExp(r'\s+')).first;
+    // Imię zalogowanego użytkownika (z profilu konta); dane pulpitu – tylko gdy imienia brak.
+    final first = userName.trim().split(RegExp(r'\s+')).first;
+    final name = first.isNotEmpty ? first : uiStr(screen['greeting_name']);
     Widget button(String label, IconData icon, Color bg, Color fg, Key key) => Padding(
           padding: const EdgeInsets.only(bottom: Gap.s),
           child: FilledButton.icon(

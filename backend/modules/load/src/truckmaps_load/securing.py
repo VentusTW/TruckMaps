@@ -61,6 +61,28 @@ def row_tension_daN(weight_kg: float, mu: float, forward: bool) -> float:
     return needed / 10  # N → daN
 
 
+# Mocowanie bezpośrednie (łańcuchy / pasy przy ładunku), uproszczone wg EN 12195-1:
+# 4 odciągi pod kątem α = 45° do podłogi i β = 30° do osi pojazdu, na kierunek pracują 2.
+DIRECT_SAFETY = 1.25
+LASHINGS_PER_PIECE = 4
+CHAIN_DAN = 5_000
+"""Dopuszczalna siła mocowania (LC) łańcucha 8 mm klasy 8."""
+_SIN_A = math.sin(math.radians(45))
+_K_LONG = math.cos(math.radians(45)) * math.cos(math.radians(30))
+_K_SIDE = math.cos(math.radians(45)) * math.sin(math.radians(30))
+
+
+def direct_lc_daN(weight_kg: float, mu: float, forward: bool) -> float:
+    """Wymagana siła LC jednego odciągu przy mocowaniu bezpośrednim [daN]."""
+    needed = 0.0
+    for c, k in [(C_SIDE, _K_SIDE), (C_BACK, _K_LONG)] + (
+        [(C_FORWARD, _K_LONG)] if forward else []
+    ):
+        if c > mu:
+            needed = max(needed, DIRECT_SAFETY * weight_kg * G * (c - mu) / (2 * (mu * _SIN_A + k)))
+    return needed / 10
+
+
 def straps_for(tension_daN: float, strap_daN: int) -> int:
     return max(1, math.ceil(tension_daN / strap_daN - 1e-9))
 
@@ -95,29 +117,40 @@ class Forces(BaseModel):
     straps: int
     strap_daN: int
     ok: bool
-    """Liczba pasów da się założyć na długości rzędów."""
+    """Liczba pasów da się założyć na długości rzędów, odciągi mają wystarczające LC."""
+    lashings: int = 0
+    """Odciągi mocowania bezpośredniego (łańcuchy / pasy przy ładunku)."""
+    lashing_daN: float = 0
+    """Największa wymagana siła LC jednego odciągu."""
+    chain_daN: int = CHAIN_DAN
 
 
 def forces(
     mass_kg: float, mu: float, wall_kN: float | None, against_wall: bool, code: BodyCode,
-    tension_daN: float, straps: int, strap_daN: int, ok: bool,
+    tension_daN: float, straps: int, strap_daN: int, ok: bool, *,
+    friction_kN: float | None = None, rest_forward_kN: float | None = None,
+    rest_side_kN: float | None = None, lashings: int = 0, lashing_daN: float = 0,
 ) -> Forces:  # fmt: skip
+    """Bilans; przy różnych towarach tarcie i reszty sił liczone sztuka po sztuce (podane)."""
     kn = mass_kg * G / 1000
-    rest_forward = max(0.0, (C_FORWARD - mu) * kn)
+    rest_forward = max(0.0, (C_FORWARD - mu) * kn) if rest_forward_kN is None else rest_forward_kN
+    rest_side = max(0.0, (C_SIDE - mu) * kn) if rest_side_kN is None else rest_side_kN
     return Forces(
         mass_kg=round(mass_kg, 1),
         mu=mu,
         forward_kN=round(C_FORWARD * kn, 1),
         side_kN=round(C_SIDE * kn, 1),
-        friction_kN=round(mu * kn, 1),
+        friction_kN=round(mu * kn if friction_kN is None else friction_kN, 1),
         rest_forward_kN=round(rest_forward, 1),
-        rest_side_kN=round(max(0.0, (C_SIDE - mu) * kn), 1),
+        rest_side_kN=round(rest_side, 1),
         wall_kN=wall_kN,
         wall_holds=wall_holds(against_wall, code, wall_kN, rest_forward),
         tension_daN=round(tension_daN),
         straps=straps,
         strap_daN=strap_daN,
         ok=ok,
+        lashings=lashings,
+        lashing_daN=round(lashing_daN),
     )
 
 
@@ -179,12 +212,17 @@ def tractor_problems(t: Tractor) -> list[str]:
 class Equipment(BaseModel):
     """Pozycja listy sprzętu (VDI 2700): ile sztuk potrzeba."""
 
-    id: Literal["straps", "edges", "beams", "mats", "airbags"]
+    id: Literal["straps", "edges", "beams", "mats", "airbags", "chains", "chocks", "net", "stakes"]
     required: int
 
 
-def equipment(straps: int, stops: int, front_gap: bool, mats: int, airbags: int) -> list[Equipment]:
-    return [
+def equipment(
+    straps: int, stops: int, front_gap: bool, mats: int, airbags: int,
+    extra: dict[str, int] | None = None,
+) -> list[Equipment]:  # fmt: skip
+    """Lista sprzętu; ``extra`` – łańcuchy, kliny, siatki, kłonice (gdy potrzebne)."""
+    more = [Equipment(id=k, required=v) for k, v in (extra or {}).items() if v > 0]
+    return more + [
         Equipment(id="straps", required=straps),
         Equipment(id="edges", required=straps * 2),  # dwa narożniki na pas (obie krawędzie)
         # Belka za każdym rozładunkiem poza ostatnim i przy luce przy ścianie czołowej.
