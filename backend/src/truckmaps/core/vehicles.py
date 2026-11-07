@@ -39,6 +39,7 @@ from truckmaps.core.registration import (
     vehicle_data_from_text,
 )
 from truckmaps.sdk import Principal
+from truckmaps.sdk.fleet import ATP_BODIES, BODY_GROUPS, TANK_BODIES
 
 # Znaki i zakazy "dla samochodów ciężarowych" dotyczą pojazdów o DMC powyżej 3,5 t.
 HGV_MIN_GVW_T = 3.5
@@ -129,15 +130,11 @@ TACHOGRAPH_KINDS = {
 """Rodzaje z tachografem (dostawczy do 3,5 t go nie ma)."""
 
 
-class TrailerType(StrEnum):
-    NONE = "none"
-    CURTAIN = "curtain"
-    BOX = "box"
-    REEFER = "reefer"
-    TANKER = "tanker"
-    FLATBED = "flatbed"
-    CONTAINER = "container"
-    LOWLOADER = "lowloader"
+TrailerType = StrEnum(
+    "TrailerType",
+    {"NONE": "none"} | {body.upper(): body for bodies in BODY_GROUPS.values() for body in bodies},
+)
+"""Rodzaj zabudowy: ``none`` (ciągnik, autobus…) i rodzaje z ``BODY_GROUPS`` (SDK)."""
 
 
 def _now() -> datetime:
@@ -286,7 +283,7 @@ class VehicleIn(BaseModel):
     def gvw_not_below_weight(self) -> "VehicleIn":
         if self.kind in DRIVABLE and self.axle_count < 2:
             raise ValueError(t("error.vehicle_axles"))
-        if self.trailer_type != TrailerType.TANKER:
+        if self.trailer_type not in TANK_BODIES:
             self.tank_volume_m3 = None
         if self.kind != VehicleKind.BUS:
             self.seats = self.standing_places = None
@@ -401,7 +398,7 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
         motor = self.kind not in TOWED
         if self.kind not in BODY_KINDS:
             self.trailer_type = TrailerType.NONE
-        if self.kind not in BODY_KINDS or self.trailer_type == TrailerType.TANKER:
+        if self.kind not in BODY_KINDS or self.trailer_type in TANK_BODIES:
             self.pallet_places = None
         if not motor:
             self.emission_class = self.co2_class = self.fuel_type = None
@@ -419,7 +416,7 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
             raise ValueError(t("error.consumption_loaded_below_empty"))
         if self.kind not in TACHOGRAPH_KINDS:
             self.tachograph_until = self.tachograph_download_until = None
-        if self.trailer_type != TrailerType.REEFER:
+        if self.trailer_type not in ATP_BODIES:
             self.atp_until = None
         if self.kind != VehicleKind.TRACTOR:
             self.fifth_wheel_m = None
@@ -433,7 +430,7 @@ class VehicleData(VehicleIn, ServiceDates, CostRates):
             raise ValueError(t("error.axles_before_kingpin"))
         if self.axles_m and self.axles_m > self.length_m:
             raise ValueError(t("error.axles_beyond_length"))
-        if self.trailer_type != TrailerType.TANKER:
+        if self.trailer_type not in TANK_BODIES:
             self.tdt_until = None
         if not self.hazmat:
             self.adr_until = None

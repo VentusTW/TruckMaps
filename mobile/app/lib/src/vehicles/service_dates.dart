@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../l10n.dart';
+import 'body_types.dart';
 
 /// Rodzaje z zabudową (plandeka, chłodnia, cysterna…) – jak na serwerze.
 const bodyKinds = {'combination', 'rigid', 'van', 'semitrailer', 'trailer'};
@@ -72,8 +73,8 @@ String serviceDateLabel(AppLocalizations l, String key) => switch (key) {
 bool serviceDateApplies(String key, {required String kind, required String body, required bool hazmat}) =>
     switch (key) {
       'tachograph_until' || 'tachograph_download_until' => tachographKinds.contains(kind),
-      'atp_until' => bodyKinds.contains(kind) && body == 'reefer',
-      'tdt_until' => bodyKinds.contains(kind) && body == 'tanker',
+      'atp_until' => bodyKinds.contains(kind) && atpBodies.contains(body),
+      'tdt_until' => bodyKinds.contains(kind) && tankBodies.contains(body),
       'adr_until' => hazmat,
       'ocp_until' => !towedKinds.contains(kind),
       _ => true,

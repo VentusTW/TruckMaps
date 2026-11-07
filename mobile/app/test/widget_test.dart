@@ -144,7 +144,9 @@ void main() {
     expect(find.text('Główny Dyspozytor'), findsOneWidget);
     expect(find.text('318 / 323'), findsOneWidget);
     // Pulpit.
-    expect(find.text('Dzień dobry, Michale'), findsOneWidget);
+    // Imię zalogowanego użytkownika, nie z danych pokazowych pulpitu.
+    expect(find.text('Dzień dobry, Michał'), findsOneWidget);
+    expect(find.text('Dzień dobry, Michale'), findsNothing);
     expect(find.text('Dyżur: Zmiana Dzienna (06:00 – 18:00)'), findsOneWidget);
     expect(find.text('98.4% Sprawności Floty'), findsOneWidget);
     expect(find.text('AKTYWNE ZESTAWY W TRASIE'), findsOneWidget);

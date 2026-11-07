@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../vehicles/body_types.dart';
 import 'fleet_screen.dart' show FleetStatus, fleetStatus;
 
 const towedKinds = {'semitrailer', 'trailer'};
@@ -382,16 +383,8 @@ class _VehicleScreenState extends State<VehicleScreen> {
     );
   }
 
-  String? _trailerType(AppLocalizations l, dynamic type) => switch (type) {
-        'curtain' => l.vehTypeCurtain,
-        'reefer' => l.vehTypeReefer,
-        'box' => l.vehTypeBox,
-        'tanker' => l.vehTypeTanker,
-        'flatbed' => l.vehTypeFlatbed,
-        'container' => l.vehTypeContainer,
-        'lowloader' => l.vehTypeLowloader,
-        _ => null,
-      };
+  String? _trailerType(AppLocalizations l, dynamic type) =>
+      type == null || type == 'none' ? null : bodyLabel(l, '$type');
 
   // ------------------------------------------------------------------ układ jezdny
 

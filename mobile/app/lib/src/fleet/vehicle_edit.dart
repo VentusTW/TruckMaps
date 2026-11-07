@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../vehicles/body_types.dart';
 import 'vehicle_screen.dart' show towedKinds;
 
 /// Pola liczbowe karty pojazdu (klucz serwera → czy całkowite).
@@ -499,15 +500,15 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
         _text(context, l.vehBurnLoaded, 'consumption_loaded', unit: 'l/100 km'),
         _wip(context, l.vehTanks),
         if (_towed)
-          _drop<String>(context, l.vehTrailerType, 'trailer_type', [
-            ('curtain', l.vehTypeCurtain),
-            ('reefer', l.vehTypeReefer),
-            ('box', l.vehTypeBox),
-            ('tanker', l.vehTypeTanker),
-            ('flatbed', l.vehTypeFlatbed),
-            ('container', l.vehTypeContainer),
-            ('lowloader', l.vehTypeLowloader),
-            ('none', '–'),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _label(context, l.vehTrailerType),
+            BodyField(
+              key: const Key('veh-trailer_type'),
+              label: '',
+              value: '${_pick['trailer_type'] ?? 'curtain'}',
+              none: true,
+              onChanged: (v) => setState(() => _pick['trailer_type'] = v),
+            ),
           ])
         else
           const SizedBox(),

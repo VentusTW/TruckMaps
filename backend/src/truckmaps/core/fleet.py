@@ -10,10 +10,11 @@ from truckmaps.core import inbox, shared
 from truckmaps.core.companies import SERVICES_VEHICLES, Company, CompanyMember, company_ids
 from truckmaps.core.db import get_session
 from truckmaps.core.trips import VehicleTrip
-from truckmaps.core.vehicles import TrailerType, VehicleProfile, load_owned
+from truckmaps.core.vehicles import VehicleProfile, load_owned
 from truckmaps.sdk import Principal
 from truckmaps.sdk.fleet import (
     PRIVATE,
+    TANK_BODIES,
     CargoInfo,
     CompanyInfo,
     DriverAssignedHandler,
@@ -90,7 +91,6 @@ class CoreFleet:
         if vehicle is None:
             return None
         trailer = db.get(VehicleProfile, vehicle.trailer_id) if vehicle.trailer_id else None
-        tanker = TrailerType.TANKER
         return DrivingInfo(
             vehicle_id=vehicle.id,
             name=vehicle.name,
@@ -100,8 +100,8 @@ class CoreFleet:
             gvw_t=vehicle.gvw_t or vehicle.weight_t,
             seats=vehicle.seats,
             hazmat=bool(vehicle.hazmat or (trailer and trailer.hazmat)),
-            tanker=vehicle.trailer_type == tanker
-            or bool(trailer and trailer.trailer_type == tanker),
+            tanker=vehicle.trailer_type in TANK_BODIES
+            or bool(trailer and trailer.trailer_type in TANK_BODIES),
             trailer_kind=trailer.kind if trailer else None,
             trailer_gvw_t=(trailer.gvw_t or trailer.weight_t) if trailer else None,
             assigned_driver=vehicle.assigned_driver,
@@ -207,6 +207,7 @@ class CoreFleet:
             kingpin_m=vehicle.kingpin_m,
             axles_m=vehicle.axles_m,
             wheelbase_m=vehicle.wheelbase_m,
+            body="" if vehicle.trailer_type == "none" else vehicle.trailer_type,
         )
 
     def staff(self, db: Session, vehicle_id: str) -> list[str]:

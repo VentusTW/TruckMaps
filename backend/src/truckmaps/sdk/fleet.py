@@ -16,6 +16,37 @@ SERVICE_ROLES = frozenset({"owner", "dispatcher", "mechanic", PRIVATE})
 """Kto obsługuje pojazd (przegląd, naprawa): właściciel, dyspozytor, mechanik albo właściciel
 pojazdu prywatnego."""
 
+BODY_GROUPS: dict[str, tuple[str, ...]] = {
+    # Ładunki ogólne i paletowe.
+    "general": ("curtain", "mega", "box", "jumbo", "double_deck", "sliding_roof"),
+    # Temperatura kontrolowana (ATP).
+    "temperature": ("reefer", "isotherm", "multitemp"),
+    # Platformy, kłonice i kręgi – stal, wyroby długie.
+    "flat": ("flatbed", "stake", "coil"),
+    # Ciężkie i ponadgabarytowe.
+    "heavy": ("lowloader", "extendable", "modular"),
+    # Drewno (dłużyca, kłody).
+    "timber": ("timber",),
+    # Sypkie i masowe.
+    "bulk": ("tipper", "walking_floor", "silo", "hopper"),
+    # Płyny i gazy (cysterny).
+    "liquid": ("tanker", "tanker_food", "tanker_chem", "tanker_gas", "tanker_fuel"),
+    # Kontenery i nadwozia wymienne.
+    "containers": ("container", "swap_body"),
+    # Specjalne: samochody, zwierzęta, szkło, napoje.
+    "special": ("car_transporter", "livestock", "glass", "beverage"),
+}
+"""Rodzaje zabudowy (naczepy, przyczepy, skrzynie) pogrupowane wg przewożonego towaru."""
+
+BODY_GROUP = {body: group for group, bodies in BODY_GROUPS.items() for body in bodies}
+"""Grupa rodzaju zabudowy."""
+
+TANK_BODIES = frozenset({*BODY_GROUPS["liquid"], "silo"})
+"""Zbiorniki (cysterny i silosy): bez miejsc paletowych, badanie TDT, ograniczenia dla cystern."""
+
+ATP_BODIES = frozenset(BODY_GROUPS["temperature"])
+"""Zabudowy izotermiczne i chłodnie – świadectwo ATP."""
+
 
 @dataclass(frozen=True)
 class VehicleInfo:
@@ -54,6 +85,8 @@ class CargoInfo:
     """Naczepa / przyczepa: środek zespołu osi od przodu."""
     wheelbase_m: float | None = None
     """Solówka: rozstaw osi (przednia – środek tylnych)."""
+    body: str = ""
+    """Rodzaj zabudowy (``BODY_GROUPS``); pusty – nie wiadomo."""
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ library;
 export 'src/api.dart';
 export 'src/components.dart';
 export 'src/module.dart';
+export 'src/picker.dart';
 export 'src/registry.dart';
 export 'src/shell.dart';
 export 'src/theme.dart';

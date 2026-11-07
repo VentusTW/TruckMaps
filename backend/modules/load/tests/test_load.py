@@ -59,9 +59,10 @@ def test_straps_per_row_by_en_12195_1():
     assert plan(make(heavy), 13.6, 2.48, None).rows[0].straps == 3
     # Z matą (μ 0,6) tarcie trzyma – zostaje jeden pas na rząd.
     assert plan(make(heavy, mats=True), 13.6, 2.48, None).rows[0].straps == 1
-    # Bez ściany czołowej liczy się hamowanie 0,8 g.
+    # Bez ściany czołowej liczy się hamowanie 0,8 g: rząd 2,4 t potrzebuje 6 pasów – za dużo na
+    # 1,2 m, więc plan kładzie po 2 palety w rzędzie (1,6 t – 4 pasy).
     loose = plan(make(heavy, front_wall=False), 13.6, 2.48, None)
-    assert loose.rows[0].straps == 6
+    assert [r.straps for r in loose.rows] == [4, 2] and loose.forces.ok
     assert any("ścianę czołową" in w for w in loose.warnings)
 
 
@@ -122,8 +123,21 @@ def test_heavy_short_load_is_moved_back_so_the_fifth_wheel_is_not_overloaded():
     kingpin, axles = result.axles
     assert (kingpin.name, axles.name) == ("kingpin", "trailer_axles")
     assert not kingpin.over and not axles.over and result.fits
-    assert result.adjusted and result.offset_m == pytest.approx(3.25, abs=0.06)
-    assert any("odsunięty od ściany czołowej" in w for w in result.warnings)
+    # Rzędy po 2 palety (4 t) nie dają się zamocować pasami bez mat – plan kładzie po jednej
+    # palecie w rzędzie (10 m) z luką nad osiami: naciski, ciągnik i mocowanie w normie,
+    # ładunek oparty o ścianę czołową.
+    assert result.adjusted and result.offset_m == 0
+    assert {
+        sum(1 for p in result.placed if p.x_m == x) for x in {p.x_m for p in result.placed}
+    } == {1}
+    assert any(w.startswith("Luka") for w in result.warnings)
+    assert result.forces.ok and all(n.ok for n in result.norms if n.id != "en12642")
+    assert any(w.startswith("Ładunek ułożono tak") for w in result.warnings)
+    assert not any(w.startswith("Nie da się") for w in result.warnings)
+    # Z matami antypoślizgowymi wystarczą pełne rzędy (po 2), odsunięte nad osie.
+    mats = plan(heavy.model_copy(update={"mats": True}), 13.6, 2.48, 32_000, SEMITRAILER)
+    assert not any(w.startswith("Nie da się") for w in mats.warnings) and mats.forces.ok
+    assert mats.used_length_m < 10.0
     assert result.inner_height_m == 2.7 and result.placed[0].height_m == 1.1
 
 
@@ -173,9 +187,9 @@ def test_dragged_layout_is_checked_without_rearranging():
     planned = client.post("/api/m/load/plan", json=body, headers=headers).json()
     assert planned["adjusted"] and not any(a["over"] for a in planned["axles"])
 
-    # Kierowca przeciąga wszystko do ściany czołowej – siodło przeciążone, bez przestawiania.
-    first = min(p["x_m"] for p in planned["placed"])
-    dragged = [p | {"x_m": round(p["x_m"] - first, 2)} for p in planned["placed"]]
+    # Kierowca układa wszystko ciasno przy ścianie czołowej – siodło przeciążone, bez przestawiania.
+    laid, _, _ = _lay(_rows(make(items), 2.48), 0.0, 13.6)
+    dragged = [p.model_dump() for p in laid]
     checked = client.post(
         "/api/m/load/plan/check", json=body | {"placed": dragged}, headers=headers
     ).json()
