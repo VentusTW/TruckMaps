@@ -230,7 +230,7 @@ class _PermitFormScreenState extends State<PermitFormScreen> {
           ];
           return Form(
             key: _form,
-            child: ListView(padding: const EdgeInsets.all(16), children: [
+            child: SectionedListView(padding: const EdgeInsets.all(16), children: [
               TextFormField(
                 controller: _number,
                 decoration: field(l.permitNumber),
@@ -252,7 +252,7 @@ class _PermitFormScreenState extends State<PermitFormScreen> {
                 ),
               ]),
               const SizedBox(height: 16),
-              Text(l.permitCovers, style: theme.textTheme.titleSmall),
+              SectionHeader(l.permitCovers),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [
                 for (final (key, label, suffix) in [
@@ -281,7 +281,7 @@ class _PermitFormScreenState extends State<PermitFormScreen> {
               ),
               Text(l.permitCoversHint, style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              Text(l.permitScope, style: theme.textTheme.titleSmall),
+              SectionHeader(l.permitScope),
               const SizedBox(height: 8),
               SegmentedButton<String>(
                 segments: [
@@ -326,7 +326,7 @@ class _PermitFormScreenState extends State<PermitFormScreen> {
                 if (_lat == null) Text(l.permitPlaceRequired, style: TextStyle(color: theme.colorScheme.error)),
               ],
               const SizedBox(height: 16),
-              Text(l.permitVehicles, style: theme.textTheme.titleSmall),
+              SectionHeader(l.permitVehicles),
               Text(l.permitVehiclesHint, style: theme.textTheme.bodySmall),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [

@@ -37,7 +37,7 @@ void main() {
     expect(find.text('3 w użyciu'), findsOneWidget);
     expect(find.text('W TRASIE'), findsOneWidget);
     expect(find.text('Bez problemów'), findsOneWidget);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(TruckProgressBar), findsOneWidget);
     await tester.tap(find.text('Awaria'));
     expect(tapped, 1);
     expect(find.byIcon(Icons.chevron_right), findsOneWidget);

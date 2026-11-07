@@ -5,10 +5,7 @@ import 'package:intl/intl.dart';
 import 'inbox_screen.dart' show inboxTitle;
 import 'l10n.dart';
 import 'planner/recent.dart';
-import 'vehicles/service_dates.dart';
-import 'vehicles/vehicle_actions.dart' show vehicleTitle;
-import 'vehicles/vehicle_form.dart' show kindIcon;
-import 'vehicles/vehicle_state.dart';
+import 'vehicles/fleet_widgets.dart';
 
 /// Pulpit startowy: szybkie akcje i to, co wymaga uwagi – terminy i stan pojazdów, nowe
 /// wiadomości, ostatnie trasy oraz sekcje modułów (np. otwarte usterki, terminy kierowców).
@@ -98,16 +95,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final width = (size.maxWidth - pad * 2 - Gap.m * (columns - 1)) / columns;
         final kpiColumns = size.maxWidth >= 1100 ? 5 : (size.maxWidth >= 720 ? 3 : 2);
         final kpiWidth = (size.maxWidth - pad * 2 - Gap.m * (kpiColumns - 1)) / kpiColumns;
+        const onBrand = Colors.white;
+        final light = FilledButton.styleFrom(backgroundColor: onBrand, foregroundColor: TruckPalette.brand);
+        final glass = OutlinedButton.styleFrom(
+          foregroundColor: onBrand,
+          side: BorderSide(color: onBrand.withOpacity(0.6)),
+          backgroundColor: onBrand.withOpacity(0.08),
+        );
         return ListView(padding: EdgeInsets.all(pad), children: [
-          Row(children: [
-            Expanded(
-              child: Text(widget.userName.isEmpty ? greeting : '$greeting, ${widget.userName}',
-                  style: theme.textTheme.headlineMedium),
+          // Nagłówek w gradiencie marki: powitanie, data i szybkie akcje.
+          Container(
+            padding: const EdgeInsets.all(Gap.xl),
+            decoration: BoxDecoration(
+              gradient: TruckGradients.brand,
+              borderRadius: BorderRadius.circular(TruckTheme.radius * 2),
+              boxShadow: [BoxShadow(color: TruckPalette.brand.withOpacity(0.25), blurRadius: 16, offset: const Offset(0, 6))],
             ),
-            IconButton(tooltip: l.dashRefresh, onPressed: _refresh, icon: const Icon(Icons.refresh)),
-          ]),
-          Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()),
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text(widget.userName.isEmpty ? greeting : '$greeting, ${widget.userName}',
+                      style: theme.textTheme.headlineMedium?.copyWith(color: onBrand)),
+                ),
+                IconButton(
+                  tooltip: l.dashRefresh,
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh, color: onBrand),
+                ),
+              ]),
+              Text(DateFormat.yMMMMEEEEd(l.localeName).format(DateTime.now()),
+                  style: theme.textTheme.bodyMedium?.copyWith(color: onBrand.withOpacity(0.85))),
+              const SizedBox(height: Gap.l),
+              Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+                FilledButton.icon(
+                  key: const Key('dash-plan'),
+                  style: light,
+                  onPressed: () => widget.onPlanRoute(null),
+                  icon: const Icon(Icons.route_outlined),
+                  label: Text(l.planRoute),
+                ),
+                if (widget.memory.routes.firstOrNull case final last?)
+                  OutlinedButton.icon(
+                    key: const Key('dash-repeat'),
+                    style: glass,
+                    onPressed: () => widget.onPlanRoute(last),
+                    icon: const Icon(Icons.replay),
+                    label: Text(l.dashRepeatRoute(_short(last.to.label))),
+                  ),
+                OutlinedButton.icon(
+                  style: glass,
+                  onPressed: widget.onAddVehicle,
+                  icon: const Icon(Icons.add),
+                  label: Text(l.vehicleAdd),
+                ),
+              ]),
+            ]),
+          ),
           const SizedBox(height: Gap.l),
           _Kpis(
             vehicles: _vehicles,
@@ -116,27 +159,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onVehicles: () => widget.onOpenPage('vehicles'),
             onInbox: () => widget.onOpenPage('inbox'),
           ),
-          const SizedBox(height: Gap.l),
-          Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
-            FilledButton.icon(
-              key: const Key('dash-plan'),
-              onPressed: () => widget.onPlanRoute(null),
-              icon: const Icon(Icons.route_outlined),
-              label: Text(l.planRoute),
-            ),
-            if (widget.memory.routes.firstOrNull case final last?)
-              FilledButton.tonalIcon(
-                key: const Key('dash-repeat'),
-                onPressed: () => widget.onPlanRoute(last),
-                icon: const Icon(Icons.replay),
-                label: Text(l.dashRepeatRoute(_short(last.to.label))),
-              ),
-            OutlinedButton.icon(
-              onPressed: widget.onAddVehicle,
-              icon: const Icon(Icons.add),
-              label: Text(l.vehicleAdd),
-            ),
-          ]),
           const SizedBox(height: Gap.l),
           Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
             for (final card in cards) SizedBox(width: width, child: card),
@@ -147,7 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-/// Liczby floty z danych serwera: pojazdy, wolne, w naprawie, terminy, nieprzeczytane wiadomości.
+/// Liczby floty i nieprzeczytane wiadomości z danych serwera.
 class _Kpis extends StatelessWidget {
   const _Kpis({
     required this.vehicles,
@@ -171,70 +193,24 @@ class _Kpis extends StatelessWidget {
       builder: (context, snapshot) {
         final data = snapshot.data;
         if (data == null || data[0] is! List) return const SizedBox.shrink();
-        final list = _maps(data[0]);
-        final states = [for (final v in list) vehicleState(v)];
-        int count(VehicleState s) => states.where((x) => x == s).length;
-        final repair = count(VehicleState.repair);
-        final reported = count(VehicleState.reported);
-        var overdue = 0;
-        var soon = 0;
-        for (final v in list) {
-          final urgent = mostUrgent(v);
-          final km = serviceKmLeft(v);
-          if ((urgent?.overdue ?? false) || (km != null && km < 0)) {
-            overdue++;
-          } else if (urgent != null || km != null) {
-            soon++;
-          }
-        }
         final messages = data[1];
         final unread = messages is Map ? (messages['unread'] as int? ?? 0) : null;
-        final cards = [
-          KpiCard(
-            label: l.menuVehicles,
-            value: l.number(list.length),
-            icon: Icons.local_shipping_outlined,
-            status: l.kpiInUse(l.number(count(VehicleState.inUse))),
-            tone: StatusTone.info,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiAvailable,
-            value: l.number(count(VehicleState.free)),
-            icon: Icons.check_circle_outline,
-            status: l.kpiAvailableHint,
-            tone: StatusTone.ok,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiRepair,
-            value: l.number(repair),
-            icon: Icons.build_outlined,
-            status: reported > 0 ? l.kpiReported(l.number(reported)) : l.kpiNoReports,
-            tone: repair + reported > 0 ? StatusTone.error : StatusTone.ok,
-            onTap: onVehicles,
-          ),
-          KpiCard(
-            label: l.kpiDeadlines,
-            value: l.number(overdue + soon),
-            icon: Icons.event_note_outlined,
-            status: overdue > 0 ? l.kpiOverdue(l.number(overdue)) : (soon > 0 ? l.kpiDueSoon : l.kpiAllFine),
-            tone: overdue > 0 ? StatusTone.error : (soon > 0 ? StatusTone.warning : StatusTone.ok),
-            onTap: onVehicles,
-          ),
-          if (unread != null)
-            KpiCard(
-              label: l.menuInbox,
-              value: l.number(unread),
-              icon: Icons.mail_outline,
-              status: l.kpiUnread,
-              tone: unread > 0 ? StatusTone.info : StatusTone.neutral,
-              onTap: onInbox,
-            ),
-        ];
-        return Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
-          for (final card in cards) SizedBox(width: width, child: card),
-        ]);
+        return FleetKpis(
+          vehicles: _maps(data[0]),
+          width: width,
+          onTap: onVehicles,
+          extra: [
+            if (unread != null)
+              KpiCard(
+                label: l.menuInbox,
+                value: l.number(unread),
+                icon: Icons.mail_outline,
+                status: l.kpiUnread,
+                tone: unread > 0 ? StatusTone.info : StatusTone.neutral,
+                onTap: onInbox,
+              ),
+          ],
+        );
       },
     );
   }
@@ -270,34 +246,7 @@ class _VehiclesAttention extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.hasError) return Text('${snapshot.error}');
           if (!snapshot.hasData) return const LinearProgressIndicator();
-          final items = <(int, Widget)>[];
-          for (final v in _maps(snapshot.data)) {
-            final state = vehicleState(v);
-            final urgent = mostUrgent(v);
-            final km = serviceKmLeft(v);
-            final notes = [
-              if (state == VehicleState.repair || state == VehicleState.reported) stateText(l, v)!,
-              if (urgent != null)
-                (urgent.overdue ? l.vehicleOverdue : l.vehicleDueSoon)(
-                    serviceDateLabel(l, urgent.key), DateFormat.yMd(l.localeName).format(urgent.day)),
-              if (km != null) km < 0 ? l.vehicleServiceKmOverdue(l.number(-km)) : l.vehicleServiceKmSoon(l.number(km)),
-            ];
-            if (notes.isEmpty) continue;
-            final overdue = state == VehicleState.repair || (urgent?.overdue ?? false) || (km != null && km < 0);
-            items.add((
-              overdue ? 0 : 1,
-              AttentionTile(
-                title: vehicleTitle(v),
-                subtitle: notes.join(' · '),
-                overdue: overdue,
-                icon: kindIcon(v['kind'] as String?),
-                onTap: () => onOpen(v),
-              ),
-            ));
-          }
-          if (items.isEmpty) return _AllGood(text: l.dashVehiclesOk);
-          items.sort((a, b) => a.$1.compareTo(b.$1));
-          return Column(children: [for (final (_, tile) in items.take(6)) tile]);
+          return VehiclesAttention(vehicles: _maps(snapshot.data), onOpen: onOpen, empty: _AllGood(text: l.dashVehiclesOk));
         },
       ),
     );
@@ -331,6 +280,7 @@ class _MessagesCard extends StatelessWidget {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const IconSquare(icon: Icons.mark_email_unread_outlined),
+                tileColor: TruckColors.of(context).surfaceLow,
                 title: Text(inboxTitle(l, m), maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(l.when(DateTime.parse('${m['created_at']}').toLocal())),
                 onTap: onOpen,

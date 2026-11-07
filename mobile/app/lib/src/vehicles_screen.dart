@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'l10n.dart';
+import 'vehicles/fleet_widgets.dart';
 import 'vehicles/service_dates.dart';
 import 'vehicles/vehicle_actions.dart';
 import 'vehicles/vehicle_card.dart';
@@ -51,10 +52,49 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   bool _table = false;
   String _query = '';
 
+  /// Filtr bazy: `null` – wszystkie, `''` – bez bazy, inaczej id bazy.
+  String? _base;
+
+  /// Wszystkie bazy firm użytkownika – także te, do których nie przypisano jeszcze pojazdu.
+  List<Map<String, dynamic>> _allBases = const [];
+
+  Future<void> _loadBases() async {
+    try {
+      final bases = (await widget.api.get('/api/bases') as List<dynamic>).cast<Map<String, dynamic>>();
+      if (mounted) setState(() => _allBases = bases);
+    } catch (_) {
+      // Bez listy baz filtr pokazuje bazy z pojazdów.
+    }
+  }
+
+  /// Sortowanie po bazie (potem po nazwie).
+  bool _byBase = false;
+
+  /// Filtr rodzaju pojazdu (`null` – wszystkie).
+  String? _kindFilter;
+
+  /// Szybki filtr stanu: 'inUse', 'free', 'service', 'due' (`null` – wszystkie).
+  String? _stateFilter;
+
+  /// Telefon: filtry baz i stanu rozwinięte (domyślnie schowane, żeby lista miała miejsce).
+  bool _filtersOpen = false;
+
+  static bool _matchesState(Map<String, dynamic> v, String? filter) {
+    final state = vehicleState(v);
+    return switch (filter) {
+      'inUse' => state == VehicleState.inUse,
+      'free' => state == VehicleState.free,
+      'service' => state == VehicleState.repair || state == VehicleState.reported,
+      'due' => mostUrgent(v) != null || serviceKmLeft(v) != null,
+      _ => true,
+    };
+  }
+
   @override
   void initState() {
     super.initState();
     widget.refresh?.addListener(_refresh);
+    _loadBases();
     widget.viewStore.readTable().then((table) {
       if (mounted && table != _table) setState(() => _table = table);
     });
@@ -77,6 +117,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     setState(() {
       _vehicles = vehicles;
     });
+    _loadBases();
   }
 
   void _reload() {
@@ -84,6 +125,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     setState(() {
       _vehicles = vehicles;
     });
+    _loadBases();
     widget.onChanged?.call();
   }
 
@@ -146,13 +188,6 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               .push(MaterialPageRoute<void>(builder: (_) => PermitsScreen(api: widget.api))),
           child: const Icon(Icons.verified_outlined),
         ),
-        const SizedBox(height: 12),
-        FloatingActionButton.extended(
-          heroTag: 'add-vehicle',
-          onPressed: _open,
-          icon: const Icon(Icons.add),
-          label: Text(l.vehicleAdd),
-        ),
       ]),
       body: FutureBuilder<dynamic>(
         future: _vehicles,
@@ -167,20 +202,90 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           }
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final vehicles = (snapshot.data as List<dynamic>).cast<Map<String, dynamic>>();
-          if (vehicles.isEmpty) return Center(child: Text(l.vehiclesEmpty));
+          if (vehicles.isEmpty) {
+            return Column(children: [
+              _heading(l, 0),
+              Expanded(child: Center(child: Text(l.vehiclesEmpty))),
+            ]);
+          }
           final trailers = [for (final v in vehicles) if (!isDrivable(v)) v];
           final byId = {for (final v in vehicles) v['id']: v};
-          final shown = [for (final v in vehicles) if (matchesVehicle(v, _query)) v];
+          final bases = <String, String>{
+            for (final b in _allBases)
+              '${b['id']}': [b['name'], if ('${b['code'] ?? ''}'.isNotEmpty) b['code']].join(' · '),
+            for (final v in vehicles)
+              if (v['base_id'] != null && !_allBases.any((b) => b['id'] == v['base_id']))
+                '${v['base_id']}': '${v['base_name'] ?? v['base_id']}',
+          };
+          final shown = [
+            for (final v in vehicles)
+              if (matchesVehicle(v, _query) &&
+                  (_base == null || (v['base_id'] ?? '') == _base) &&
+                  (_kindFilter == null || v['kind'] == _kindFilter) &&
+                  _matchesState(v, _stateFilter))
+                v,
+          ];
+          if (_byBase) {
+            String key(Map<String, dynamic> v) => '${v['base_name'] ?? '~'} ${v['name']}'.toLowerCase();
+            shown.sort((a, b) => key(a).compareTo(key(b)));
+          }
           final shownMotors = [for (final v in shown) if (isDrivable(v)) v];
           final shownTrailers = [for (final v in shown) if (!isDrivable(v)) v];
           final empty = _query.trim().isEmpty ? null : l.vehiclesNoMatch;
           final states = {for (final v in shown) vehicleState(v)}..remove(VehicleState.free);
-          if (_table) {
-            return Column(children: [
-              _toolbar(l, states),
-              Expanded(child: _tables(l, shownMotors, shownTrailers, trailers, byId, empty)),
+          final width = MediaQuery.sizeOf(context).width;
+          // Komputer: liczby floty nad listą, „wymaga uwagi” obok – jak w projekcie taboru.
+          final soonTiles = [
+            SoonTile(title: l.soonTelemetry, icon: Icons.sensors),
+            SoonTile(title: l.soonTpms, icon: Icons.tire_repair),
+            SoonTile(title: l.soonDtc, icon: Icons.error_outline),
+            SoonTile(title: l.soonReefer, icon: Icons.ac_unit),
+            SoonTile(title: l.soonWorkshop, icon: Icons.handyman_outlined),
+            SoonTile(title: l.soonPolicies, icon: Icons.shield_outlined),
+            SoonTile(title: l.soonFleetAge, icon: Icons.eco_outlined),
+          ];
+          Widget framed(Widget content) {
+            final header = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _heading(l, vehicles.length),
+              _kinds(l, vehicles),
+              if (width >= 720)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: LayoutBuilder(builder: (context, size) {
+                    final width = (size.maxWidth - Gap.m * 3) / 4;
+                    return FleetKpis(vehicles: vehicles, width: width);
+                  }),
+                ),
+              _toolbar(l, states, bases, vehicles),
+            ]);
+            final main = Column(children: [header, Expanded(child: content)]);
+            if (width < 1300) return main;
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: main),
+              SizedBox(
+                width: 360,
+                child: ListView(padding: const EdgeInsets.fromLTRB(0, 12, 12, 88), children: [
+                  SectionCard(
+                    title: l.dashVehiclesTitle,
+                    icon: Icons.event_note_outlined,
+                    child: VehiclesAttention(
+                      vehicles: vehicles,
+                      onOpen: _card,
+                      limit: 12,
+                      empty: Text(l.dashVehiclesOk),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, Gap.l, 4, Gap.s),
+                    child: SectionLabel(l.soonTitle),
+                  ),
+                  for (final tile in soonTiles) Padding(padding: const EdgeInsets.only(bottom: Gap.s), child: tile),
+                ]),
+              ),
             ]);
           }
+
+          if (_table) return framed(_tables(l, shownMotors, shownTrailers, trailers, byId, empty));
 
           Widget motorCard(Map<String, dynamic> v) => _VehicleCard(
                 vehicle: v,
@@ -229,30 +334,183 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           final trailerList = section(l.vehiclesTowed, shownTrailers, trailerCard, empty ?? l.vehiclesTowedEmpty);
           const padding = EdgeInsets.fromLTRB(12, 4, 12, 88);
           // Szeroki ekran: samochody po lewej, naczepy i przyczepy po prawej (przeciąganie na pojazd).
-          if (MediaQuery.sizeOf(context).width >= 900) {
-            return Column(children: [
-              _toolbar(l, states),
-              Expanded(
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: ListView(padding: padding, children: motorList)),
-                  Expanded(child: ListView(padding: padding, children: trailerList)),
-                ]),
-              ),
-            ]);
+          if (width >= 900) {
+            return framed(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: ListView(padding: padding, children: motorList)),
+              Expanded(child: ListView(padding: padding, children: trailerList)),
+            ]));
           }
-          return Column(children: [
-            _toolbar(l, states),
-            Expanded(child: ListView(padding: padding, children: [...motorList, ...trailerList])),
-          ]);
+          return framed(ListView(padding: padding, children: [
+            ...motorList,
+            ...trailerList,
+            if (width < 1300) ...[
+              Padding(padding: const EdgeInsets.fromLTRB(4, 16, 4, 8), child: SectionLabel(l.soonTitle)),
+              for (final tile in soonTiles) Padding(padding: const EdgeInsets.only(bottom: 8), child: tile),
+            ],
+          ]));
         },
       ),
     );
   }
 
+  /// Nagłówek: tytuł z liczbą jednostek i akcje (przeglądy, eksport – w budowie; dodanie pojazdu).
+  Widget _heading(AppLocalizations l, int count) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Wrap(
+        spacing: Gap.m,
+        runSpacing: Gap.s,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(l.vehiclesFleetTitle, style: theme.textTheme.headlineSmall),
+            const SizedBox(width: Gap.s),
+            StatusChip(label: l.vehiclesFleetUnits(l.number(count)), tone: StatusTone.info, icon: Icons.local_shipping),
+          ]),
+          Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
+            SoonButton(label: l.soonInspections, icon: Icons.event_note_outlined),
+            SoonButton(label: l.soonCepik, icon: Icons.file_download_outlined),
+            FilledButton.icon(
+              key: const Key('vehicles-add'),
+              onPressed: _open,
+              icon: const Icon(Icons.add_circle_outline),
+              label: Text(l.vehicleAdd),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  /// Rodzaje pojazdów z licznikami (jak segmenty w projekcie taboru).
+  Widget _kinds(AppLocalizations l, List<Map<String, dynamic>> vehicles) {
+    final counts = <String, int>{};
+    for (final v in vehicles) {
+      final kind = '${v['kind']}';
+      counts[kind] = (counts[kind] ?? 0) + 1;
+    }
+    Widget segment(String? kind, String label, int count) {
+      final selected = _kindFilter == kind;
+      final scheme = Theme.of(context).colorScheme;
+      final fg = selected ? Colors.white : scheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.only(right: Gap.xs),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
+          clipBehavior: Clip.antiAlias,
+          child: Ink(
+            decoration: BoxDecoration(gradient: selected ? TruckGradients.brand : null),
+            child: InkWell(
+              key: Key('vehicles-kind-${kind ?? 'all'}'),
+              onTap: () => setState(() => _kindFilter = kind),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
+                // Etykieta i licznik w jednym tekście (nazwa rodzaju nie myli się z polami formularza).
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: label),
+                    const TextSpan(text: '  '),
+                    TextSpan(
+                      text: ' $count ',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        backgroundColor:
+                            selected ? Colors.white.withOpacity(0.2) : TruckColors.of(context).surfaceHigh,
+                      ),
+                    ),
+                  ]),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(color: fg),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              segment(null, l.vehiclesAllKinds, vehicles.length),
+              for (final e in counts.entries) segment(e.key, kindLabel(l, e.key), e.value),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bazy operacyjne jako chipy i sortowanie po bazie (firma może mieć kilka baz).
+  Widget _baseFilter(AppLocalizations l, Map<String, String> bases) => Wrap(
+        spacing: Gap.s,
+        runSpacing: Gap.s,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final (value, label) in [
+            (null, l.vehiclesAllBases),
+            for (final e in bases.entries) (e.key, e.value),
+            ('', l.vehicleBaseNone),
+          ])
+            ChoiceChip(
+              key: Key('vehicles-base-${value ?? 'all'}'),
+              avatar: value == null ? null : const Icon(Icons.warehouse_outlined, size: 16),
+              label: Text(label),
+              selected: _base == value,
+              onSelected: (_) => setState(() => _base = value),
+            ),
+          FilterChip(
+            key: const Key('vehicles-sort-base'),
+            avatar: const Icon(Icons.sort, size: 18),
+            label: Text(l.vehiclesSortByBase),
+            selected: _byBase,
+            onSelected: (on) => setState(() => _byBase = on),
+          ),
+        ],
+      );
+
   /// Wybór widoku, wyszukiwanie po nazwie albo tablicy i objaśnienie kolorów.
-  Widget _toolbar(AppLocalizations l, Set<VehicleState> states) => Padding(
+  /// Szybki filtr stanu z licznikami.
+  Widget _stateChips(AppLocalizations l, List<Map<String, dynamic>> vehicles) {
+    int count(String filter) => vehicles.where((v) => _matchesState(v, filter)).length;
+    final colors = TruckColors.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
+      SectionLabel(l.vehiclesQuickFilter),
+      for (final (filter, label, color) in [
+        ('inUse', l.kpiInUseTitle, colors.inUse),
+        ('free', l.kpiAvailable, colors.success),
+        ('service', l.kpiRepair, scheme.error),
+        ('due', l.kpiDeadlines, colors.warning),
+      ])
+        FilterChip(
+          key: Key('vehicles-state-$filter'),
+          label: Text('$label (${count(filter)})'),
+          labelStyle: TextStyle(color: _stateFilter == filter ? Colors.white : color, fontWeight: FontWeight.w600),
+          selectedColor: color,
+          checkmarkColor: Colors.white,
+          backgroundColor: Color.alphaBlend(color.withOpacity(0.10), colors.card),
+          selected: _stateFilter == filter,
+          onSelected: (on) => setState(() => _stateFilter = on ? filter : null),
+        ),
+    ]);
+  }
+
+  Widget _toolbar(AppLocalizations l, Set<VehicleState> states, Map<String, String> bases,
+          List<Map<String, dynamic>> vehicles) =>
+      Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(Gap.m),
+            child: Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
           SegmentedButton<bool>(
             segments: [
               ButtonSegment(value: false, icon: const Icon(Icons.grid_view), label: Text(l.vehiclesViewCards)),
@@ -269,13 +527,26 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 isDense: true,
                 prefixIcon: const Icon(Icons.search),
                 hintText: l.vehiclesSearch,
-                border: const OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => _query = value),
             ),
           ),
-          if (states.isNotEmpty) StateLegend(states: states),
-        ]),
+          if (MediaQuery.sizeOf(context).width < 720)
+            FilterChip(
+              key: const Key('vehicles-filters'),
+              avatar: const Icon(Icons.tune, size: 18),
+              label: Text(l.vehiclesFilters),
+              selected: _filtersOpen || _base != null || _stateFilter != null,
+              onSelected: (_) => setState(() => _filtersOpen = !_filtersOpen),
+            ),
+          if (MediaQuery.sizeOf(context).width >= 720 || _filtersOpen) ...[
+            _baseFilter(l, bases),
+            _stateChips(l, vehicles),
+            if (states.isNotEmpty) StateLegend(states: states),
+          ],
+            ]),
+          ),
+        ),
       );
 
   /// Tabela w dwóch zakładkach: pojazdy z napędem oraz naczepy i przyczepy.
@@ -326,12 +597,17 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         // Zakładki jako wyraźne przyciski: wybrana wypełniona kolorem.
         Container(
           margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: scheme.surfaceVariant, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: TruckColors.of(context).card,
+            borderRadius: BorderRadius.circular(TruckTheme.radius),
+            boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 1))],
+          ),
           child: TabBar(
             indicatorSize: TabBarIndicatorSize.tab,
-            indicator: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(9)),
-            labelColor: scheme.onPrimary,
+            indicator: BoxDecoration(
+                color: scheme.primaryContainer, borderRadius: BorderRadius.circular(TruckTheme.smallRadius)),
+            labelColor: scheme.onPrimaryContainer,
             unselectedLabelColor: scheme.onSurfaceVariant,
             labelStyle: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             dividerColor: Colors.transparent,
@@ -512,7 +788,7 @@ class _Actions extends StatelessWidget {
         if (service) PopupMenuItem(value: 'service', child: Text(l.vehicleServiceAction)),
         if (onStats != null)
           PopupMenuItem(value: 'stats', child: Text(l.vehicleStatsAction)),
-        if (onDriver != null && canAssignDriver(vehicle))
+        if (onDriver != null && canAssignDriver(vehicle) && !moduleActions.any((a) => a.id == assignDriverActionId))
           PopupMenuItem(value: 'driver', child: Text(l.vehicleDriverAction)),
         if (editable) PopupMenuItem(value: 'delete', child: Text(l.delete)),
       ],

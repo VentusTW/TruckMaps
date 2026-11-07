@@ -50,6 +50,8 @@ class MemoryViewStore implements VehiclesViewStore {
 
 void main() {
   late List<Map<String, dynamic>> vehicles;
+  var bases = <Map<String, dynamic>>[];
+  var companies = <Map<String, dynamic>>[];
   late List<(String, String, Map?)> requests;
   var changes = 0;
   late ValueNotifier<int> shown;
@@ -67,8 +69,10 @@ void main() {
         switch ((request.method, request.url.path)) {
           case ('GET', '/api/vehicles'):
             return json(vehicles);
+          case ('GET', '/api/bases'):
+            return json(bases);
           case ('GET', '/api/companies'):
-            return json([]);
+            return json(companies);
           case ('GET', '/api/currencies'):
             return json({
               'currencies': [
@@ -127,6 +131,8 @@ void main() {
   setUp(() {
     shown = ValueNotifier(0);
     vehicles = [truck];
+    bases = [];
+    companies = [];
     requests = [];
     changes = 0;
   });
@@ -177,6 +183,40 @@ void main() {
 
     final sent = requests.singleWhere((r) => r.$1 == 'PUT').$3!;
     expect((sent['cost_currency'], sent['cost_per_km']), ('PLN', 5.1));
+  });
+
+  testWidgets('pojazd prywatny: wybór bazy przypisuje go do firmy bazy', (tester) async {
+    companies = [
+      {'id': 'c1', 'name': 'TransportUE', 'role': 'owner', 'kind': 'carrier'},
+    ];
+    bases = [
+      {'id': 'b1', 'name': 'Tarnów', 'company_id': 'c1', 'company_name': 'TransportUE'},
+    ];
+    await pump(tester);
+    await tester.tap(find.text('Zestaw 40 t · KTA 12345'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Zmień'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('vehicle-base')));
+    await tester.tap(find.byKey(const Key('vehicle-base')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Tarnów').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zapisz'));
+    await tester.pumpAndSettle();
+
+    final sent = requests.singleWhere((r) => r.$1 == 'PUT').$3!;
+    expect((sent['company_id'], sent['base_id']), ('c1', 'b1'));
+  });
+
+  testWidgets('pojazd prywatny: przy kierowcy podpowiedź i „Wybierz bazę” (formularz)', (tester) async {
+    await pump(tester);
+    await tester.tap(find.text('Zestaw 40 t · KTA 12345'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('najpierw wybierz bazę'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('card-choose-base')));
+    await tester.pumpAndSettle();
+    expect(find.text('Zmień pojazd'), findsOneWidget);
   });
 
   testWidgets('usunięcie pojazdu po potwierdzeniu', (tester) async {
@@ -397,6 +437,7 @@ void main() {
 
     await tester.tap(find.text('Firanka'));
     await tester.pumpAndSettle();
+    await tester.dragUntilVisible(find.text('Pojazd ciągnący'), find.byType(ListView).last, const Offset(0, -200));
     expect(find.text('Pojazd ciągnący'), findsOneWidget); // karta pojazdu
     expect(find.text('w użyciu – podpięta do: Zestaw 40 t'), findsWidgets);
   });
@@ -457,6 +498,50 @@ void main() {
     expect(find.textContaining('Sprawdź wysokość'), findsOneWidget);
   });
 
+  testWidgets('filtr i sortowanie po bazie operacyjnej', (tester) async {
+    vehicles = [
+      {...truck, 'id': 'a', 'name': 'Zestaw Wesoła', 'base_id': 'b1', 'base_name': 'Wesoła'},
+      {...truck, 'id': 'b', 'name': 'Auto Stryków', 'base_id': 'b2', 'base_name': 'Stryków'},
+      {...truck, 'id': 'c', 'name': 'Bez przydziału'},
+    ];
+    // Nowa baza bez pojazdów też jest do wyboru.
+    bases = [
+      {'id': 'b1', 'name': 'Wesoła', 'code': 'PL-WAW-01', 'company_id': 'c1'},
+      {'id': 'b2', 'name': 'Stryków', 'company_id': 'c1'},
+      {'id': 'b3', 'name': 'Komorniki', 'company_id': 'c1'},
+    ];
+    await pump(tester);
+    expect(find.textContaining('Zestaw Wesoła'), findsOneWidget);
+    expect(find.textContaining('Auto Stryków'), findsOneWidget);
+
+    expect(find.byKey(const Key('vehicles-base-b3')), findsOneWidget); // Komorniki – bez pojazdów
+    await tester.tap(find.byKey(const Key('vehicles-base-b2')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Auto Stryków'), findsOneWidget);
+    expect(find.textContaining('Zestaw Wesoła'), findsNothing);
+    expect(find.textContaining('Bez przydziału'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('vehicles-base-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('vehicles-sort-base')));
+    await tester.pumpAndSettle();
+    // Stryków przed Wesołą, pojazd bez bazy na końcu.
+    final y = [
+      for (final n in ['Auto Stryków', 'Zestaw Wesoła', 'Bez przydziału']) tester.getTopLeft(find.textContaining(n)).dy
+    ];
+    expect(y[0] < y[1] && y[1] < y[2], isTrue);
+  });
+
+  testWidgets('komputer: liczby floty nad listą, „wymaga uwagi” obok', (tester) async {
+    vehicles = [
+      {...truck, 'in_repair': true}
+    ];
+    await pump(tester, size: const Size(1600, 1200));
+    expect(find.text('W UŻYCIU'), findsOneWidget);
+    expect(find.text('W SERWISIE'), findsOneWidget);
+    expect(find.text('Pojazdy – wymaga uwagi'), findsOneWidget);
+  });
+
   testWidgets('wejście na ekran odświeża listę: pojazd w naprawie na czerwono', (tester) async {
     await pump(tester);
     expect(find.textContaining('w naprawie'), findsNothing);
@@ -468,8 +553,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('w naprawie'), findsNWidgets(2)); // kafelek + objaśnienie kolorów
-    final card = tester.widget<Card>(find.byType(Card).first);
-    expect(card.color, Theme.of(tester.element(find.byType(Card).first)).colorScheme.errorContainer);
+    final tile = find.ancestor(of: find.textContaining('${truck['name']}').first, matching: find.byType(Card)).first;
+    expect(tester.widget<Card>(tile).color, Theme.of(tester.element(tile)).colorScheme.errorContainer);
     expect(changes, 0); // samo odświeżenie nie powiadamia planera
   });
 

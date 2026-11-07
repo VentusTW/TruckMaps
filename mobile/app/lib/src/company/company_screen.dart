@@ -182,7 +182,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
     final currencies = _currencies.contains(_currency) ? _currencies : [_currency, ..._currencies];
     return Form(
       key: _form,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: SectionedListView(padding: const EdgeInsets.all(16), children: [
         if (widget.companies.length > 1) ...[
           DropdownButtonFormField<String>(
             value: _id,
@@ -197,7 +197,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           ),
           const SizedBox(height: 16),
         ],
-        Text(l.companyDetails, style: theme.textTheme.titleSmall),
+        SectionHeader(l.companyDetails),
         Text(_owner ? l.companyDetailsHint : l.companyDetailsReadOnly(roleLabel(l, _role)), style: theme.textTheme.bodySmall),
         const SizedBox(height: 12),
         TextFormField(
@@ -219,7 +219,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           padding: const EdgeInsets.only(top: 4, bottom: 16),
           child: Text(companyKindHint(l, _kind), style: theme.textTheme.bodySmall),
         ),
-        Text(l.companyRates, style: theme.textTheme.titleSmall),
+        SectionHeader(l.companyRates),
         Text(l.companyRatesHint, style: theme.textTheme.bodySmall),
         const SizedBox(height: 8),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -250,7 +250,7 @@ class _CompanyScreenState extends State<CompanyScreen> {
           ),
         const SizedBox(height: 24),
         Row(children: [
-          Expanded(child: Text(l.basesTitle, style: theme.textTheme.titleSmall)),
+          Expanded(child: SectionHeader(l.basesTitle)),
           if (managesCompany(_role))
             TextButton.icon(onPressed: _openBase, icon: const Icon(Icons.add_location_alt_outlined), label: Text(l.baseAdd)),
         ]),
@@ -274,9 +274,17 @@ class _CompanyScreenState extends State<CompanyScreen> {
               for (final base in bases)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.warehouse_outlined),
-                  title: Text('${base['name']}'),
-                  subtitle: Text('${base['label']}'.isEmpty ? '${base['lat']}, ${base['lon']}' : '${base['label']}'),
+                  leading: const IconSquare(icon: Icons.warehouse_outlined),
+                  title: Text([base['name'], if ('${base['code'] ?? ''}'.isNotEmpty) base['code']].join(' · ')),
+                  subtitle: Text([
+                    '${base['label']}'.isEmpty ? '${base['lat']}, ${base['lon']}' : '${base['label']}',
+                    for (final key in const ['contact_person', 'phone', 'email', 'hours'])
+                      if ('${base[key] ?? ''}'.isNotEmpty) '${base[key]}',
+                  ].join('\n')),
+                  isThreeLine: [
+                    for (final key in const ['contact_person', 'phone', 'email', 'hours'])
+                      if ('${base[key] ?? ''}'.isNotEmpty) key,
+                  ].isNotEmpty,
                   trailing: managesCompany(_role)
                       ? PopupMenuButton<String>(
                           onSelected: (action) => action == 'edit' ? _openBase(base) : _deleteBase(base),
@@ -307,7 +315,8 @@ class _CompanyScreenState extends State<CompanyScreen> {
   }
 }
 
-/// Nowa baza firmy albo zmiana istniejącej: nazwa i adres z wyszukiwarki (albo GPS).
+/// Nowa baza operacyjna firmy albo zmiana istniejącej: nazwa, kod, adres z wyszukiwarki (albo GPS)
+/// i dane teleadresowe.
 class BaseFormScreen extends StatefulWidget {
   const BaseFormScreen({super.key, required this.api, required this.companyId, this.base});
 
@@ -323,6 +332,10 @@ class _BaseFormScreenState extends State<BaseFormScreen> {
   final _form = GlobalKey<FormState>();
   late final _name = TextEditingController(text: widget.base?['name'] as String? ?? '');
   late final _place = TextEditingController(text: widget.base?['label'] as String? ?? '');
+  late final _contacts = {
+    for (final key in const ['code', 'phone', 'email', 'contact_person', 'hours', 'note'])
+      key: TextEditingController(text: widget.base?[key] as String? ?? ''),
+  };
   late Place? _chosen = widget.base == null
       ? null
       : Place(widget.base!['label'] as String? ?? '',
@@ -334,6 +347,9 @@ class _BaseFormScreenState extends State<BaseFormScreen> {
   void dispose() {
     _name.dispose();
     _place.dispose();
+    for (final c in _contacts.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -350,6 +366,7 @@ class _BaseFormScreenState extends State<BaseFormScreen> {
       'label': _chosen!.label,
       'lat': _chosen!.point.latitude,
       'lon': _chosen!.point.longitude,
+      for (final e in _contacts.entries) e.key: e.value.text.trim(),
     };
     final path = '/api/companies/${widget.companyId}/bases';
     try {
@@ -372,12 +389,18 @@ class _BaseFormScreenState extends State<BaseFormScreen> {
       appBar: AppBar(title: Text(widget.base == null ? l.baseAddTitle : l.baseEditTitle)),
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: SectionedListView(padding: const EdgeInsets.all(16), children: [
+          SectionHeader(l.baseLocationTitle),
           TextFormField(
             controller: _name,
             maxLength: 100,
             decoration: field(l.baseName, hint: l.baseNameHint),
             validator: (text) => (text ?? '').trim().isEmpty ? l.baseNameRequired : null,
+          ),
+          TextFormField(
+            controller: _contacts['code'],
+            maxLength: 20,
+            decoration: field(l.baseCode, hint: l.baseCodeHint),
           ),
           PlaceField(
             api: widget.api,
@@ -389,7 +412,29 @@ class _BaseFormScreenState extends State<BaseFormScreen> {
               _error = null;
             }),
           ),
-          const SizedBox(height: 16),
+          SectionHeader(l.baseContactsTitle),
+          for (final (key, label, hint, icon, max, type) in [
+            ('contact_person', l.baseContactPerson, null, Icons.person_outline, 200, TextInputType.name),
+            ('phone', l.basePhone, null, Icons.phone_outlined, 40, TextInputType.phone),
+            ('email', l.baseEmail, null, Icons.mail_outline, 200, TextInputType.emailAddress),
+            ('hours', l.baseHours, l.baseHoursHint, Icons.schedule, 200, TextInputType.text),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextFormField(
+                controller: _contacts[key],
+                maxLength: max,
+                keyboardType: type,
+                decoration: field(label, hint: hint).copyWith(prefixIcon: Icon(icon), counterText: ''),
+              ),
+            ),
+          TextFormField(
+            controller: _contacts['note'],
+            maxLength: 1000,
+            minLines: 2,
+            maxLines: 5,
+            decoration: field(l.baseNote),
+          ),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),

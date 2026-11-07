@@ -533,7 +533,8 @@ class DriversModule(Module):
             for item in open_assignments(db, [driver.id]):
                 item.ended_at = _now()
                 info = fleet.driving(db, item.vehicle_id)
-                if info and driver.subject and info.assigned_driver == driver.subject:
+                # Otwarty przydział tego kierowcy = on jest kierowcą pojazdu (także bez konta).
+                if info and info.assigned_driver == driver.subject:
                     fleet.assign_driver(db, item.vehicle_id, None)
 
         # ── Kartoteka ──────────────────────────────────────────────────────────────────────
@@ -667,7 +668,7 @@ class DriversModule(Module):
                     )
                 )  # fmt: skip
                 log(db, driver, user, "assigned", {"vehicle": [None, info.name]})
-            fleet.assign_driver(db, info.vehicle_id, driver.subject)
+            fleet.assign_driver(db, info.vehicle_id, driver.subject, driver.name)
             db.commit()
             return AssignOut(
                 driver=outs(db, user, [driver])[0],

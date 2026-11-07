@@ -199,6 +199,36 @@ abstract final class Gap {
   static const xxl = 32.0;
 }
 
+/// Gradienty kafelków i wyróżnień – wygląd mniej płaski.
+abstract final class TruckGradients {
+  /// Delikatny: od tła karty (lewy górny róg) do odcienia [color] (prawy dolny).
+  static LinearGradient tile(BuildContext context, Color color, {double strength = 0.12}) {
+    final card = TruckColors.of(context).card;
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [card, Color.alphaBlend(color.withOpacity(strength), card)],
+    );
+  }
+
+  /// Pełny: jaśniejszy i ciemniejszy odcień [color] (banery, aktywne pozycje).
+  static LinearGradient strong(Color color) => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color.lerp(color, Colors.white, 0.12)!, Color.lerp(color, Colors.black, 0.18)!],
+      );
+
+  /// Marka: granat → błękit (nagłówek pulpitu, wybrana pozycja menu) – taki sam w obu trybach.
+  static const brand = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [TruckPalette.brand, TruckPalette.brandContainer, Color(0xFF3755C3)],
+  );
+
+  /// Wypełnienie paska postępu: od jaśniejszego do pełnego koloru.
+  static LinearGradient bar(Color color) => LinearGradient(colors: [Color.lerp(color, Colors.white, 0.35)!, color]);
+}
+
 /// Czcionki dołączone do pakietu (licencja OFL, pliki w `core_sdk/fonts`) – bez pobierania z sieci.
 abstract final class TruckFonts {
   /// Tekst, etykiety, liczby.
@@ -371,19 +401,29 @@ abstract final class TruckTheme {
       cardTheme: CardTheme(
         color: colors.card,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withOpacity(dark ? 0.5 : 0.25),
-        elevation: 1,
+        // Wyraźny, granatowy cień – kafelki „unoszą się” nad tłem.
+        shadowColor: dark ? Colors.black : TruckPalette.brand.withOpacity(0.35),
+        elevation: 3,
         margin: EdgeInsets.zero,
         shape: shape,
         clipBehavior: Clip.antiAlias,
       ),
       listTileTheme: ListTileThemeData(shape: small, iconColor: scheme.onSurfaceVariant),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(padding: buttonPadding, shape: small)),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: buttonPadding,
+          shape: small,
+          elevation: 2,
+          shadowColor: TruckPalette.brand.withOpacity(0.5),
+        ),
+      ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(padding: buttonPadding, shape: small, side: BorderSide(color: scheme.outline)),
       ),
       textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: small)),
-      elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(shape: small)),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(shape: small, elevation: 2, shadowColor: TruckPalette.brand.withOpacity(0.4)),
+      ),
       segmentedButtonTheme: SegmentedButtonThemeData(style: ButtonStyle(shape: MaterialStatePropertyAll(small))),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
@@ -392,6 +432,9 @@ abstract final class TruckTheme {
       ),
       // Chipy w pełni zaokrąglone.
       chipTheme: ChipThemeData(
+        elevation: 1,
+        pressElevation: 3,
+        shadowColor: TruckPalette.brand.withOpacity(0.3),
         shape: const StadiumBorder(),
         side: BorderSide.none,
         backgroundColor: colors.surfaceLow,
@@ -459,11 +502,15 @@ class SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.s),
+        Container(
+          decoration: BoxDecoration(
+            gradient: TruckGradients.tile(context, accent ?? theme.colorScheme.primary, strength: 0.10),
+          ),
+          padding: const EdgeInsets.fromLTRB(Gap.l, Gap.m, Gap.s, Gap.m),
+          margin: const EdgeInsets.only(bottom: Gap.m),
           child: Row(children: [
-            Icon(icon, size: 20, color: accent ?? theme.colorScheme.primary),
-            const SizedBox(width: Gap.s),
+            IconSquare(icon: icon, color: accent ?? theme.colorScheme.primary, size: 32),
+            const SizedBox(width: Gap.m),
             Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
             if (action != null) action!,
           ]),
@@ -483,6 +530,7 @@ class AttentionTile extends StatelessWidget {
     this.overdue = false,
     this.icon,
     this.onTap,
+    this.tag,
   });
 
   final String title;
@@ -493,17 +541,73 @@ class AttentionTile extends StatelessWidget {
   final IconData? icon;
   final VoidCallback? onTap;
 
+  /// Krótka etykieta nad tytułem (np. „Pilne”), w kolorze pilności.
+  final String? tag;
+
   @override
   Widget build(BuildContext context) {
-    final color = overdue ? Theme.of(context).colorScheme.error : TruckColors.of(context).warning;
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: IconSquare(icon: icon ?? (overdue ? Icons.error_outline : Icons.schedule), color: color),
-      title: Text(title),
-      subtitle: subtitle == null ? null : Text(subtitle!, style: TextStyle(color: color)),
-      trailing: onTap == null ? null : const Icon(Icons.chevron_right),
-      onTap: onTap,
+    final theme = Theme.of(context);
+    final color = overdue ? theme.colorScheme.error : TruckColors.of(context).warning;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Gap.s),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(TruckTheme.radius),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [
+              Color.alphaBlend(color.withOpacity(0.16), TruckColors.of(context).card),
+              Color.alphaBlend(color.withOpacity(0.04), TruckColors.of(context).card),
+            ]),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(TruckTheme.radius),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(Gap.m),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                IconSquare(
+                  icon: icon ?? (overdue ? Icons.error_outline : Icons.schedule),
+                  color: color,
+                  background: color.withOpacity(0.16),
+                ),
+                const SizedBox(width: Gap.m),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (tag != null) ...[TagLabel(tag!, color: color), const SizedBox(height: Gap.xs)],
+                    Text(title, style: theme.textTheme.titleSmall),
+                    if (subtitle != null)
+                      Text(subtitle!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface)),
+                  ]),
+                ),
+                if (onTap != null) Icon(Icons.chevron_right, color: color),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Etykieta kategorii: pełne kolorowe tło, biały tekst wielkimi literami (np. „PILNE”, „ALERT”).
+class TagLabel extends StatelessWidget {
+  const TagLabel(this.text, {super.key, this.color});
+
+  final String text;
+
+  /// Tło; domyślnie kolor marki.
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = color ?? Theme.of(context).colorScheme.primaryContainer;
+    final fg = ThemeData.estimateBrightnessForColor(bg) == Brightness.dark ? Colors.white : Colors.black;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(2)),
+      child: Text(text.toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: fg)),
     );
   }
 }
@@ -524,7 +628,13 @@ class IconSquare extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background ?? Color.alphaBlend(fg.withOpacity(0.10), TruckColors.of(context).surfaceLow),
+        color: background,
+        gradient: background != null
+            ? null
+            : LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [
+                Color.alphaBlend(fg.withOpacity(0.24), TruckColors.of(context).card),
+                Color.alphaBlend(fg.withOpacity(0.08), TruckColors.of(context).card),
+              ]),
         borderRadius: BorderRadius.circular(TruckTheme.radius),
       ),
       child: Icon(icon, color: fg, size: size * 0.55),
