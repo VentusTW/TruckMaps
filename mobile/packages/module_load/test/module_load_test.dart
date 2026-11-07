@@ -26,9 +26,10 @@ Map<String, dynamic> planJson({bool checked = false, bool wallOk = true}) => {
       'weight_kg': 16500,
       'payload_kg': 32000,
       'fits': !checked,
-      'placed': [
-        {'item': 0, 'x_m': 0, 'y_m': 0, 'length_m': 1.2, 'width_m': 0.8, 'weight_kg': 500, 'stop': 1},
-      ],
+      'placed': placedOverride ??
+          [
+            {'item': 0, 'x_m': 0, 'y_m': 0, 'length_m': 1.2, 'width_m': 0.8, 'weight_kg': 500, 'stop': 1},
+          ],
       'unplaced': 0,
       'rows': [
         {'x_m': 0, 'length_m': 1.2, 'weight_kg': 500, 'straps': 2},
@@ -104,6 +105,9 @@ Map<String, dynamic> cargo(String id, String name, String group, String shape,
 
 late Map<String, dynamic> catalog;
 
+/// Ułożenie zwracane przez serwer w teście (domyślnie jedna paleta).
+List<Map<String, dynamic>>? placedOverride;
+
 void main() {
   late List<(String, String, Object?)> requests;
   late List<Uri> opened;
@@ -175,6 +179,7 @@ void main() {
   }
 
   setUp(() {
+    placedOverride = null;
     catalog = {
       'groups': [
         {'id': 'pallets', 'name': 'Palety'},
@@ -345,6 +350,81 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Recalculate inertia forces (EN 12195)'));
     await tester.pumpAndSettle();
+  });
+
+  Future<Offset Function(double, double)> deckTop(WidgetTester tester) async {
+    await tester.tap(find.byKey(const ValueKey('sim-edit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move goods'));
+    await tester.pumpAndSettle();
+    final top = find.byKey(const ValueKey('deck-top'));
+    await tester.ensureVisible(top);
+    await tester.pumpAndSettle();
+    final origin = tester.getTopLeft(top);
+    final scale = tester.getSize(top).width / (13.6 + 3.2);
+    return (x, y) => origin + Offset((1.6 + x) * scale, (1.6 + y) * scale);
+  }
+
+  Map<String, dynamic> pallet(double x, {int pieces = 1}) => {
+        'item': 0,
+        'x_m': x,
+        'y_m': 0,
+        'length_m': 1.2,
+        'width_m': 0.8,
+        'weight_kg': 500.0 * pieces,
+        'stop': 1,
+        'pieces': pieces,
+        'height_m': 1.2 * pieces,
+      };
+
+  testWidgets('ręczne przeciąganie: bez nachodzenia – paleta wraca na miejsce', (tester) async {
+    placedOverride = [pallet(0), pallet(3)];
+    await open(tester, const Size(1400, 3400));
+    await calculate(tester);
+    final at = await deckTop(tester);
+    // Przeciągnięcie palety z 3 m na paletę przy ścianie – nachodzi, odmowa piętrowania.
+    final gesture = await tester.startGesture(at(3.6, 0.4));
+    await gesture.moveBy(at(0.6, 0.4) - at(3.6, 0.4));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Place on top of other cargo?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('cannot overlap'), findsOneWidget);
+    expect(requests.where((r) => r.$2 == '/api/m/load/plan/check'), isEmpty);
+  });
+
+  testWidgets('ręczne przeciąganie: postawienie na palecie po potwierdzeniu – jeden stos', (tester) async {
+    placedOverride = [pallet(0), pallet(3)];
+    await open(tester, const Size(1400, 3400));
+    await calculate(tester);
+    final at = await deckTop(tester);
+    final gesture = await tester.startGesture(at(3.6, 0.4));
+    await gesture.moveBy(at(0.6, 0.4) - at(3.6, 0.4));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Is it really safe to stack'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('stack-confirm')));
+    await tester.pumpAndSettle();
+    final check = requests.singleWhere((r) => r.$2 == '/api/m/load/plan/check').$3 as Map;
+    final placed = (check['placed'] as List).cast<Map>();
+    expect(placed, hasLength(1));
+    expect((placed.single['pieces'], placed.single['weight_kg'], placed.single['height_m']), (2, 1000.0, 2.4));
+  });
+
+  testWidgets('ręczne przeciąganie: limit stosu – bez pytania, powrót', (tester) async {
+    placedOverride = [pallet(0, pieces: 2), pallet(3)];
+    await open(tester, const Size(1400, 3400));
+    await calculate(tester);
+    final at = await deckTop(tester);
+    final gesture = await tester.startGesture(at(3.6, 0.4));
+    await gesture.moveBy(at(0.6, 0.4) - at(3.6, 0.4));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Place on top of other cargo?'), findsNothing);
+    expect(find.textContaining('at most 2 per stack'), findsOneWidget);
+    expect(requests.where((r) => r.$2 == '/api/m/load/plan/check'), isEmpty);
   });
 
   testWidgets('tryb sztaplowany: piętrowanie pozycji i plan od nowa', (tester) async {

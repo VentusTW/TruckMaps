@@ -321,6 +321,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
       name: '${type?['name'] ?? ''}',
       securing: '${type?['securing'] ?? 'top'}',
       gear: [for (final g in (type?['gear'] as List<dynamic>? ?? const [])) '$g'],
+      stack: (type?['stack'] as int?) ?? (item.kind == 'custom' ? 1 : 2),
     );
   }
 
@@ -691,7 +692,13 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
           highlight: _gearHover,
           edit: plan == null
               ? null
-              : PlanDeck(plan: plan, onMoved: _check, onRearrange: _busy ? null : _calculate, embedded: true),
+              : PlanDeck(
+                  plan: plan,
+                  looks: [for (final i in _items) _look(i)],
+                  names: [for (final i in _items) _cargoName(t, i)],
+                  onMoved: _check,
+                  onRearrange: _busy ? null : _calculate,
+                  embedded: true),
         );
         final gear = plan == null
             ? null
@@ -918,9 +925,20 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
 /// Rozmieszczenie do edycji: widoki z góry i z boku (przód – po lewej) z przybliżaniem,
 /// przesuwaniem obrazu i przeciąganiem palet; „Ułóż automatycznie” – plan od nowa bez przekroczeń.
 class PlanDeck extends StatefulWidget {
-  const PlanDeck({super.key, required this.plan, this.onMoved, this.onRearrange, this.embedded = false});
+  const PlanDeck(
+      {super.key,
+      required this.plan,
+      this.onMoved,
+      this.onRearrange,
+      this.embedded = false,
+      this.looks = const [],
+      this.names = const []});
 
   final Map<String, dynamic> plan;
+
+  /// Wygląd i limit stosu pozycji (piętrowanie przy przeciąganiu) oraz ich nazwy.
+  final List<CargoLook> looks;
+  final List<String> names;
 
   /// Palety przeciągnięte – nowe ułożenie do sprawdzenia; `null` – bez przeciągania.
   final ValueChanged<List<Map<String, dynamic>>>? onMoved;
@@ -964,7 +982,12 @@ class _PlanDeckState extends State<PlanDeck> {
       Text(_moving ? t.moveItemsHint : (desktop ? t.moveViewHintDesktop : t.moveViewHint),
           style: theme.textTheme.bodySmall),
       Text(t.front, style: theme.textTheme.bodySmall),
-      DeckView(plan: plan, moving: _moving && widget.onMoved != null, onMoved: widget.onMoved ?? (_) {}),
+      DeckView(
+          plan: plan,
+          moving: _moving && widget.onMoved != null,
+          onMoved: widget.onMoved ?? (_) {},
+          looks: widget.looks,
+          names: widget.names),
       const SizedBox(height: Gap.s),
       Container(
         width: double.infinity,
