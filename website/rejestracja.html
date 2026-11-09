@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="register.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:register.lead">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="page-head">
+      <div class="container">
+        <div class="breadcrumbs"><a href="index.html" data-i18n="nav.home"></a> / <a href="cennik.html" data-i18n="nav.pricing"></a></div>
+        <h1 data-i18n="register.h1"></h1>
+        <p class="lead" data-i18n="register.lead"></p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:8px">
+      <div class="container">
+        <div class="info warn" style="margin-bottom:24px"><strong data-i18n="register.warnTitle"></strong><br><span data-i18n="register.warnText"></span></div>
+        <div class="form-layout">
+          <form class="card" data-register-form novalidate>
+            <h2 data-i18n="register.sectionPlan"></h2>
+            <div class="field-row">
+              <div class="field"><label for="f-group" data-i18n="register.group"></label><select id="f-group" name="group"></select></div>
+              <div class="field"><label for="f-plan" data-i18n="register.plan"></label><select id="f-plan" name="plan"></select></div>
+            </div>
+            <div class="field" data-row-billing><label for="f-billing" data-i18n="register.billing"></label><select id="f-billing" name="billing"></select></div>
+            <div class="field hidden" data-row-tokens><label for="f-tokens" data-i18n="register.tokens"></label><input id="f-tokens" name="tokens" type="number" step="1"><div class="hint" data-i18n="register.tokensHint"></div></div>
+
+            <h2 style="margin-top:12px" data-i18n="register.sectionData"></h2>
+            <div class="field-row">
+              <div class="field"><label for="f-firstName" data-i18n="register.firstName"></label><input id="f-firstName" name="firstName" type="text" required autocomplete="given-name"><div class="error" data-error="firstName"></div></div>
+              <div class="field"><label for="f-lastName" data-i18n="register.lastName"></label><input id="f-lastName" name="lastName" type="text" required autocomplete="family-name"><div class="error" data-error="lastName"></div></div>
+            </div>
+            <div class="field-row" data-row-company>
+              <div class="field"><label for="f-company" data-i18n="register.company"></label><input id="f-company" name="company" type="text" required autocomplete="organization"><div class="error" data-error="company"></div></div>
+              <div class="field"><label for="f-nip" data-i18n="register.nip"></label><input id="f-nip" name="nip" type="text"><div class="hint" data-i18n="register.nipHint"></div><div class="error" data-error="nip"></div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label for="f-email" data-i18n="register.email"></label><input id="f-email" name="email" type="email" required autocomplete="email"><div class="hint" data-i18n="register.emailHint"></div><div class="error" data-error="email"></div></div>
+              <div class="field"><label for="f-phone" data-i18n="register.phone"></label><input id="f-phone" name="phone" type="tel" required autocomplete="tel"><div class="error" data-error="phone"></div></div>
+            </div>
+            <div class="field"><label for="f-country" data-i18n="register.country"></label><select id="f-country" name="country" data-i18n-options="register.countries"></select></div>
+
+            <h2 style="margin-top:12px" data-i18n="register.sectionConsents"></h2>
+            <label class="checkbox"><input type="checkbox" name="terms"><span data-i18n-html="register.terms"></span></label>
+            <div class="error" data-error="terms"></div>
+            <div data-row-deadline>
+              <label class="checkbox"><input type="checkbox" name="deadline"><span data-deadline-label></span></label>
+              <div class="error" data-error="deadline"></div>
+            </div>
+            <label class="checkbox"><input type="checkbox" name="marketing"><span data-i18n="register.marketing"></span></label>
+            <button class="btn btn-primary btn-block" type="submit" style="margin-top:12px" data-i18n="register.submit"></button>
+          </form>
+          <aside class="card summary" data-summary></aside>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pricing.js"></script>
+  <script src="assets/js/register.js"></script>
+</body>
+</html>

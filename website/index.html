@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="home.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:home.lead">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <span class="badge" data-i18n="home.badge"></span>
+          <h1 data-i18n="home.h1"></h1>
+          <p class="lead" data-i18n="home.lead"></p>
+          <div class="actions">
+            <a class="btn btn-primary" href="cennik.html" data-i18n="home.ctaPrimary"></a>
+            <a class="btn btn-ghost" href="funkcje.html" data-i18n="home.ctaSecondary"></a>
+          </div>
+          <p class="small muted" data-i18n="home.heroNote"></p>
+        </div>
+        <div class="hero-card" aria-hidden="true">
+          <p><strong data-i18n="home.cardTitle"></strong></p>
+          <div class="route-row"><span class="dot green"></span><div><strong data-i18n="home.cardGreen"></strong><span data-i18n="home.cardGreenSub"></span></div></div>
+          <div class="route-row"><span class="dot yellow"></span><div><strong data-i18n="home.cardYellow"></strong><span data-i18n="home.cardYellowSub"></span></div></div>
+          <div class="route-row"><span class="dot red"></span><div><strong data-i18n="home.cardRed"></strong><span data-i18n="home.cardRedSub"></span></div></div>
+          <p class="small muted" style="margin:12px 0 0" data-i18n="home.cardCost"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container grid grid-2" style="align-items:center">
+        <div>
+          <h2 data-i18n="home.aboutTitle"></h2>
+          <p class="lead" data-i18n="home.aboutText"></p>
+        </div>
+        <div class="stats" data-i18n-stats="home.stats" style="margin-top:0"></div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="container">
+        <div class="center">
+          <h2 data-i18n="home.benefitsTitle"></h2>
+          <p class="lead" data-i18n="home.benefitsLead"></p>
+        </div>
+        <div class="grid grid-3" style="margin-top:28px" data-i18n-cards="home.benefits"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="center">
+          <h2 data-i18n="home.groupsTitle"></h2>
+          <p class="lead" data-i18n="home.groupsLead"></p>
+        </div>
+      <div class="grid grid-4" style="margin-top:28px">
+        <a class="card link" href="cennik-kierowca.html"><div class="icon" data-icon="phone"></div><h3 data-i18n="groups.driver.name"></h3><p class="muted" data-i18n="groups.driver.desc"></p><strong class="small" data-from-price="driver"></strong></a>
+        <a class="card link" href="cennik-przedsiebiorca.html"><div class="icon" data-icon="truck"></div><h3 data-i18n="groups.owner.name"></h3><p class="muted" data-i18n="groups.owner.desc"></p><strong class="small" data-from-price="owner"></strong></a>
+        <a class="card link" href="cennik-spedytor.html"><div class="icon" data-icon="box"></div><h3 data-i18n="groups.forwarder.name"></h3><p class="muted" data-i18n="groups.forwarder.desc"></p><strong class="small" data-from-price="forwarder"></strong></a>
+        <a class="card link" href="cennik-dyspozytor.html"><div class="icon" data-icon="headset"></div><h3 data-i18n="groups.dispatcher.name"></h3><p class="muted" data-i18n="groups.dispatcher.desc"></p><strong class="small" data-from-price="dispatcher"></strong></a>
+      </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="container">
+        <h2 class="center" data-i18n="home.stepsTitle"></h2>
+        <ol class="steps" style="margin-top:24px" data-i18n-steps="home.steps"></ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="cta">
+          <div><h2 data-i18n="home.ctaTitle"></h2><p data-i18n="home.ctaText"></p></div>
+          <a class="btn btn-primary" href="cennik.html" data-i18n="home.ctaButton"></a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pricing.js"></script>
+</body>
+</html>

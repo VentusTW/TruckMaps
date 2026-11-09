@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="account.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:account.createdText">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="page-head">
+      <div class="container">
+        <h1 data-i18n="account.h1"></h1>
+      </div>
+    </section>
+    <section class="section" style="padding-top:0">
+      <div class="container">
+        <div class="card hidden center" data-account-empty>
+          <h2 data-i18n="account.emptyTitle"></h2>
+          <p class="muted" data-i18n="account.emptyText"></p>
+          <a class="btn btn-primary" href="cennik.html" data-i18n="nav.pricing"></a>
+        </div>
+        <div class="form-layout hidden" data-account>
+          <div class="card">
+            <h2 data-i18n="account.created"></h2>
+            <p class="muted" data-i18n="account.createdText"></p>
+            <div data-account-status></div>
+            <div data-pay-box>
+              <button class="btn btn-primary" type="button" data-pay data-i18n="account.pay"></button>
+              <p class="info small hidden" style="margin-top:14px" data-pay-info data-i18n="account.payInfo"></p>
+            </div>
+            <h3 style="margin-top:24px" data-i18n="account.nextTitle"></h3>
+            <ol data-i18n-list="account.next"></ol>
+            <button class="btn btn-ghost btn-sm" type="button" data-cancel data-i18n="account.cancel"></button>
+          </div>
+          <aside class="card summary">
+            <h3 data-i18n="register.summary"></h3>
+            <dl data-account-rows></dl>
+            <p class="small muted" data-i18n="meta.vatNote"></p>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pricing.js"></script>
+  <script src="assets/js/register.js"></script>
+</body>
+</html>
