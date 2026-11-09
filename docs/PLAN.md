@@ -286,6 +286,30 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
   - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
   - [x] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
+- [ ] Ulepszenia trasy i prowadzenia (pomysły z ogłoszenia TirNavi 1.0.589 z 06.11.2026 – własne wykonanie):
+  - trasa bardziej pod ciężarówkę:
+    - [ ] mocniejsza preferencja autostrad i dróg krajowych przed skrótami przez wsie, nawet kosztem kilku minut (koszty Valhalli: `use_highways`, kary za drogi niższej klasy)
+    - [ ] unikanie zawracania przy wyznaczaniu i przeliczaniu trasy (`u_turn` / kierunek startu z GPS – `heading` w punkcie startowym)
+    - [ ] punkt „Jedź przez” z kierunkiem jazdy: po drugiej stronie drogi → najkrótsza sensowna droga (`heading` / `preferred_side` dla punktu pośredniego)
+    - [ ] dokładniejsze strefy zakazu tranzytu ciężarówek (OSM `hgv=destination`, `access=destination`, strefy miejskie)
+    - [ ] zamknięta droga blisko startu lub celu: od razu komunikat i dalsze prowadzenie (nie błąd wyznaczania)
+    - [ ] pominięty punkt „Jedź przez” – odpuszczany automatycznie; przystanek (załadunek / rozładunek) zostaje, aplikacja pyta, czy go pominąć
+  - prowadzenie:
+    - [ ] na autostradzie zapowiedź zjazdu / węzła ok. 2 km wcześniej
+    - [ ] krótkie zadaszenia i galerie nie są ogłaszane jako tunel (próg długości odcinka `tunnel`, `covered=yes`)
+    - [ ] spokojniejsza mapa przy ok. 85 km/h – płynniejsze oddalanie i przybliżanie (wygładzenie zoomu zależnego od prędkości)
+    - [ ] tryb nocny dokładnie od zachodu słońca w miejscu pojazdu (obliczenie wschodu / zachodu z pozycji, bez sieci)
+  - pasek trasy i mapa:
+    - [ ] parkingi i stacje na pasku od razu po starcie i po każdym przeliczeniu
+    - [ ] na pasku tylko parkingi po stronie jazdy na autostradzie (strona drogi / dostęp z jezdni w danym kierunku)
+    - [ ] uzupełnienie fotoradarów (pełniejszy import OSM, zgłoszenia kierowców)
+  - ekran:
+    - [ ] tablety: większy ekran jazdy i napisy na mapie
+    - [ ] podzielony ekran i składane telefony (układ zależny od szerokości, nie od urządzenia)
+    - [ ] liczby nigdy się nie ucinają (dopasowanie rozmiaru, cyfry tabelaryczne)
+    - [ ] długie nazwy w „Moje miejsca” widoczne w całości (zawijanie)
+    - [ ] statystyki liczą każdy przejechany kilometr (także krótkie odcinki i przejazdy bez zakończonej nawigacji)
+  - [ ] aktualizacje w tle: numer wersji w „Ustawienia → O aplikacji”, nowa wersja po ponownym uruchomieniu
 - [x] Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans, czas jazdy, godzina przyjazdu, opóźnienie), pojazd w nagłówku („Marek · 40 t · 4 m”), kraje i przejścia graniczne na trasie, zakazy ruchu w każdym kraju („Niemcy: zakaz do 22:00”, „brak danych” dla krajów bez kalendarza), przycisk „Rozpocznij jazdę”
   - [x] pojazd w nagłówku wyniku trasy w planerze: „MAN TGX + Firanka · 40 t · 4 m” (nazwa z naczepą, DMC, wysokość)
   - [x] ekran „Przegląd trasy” (`planner/route_review.dart`) między planerem a nawigacją: warianty na mapie z etykietą km i czasu (dotknięcie wybiera), podsumowanie – dystans, czas jazdy, przyjazd, opóźnienie (postój w czasie zakazów; dla alternatyw „liczone tylko dla trasy proponowanej”), kraje z przejściami granicznymi (km, godzina wjazdu, znacznik kodu kraju na mapie), zakazy w każdym kraju i „Rozpocznij jazdę”
