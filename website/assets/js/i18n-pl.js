@@ -45,6 +45,8 @@ window.I18N.pl = {
     vehicles: { one: "{n} pojazd", few: "{n} pojazdy", many: "{n} pojazdów", other: "{n} pojazdu" },
     carriers: { one: "{n} pojazd przewoźników", few: "{n} pojazdy przewoźników", many: "{n} pojazdów przewoźników", other: "{n} pojazdu przewoźników" },
     seats: { one: "{n} stanowisko", few: "{n} stanowiska", many: "{n} stanowisk", other: "{n} stanowiska" },
+    trailers: { one: "{n} naczepa / przyczepa", few: "{n} naczepy / przyczepy", many: "{n} naczep / przyczep", other: "{n} naczepy / przyczepy" },
+    routes: { one: "{n} trasa / mies.", few: "{n} trasy / mies.", many: "{n} tras / mies.", other: "{n} trasy / mies." },
   },
 
   home: {
@@ -54,7 +56,7 @@ window.I18N.pl = {
     lead: "TruckMaps wyznacza drogę pod wymiary, masę, naciski osi i ładunek pojazdu, a każdy odcinek ocenia kolorem: zielony – bez problemów, żółty – uwaga, czerwony – nie przejedziesz. Do tego czas pracy, parkingi, koszty i myto, flota i zlecenia.",
     ctaPrimary: "Wybierz plan",
     ctaSecondary: "Zobacz funkcje",
-    heroNote: "Kierowca Start jest bezpłatny bez limitu czasu.",
+    heroNote: "Kierowca Start jest bezpłatny bez limitu czasu (1 pojazd, 30 tras miesięcznie).",
     cardTitle: "Opole → Lyon, ciągnik z naczepą 4,0 m",
     cardGreen: "Autostrada A4 / A6",
     cardGreenSub: "bez ograniczeń dla Twojego pojazdu",
@@ -176,6 +178,32 @@ window.I18N.pl = {
     note_annual: "{total} raz w roku (zamiast {old})",
   },
 
+  addons: {
+    title: "Dodatki ponad limit planu",
+    lead: "Potrzebujesz więcej kierowców, pojazdów albo kont? Dokup pojedyncze miejsca do swojego planu, bez jego zmiany. Pojazd tylko na kilka dni dodasz za tokeny (1 token = 1 dzień).",
+    thAddon: "Dodatek",
+    thPrice: "Cena za sztukę",
+    billingNote: "Ceny przy płatności: {period}. Dodatki rozliczamy w tym samym okresie i z tym samym upustem co plan; dodane w trakcie okresu – proporcjonalnie do jego końca.",
+    onlyIn: "Dostępne w planach: {plans}",
+    formTitle: "Dodatki (opcjonalnie)",
+    each: "{price} / mies. za sztukę",
+    items: {
+      driver: { name: "+1 kierowca", desc: "Konto kierowcy w firmie, z tym samym planem kierowcy co pozostali (Start+, Plus albo Pro – zależnie od planu firmy)." },
+      vehicle: { name: "+1 pojazd", desc: "Ciągnik, solówka albo bus – trasy pod jego wymiary, terminy i statystyki." },
+      trailer: { name: "+1 naczepa / przyczepa", desc: "Naczepa lub przyczepa z wymiarami, terminami przeglądów i ubezpieczeń." },
+      office: { name: "+1 konto biurowe", desc: "Kolejna osoba w biurze: właściciel, dyspozytor albo spedytor." },
+      carrier: { name: "+1 pojazd przewoźnika", desc: "Kolejny zestaw przewoźnika, do którego przypiszesz zlecenia." },
+      seat: { name: "+1 stanowisko", desc: "Kolejny dyspozytor z pełnymi funkcjami Twojego planu." },
+      dvehicle: { name: "+1 pojazd", desc: "Kolejny pojazd w profilu kierowcy, np. drugi ciągnik albo bus." },
+    },
+    count: {
+      driver: "Pojazd to ciągnik, solówka albo bus. Naczepę dodajesz do pojazdu bez dopłaty.",
+      owner: "Pojazd to ciągnik, solówka albo bus; naczepy i przyczepy liczymy osobno. Każdy plan ma tyle samo miejsc na naczepy co na pojazdy, więc ciągnik z naczepą (1 pojazd + 1 naczepa) zawsze mieści się w limicie.",
+      forwarder: "Pojazd przewoźnika to cały zestaw – ciągnik z naczepą liczymy jako jeden.",
+      dispatcher: "Pojazd to ciągnik, solówka albo bus; naczepy nie wliczają się do limitu.",
+    },
+  },
+
   plans: {
     driver: {
       title: "Cennik dla kierowcy – TruckMaps",
@@ -184,11 +212,17 @@ window.I18N.pl = {
         name: "Start",
         for: "Na początek, dla każdego kierowcy",
         features: ["Trasa pod wymiary i masę pojazdu", "Ocena trasy: zielony / żółty / czerwony", "Nawigacja z ostrzeżeniami", "Zakazy ruchu w krajach na trasie", "Dołączenie do firmy kodem zaproszenia"],
+        note: "Limit: 1 pojazd i 30 tras miesięcznie. Bez limitu tras – Start+.",
+      },
+      startplus: {
+        name: "Start+",
+        for: "Start bez limitu tras",
+        features: ["Wszystko ze Start", "Bez limitu tras"],
       },
       plus: {
         name: "Plus",
         for: "Dla kierowcy w codziennej trasie",
-        features: ["Wszystko ze Start", "Parkingi dla TIR i POI z filtrami", "Czas pracy wg 561/2006 i plan przerw", "Przerwa zaplanowana przed korkiem lub wypadkiem", "Waluta i język do wyboru"],
+        features: ["Wszystko ze Start+", "Parkingi dla TIR i POI z filtrami", "Czas pracy wg 561/2006 i plan przerw", "Przerwa zaplanowana przed korkiem lub wypadkiem", "Waluta i język do wyboru"],
       },
       pro: {
         name: "Pro",

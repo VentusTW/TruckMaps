@@ -34,6 +34,7 @@ pula tokenów w cenie planu (liczba tokenów × koszt tokena 0,45 €).
 
 | Plan | Koszt € | +30% € | Cena € / mies. | Cena zł / mies. | zł / mies. przy płatności półrocznej (−8%) | zł / mies. przy płatności rocznej (−15%) |
 |---|---:|---:|---:|---:|---:|---:|
+| Kierowca Start+ (1 pojazd, bez limitu tras) | 2,10 | 2,73 | 2,99 | 11,99 | 11,03 | 10,19 |
 | Kierowca Plus | 3,60 | 4,68 | 4,99 | 20,99 | 19,31 | 17,84 |
 | Kierowca Pro | 7,00 | 9,10 | 9,99 | 39,99 | 36,79 | 33,99 |
 | Mała flota | 24,00 | 31,20 | 31,99 | 134,99 | 124,19 | 114,74 |
@@ -49,7 +50,15 @@ pula tokenów w cenie planu (liczba tokenów × koszt tokena 0,45 €).
 | Dyspozytor Pro | 62,00 | 80,60 | 80,99 | 346,99 | 319,23 | 294,94 |
 | Centrum dyspozytorskie | 130,00 | 169,00 | 169,99 | 726,99 | 668,83 | 617,94 |
 
-Kierowca Start (0 zł) to koszt marketingu – mieści się w pozycji „Sprzedaż i marketing”.
+Kierowca Start (0 zł, 1 pojazd, 30 tras miesięcznie) to koszt marketingu – mieści się w pozycji
+„Sprzedaż i marketing”. Kto potrzebuje więcej tras, przechodzi na Start+.
+
+Start+ – składniki (€): infrastruktura 0,35 (trasy obciążają serwer prawie jak w Plus, bez map offline),
+dane 0,10, wsparcie 0,30, rozwój 0,80 (udział w rdzeniu – trasy i ocena), marketing 0,30,
+płatności 0,25 (stała opłata za transakcję przy małej kwocie).
+
+Uwaga: ceny planów kierowcy nie zawierają 15% prowizji Google Play / App Store – przy sprzedaży
+w aplikacji cena musiałaby wzrosnąć (Start+ ≈ 13,99 zł, Plus ≈ 23,99 zł, Pro ≈ 45,99 zł).
 
 ## 3. Upusty
 
@@ -71,7 +80,33 @@ Kierowca Start (0 zł) to koszt marketingu – mieści się w pozycji „Sprzeda
 
 Pakiety tokenów liczone co do grosza (bez zaokrąglania do „,99”), żeby cena za token zgadzała się z tabelą progów.
 
-## 4. Do decyzji / do zrobienia
+## 4. Dodatki ponad limit planu
+
+Każdy dodatek ma koszt za sztukę i cenę liczoną tak samo jak plan (× 1,30, do „,99”). Rozliczany
+w tym samym okresie i z tym samym upustem co plan; dodany w trakcie – proporcjonalnie do końca okresu.
+
+**Jak liczymy pojazdy:** pojazd = pojazd z napędem (ciągnik, solówka, bus). U przedsiębiorcy
+naczepy i przyczepy liczone osobno, ale każdy plan ma tyle samo miejsc na naczepy co na pojazdy
+(ciągnik z naczepą = 1 pojazd + 1 naczepa, zawsze w limicie). U spedytora pojazd przewoźnika to
+cały zestaw. U dyspozytora i kierowcy naczepy nie wliczają się do limitu.
+
+| Grupa | Dodatek | Koszt € | Koszt zł | Cena zł / mies. | Przy płatności rocznej zł / mies. | Cena € |
+|---|---|---:|---:|---:|---:|---:|
+| Przedsiębiorca | +1 kierowca – Mała flota (poziom Start+) | 1,55 | 6,67 | 8,99 | 7,64 | 2,99 |
+| Przedsiębiorca | +1 kierowca – Flota (poziom Plus) | 2,50 | 10,75 | 13,99 | 11,89 | 3,99 |
+| Przedsiębiorca | +1 kierowca – Flota Pro / Biznes (poziom Pro) | 5,10 | 21,93 | 28,99 | 24,64 | 6,99 |
+| Przedsiębiorca, Dyspozytor | +1 pojazd | 1,70 | 7,31 | 9,99 | 8,49 | 2,99 |
+| Przedsiębiorca | +1 naczepa / przyczepa | 0,30 | 1,29 | 1,99 | 1,69 | 0,99 |
+| Przedsiębiorca, Spedytor | +1 konto biurowe | 2,50 | 10,75 | 13,99 | 11,89 | 3,99 |
+| Spedytor | +1 pojazd przewoźnika | 0,40 | 1,72 | 2,99 | 2,54 | 0,99 |
+| Dyspozytor | +1 stanowisko | 6,00 | 25,80 | 33,99 | 28,89 | 7,99 |
+| Kierowca (Plus, Pro) | +1 pojazd | 0,40 | 1,72 | 2,99 | 2,54 | 0,99 |
+
+Dodatkowy kierowca = koszt planu kierowcy, który firma daje w cenie (Start+ / Plus / Pro), bez
+udziału w marketingu i płatnościach. Pojazd: trasy (serwer), myto i terminy, wsparcie, rozwój.
+Pojazd tylko na kilka dni – tokenami (1 token = 1 dzień).
+
+## 5. Do decyzji / do zrobienia
 
 - Dane kontaktowe na stronie są wymyślone (`CONTACT` w `website/assets/js/app.js`).
 - Rejestracja zapisuje wniosek tylko w przeglądarce – podpiąć serwer (konto w Zitadel, plan,

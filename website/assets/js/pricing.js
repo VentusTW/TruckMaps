@@ -22,7 +22,8 @@
     driver: {
       page: "cennik-kierowca.html",
       plans: [
-        { id: "start", cost: null },
+        { id: "start", cost: null, limits: { vehicles: 1, routes: 30 } },
+        { id: "startplus", cost: [0.35, 0.1, 0.3, 0.8, 0.3, 0.25], limits: { vehicles: 1 } },
         { id: "plus", cost: [0.4, 0.3, 0.5, 1.3, 0.7, 0.4], limits: { vehicles: 2 } },
         { id: "pro", cost: [0.9, 0.8, 0.8, 2.6, 1.2, 0.7], popular: true, limits: { vehicles: 3 } },
         { id: "days", tokens: 1 },
@@ -31,10 +32,10 @@
     owner: {
       page: "cennik-przedsiebiorca.html",
       plans: [
-        { id: "small", cost: [3, 1, 5, 9, 4, 2], limits: { office: 2, drivers: 5, vehicles: 5 } },
-        { id: "fleet", cost: [6, 3, 9, 18, 6, 4, 4.5], popular: true, limits: { office: 3, drivers: 10, vehicles: 10 } },
-        { id: "pro", cost: [18, 16, 20, 45, 10, 9, 9], limits: { office: 5, drivers: 25, vehicles: 25 } },
-        { id: "business", cost: [40, 35, 40, 90, 15, 18, 22.5], limits: { office: 10, drivers: 60, vehicles: 60 } },
+        { id: "small", cost: [3, 1, 5, 9, 4, 2], limits: { office: 2, drivers: 5, vehicles: 5, trailers: 5 } },
+        { id: "fleet", cost: [6, 3, 9, 18, 6, 4, 4.5], popular: true, limits: { office: 3, drivers: 10, vehicles: 10, trailers: 10 } },
+        { id: "pro", cost: [18, 16, 20, 45, 10, 9, 9], limits: { office: 5, drivers: 25, vehicles: 25, trailers: 25 } },
+        { id: "business", cost: [40, 35, 40, 90, 15, 18, 22.5], limits: { office: 10, drivers: 60, vehicles: 60, trailers: 60 } },
       ],
     },
     forwarder: {
@@ -56,6 +57,30 @@
       ],
     },
   };
+
+  // Dodatki ponad limit planu – koszt EUR / mies. za sztukę; cena jak plan (× 1,30, do „,99”),
+  // ten sam okres i upust co plan. Liczenie: pojazd = pojazd z napędem (ciągnik, solówka, bus);
+  // naczepy i przyczepy osobno (przedsiębiorca), pojazd przewoźnika = cały zestaw (spedytor).
+  // Dodatkowy kierowca ma plan kierowcy z planu firmy (Start+ / Plus / Pro) – koszt tego planu
+  // bez udziału w marketingu i płatnościach.
+  const ADDONS = {
+    driver: [{ id: "dvehicle", cost: 0.4, plans: ["plus", "pro"] }],
+    owner: [
+      { id: "driver", cost: { small: 1.55, fleet: 2.5, pro: 5.1, business: 5.1 } },
+      { id: "vehicle", cost: 1.7 },
+      { id: "trailer", cost: 0.3 },
+      { id: "office", cost: 2.5 },
+    ],
+    forwarder: [
+      { id: "office", cost: 2.5 },
+      { id: "carrier", cost: 0.4 },
+    ],
+    dispatcher: [
+      { id: "seat", cost: 6 },
+      { id: "vehicle", cost: 1.7 },
+    ],
+  };
+  const ADDON_MAX = 500;
 
   // Tokeny: 1 token ≈ 1 dzień planu Kierowca Pro, 1 pojazd na 1 dzień, 1 dokument; ważne 12 miesięcy.
   const TOKEN_COST = 0.45; // EUR, koszt jednego tokena
@@ -106,6 +131,25 @@
     const b = BILLING[billing] || BILLING.monthly;
     const total = round2(monthlyPrice(plan, cur) * b.months * (1 - b.discount));
     return { total, perMonth: round2(total / b.months), months: b.months, discount: b.discount };
+  }
+
+  function addonsFor(group, planId) {
+    return (ADDONS[group] || []).filter(
+      (a) => (!a.plans || a.plans.includes(planId)) && (typeof a.cost !== "object" || a.cost[planId] !== undefined)
+    );
+  }
+
+  /** Cena dodatku za sztukę przy płatności co miesiąc. */
+  function addonMonthly(addon, planId, cur) {
+    const cost = typeof addon.cost === "object" ? addon.cost[planId] : addon.cost;
+    return niceUp(cost * MARKUP * RATES[cur]);
+  }
+
+  /** Kwota za qty sztuk dodatku za cały okres i jej równowartość miesięczna. */
+  function addonPeriod(addon, planId, cur, billingKey, qty) {
+    const b = BILLING[billingKey] || BILLING.monthly;
+    const total = round2(addonMonthly(addon, planId, cur) * (qty || 1) * b.months * (1 - b.discount));
+    return { total, perMonth: round2(total / b.months) };
   }
 
   function tokenDiscount(qty) {
@@ -210,6 +254,32 @@
     const toggle = document.querySelector("[data-billing-toggle]");
     if (toggle) renderBillingToggle(toggle);
     host.innerHTML = GROUPS[group].plans.map((p) => planCard(group, p, billing, cur)).join("");
+    renderAddons(group, cur);
+  }
+
+  function renderAddons(group, cur) {
+    const host = document.querySelector("[data-addons]");
+    if (!host) return;
+    const paid = GROUPS[group].plans.filter((p) => p.cost);
+    const perMonth = esc(t("common.perMonth"));
+    host.innerHTML = (ADDONS[group] || [])
+      .map((a) => {
+        const planIds = typeof a.cost === "object" ? paid.map((p) => p.id).filter((id) => a.cost[id] !== undefined) : null;
+        const price = planIds
+          ? planIds
+              .map((id) => `${esc(t(`plans.${group}.${id}.name`))}: <strong>${esc(money(addonPeriod(a, id, cur, billing).perMonth))}</strong> ${perMonth}`)
+              .join("<br>")
+          : `<strong>${esc(money(addonPeriod(a, a.plans ? a.plans[0] : paid[0].id, cur, billing).perMonth))}</strong> ${perMonth}`;
+        const only = a.plans
+          ? `<div class="small muted">${esc(t("addons.onlyIn", { plans: a.plans.map((id) => t(`plans.${group}.${id}.name`)).join(", ") }))}</div>`
+          : "";
+        return `<tr><td><strong>${esc(t(`addons.items.${a.id}.name`))}</strong><div class="small muted">${esc(t(`addons.items.${a.id}.desc`))}</div>${only}</td><td>${price}</td></tr>`;
+      })
+      .join("");
+    const note = document.querySelector("[data-addons-note]");
+    if (note) note.textContent = t(`addons.count.${group}`);
+    const period = document.querySelector("[data-addons-billing]");
+    if (period) period.textContent = t("addons.billingNote", { period: t(`billing.${billing}`).toLowerCase() });
   }
 
   // ---------- Przegląd cennika (cennik.html) ----------
@@ -311,6 +381,10 @@
     periodPrice,
     tokenPrice,
     tokenDiscount,
+    ADDON_MAX,
+    addonsFor,
+    addonMonthly,
+    addonPeriod,
   };
 
   document.addEventListener("DOMContentLoaded", bindCalculator);

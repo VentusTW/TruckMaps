@@ -112,7 +112,7 @@ p { margin: 0 0 1em; }
 .toggle button[aria-pressed="true"] { background: var(--brand); color: #fff; }
 .save-tag { display: inline-block; margin-left: 6px; font-size: 0.75rem; padding: 2px 6px; border-radius: 6px; background: #e3f6ec; color: var(--ok); }
 .toggle button[aria-pressed="true"] .save-tag { background: rgba(255, 255, 255, 0.2); color: #fff; }
-.plans { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 32px; align-items: stretch; }
+.plans { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); margin-top: 32px; align-items: stretch; }
 .plan { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px 22px; }
 .plan.popular { border: 2px solid var(--brand); box-shadow: var(--shadow); }
 .plan .ribbon { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--brand); color: #fff; font-size: 0.8rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; white-space: nowrap; }

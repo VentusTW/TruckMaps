@@ -44,6 +44,8 @@ window.I18N.en = {
     vehicles: { one: "{n} vehicle", other: "{n} vehicles" },
     carriers: { one: "{n} carrier vehicle", other: "{n} carrier vehicles" },
     seats: { one: "{n} workstation", other: "{n} workstations" },
+    trailers: { one: "{n} trailer", other: "{n} trailers" },
+    routes: { one: "{n} route / month", other: "{n} routes / month" },
   },
 
   home: {
@@ -53,7 +55,7 @@ window.I18N.en = {
     lead: "TruckMaps plans the road for your vehicle's dimensions, weight, axle loads and cargo, and rates every section by colour: green – no problems, yellow – caution, red – you won't get through. Plus driving hours, parking, costs and tolls, fleet and loads.",
     ctaPrimary: "Choose a plan",
     ctaSecondary: "See features",
-    heroNote: "Driver Start is free with no time limit.",
+    heroNote: "Driver Start is free with no time limit (1 vehicle, 30 routes a month).",
     cardTitle: "Opole → Lyon, tractor with 4.0 m trailer",
     cardGreen: "A4 / A6 motorway",
     cardGreenSub: "no restrictions for your vehicle",
@@ -175,6 +177,32 @@ window.I18N.en = {
     note_annual: "{total} once a year (instead of {old})",
   },
 
+  addons: {
+    title: "Add-ons above your plan's limit",
+    lead: "Need more drivers, vehicles or accounts? Add single seats to your plan without changing it. A vehicle for just a few days can be added with tokens (1 token = 1 day).",
+    thAddon: "Add-on",
+    thPrice: "Price per unit",
+    billingNote: "Prices when paying: {period}. Add-ons are billed for the same period and with the same discount as the plan; added mid-period – pro rata to its end.",
+    onlyIn: "Available in plans: {plans}",
+    formTitle: "Add-ons (optional)",
+    each: "{price} / month each",
+    items: {
+      driver: { name: "+1 driver", desc: "A driver account in the company with the same driver plan as the others (Start+, Plus or Pro – depending on the company plan)." },
+      vehicle: { name: "+1 vehicle", desc: "Tractor unit, rigid truck or van – routes for its dimensions, deadlines and statistics." },
+      trailer: { name: "+1 trailer", desc: "Semi-trailer or trailer with dimensions, inspection and insurance deadlines." },
+      office: { name: "+1 office account", desc: "Another person in the office: owner, dispatcher or forwarder." },
+      carrier: { name: "+1 carrier vehicle", desc: "Another carrier combination to assign orders to." },
+      seat: { name: "+1 workstation", desc: "Another dispatcher with all the features of your plan." },
+      dvehicle: { name: "+1 vehicle", desc: "Another vehicle in the driver's profile, e.g. a second tractor unit or a van." },
+    },
+    count: {
+      driver: "A vehicle is a tractor unit, rigid truck or van. Adding a trailer to it costs nothing extra.",
+      owner: "A vehicle is a tractor unit, rigid truck or van; trailers are counted separately. Every plan has as many trailer slots as vehicle slots, so a tractor with a trailer (1 vehicle + 1 trailer) always fits within the limit.",
+      forwarder: "A carrier vehicle is the whole combination – a tractor with a trailer counts as one.",
+      dispatcher: "A vehicle is a tractor unit, rigid truck or van; trailers don't count towards the limit.",
+    },
+  },
+
   plans: {
     driver: {
       title: "Driver pricing – TruckMaps",
@@ -183,11 +211,17 @@ window.I18N.en = {
         name: "Start",
         for: "To get going, for every driver",
         features: ["Route for vehicle dimensions and weight", "Route rating: green / yellow / red", "Navigation with warnings", "Driving bans in countries on the route", "Join a company with an invitation code"],
+        note: "Limit: 1 vehicle and 30 routes a month. No route limit – Start+.",
+      },
+      startplus: {
+        name: "Start+",
+        for: "Start without a route limit",
+        features: ["Everything in Start", "Unlimited routes"],
       },
       plus: {
         name: "Plus",
         for: "For drivers on the road every day",
-        features: ["Everything in Start", "Truck parking and POI with filters", "Driving hours per 561/2006 and break plan", "Break planned before a traffic jam or accident", "Currency and language of your choice"],
+        features: ["Everything in Start+", "Truck parking and POI with filters", "Driving hours per 561/2006 and break plan", "Break planned before a traffic jam or accident", "Currency and language of your choice"],
       },
       pro: {
         name: "Pro",

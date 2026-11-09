@@ -19,6 +19,7 @@
     plan: params.get("plan") || "",
     billing: params.get("billing") || "annual",
     tokens: parseInt(params.get("tokens") || "0", 10) || 0,
+    addons: {},
   };
   if (state.tokens && !state.plan) state.plan = "tokens";
 
@@ -42,7 +43,15 @@
     if (!plan || plan.tokens) return { kind: "none", cur, paid: false };
     if (!plan.cost) return { kind: "free", plan, amount: 0, cur, paid: false };
     const p = P().periodPrice(plan, cur, state.billing);
-    return { kind: "plan", plan, amount: p.total, perMonth: p.perMonth, cur, paid: true };
+    const addons = P()
+      .addonsFor(state.group, plan.id)
+      .map((a) => ({ a, qty: Math.max(0, Math.min(P().ADDON_MAX, state.addons[a.id] || 0)) }))
+      .filter((x) => x.qty > 0)
+      .map(({ a, qty }) => Object.assign({ id: a.id, qty }, P().addonPeriod(a, plan.id, cur, state.billing, qty)));
+    const r2 = (v) => Math.round(v * 100) / 100;
+    const amount = r2(addons.reduce((s, x) => s + x.total, p.total));
+    const perMonth = r2(addons.reduce((s, x) => s + x.perMonth, p.perMonth));
+    return { kind: "plan", plan, addons, amount, perMonth, cur, paid: true };
   }
 
   // ---------- Formularz ----------
@@ -77,6 +86,31 @@
       .join("");
   }
 
+  function fillAddons(form) {
+    const host = form.querySelector("[data-row-addons]");
+    const plan = P().findPlan(state.group, state.plan);
+    const list = plan && plan.cost ? P().addonsFor(state.group, plan.id) : [];
+    host.classList.toggle("hidden", !list.length);
+    if (!list.length) {
+      host.innerHTML = "";
+      return;
+    }
+    const cur = window.TM.currency();
+    const fields = list
+      .map((a) => {
+        const price = P().addonPeriod(a, plan.id, cur, state.billing).perMonth;
+        return `<div class="field"><label for="a-${a.id}">${esc(t(`addons.items.${a.id}.name`))}</label><input id="a-${a.id}" type="number" min="0" max="${P().ADDON_MAX}" step="1" value="${state.addons[a.id] || 0}" data-addon="${a.id}"><div class="hint">${esc(t("addons.each", { price: money(price) }))}</div></div>`;
+      })
+      .join("");
+    host.innerHTML = `<p class="small muted" style="margin:0 0 8px"><strong>${esc(t("addons.formTitle"))}</strong> – ${esc(t(`addons.count.${state.group}`))}</p><div class="field-row">${fields}</div>`;
+    host.querySelectorAll("[data-addon]").forEach((input) =>
+      input.addEventListener("input", () => {
+        state.addons[input.dataset.addon] = parseInt(input.value, 10) || 0;
+        renderSummary();
+      })
+    );
+  }
+
   function updateVisibility(form) {
     const sel = selection();
     form.querySelector("[data-row-billing]").classList.toggle("hidden", sel.kind !== "plan");
@@ -102,6 +136,7 @@
     if (sel.kind === "plan") {
       rows.push([t("register.sumPlan"), t(`plans.${state.group}.${sel.plan.id}.name`)]);
       rows.push([t("register.sumBilling"), t(`billing.${state.billing}`)]);
+      sel.addons.forEach((x) => rows.push([`${t(`addons.items.${x.id}.name`)} × ${x.qty}`, money(x.perMonth)]));
       rows.push([t("register.sumPerMonth"), money(sel.perMonth)]);
     } else if (sel.kind === "tokens") {
       rows.push([t("register.sumPlan"), t("register.tokensOnly")]);
@@ -126,6 +161,7 @@
     fillGroupSelect(form);
     fillPlanSelect(form);
     fillBillingSelect(form);
+    fillAddons(form);
     form.elements.tokens.value = state.tokens || 100;
     form.elements.tokens.min = P().TOKEN_MIN;
     form.elements.tokens.max = P().TOKEN_MAX;
@@ -182,16 +218,19 @@
     form.elements.group.addEventListener("change", (e) => {
       state.group = e.target.value;
       state.plan = "";
+      state.addons = {};
       refresh(form);
     });
     form.elements.plan.addEventListener("change", (e) => {
       state.plan = e.target.value;
       if (state.plan === "tokens" && !state.tokens) state.tokens = 100;
+      fillAddons(form);
       updateVisibility(form);
       renderSummary();
     });
     form.elements.billing.addEventListener("change", (e) => {
       state.billing = e.target.value;
+      fillAddons(form);
       renderSummary();
     });
     form.elements.tokens.addEventListener("input", (e) => {
@@ -214,6 +253,7 @@
         plan: state.plan,
         billing: sel.kind === "plan" ? state.billing : null,
         tokens: sel.kind === "tokens" ? sel.qty : null,
+        addons: sel.kind === "plan" ? sel.addons.map((x) => ({ id: x.id, qty: x.qty })) : [],
         amount: sel.amount || 0,
         currency: sel.cur,
         firstName: f.firstName.value.trim(),
@@ -254,6 +294,7 @@
       [t("register.sumPlan"), planName],
     ];
     if (acc.billing) rows.push([t("register.sumBilling"), t(`billing.${acc.billing}`)]);
+    (acc.addons || []).forEach((x) => rows.push([t(`addons.items.${x.id}.name`), `× ${x.qty}`]));
     rows.push([t("register.sumFirstPayment"), money(acc.amount, acc.currency)]);
     host.querySelector("[data-account-rows]").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
 
