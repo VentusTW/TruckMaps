@@ -1246,6 +1246,8 @@ def build_router(current_user, settings: Settings, licensing) -> APIRouter:
             db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    # Plany kont (plans.py) przypisuje tylko pełny administrator.
+    router.full_admin = full_admin  # type: ignore[attr-defined]
     return router
 
 

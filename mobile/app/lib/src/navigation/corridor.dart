@@ -61,6 +61,13 @@ double distanceM(LatLng a, LatLng b) {
   return 6371000 * math.sqrt(x * x + y * y);
 }
 
+/// Kierunek z a do b w stopniach (0 = północ, 90 = wschód), jak kurs z GPS.
+double bearingDeg(LatLng a, LatLng b) {
+  final x = _rad(b.longitude - a.longitude) * math.cos(_rad((a.latitude + b.latitude) / 2));
+  final y = _rad(b.latitude - a.latitude);
+  return (math.atan2(x, y) * 180 / math.pi + 360) % 360;
+}
+
 /// Odległość punktu od odcinka a–b i miejsce na nim (ułamek 0–1).
 (double, double) distanceToSegment(LatLng p, LatLng a, LatLng b) {
   final scale = math.cos(_rad(p.latitude));

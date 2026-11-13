@@ -226,3 +226,34 @@ def test_my_modules_show_access(provider):
         {"id": "hello", "name": "Hello (moduł testowy)", "version": "0.1.0", "granted": True}
     ]
     assert theirs.json()[0]["granted"] is False
+
+
+def test_login_may_return_to_web_app_and_app_scheme_only():
+    web = frozenset({"https://app.truckmaps.test"})
+
+    assert devlogin.allowed_return("http://127.0.0.1:53123/callback", web)
+    assert devlogin.allowed_return("truckmaps://auth/callback", web)
+    assert devlogin.allowed_return("https://app.truckmaps.test/", web)
+    assert not devlogin.allowed_return("https://app.truckmaps.test/#/start", web)  # fragment
+    assert not devlogin.allowed_return("https://evil.test/", web)
+    assert not devlogin.allowed_return("https://app.truckmaps.test/", frozenset())
+    assert not devlogin.allowed_return("truckmaps://other", web)
+
+
+def test_web_app_origins_get_cors_and_secure_cookies(provider):
+    settings = Settings(web_app_origins=frozenset({"https://app.truckmaps.test"}))
+    app = create_app(settings, modules=[], token_verifier=provider)
+    app.include_router(devlogin.build_router(provider, "https://api.truckmaps.test"))
+    with TestClient(app, follow_redirects=False) as client:
+        preflight = client.options(
+            "/api/me/plan",
+            headers={
+                "Origin": "https://app.truckmaps.test",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        login = client.get("/auth/login")
+
+    assert preflight.headers["access-control-allow-origin"] == "https://app.truckmaps.test"
+    assert "secure" in login.headers["set-cookie"].lower()

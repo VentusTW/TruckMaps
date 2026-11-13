@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../company/admin_access_screen.dart';
 import '../l10n.dart';
 import 'common.dart';
+import 'live_share.dart';
 import 'onboarding.dart';
 import 'password.dart';
 
@@ -177,6 +178,8 @@ class _AccountScreenState extends State<AccountScreen> {
                   ? l.accountEmailMissing
                   : l.accountEmailTo('${widget.settings['email']}')),
         ),
+        const SizedBox(height: 16),
+        LiveShareSection(api: widget.api),
         const SizedBox(height: 16),
         SectionHeader(l.accountCompanies),
         const SizedBox(height: 8),

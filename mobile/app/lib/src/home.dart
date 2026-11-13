@@ -17,6 +17,7 @@ import 'service/repairs_screen.dart';
 import 'service/tco_screen.dart';
 import 'service/workshop_screen.dart';
 import 'l10n.dart';
+import 'live/live_screen.dart';
 import 'under_construction.dart';
 import 'updates.dart';
 
@@ -188,7 +189,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'reports' => 8,
       'tco' => 9,
       'orders' || 'load3d' => 10,
-      _ => 11,
+      'live' => 11,
+      _ => 12,
     };
     final order = _trail.where((c) => c.id == 'order').lastOrNull;
     final companyName = (company?['name'] as String?) ?? '';
@@ -454,6 +456,11 @@ class _HomeScreenState extends State<HomeScreen> {
           // Zlecenia i załadunek oraz symulator 3D – jeden ekran.
           if (page == 10)
             LoadPlanScreen(key: ValueKey(('orders', company?['id'])), api: widget.session.api)
+          else
+            const SizedBox(),
+          // Centrala & Live Map – pozycje pojazdów z aplikacji kierowców.
+          if (page == 11)
+            LiveScreen(key: ValueKey(('live', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
           else
             const SizedBox(),
           UnderConstructionScreen(

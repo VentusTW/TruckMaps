@@ -26,6 +26,31 @@ final route = [
 void main() {
   final pl = lookupAppLocalizations(const Locale('pl'));
 
+  test('autostrada: zjazd zapowiedziany ok. 2 km wcześniej, potem jak zwykle', () {
+    final guidance = Guidance([
+      maneuver(1, 0, 20, 'Jedź na wschód autostradą A4.'),
+      maneuver(20, 20, 1, 'Zjedź w prawo na zjazd 410.'),
+      maneuver(4, 21, 0, 'Dotarłeś do celu.'),
+    ]);
+    List<String> at(double m) => guidance.announce(m, pl, speedKmh: 85);
+
+    expect(at(0), ['Jedź na wschód autostradą A4.']);
+    expect(at(17000), isEmpty);
+    expect(at(18050), ['Za 2 km zjedź w prawo na zjazd 410.']);
+    expect(at(18100), isEmpty);  // każda zapowiedź raz
+    expect(at(18500), ['Za 1,5 km zjedź w prawo na zjazd 410.']);  // daleka zależna od prędkości
+  });
+
+  test('zwykły skręt nie dostaje zapowiedzi 2 km', () {
+    final guidance = Guidance([
+      maneuver(1, 0, 20, 'Jedź na wschód.'),
+      maneuver(10, 20, 1, 'Skręć w prawo.'),
+      maneuver(4, 21, 0, 'Dotarłeś do celu.'),
+    ]);
+    guidance.announce(0, pl, speedKmh: 85);
+    expect(guidance.announce(18050, pl, speedKmh: 85), isEmpty);
+  });
+
   test('zapowiedzi: daleko, blisko, tuż przed, po manewrze – każda raz', () {
     final guidance = Guidance(route);
     List<String> at(double m) => guidance.announce(m, pl);

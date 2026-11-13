@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,11 +12,12 @@ import 'package:latlong2/latlong.dart';
 import '../l10n.dart';
 import '../planner/clusters.dart';
 import '../planner/place_field.dart' show Place;
-import '../planner/planner_screen.dart' show mapTiles;
+import '../planner/planner_screen.dart' show mapTiles, nightMapTiles;
 import '../planner/route.dart';
 import '../reports/report_sheet.dart';
 import 'corridor.dart';
 import 'guidance.dart';
+import 'live_sharing.dart';
 import 'nav_widgets.dart';
 import 'route_events.dart';
 import 'speech.dart';
@@ -28,12 +30,46 @@ abstract class PositionSource {
 
 enum GpsProblem { disabled, denied }
 
+/// Ustawienia GPS nawigacji: najlepsza dokładność co 5 m, praca w tle i przy wygaszonym ekranie.
+LocationSettings navigationLocationSettings(String title, String text,
+    {TargetPlatform? platform}) {
+  const accuracy = LocationAccuracy.bestForNavigation;
+  const distanceFilter = 5;
+  switch (kIsWeb ? null : platform ?? defaultTargetPlatform) {
+    case TargetPlatform.android:
+      return AndroidSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+        foregroundNotificationConfig: ForegroundNotificationConfig(
+          notificationTitle: title,
+          notificationText: text,
+          notificationChannelName: title,
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    case TargetPlatform.iOS:
+      return AppleSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+        activityType: ActivityType.automotiveNavigation,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    default:
+      return const LocationSettings(accuracy: accuracy, distanceFilter: distanceFilter);
+  }
+}
+
 class GpsPositions implements PositionSource {
   final _controller = StreamController<LatLng>.broadcast();
   StreamSubscription<Position>? _subscription;
 
-  /// Prosi o zgodę na lokalizację; `null` – GPS działa.
-  Future<GpsProblem?> start() async {
+  /// Prosi o zgodę na lokalizację; `null` – GPS działa. Na Androidzie pozycje płyną też przy
+  /// wygaszonym ekranie i w tle (usługa pierwszoplanowa z powiadomieniem [notificationTitle] /
+  /// [notificationText]), na iOS – w trybie tła nawigacji (niebieski wskaźnik na pasku).
+  Future<GpsProblem?> start({String notificationTitle = 'TruckMaps', String notificationText = ''}) async {
     if (!await Geolocator.isLocationServiceEnabled()) return GpsProblem.disabled;
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) permission = await Geolocator.requestPermission();
@@ -41,7 +77,7 @@ class GpsPositions implements PositionSource {
       return GpsProblem.denied;
     }
     _subscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.bestForNavigation, distanceFilter: 5),
+      locationSettings: navigationLocationSettings(notificationTitle, notificationText),
     ).listen((p) => _controller.add(LatLng(p.latitude, p.longitude)));
     return null;
   }
@@ -143,6 +179,18 @@ class NavigationRequest {
 /// Ile kolejnych pozycji poza trasą (nie na drodze czerwonej), zanim trasa jest przeliczana.
 const offRouteFixes = 3;
 
+/// Najmniejszy przejazd między pozycjami, z którego liczony jest kierunek jazdy.
+const headingMinStepM = 8.0;
+
+/// Punkt pośredni jest „minięty”, gdy pojazd jest o tyle bliżej celu niż on i o tyle od niego
+/// daleko – kierowca pojechał inaczej. „Jedź przez” jest wtedy odpuszczany, przystanek – po pytaniu.
+const viaPassedM = 1000.0;
+
+/// Czy punkt [via] został minięty: pojazd w [position] jest wyraźnie bliżej [destination].
+bool viaPassed(LatLng via, LatLng position, LatLng destination) =>
+    distanceM(position, destination) + viaPassedM < distanceM(via, destination) &&
+    distanceM(position, via) > viaPassedM;
+
 /// Zapowiedź głosowa zdarzeń na trasie (fotoradar, przejazd kolejowy, zgłoszenia, zakazy).
 const _spokenKinds = {'speed_camera', 'average_speed', 'level_crossing', 'ban', 'red', 'orange'};
 const eventVoiceM = 500.0;
@@ -169,6 +217,7 @@ class NavigationScreen extends StatefulWidget {
     this.alarmSound = true,
     this.speaker,
     this.clock,
+    this.liveConsent,
   });
 
   final CoreApi api;
@@ -183,6 +232,9 @@ class NavigationScreen extends StatefulWidget {
 
   /// Zegar podany z góry (testy prędkości i trybu nocnego).
   final DateTime Function()? clock;
+
+  /// Zgoda na udostępnianie pozycji firmie (testy); zwykle zapisana na urządzeniu.
+  final LiveConsentStore? liveConsent;
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -199,11 +251,19 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   late PlannedRoute _route = widget.request.route;
   late List<LatLng> _via = widget.request.via;
   late List<String> _viaNames = widget.request.viaNames;
+
+  /// Które punkty pośrednie są przystankami (parking, MOP dodany w trakcie jazdy), a które
+  /// tylko „Jedź przez”. Przystanku nie odpuszczamy bez pytania.
+  late List<bool> _viaStops = [for (final _ in widget.request.via) false];
   late List<DriverReport> _reports = widget.request.reports;
   late List<RoutePlace> _bans = widget.request.bans;
   Corridor? _corridor;
   String? _corridorError;
   LatLng? _position;
+
+  /// Kierunek jazdy z ostatnich pozycji – przy przeliczaniu trasy silnik nie każe zawracać.
+  double? _headingDeg;
+  LatLng? _headingFrom;
   PositionCheck? _check;
   int _offRoute = 0;
 
@@ -302,9 +362,60 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     if (widget.source == null) _startGps();
   }
 
+  /// Centrala & Live Map: pozycja pojazdu firmy wysyłana co 30 s (za zgodą kierowcy).
+  LiveSharing? _live;
+
+  Future<void> _startLive() async {
+    final live = LiveSharing(
+      api: widget.api,
+      vehicleId: widget.request.vehicleId,
+      consent: widget.liveConsent ?? const SecureLiveConsentStore(),
+      ask: _askLiveConsent,
+      current: _liveFix,
+    );
+    _live = live;
+    if (await live.start() && mounted) setState(() => _notice = context.l.liveSharingOn);
+  }
+
+  Future<bool> _askLiveConsent() async {
+    if (!mounted) return false;
+    final allowed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(context.l.liveConsentTitle),
+        content: Text(context.l.liveConsentText),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l.liveConsentDeny)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l.liveConsentAllow)),
+        ],
+      ),
+    );
+    return allowed ?? false;
+  }
+
+  LiveFix? _liveFix() {
+    final position = _position;
+    if (position == null) return null;
+    final total = _route.distanceKm;
+    final remaining = (total - _lastAlongM / 1000).clamp(0.0, total);
+    final minutes = total > 0 ? _route.durationMin * remaining / total : null;
+    return LiveFix(
+      lat: position.latitude,
+      lon: position.longitude,
+      speedKmh: _speedKmh,
+      heading: _headingDeg,
+      remainingKm: remaining,
+      eta: minutes == null ? null : _now().add(Duration(seconds: (minutes * 60).round())),
+    );
+  }
+
   Future<void> _startGps() async {
     final gps = GpsPositions();
-    final problem = await gps.start();
+    final problem = await gps.start(
+      notificationTitle: context.l.navBackgroundTitle,
+      notificationText: context.l.navBackgroundText,
+    );
     if (!mounted) return;
     if (problem != null) {
       setState(() => _notice = problem == GpsProblem.disabled ? context.l.gpsDisabled : context.l.gpsDenied);
@@ -313,6 +424,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     }
     _gps = gps;
     _listen(gps);
+    _startLive();
   }
 
   void _listen(PositionSource source, {bool real = true}) => _subscriptions.add(source.positions.listen((position) {
@@ -359,6 +471,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     for (final s in _subscriptions) {
       s.cancel();
     }
+    _live?.stop();
     _gps?.dispose();
     _simulation.dispose();
     _player.dispose();
@@ -395,6 +508,14 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
     final check = corridor?.check(position);
     final wasAlarm = _check?.alarm != null;
     final speed = _speedMeter.add(position, _now());
+    // Kierunek dopiero po kilku metrach jazdy – na postoju GPS „pływa”.
+    final from = _headingFrom;
+    if (from == null) {
+      _headingFrom = position;
+    } else if (distanceM(from, position) >= headingMinStepM) {
+      _headingDeg = bearingDeg(from, position);
+      _headingFrom = position;
+    }
     setState(() {
       _position = position;
       _check = check;
@@ -468,32 +589,57 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   /// nowy przystanek (parking, MOP) przed pozostałymi punktami pośrednimi.
   Future<void> _recalculate(LatLng position, {Place? stop}) async {
     setState(() => _recalculating = true);
-    // Punkty pośrednie już minięte nie są potrzebne w nowej trasie.
-    final remaining = <(LatLng, String)>[
-      if (stop != null) (stop.point, stop.label),
-      for (final (i, via) in _via.indexed)
-        if (_alongOf(via) > _lastAlongM) (via, i < _viaNames.length ? _viaNames[i] : ''),
+    // Punkty pośrednie już przejechane nie są potrzebne w nowej trasie. Ominięty punkt
+    // „Jedź przez” odpuszczamy sam, ominięty przystanek – tylko gdy kierowca potwierdzi.
+    final skipped = <String>[];
+    final remaining = <(LatLng, String, bool)>[
+      if (stop != null) (stop.point, stop.label, true),
     ];
+    for (final (i, via) in _via.indexed) {
+      if (_alongOf(via) <= _lastAlongM) continue;
+      final name = i < _viaNames.length ? _viaNames[i] : '';
+      final isStop = i < _viaStops.length && _viaStops[i];
+      if (stop == null && viaPassed(via, position, widget.request.destination)) {
+        if (!isStop) {
+          skipped.add(name);
+          continue;
+        }
+        if (await _confirmSkipStop(name)) continue;
+      }
+      remaining.add((via, name, isStop));
+    }
     try {
       final body = await widget.api.post('/api/routes', {
-        'origin': {'lat': position.latitude, 'lon': position.longitude},
+        'origin': {
+          'lat': position.latitude,
+          'lon': position.longitude,
+          if (_headingDeg case final heading?) 'heading': heading,
+        },
         'destination': {'lat': widget.request.destination.latitude, 'lon': widget.request.destination.longitude},
-        'via': [for (final (v, _) in remaining) {'lat': v.latitude, 'lon': v.longitude}],
+        'via': [for (final (v, _, _) in remaining) {'lat': v.latitude, 'lon': v.longitude}],
         'vehicle_id': widget.request.vehicleId,
         'avoid_difficult': widget.request.avoidDifficult,
+        // Przeliczenie w trakcie jazdy nie zużywa limitu tras planu.
+        'reroute': true,
       }) as Map<String, dynamic>;
       final result = RouteResult.fromJson(body);
       setState(() {
         _route = result.route;
         _reports = result.driverReports;
         _bans = result.timeBans;
-        _via = [for (final (v, _) in remaining) v];
-        _viaNames = [for (final (_, name) in remaining) name];
+        _via = [for (final (v, _, _) in remaining) v];
+        _viaNames = [for (final (_, name, _) in remaining) name];
+        _viaStops = [for (final (_, _, isStop) in remaining) isStop];
         _offRoute = 0;
         _lastAlongM = 0;
         _eventsSpoken.clear();
         _prepareRoute();
-        _notice = stop != null ? context.l.navStopAdded(stop.label) : context.l.rerouted;
+        _notice = [
+          stop != null ? context.l.navStopAdded(stop.label) : context.l.rerouted,
+          for (final name in skipped) context.l.navViaSkipped(name.isEmpty ? '–' : name),
+          // Start albo cel przesunięty (np. zamknięta droga przy celu) – prowadzimy dalej.
+          ...result.issues,
+        ].join(' ');
       });
       await _loadCorridor();
     } catch (error) {
@@ -511,6 +657,23 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
       along += distanceM(_route.points[i], _route.points[i + 1]);
     }
     return along + t * distanceM(_route.points[segment], _route.points[segment + 1]);
+  }
+
+  /// Pytanie, czy pominąć ominięty przystanek (domyślnie – nie, trasa wraca do niego).
+  Future<bool> _confirmSkipStop(String name) async {
+    if (!mounted) return false;
+    final skip = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l.navSkipStopTitle),
+        content: Text(context.l.navSkipStopQuestion(name.isEmpty ? '–' : name)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l.navSkipStopKeep)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l.navSkipStopSkip)),
+        ],
+      ),
+    );
+    return skip ?? false;
   }
 
   /// „+”: zgłoszenie albo nowy przystanek (parking, MOP) w miejscu pojazdu.
@@ -598,7 +761,7 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
             },
           ),
           children: [
-            if (_night) ColorFiltered(colorFilter: _nightTiles, child: mapTiles()) else mapTiles(),
+            if (_night) nightMapTiles?.call() ?? ColorFiltered(colorFilter: _nightTiles, child: mapTiles()) else mapTiles(),
             PolylineLayer(polylines: _routeLines),
             ClusteredMarkerLayer(color: navPanelColor, markers: _eventMarkers),
             MarkerLayer(markers: [

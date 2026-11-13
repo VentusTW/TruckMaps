@@ -3339,5 +3339,165 @@
   "bodyPickerTitle": "Rodzaj zabudowy (naczepa, przyczepa, skrzynia)",
   "bodyPickerSearch": "Szukaj: np. chłodnia, coil, cysterna…",
   "pickerEmpty": "Nic nie znaleziono.",
-  "pickerAll": "Wszystkie"
+  "pickerAll": "Wszystkie",
+  "navViaSkipped": "Pominięto punkt „{name}” – już go minąłeś.",
+  "@navViaSkipped": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "navSkipStopTitle": "Ominięty przystanek",
+  "navSkipStopQuestion": "Minąłeś przystanek „{name}”. Pominąć go i jechać dalej do celu?",
+  "@navSkipStopQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "navSkipStopKeep": "Wróć do przystanku",
+  "navSkipStopSkip": "Pomiń",
+  "navBackgroundTitle": "TruckMaps – nawigacja",
+  "navBackgroundText": "Prowadzenie trwa także przy wygaszonym ekranie.",
+  "liveConsentTitle": "Udostępnić pozycję firmie?",
+  "liveConsentText": "W trakcie jazdy tym pojazdem firmy aplikacja co 30 s wyśle właścicielowi i dyspozytorom Twoją pozycję, prędkość i czas do celu (Centrala & Live Map). Tylko ostatnia pozycja, bez historii przejazdu. Zgodę zmienisz w ustawieniach.",
+  "liveConsentAllow": "Udostępniaj",
+  "liveConsentDeny": "Nie teraz",
+  "liveSharingOn": "Pozycja jest udostępniana firmie.",
+  "liveShareTitle": "Pozycja dla firmy (Centrala & Live Map)",
+  "liveShareSwitch": "Udostępniaj pozycję firmie",
+  "liveShareHint": "Także bez nawigacji: co minutę, dopóki aplikacja działa (na Androidzie także w tle, z powiadomieniem). Tylko ostatnia pozycja, bez historii.",
+  "liveShareVehicle": "Pojazd",
+  "liveShareNoVehicles": "Udostępnianie działa dla pojazdów firmy – nie masz jeszcze żadnego.",
+  "liveShareNotShared": "Pozycja nie jest udostępniana – brak zgody albo pojazd nie należy do firmy.",
+  "liveShareConsentText": "Aplikacja będzie co minutę wysyłać właścicielowi i dyspozytorom Twoją pozycję i prędkość dla wybranego pojazdu firmy – także bez nawigacji, dopóki nie wyłączysz przełącznika. Tylko ostatnia pozycja, bez historii przejazdu.",
+  "liveShareNotificationTitle": "TruckMaps – pozycja dla firmy",
+  "liveShareNotificationText": "Pozycja pojazdu jest udostępniana firmie.",
+  "liveStateDriving": "W trasie",
+  "liveStateStopped": "Zakończył jazdę",
+  "liveStateNoSignal": "Brak sygnału",
+  "liveNever": "brak pozycji",
+  "liveJustNow": "przed chwilą",
+  "liveMinutesAgo": "{minutes} min temu",
+  "@liveMinutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "liveHoursAgo": "{hours} godz. temu",
+  "@liveHoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "liveRemaining": "{km} km do celu",
+  "@liveRemaining": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      }
+    }
+  },
+  "liveEta": "przyjazd {time}",
+  "@liveEta": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "liveSummary": "W trasie: {driving} z {total}",
+  "@liveSummary": {
+    "placeholders": {
+      "driving": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "liveRefresh": "Odśwież",
+  "liveEmpty": "Firma nie ma jeszcze pojazdów.",
+  "liveNoCompany": "Centrala jest dla właściciela i dyspozytorów firmy – załóż firmę albo dołącz do niej kodem.",
+  "liveHowItWorks": "Pozycje wysyła aplikacja kierowcy – w trakcie nawigacji albo po włączeniu „Udostępniaj pozycję firmie” w koncie – zawsze za zgodą kierowcy. Bez nowej pozycji przez 5 min pojazd jest „bez sygnału”.",
+  "livePlanRoute": "Zaplanuj trasę i wyślij kierowcy",
+  "livePlanTitle": "Trasa dla {vehicle}",
+  "@livePlanTitle": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
+  "livePlanStartHint": "Start to domyślnie miejsce, w którym pojazd jest teraz – możesz wpisać dowolny inny (np. bazę albo załadunek).",
+  "livePlanVia": "Jedź przez {number}",
+  "@livePlanVia": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "livePlanAddVia": "Dodaj punkt „Jedź przez”",
+  "livePlanRemoveVia": "Usuń punkt",
+  "livePlanAvoid": "Omijaj trudne miejsca",
+  "livePlanCalculate": "Wyznacz trasę",
+  "livePlanSummary": "{km} km · {duration}",
+  "@livePlanSummary": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "livePlanDriver": "Kierowca",
+  "livePlanNote": "Uwagi dla kierowcy",
+  "livePlanSend": "Wyślij kierowcy",
+  "livePlanNoDrivers": "W firmie nie ma kierowców – zaproś ich kodem w zakładce Firma.",
+  "livePlanSent": "Trasa wysłana: {driver}",
+  "@livePlanSent": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
+  "liveBackToList": "Wróć do listy pojazdów",
+  "liveSentTitle": "Wysłane trasy",
+  "liveSentWaiting": "czeka na kierowcę",
+  "liveSentAccepted": "kierowca otworzył",
+  "liveSentDone": "zakończona",
+  "liveSentRejected": "odrzucona",
+  "inboxRouteAssigned": "Trasa od dyspozytora: {name}",
+  "@inboxRouteAssigned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "inboxRouteKm": "{km} km",
+  "@inboxRouteKm": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxOpenRoute": "Otwórz trasę",
+  "assignedChooseStart": "Skąd ruszasz?",
+  "assignedFromPlanned": "Od startu trasy",
+  "assignedFromMyPosition": "Od mojej pozycji",
+  "assignedFromMyPositionHint": "z dojazdem do startu trasy",
+  "assignedNoPosition": "Nie udało się ustalić Twojej pozycji – włącz lokalizację albo ruszaj od startu trasy."
 }

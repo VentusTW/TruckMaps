@@ -1507,5 +1507,165 @@
   "bodyPickerTitle": "Body type (semi-trailer, trailer, body)",
   "bodyPickerSearch": "Search: e.g. reefer, coil, tanker…",
   "pickerEmpty": "Nothing found.",
-  "pickerAll": "All"
+  "pickerAll": "All",
+  "navViaSkipped": "Skipped “{name}” – you've already passed it.",
+  "@navViaSkipped": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "navSkipStopTitle": "Stop passed",
+  "navSkipStopQuestion": "You've passed the stop “{name}”. Skip it and continue to the destination?",
+  "@navSkipStopQuestion": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "navSkipStopKeep": "Go back to the stop",
+  "navSkipStopSkip": "Skip",
+  "navBackgroundTitle": "TruckMaps – navigation",
+  "navBackgroundText": "Guidance continues with the screen off.",
+  "liveConsentTitle": "Share your position with the company?",
+  "liveConsentText": "While driving this company vehicle the app will send your position, speed and time to destination to the owner and dispatchers every 30 s (Control centre & Live Map). Only the latest position, no trip history. You can change this in settings.",
+  "liveConsentAllow": "Share",
+  "liveConsentDeny": "Not now",
+  "liveSharingOn": "Your position is shared with the company.",
+  "liveShareTitle": "Position for the company (Control centre & Live Map)",
+  "liveShareSwitch": "Share my position with the company",
+  "liveShareHint": "Also without navigation: every minute while the app runs (on Android also in the background, with a notification). Only the latest position, no history.",
+  "liveShareVehicle": "Vehicle",
+  "liveShareNoVehicles": "Sharing works for company vehicles – you don't have any yet.",
+  "liveShareNotShared": "Position is not shared – no consent or the vehicle doesn't belong to a company.",
+  "liveShareConsentText": "Every minute the app will send your position and speed for the selected company vehicle to the owner and dispatchers – also without navigation, until you turn the switch off. Only the latest position, no trip history.",
+  "liveShareNotificationTitle": "TruckMaps – position for the company",
+  "liveShareNotificationText": "The vehicle position is shared with the company.",
+  "liveStateDriving": "On the road",
+  "liveStateStopped": "Finished driving",
+  "liveStateNoSignal": "No signal",
+  "liveNever": "no position",
+  "liveJustNow": "just now",
+  "liveMinutesAgo": "{minutes} min ago",
+  "@liveMinutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "liveHoursAgo": "{hours} h ago",
+  "@liveHoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "liveRemaining": "{km} km to go",
+  "@liveRemaining": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      }
+    }
+  },
+  "liveEta": "arrival {time}",
+  "@liveEta": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "liveSummary": "On the road: {driving} of {total}",
+  "@liveSummary": {
+    "placeholders": {
+      "driving": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "liveRefresh": "Refresh",
+  "liveEmpty": "The company has no vehicles yet.",
+  "liveNoCompany": "The control centre is for the company owner and dispatchers – create a company or join one with a code.",
+  "liveHowItWorks": "Positions come from the driver app – during navigation or after turning on “Share my position with the company” in the account – always with the driver's consent. Without a new position for 5 min the vehicle shows “no signal”.",
+  "livePlanRoute": "Plan a route and send it to the driver",
+  "livePlanTitle": "Route for {vehicle}",
+  "@livePlanTitle": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      }
+    }
+  },
+  "livePlanStartHint": "The start is where the vehicle is now by default – you can enter any other place (e.g. the depot or the loading point).",
+  "livePlanVia": "Via {number}",
+  "@livePlanVia": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "livePlanAddVia": "Add a via point",
+  "livePlanRemoveVia": "Remove point",
+  "livePlanAvoid": "Avoid difficult places",
+  "livePlanCalculate": "Calculate route",
+  "livePlanSummary": "{km} km · {duration}",
+  "@livePlanSummary": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "livePlanDriver": "Driver",
+  "livePlanNote": "Notes for the driver",
+  "livePlanSend": "Send to driver",
+  "livePlanNoDrivers": "The company has no drivers – invite them with a code on the Company tab.",
+  "livePlanSent": "Route sent: {driver}",
+  "@livePlanSent": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      }
+    }
+  },
+  "liveBackToList": "Back to the vehicle list",
+  "liveSentTitle": "Sent routes",
+  "liveSentWaiting": "waiting for the driver",
+  "liveSentAccepted": "opened by the driver",
+  "liveSentDone": "finished",
+  "liveSentRejected": "rejected",
+  "inboxRouteAssigned": "Route from the dispatcher: {name}",
+  "@inboxRouteAssigned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "inboxRouteKm": "{km} km",
+  "@inboxRouteKm": {
+    "placeholders": {
+      "km": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxOpenRoute": "Open route",
+  "assignedChooseStart": "Where do you start?",
+  "assignedFromPlanned": "From the route start",
+  "assignedFromMyPosition": "From my position",
+  "assignedFromMyPositionHint": "driving to the route start first",
+  "assignedNoPosition": "Couldn't get your position – turn on location or start from the route start."
 }

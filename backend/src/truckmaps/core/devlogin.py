@@ -53,10 +53,17 @@ class AppRefresh(BaseModel):
     refresh_token: str
 
 
-def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | None = None):
+def build_router(
+    provider: OidcProvider,
+    public_url: str,
+    http: httpx.Client | None = None,
+    web_origins: frozenset[str] = frozenset(),
+):
     router = APIRouter(include_in_schema=False)
     http = http or httpx.Client(timeout=15)
     redirect_uri = f"{public_url}/auth/callback"
+    # Serwer pod https: ciasteczka sesji tylko po szyfrowanym połączeniu.
+    secure = public_url.startswith("https://")
     # Jednorazowe kody dla aplikacji: kod → (ważny do, token).
     app_codes: dict[str, tuple[float, AppToken]] = {}
 
@@ -85,8 +92,11 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
 
     @router.get("/auth/login")
     def login(register: bool = False, app: str | None = None) -> Response:
-        if app is not None and not _loopback(app):
-            return _back_with_error("Aplikacja może wrócić tylko na adres lokalny (127.0.0.1).")
+        if app is not None and not allowed_return(app, web_origins):
+            return _back_with_error(
+                "Aplikacja może wrócić tylko na adres lokalny (127.0.0.1), "
+                "do aplikacji (truckmaps://auth/callback) albo na adres wersji przeglądarkowej."
+            )
         state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         verifier = secrets.token_urlsafe(64)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
@@ -108,7 +118,9 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         if app is not None:
             flow["app"] = app
         flow = encode_flow(flow)
-        response.set_cookie(FLOW_COOKIE, flow, max_age=600, httponly=True, samesite="lax")
+        response.set_cookie(
+            FLOW_COOKIE, flow, max_age=600, httponly=True, samesite="lax", secure=secure
+        )
         return response
 
     @router.get("/auth/callback")
@@ -170,7 +182,9 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
             (ACCESS_COOKIE, tokens["access_token"]),
             (ID_COOKIE, tokens["id_token"]),
         ):
-            response.set_cookie(name, value, max_age=max_age, httponly=True, samesite="lax")
+            response.set_cookie(
+                name, value, max_age=max_age, httponly=True, samesite="lax", secure=secure
+            )
         response.delete_cookie(FLOW_COOKIE)
         return response
 
@@ -226,6 +240,24 @@ def build_router(provider: OidcProvider, public_url: str, http: httpx.Client | N
         return response
 
     return router
+
+
+APP_CALLBACK = "truckmaps://auth/callback"
+"""Powrót do aplikacji na telefonie (schemat zarejestrowany przez aplikację, AppAuth)."""
+
+
+def allowed_return(url: str, web_origins: frozenset[str] = frozenset()) -> bool:
+    """Dokąd logowanie może oddać jednorazowy kod: adres lokalny (komputer, telefon w trybie
+    deweloperskim), schemat aplikacji albo wersja przeglądarkowa z listy (``web_origins``)."""
+    if _loopback(url) or url.split("?")[0] == APP_CALLBACK:
+        return True
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    # Bez fragmentu – kod jest dopisywany w zapytaniu (aplikacja web czyta go przy starcie).
+    return parsed.scheme in {"https", "http"} and origin in web_origins and not parsed.fragment
 
 
 def _loopback(url: str) -> bool:

@@ -7,6 +7,21 @@ const farAlertM = 1000.0;
 const nearAlertM = 300.0;
 const preM = 60.0;
 
+/// Zjazd z autostrady albo rozwidlenie na węźle: dodatkowa zapowiedź ok. 2 km wcześniej
+/// (przed długim odcinkiem), żeby zdążyć zmienić pas ciężarówką.
+const highwayAlertM = 2000.0;
+
+/// Od tej prędkości uznajemy, że pojazd jedzie drogą szybkiego ruchu.
+const highwaySpeedKmh = 70.0;
+
+/// Rodzaje manewrów Valhalli: zjazdy (17–21) i rozwidlenia „trzymaj się w prawo / lewo” (23, 24).
+const _exitTypes = {20, 21};
+const _rampTypes = {17, 18, 19, 20, 21, 23, 24};
+
+/// Manewr na drodze szybkiego ruchu: zjazd zawsze, rozwidlenie i łącznica – przy dużej prędkości.
+bool isHighwayExit(Maneuver m, double? speedKmh) =>
+    _exitTypes.contains(m.type) || (speedKmh != null && speedKmh >= highwaySpeedKmh && _rampTypes.contains(m.type));
+
 /// Po manewrze „jedź prosto przez …” tylko przed długim odcinkiem.
 const postMinKm = 2.0;
 
@@ -91,8 +106,13 @@ class Guidance {
         say(i, 'near', l.voiceIn(spoken(l, distance), _lower(m.alert ?? m.instruction)));
       } else if (distance <= far && distance > near * 2 && before > far * 2) {
         say(i, 'far', l.voiceIn(spoken(l, distance), _lower(m.alert ?? m.instruction)));
+      } else if (distance <= highwayAlertM &&
+          distance > far + nearAlertM &&
+          before > highwayAlertM + far &&
+          isHighwayExit(m, speedKmh)) {
+        say(i, 'highway', l.voiceIn(spoken(l, distance), _lower(m.alert ?? m.instruction)));
       }
-      if (distance > far) break;
+      if (distance > (far > highwayAlertM ? far : highwayAlertM)) break;
     }
     return out;
   }

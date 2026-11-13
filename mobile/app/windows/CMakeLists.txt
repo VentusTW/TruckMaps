@@ -106,3 +106,14 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Mapy wektorowe dolaczone do programu: infra/data/tiles/*.pmtiles -> maps obok TruckMaps.exe
+# (aplikacja czyta je bez sieci, zob. lib/src/planner/vector_tiles.dart). Pliki generuje
+# infra/build_tiles.ps1; bez nich program bierze mapy z serwera.
+set(TRUCKMAPS_TILES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../infra/data/tiles")
+if(EXISTS "${TRUCKMAPS_TILES_DIR}")
+  install(DIRECTORY "${TRUCKMAPS_TILES_DIR}/"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/maps"
+    COMPONENT Runtime
+    FILES_MATCHING PATTERN "*.pmtiles" PATTERN "*.new.pmtiles" EXCLUDE)
+endif()

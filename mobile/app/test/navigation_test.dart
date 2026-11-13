@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:truckmaps_app/src/navigation/navigation_screen.dart';
 import 'package:truckmaps_app/src/navigation/speech.dart';
@@ -53,6 +54,24 @@ final route = PlannedRoute.fromJson({
 });
 
 void main() {
+  test('GPS nawigacji działa w tle: Android – usługa z powiadomieniem, iOS – tryb nawigacji', () {
+    final android = navigationLocationSettings('Tytuł', 'Tekst', platform: TargetPlatform.android) as AndroidSettings;
+    expect(android.foregroundNotificationConfig?.notificationTitle, 'Tytuł');
+    expect(android.foregroundNotificationConfig?.enableWakeLock, isTrue);
+    final ios = navigationLocationSettings('Tytuł', 'Tekst', platform: TargetPlatform.iOS) as AppleSettings;
+    expect(ios.allowBackgroundLocationUpdates, isTrue);
+    expect(ios.activityType, ActivityType.automotiveNavigation);
+    expect(navigationLocationSettings('T', 'T', platform: TargetPlatform.windows), isNot(isA<AndroidSettings>()));
+  });
+
+  test('punkt pośredni minięty: pojazd wyraźnie bliżej celu i daleko od punktu', () {
+    const destination = LatLng(50, 22);
+    const via = LatLng(50, 21);
+    expect(viaPassed(via, const LatLng(50, 20.9), destination), isFalse);  // jeszcze przed punktem
+    expect(viaPassed(via, const LatLng(50, 21.005), destination), isFalse);  // tuż przy nim
+    expect(viaPassed(via, const LatLng(50.05, 21.3), destination), isTrue);  // pojechał inaczej, dalej
+  });
+
   setUp(() => mapTiles = () => const SizedBox());
 
   testWidgets('na trasie spokój, na drodze nieprzejezdnej alarm, po zjeździe – nowa trasa', (tester) async {
@@ -60,8 +79,10 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final requests = <String>[];
+    Map<String, dynamic>? rerouteBody;
     final client = MockClient((request) async {
       requests.add(request.url.path);
+      if (request.url.path == '/api/routes') rerouteBody = jsonDecode(request.body) as Map<String, dynamic>;
       if (request.url.path == '/api/corridor') {
         return json({
           'route': routeLine,
@@ -109,6 +130,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('STOP – ta droga jest nieprzejezdna'), findsNothing);
     expect(requests.where((p) => p == '/api/routes').length, 1);
+    // Jazda na wschód: nowa trasa rusza w tę stronę, bez zawracania.
+    expect(rerouteBody!['origin']['heading'] as double, closeTo(90, 10));
+    expect(rerouteBody!['reroute'], isTrue);
     expect(find.text('Trasa przeliczona od twojej pozycji.'), findsOneWidget);
     expect(requests.where((p) => p == '/api/corridor').length, 2);
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:core_sdk/core_sdk.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -165,6 +166,17 @@ class BrowserLogin {
 
   /// Sesja zapisana przy poprzednim uruchomieniu (odświeżona, jeśli token wygasł).
   Future<Session?> restore() async {
+    // Wersja przeglądarkowa: powrót z logowania z jednorazowym kodem w adresie strony.
+    if (kIsWeb) {
+      final code = Uri.base.queryParameters['code'];
+      if (code != null) {
+        try {
+          return await exchange(code);
+        } on LoginFailure {
+          // Kod już użyty (np. odświeżona strona) – zostaje zapisana sesja albo logowanie.
+        }
+      }
+    }
     final saved = await _store.load();
     if (saved == null) return null;
     final tokens = SessionTokens(serverUrl, saved, _store, client: _client);
@@ -180,6 +192,7 @@ class BrowserLogin {
   /// Logowanie w przeglądarce; [donePage] i [failedPage] – tekst strony po powrocie z logowania.
   /// [register] – najpierw formularz nowego konta, potem od razu zalogowanie.
   Future<Session> login({required String donePage, required String failedPage, bool register = false}) async {
+    if (kIsWeb) return _webLogin(register: register);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     try {
       final callback = 'http://127.0.0.1:${server.port}/callback';
@@ -205,6 +218,21 @@ class BrowserLogin {
     } finally {
       await server.close(force: true);
     }
+  }
+
+  /// Adres powrotu wersji przeglądarkowej: ta sama strona bez zapytania i fragmentu
+  /// (serwer musi go mieć na liście `TRUCKMAPS_WEB_APP_ORIGINS`).
+  static String webReturnUrl(Uri page) => '${page.origin}${page.path}';
+
+  /// Wersja przeglądarkowa: przejście na stronę logowania w tej samej karcie; po powrocie
+  /// [restore] wymienia kod z adresu na tokeny. Ta przyszłość się nie kończy (strona znika).
+  Future<Session> _webLogin({required bool register}) async {
+    final url = Uri.parse('$serverUrl/auth/login')
+        .replace(queryParameters: {'app': webReturnUrl(Uri.base), if (register) 'register': 'true'});
+    if (!await launchUrl(url, webOnlyWindowName: '_self')) {
+      throw const LoginFailure(LoginProblem.browser);
+    }
+    return Completer<Session>().future;
   }
 
   /// Jednorazowy kod → tokeny (`POST /auth/app/token`), zapisane na kolejne uruchomienia.

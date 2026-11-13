@@ -25,6 +25,9 @@ Widget Function() mapTiles = () => TileLayer(
       userAgentPackageName: 'pl.truckmaps.truckmaps_app',
     );
 
+/// Podkład nocny (mapa wektorowa w ciemnych kolorach); `null` – nawigacja przyciemnia [mapTiles].
+Widget Function()? nightMapTiles;
+
 /// Planowanie trasy: start, cel i punkty pośrednie (adres, GPS albo kliknięcie na mapie),
 /// pojazd, godzina wyjazdu; trasa w kolorach ryzyka z ostrzeżeniami, zakazami ruchu
 /// w czasie, kosztem i alternatywami – to samo API co planer w przeglądarce.

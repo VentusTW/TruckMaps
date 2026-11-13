@@ -99,6 +99,10 @@ def _row(kind: str, osm_type: str, osm_id: int, points, source_date: str, **extr
     } | extra
 
 
+# Klucze tagów punktów (węzły) i zakazów wyprzedzania (drogi).
+POINT_KEYS = ("railway", "highway", "overtaking", "overtaking:hgv")
+
+
 def read_points(path: Path, source_date: str):
     # Pierwsze przejście: relacje pomiaru odcinkowego – potrzebne węzły początku i końca.
     sections: dict[int, dict] = {}
@@ -111,13 +115,24 @@ def read_points(path: Path, source_date: str):
             sections[rel.id] = {**members, "speed": parse_speed(tags.get("maxspeed"))}
     wanted = {ref for s in sections.values() for ref in (s["from"], s["to"])}
     located: dict[int, tuple[float, float]] = {}
+    # Węzły początku i końca odcinków – osobno i tylko po identyfikatorach (zwykle bez tagów).
+    if wanted:
+        nodes = osmium.FileProcessor(str(path), osmium.osm.NODE).with_filter(
+            osmium.filter.IdFilter(wanted)
+        )
+        for node in nodes:
+            located[node.id] = (node.location.lon, node.location.lat)
 
-    objects = osmium.FileProcessor(str(path), osmium.osm.NODE | osmium.osm.WAY).with_locations()
+    # Filtr po kluczach w bibliotece: do Pythona trafiają tylko obiekty z potrzebnymi tagami.
+    # Bez niego przy pliku kilku krajów (ok. miliarda węzłów) proces padał (naruszenie pamięci).
+    objects = (
+        osmium.FileProcessor(str(path), osmium.osm.NODE | osmium.osm.WAY)
+        .with_locations()
+        .with_filter(osmium.filter.KeyFilter(*POINT_KEYS))
+    )
     for obj in objects:
         if obj.is_node():
             point = (obj.location.lon, obj.location.lat)
-            if obj.id in wanted:
-                located[obj.id] = point
             tags = {tag.k: tag.v for tag in obj.tags}
             kind = node_kind(tags)
             if kind is not None:

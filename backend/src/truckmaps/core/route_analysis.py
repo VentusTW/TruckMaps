@@ -63,6 +63,9 @@ WIDE_LANES = 2
 # tu tylko żółta. Strefa zamieszkania (living_street) zostaje pomarańczowa.
 END_ZONE_M = 1000.0
 END_STREET = "route.end_street"
+# Strefa „ciężarówki tylko dojazd” dalej niż tyle od startu i celu to przejazd tranzytem –
+# pomarańczowy, więc trasa go omija, jeśli jest rozsądny objazd.
+TRANSIT_ZONE_M = 5000.0
 """Klucz tekstu: dojazd do startu / celu ulicą osiedlową (planer podpowiada wtedy parking)."""
 BEND_SPACING_M = 10.0
 NODE_MATCH_M = 4.0
@@ -205,6 +208,10 @@ def analyze(
             cumulative[min(edge.begin_index, last)] < END_ZONE_M
             or cumulative[last] > total - END_ZONE_M
         )
+        transit = (
+            cumulative[min(edge.begin_index, last)] > TRANSIT_ZONE_M
+            and cumulative[last] < total - TRANSIT_ZONE_M
+        )
         moment = None
         if departure is not None and edge.end_s is not None:
             moment = (departure + timedelta(seconds=begin_s)).astimezone(
@@ -213,7 +220,9 @@ def analyze(
             begin_s = edge.end_s
         on_way = way_restrictions.get(edge.way_id, [])
         start = points[min(edge.begin_index, len(points) - 1)]
-        findings += _edge_findings(edge, vehicle, on_way, near_end, moment, permits, start)
+        findings += _edge_findings(
+            edge, vehicle, on_way, near_end, moment, permits, start, transit=transit
+        )
         findings += _reported_findings(edge, vehicle, (reported or {}).get(edge.way_id, []), on_way)
     findings += _bend_findings(points, cumulative, edges, vehicle)
     findings += _node_findings(points, node_restrictions, vehicle)
@@ -251,6 +260,7 @@ def _edge_findings(
     moment: datetime | None = None,
     permits: list | None = None,
     start: tuple[float, float] | None = None,
+    transit: bool = False,
 ):
     span = (edge.begin_index, edge.end_index)
     name = f" ({edge.names[0]})" if edge.names else ""
@@ -268,6 +278,8 @@ def _edge_findings(
                 yield _Finding(level, "conditional", message + name, *span, key=restriction.raw)
             continue
         finding = _compare(restriction, vehicle)
+        if finding and transit and restriction.kind == Kind.HGV_DESTINATION:
+            finding = Level.ORANGE, t("route.hgv_destination_transit")
         if finding:
             level, message = finding
             permit = (

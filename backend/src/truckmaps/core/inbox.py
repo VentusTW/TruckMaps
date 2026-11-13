@@ -29,6 +29,8 @@ class Kind(StrEnum):
     VEHICLE_DUE = "vehicle_due"
     """Zbliża się albo minął termin pojazdu (przegląd, ubezpieczenie, serwis wg przebiegu)."""
     DISPATCH_NOTE = "dispatch_note"
+    ROUTE_ASSIGNED = "route_assigned"
+    """Trasa od dyspozytora (``data["assignment_id"]``, skąd, dokąd, pojazd, uwagi)."""
     """Wiadomość dyspozytora do kierowcy z pulpitu operacyjnego (tekst w ``data["text"]``)."""
 
 
