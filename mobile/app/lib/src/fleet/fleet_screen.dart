@@ -38,6 +38,8 @@ class FleetScreen extends StatefulWidget {
     required this.onOpen,
     this.onOpenDriver,
     this.onOpenVehicle,
+    this.onSection,
+    this.onAddVehicle,
     this.pageSize = 5,
     this.today,
   });
@@ -51,6 +53,12 @@ class FleetScreen extends StatefulWidget {
 
   /// Kliknięcie wiersza – profil pojazdu (bez tego – „W budowie”).
   final void Function(String id, String name)? onOpenVehicle;
+
+  /// Przejście do innego ekranu aplikacji (`repairs`, `load3d`).
+  final ValueChanged<String>? onSection;
+
+  /// „+ Dodaj pojazd” – formularz nowego pojazdu firmy.
+  final VoidCallback? onAddVehicle;
   final int pageSize;
 
   /// Dzień odniesienia terminów (testy podmieniają).
@@ -68,6 +76,10 @@ class _FleetScreenState extends State<FleetScreen> {
   FleetStatus? _status;
   String _query = '';
   int _page = 0;
+
+  /// Wybrana baza (filtr) i liczba wierszy na stronę (ustawienia widoku).
+  String? _base;
+  late int _pageSize = widget.pageSize;
   final _search = TextEditingController();
 
   DateTime get _today {
@@ -154,6 +166,7 @@ class _FleetScreenState extends State<FleetScreen> {
     return [
       for (final v in _power)
         if (_inTab(v, _tab) &&
+            (_base == null || v['base_name'] == _base) &&
             (_status == null ||
                 fleetStatus(v) == _status ||
                 (_status == FleetStatus.service && fleetStatus(v) == FleetStatus.reported)) &&
@@ -165,6 +178,87 @@ class _FleetScreenState extends State<FleetScreen> {
   }
 
   DateTime? _date(dynamic s) => s == null ? null : DateTime.tryParse('$s');
+
+  /// Ustawienia widoku: liczba pojazdów na stronie.
+  Future<void> _viewSettings() async {
+    final l = context.l;
+    final size = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l.fleetTabSettings),
+        children: [
+          for (final n in const [5, 10, 25, 50])
+            RadioListTile<int>(
+              value: n,
+              groupValue: _pageSize,
+              title: Text(l.fleetRowsPerPage(n)),
+              onChanged: (v) => Navigator.pop(context, v),
+            ),
+        ],
+      ),
+    );
+    if (size != null && mounted) {
+      setState(() {
+        _pageSize = size;
+        _page = 0;
+      });
+    }
+  }
+
+  /// Kalendarz terminów: przeglądy, tachografy, UDT, ubezpieczenia i serwis wszystkich pojazdów
+  /// firmy po kolei (także minione – na czerwono).
+  Future<void> _calendar() async {
+    final l = context.l;
+    final format = DateFormat.yMMMd(l.localeName);
+    final fields = [
+      ('inspection_until', l.fleetDueInspection),
+      ('tachograph_until', l.fleetDueTachograph),
+      ('udt_until', l.fleetDueUdt),
+      ('insurance_until', l.fleetDueInsurance),
+    ];
+    final items = [
+      for (final v in _all)
+        for (final (field, label) in fields)
+          if (_date(v[field]) case final d?) (d, label, '${v['plate'] ?? v['name']}', '${v['id']}'),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: Text(l.fleetCalendar),
+          content: SizedBox(
+            width: 480,
+            height: 420,
+            child: items.isEmpty
+                ? Center(child: Text(l.fleetCalendarEmpty))
+                : ListView(children: [
+                    for (final (day, label, vehicle, id) in items)
+                      ListTile(
+                        dense: true,
+                        leading:
+                            Icon(Icons.event_outlined, color: day.isBefore(_today) ? scheme.error : scheme.primary),
+                        title: Text('$label · $vehicle'),
+                        subtitle: Text(format.format(day),
+                            style: TextStyle(color: day.isBefore(_today) ? scheme.error : null)),
+                        onTap: widget.onOpenVehicle == null
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                widget.onOpenVehicle!(id, vehicle);
+                              },
+                      ),
+                  ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(MaterialLocalizations.of(context).closeButtonLabel)),
+          ],
+        );
+      },
+    );
+  }
 
   int _countDue(String field, int days) => _all.where((v) {
         final d = _date(v[field]);
@@ -272,7 +366,7 @@ class _FleetScreenState extends State<FleetScreen> {
           FilledButton.icon(
             key: const Key('fleet-add'),
             style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-            onPressed: () => open(l.fleetAdd),
+            onPressed: widget.onAddVehicle ?? () => open(l.fleetAdd),
             icon: const Icon(Icons.add_circle_outline, size: 18),
             label: Text(l.fleetAdd),
           ),
@@ -345,7 +439,7 @@ class _FleetScreenState extends State<FleetScreen> {
         ),
         IconButton(
           tooltip: l.fleetTabSettings,
-          onPressed: () => widget.onOpen(l.fleetTabSettings),
+          onPressed: _viewSettings,
           icon: Icon(Icons.tune_outlined, color: scheme.onSurfaceVariant),
         ),
       ]),
@@ -444,7 +538,10 @@ class _FleetScreenState extends State<FleetScreen> {
           borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
           child: InkWell(
             borderRadius: BorderRadius.circular(TruckTheme.smallRadius),
-            onTap: selected ? null : () => widget.onOpen(label),
+            onTap: () => setState(() {
+              _base = label == context.l.fleetAllBases ? null : label;
+              _page = 0;
+            }),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: Gap.l, vertical: Gap.s),
               child: Text(label,
@@ -503,8 +600,8 @@ class _FleetScreenState extends State<FleetScreen> {
               ),
             ),
           ),
-          base(l.fleetAllBases, true),
-          for (final b in _bases) base(b, false),
+          base(l.fleetAllBases, _base == null),
+          for (final b in _bases) base(b, _base == b),
         ]),
         const SizedBox(height: Gap.m),
         Wrap(spacing: Gap.s, runSpacing: Gap.s, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -535,9 +632,9 @@ class _FleetScreenState extends State<FleetScreen> {
     final scheme = theme.colorScheme;
     final colors = TruckColors.of(context);
     final rows = _rows;
-    final pages = (rows.length / widget.pageSize).ceil().clamp(1, 1 << 30);
+    final pages = (rows.length / _pageSize).ceil().clamp(1, 1 << 30);
     final page = _page.clamp(0, pages - 1);
-    final shown = rows.skip(page * widget.pageSize).take(widget.pageSize).toList();
+    final shown = rows.skip(page * _pageSize).take(_pageSize).toList();
     final head = theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.6);
     Widget pageButton(String label, int? target, {bool selected = false}) => Padding(
           padding: const EdgeInsets.only(left: Gap.xs),
@@ -587,8 +684,8 @@ class _FleetScreenState extends State<FleetScreen> {
             children: [
               Text(
                   l.fleetShown(
-                    l.number(rows.isEmpty ? 0 : page * widget.pageSize + 1),
-                    l.number(page * widget.pageSize + shown.length),
+                    l.number(rows.isEmpty ? 0 : page * _pageSize + 1),
+                    l.number(page * _pageSize + shown.length),
                     l.number(rows.length),
                   ),
                   style: theme.textTheme.bodySmall),
@@ -689,8 +786,12 @@ class _FleetScreenState extends State<FleetScreen> {
                   if (trailer != null) ...[
                     const SizedBox(height: Gap.xs),
                     Row(children: [
-                      Icon(atpBodies.contains(trailer['trailer_type']) ? Icons.ac_unit_outlined : Icons.rv_hookup_outlined,
-                          size: 14, color: scheme.outline),
+                      Icon(
+                          atpBodies.contains(trailer['trailer_type'])
+                              ? Icons.ac_unit_outlined
+                              : Icons.rv_hookup_outlined,
+                          size: 14,
+                          color: scheme.outline),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -900,7 +1001,7 @@ class _FleetScreenState extends State<FleetScreen> {
           iconColor: scheme.error,
           iconBackground: scheme.errorContainer,
           trailing: TextButton(
-            onPressed: () => widget.onOpen(l.fleetCalendar),
+            onPressed: _calendar,
             child: Text('${l.fleetCalendar} ›'),
           ),
         ),
@@ -918,7 +1019,7 @@ class _FleetScreenState extends State<FleetScreen> {
                     side: BorderSide(color: colors.surfaceHigh),
                     backgroundColor: colors.card,
                   ),
-                  onPressed: () => widget.onOpen(l.fleetBook),
+                  onPressed: () => widget.onSection != null ? widget.onSection!('repairs') : widget.onOpen(l.fleetBook),
                   child: Text(l.fleetBook),
                 ),
           alarm: inspections > 0,
@@ -981,7 +1082,7 @@ class _FleetScreenState extends State<FleetScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: () => widget.onOpen(l.mainMenuLoad3d),
+            onPressed: () => widget.onSection != null ? widget.onSection!('load3d') : widget.onOpen(l.mainMenuLoad3d),
             child: Text(l.fleetOpen3d),
           ),
         ),
@@ -992,7 +1093,15 @@ class _FleetScreenState extends State<FleetScreen> {
             foregroundColor: scheme.primary,
             padding: const EdgeInsets.symmetric(vertical: Gap.l),
           ),
-          onPressed: () => widget.onOpen(l.fleetHomologation),
+          onPressed: () {
+            // Parametry techniczne pojazdu z przykładu (karta pojazdu z wymiarami i masami).
+            final sample = _power.where((v) => v['kind'] == 'tractor').firstOrNull ?? _power.firstOrNull;
+            if (sample != null && widget.onOpenVehicle != null) {
+              widget.onOpenVehicle!('${sample['id']}', '${sample['plate'] ?? sample['name']}');
+            } else {
+              widget.onOpen(l.fleetHomologation);
+            }
+          },
           icon: const Icon(Icons.tune_outlined, size: 18),
           label: Text(l.fleetHomologation),
         ),

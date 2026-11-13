@@ -1672,5 +1672,16 @@
   "permitAskAvoided": "The route avoids places restricted for this vehicle. With a permit it can go a shorter way:",
   "permitAskThrough": "The route goes through places restricted for this vehicle:",
   "permitAskYes": "Yes – choose a permit",
-  "permitAskNo": "No"
+  "permitAskNo": "No",
+  "fleetRowsPerPage": "{count} vehicles per page",
+  "@fleetRowsPerPage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fleetCalendarEmpty": "The company's vehicles have no deadlines entered yet.",
+  "fleetDueInsurance": "Insurance",
+  "vehNoPosition": "no position"
 }

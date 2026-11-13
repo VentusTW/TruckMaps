@@ -3504,5 +3504,16 @@
   "permitAskAvoided": "Trasa omija miejsca z ograniczeniami dla tego pojazdu. Z zezwoleniem może pojechać krócej:",
   "permitAskThrough": "Trasa prowadzi przez miejsca z ograniczeniami dla tego pojazdu:",
   "permitAskYes": "Tak – wybierz zezwolenie",
-  "permitAskNo": "Nie"
+  "permitAskNo": "Nie",
+  "fleetRowsPerPage": "{count} pojazdów na stronie",
+  "@fleetRowsPerPage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fleetCalendarEmpty": "Pojazdy firmy nie mają jeszcze wpisanych terminów.",
+  "fleetDueInsurance": "Ubezpieczenie",
+  "vehNoPosition": "brak pozycji"
 }

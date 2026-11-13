@@ -23,12 +23,16 @@ class VehicleScreen extends StatefulWidget {
     required this.onEdit,
     required this.onOpenVehicle,
     this.onOpenDriver,
+    this.onSection,
     this.today,
   });
 
   final CoreApi api;
   final String vehicleId;
   final ValueChanged<String> onOpen;
+
+  /// Inny ekran aplikacji: `repairs` (zlecenie serwisowe, historia), `live` (pozycja pojazdu).
+  final ValueChanged<String>? onSection;
   final void Function(String id, String name) onEdit;
   final void Function(String id, String name) onOpenVehicle;
   final ValueChanged<String>? onOpenDriver;
@@ -43,6 +47,9 @@ class _VehicleScreenState extends State<VehicleScreen> {
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>>? _orders;
   Object? _error;
+
+  /// Ostatnia pozycja z Centrali & Live Map (tylko dla właściciela i dyspozytorów).
+  Map<String, dynamic>? _live;
 
   DateTime get _today {
     final t = widget.today ?? DateTime.now();
@@ -84,6 +91,13 @@ class _VehicleScreenState extends State<VehicleScreen> {
         _orders = results[2] is List ? uiMaps(results[2]) : null;
         _error = null;
       });
+      final company = _all?.where((v) => v['id'] == widget.vehicleId).firstOrNull?['company_id'];
+      if (company != null) {
+        final live = await optional('/api/companies/${Uri.encodeComponent('$company')}/live');
+        if (mounted && live is List) {
+          setState(() => _live = uiMaps(live).where((p) => p['vehicle_id'] == widget.vehicleId).firstOrNull);
+        }
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
@@ -214,13 +228,31 @@ class _VehicleScreenState extends State<VehicleScreen> {
       Row(children: [
         Icon(Icons.navigation_outlined, size: 14, color: scheme.primary),
         const SizedBox(width: 4),
-        WipTag(what: l.vehPosition, onOpen: widget.onOpen),
+        if (_live case final live? when live['lat'] != null)
+          InkWell(
+            key: const Key('vehicle-position'),
+            onTap: widget.onSection == null ? null : () => widget.onSection!('live'),
+            child: Text(
+                [
+                  switch (live['state']) {
+                    'driving' => l.liveStateDriving,
+                    'stopped' => l.liveStateStopped,
+                    _ => l.liveStateNoSignal,
+                  },
+                  if (live['speed_kmh'] is num) '${(live['speed_kmh'] as num).round()} km/h',
+                  '${(live['lat'] as num).toStringAsFixed(4)}, ${(live['lon'] as num).toStringAsFixed(4)}',
+                ].join(' · '),
+                style: theme.textTheme.labelMedium?.copyWith(color: scheme.primary)),
+          )
+        else
+          Text(l.vehNoPosition, style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
       ]),
     ]);
     final buttons = Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
       button(l.drvEditShort, Icons.edit_outlined,
           onTap: () => widget.onEdit('${v['id']}', '${v['plate'] ?? v['name']}')),
-      button(l.vehOrderService, Icons.car_repair_outlined),
+      button(l.vehOrderService, Icons.car_repair_outlined,
+          onTap: widget.onSection == null ? null : () => widget.onSection!('repairs')),
       button(l.vehDtc, Icons.sensors_outlined),
       button(l.vehFms, Icons.download_outlined, primary: true),
     ]);
@@ -562,7 +594,10 @@ class _VehicleScreenState extends State<VehicleScreen> {
           Expanded(
               child: Text(l.vehServiceBook.toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant))),
-          TextButton(onPressed: () => widget.onOpen(l.vehServiceHistory), child: Text(l.vehServiceHistory)),
+          TextButton(
+              onPressed: () =>
+                  widget.onSection != null ? widget.onSection!('repairs') : widget.onOpen(l.vehServiceHistory),
+              child: Text(l.vehServiceHistory)),
         ]),
         if (orders == null)
           Row(children: [

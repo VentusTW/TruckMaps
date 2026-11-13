@@ -366,6 +366,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onOpen: _openWip,
             onOpenDriver: (name) => _openDriver(null, name),
             onOpenVehicle: _openVehicle,
+            onSection: _select,
+            onAddVehicle:
+                company == null ? null : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
           ),
           DriversScreen(
             key: ValueKey(('drivers', company?['id'], _driversVersion)),
@@ -404,6 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onOpen: _openWip,
               onOpenVehicle: _openVehicle,
               onOpenDriver: (name) => _openDriver(null, name),
+              onSection: _select,
               onEdit: (id, name) => _go([
                 const _Crumb('fleet'),
                 _Crumb('vehicle', name, id),
@@ -417,6 +421,9 @@ class _HomeScreenState extends State<HomeScreen> {
               key: ValueKey(('vehicle-edit', current.arg)),
               api: widget.session.api,
               vehicleId: current.arg ?? '',
+              companyId: company?['id'] as String?,
+              onNewVehicle:
+                  company == null ? null : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
               onOpen: _openWip,
               onDone: (saved) {
                 if (saved) _driversVersion++;
