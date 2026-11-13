@@ -172,6 +172,7 @@ class MainDashboard extends StatefulWidget {
     required this.userName,
     required this.onOpen,
     this.onDrivers,
+    this.onSection,
     this.onScreen,
     this.refreshEvery = const Duration(minutes: 1),
   });
@@ -186,6 +187,10 @@ class MainDashboard extends StatefulWidget {
   /// Kafel kierowców – ekran „Kierowcy i Czas Pracy”.
   final VoidCallback? onDrivers;
 
+  /// Przejście do ekranu aplikacji (`live`, `repairs`, `load3d`…) dla akcji alertu albo kafla modułu,
+  /// który ma już swój ekran (`dashboardSection`); inne – [onOpen].
+  final ValueChanged<String>? onSection;
+
   /// Treść kart po wczytaniu (powłoka pokazuje z niej m.in. kartę telemetrii).
   final ValueChanged<Map<String, dynamic>?>? onScreen;
   final Duration refreshEvery;
@@ -193,6 +198,19 @@ class MainDashboard extends StatefulWidget {
   @override
   State<MainDashboard> createState() => _MainDashboardState();
 }
+
+/// Ekran aplikacji dla ikony akcji alertu albo kafla modułu z danych pulpitu; `null` – ekranu
+/// jeszcze nie ma (np. zdalny reset agregatu wymaga telematyki).
+String? dashboardSection(String? icon) => switch (icon) {
+      'alt_route' || 'route' || 'map' => 'live',
+      'support' || 'build' || 'tire' => 'repairs',
+      'view_in_ar' => 'load3d',
+      'receipt' || 'inventory' => 'orders',
+      'badge' || 'timer' || 'schedule' => 'drivers',
+      'truck' => 'fleet',
+      'payments' => 'tco',
+      _ => null,
+    };
 
 class _MainDashboardState extends State<MainDashboard> {
   Map<String, dynamic>? _data;
@@ -283,12 +301,12 @@ class _MainDashboardState extends State<MainDashboard> {
       final kpiWidth = (inner - gap * (kpiColumns - 1)) / kpiColumns;
       final kpis = uiMaps(screen['kpis']);
       final left = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _AlertsCard(screen: screen, onOpen: open),
+        _AlertsCard(screen: screen, onOpen: open, onSection: widget.onSection),
         const SizedBox(height: gap),
         _CorridorsCard(screen: screen),
       ]);
       final right = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _ModulesCard(screen: screen, onOpen: open, onDrivers: widget.onDrivers),
+        _ModulesCard(screen: screen, onOpen: open, onDrivers: widget.onDrivers, onSection: widget.onSection),
         const SizedBox(height: gap),
         _MessagesCard(screen: screen, onOpen: open),
       ]);
@@ -637,10 +655,11 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _AlertsCard extends StatelessWidget {
-  const _AlertsCard({required this.screen, required this.onOpen});
+  const _AlertsCard({required this.screen, required this.onOpen, this.onSection});
 
   final Map<String, dynamic> screen;
   final ValueChanged<String> onOpen;
+  final ValueChanged<String>? onSection;
 
   @override
   Widget build(BuildContext context) {
@@ -660,17 +679,24 @@ class _AlertsCard extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         if (alerts.isEmpty) UiEmpty(l.mainNoAlerts),
-        for (final alert in alerts) _AlertTile(alert: alert, onOpen: onOpen),
+        for (final alert in alerts) _AlertTile(alert: alert, onOpen: onOpen, onSection: onSection),
       ]),
     );
   }
 }
 
 class _AlertTile extends StatelessWidget {
-  const _AlertTile({required this.alert, required this.onOpen});
+  const _AlertTile({required this.alert, required this.onOpen, this.onSection});
 
   final Map<String, dynamic> alert;
   final ValueChanged<String> onOpen;
+  final ValueChanged<String>? onSection;
+
+  void _act(String action) {
+    final target = dashboardSection(alert['action_icon'] as String?);
+    if (target != null && onSection != null) return onSection!(target);
+    onOpen(action);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -685,7 +711,7 @@ class _AlertTile extends StatelessWidget {
         : critical
             ? FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-                onPressed: () => onOpen(action),
+                onPressed: () => _act(action),
                 icon: Icon(dashIcon(alert['action_icon'] as String?), size: 18),
                 label: Text(action),
               )
@@ -695,7 +721,7 @@ class _AlertTile extends StatelessWidget {
                   foregroundColor: scheme.onSurface,
                   side: BorderSide(color: colors.surfaceHigh),
                 ),
-                onPressed: () => onOpen(action),
+                onPressed: () => _act(action),
                 icon: Icon(dashIcon(alert['action_icon'] as String?), size: 18),
                 label: Text(action),
               );
@@ -846,11 +872,12 @@ class _CorridorsCard extends StatelessWidget {
 }
 
 class _ModulesCard extends StatelessWidget {
-  const _ModulesCard({required this.screen, required this.onOpen, this.onDrivers});
+  const _ModulesCard({required this.screen, required this.onOpen, this.onDrivers, this.onSection});
 
   final Map<String, dynamic> screen;
   final ValueChanged<String> onOpen;
   final VoidCallback? onDrivers;
+  final ValueChanged<String>? onSection;
 
   @override
   Widget build(BuildContext context) {
@@ -881,7 +908,12 @@ class _ModulesCard extends StatelessWidget {
     final small = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     return UiBox(
       padding: const EdgeInsets.all(Gap.m),
-      onTap: m['icon'] == 'badge' && onDrivers != null ? onDrivers : () => onOpen(uiStr(m['title'])),
+      onTap: m['icon'] == 'badge' && onDrivers != null
+          ? onDrivers
+          : () {
+              final target = dashboardSection(m['icon'] as String?);
+              target != null && onSection != null ? onSection!(target) : onOpen(uiStr(m['title']));
+            },
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(

@@ -16,7 +16,10 @@ import 'service/analytics_screen.dart';
 import 'service/repairs_screen.dart';
 import 'service/tco_screen.dart';
 import 'service/workshop_screen.dart';
+import 'account/account_screen.dart';
+import 'inbox_screen.dart';
 import 'l10n.dart';
+import 'planner/planner_screen.dart';
 import 'live/live_screen.dart';
 import 'under_construction.dart';
 import 'updates.dart';
@@ -163,6 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ShellItem('dashboard', l.mainMenuDashboard, Icons.grid_view_outlined, group: group),
       ShellItem('fleet', l.mainMenuFleet, Icons.rv_hookup_outlined, group: group),
       ShellItem('live', l.mainMenuLive, Icons.location_on_outlined, group: group, tag: 'LIVE', tagLive: true),
+      ShellItem('planner', l.menuRoute, Icons.route_outlined, group: group),
       ShellItem('orders', l.mainMenuOrders, Icons.inventory_2_outlined, group: group),
       ShellItem('load3d', l.mainMenuLoad3d, Icons.view_in_ar_outlined, group: group, tag: '3D'),
       ShellItem('drivers', l.mainMenuDrivers, Icons.timer_outlined, group: group, tag: '561/2006', tagLive: true),
@@ -190,7 +194,10 @@ class _HomeScreenState extends State<HomeScreen> {
       'tco' => 9,
       'orders' || 'load3d' => 10,
       'live' => 11,
-      _ => 12,
+      'planner' => 12,
+      'inbox' => 13,
+      'account' => 14,
+      _ => 15,
     };
     final order = _trail.where((c) => c.id == 'order').lastOrNull;
     final companyName = (company?['name'] as String?) ?? '';
@@ -254,7 +261,12 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget iconButton(String key, String tooltip, IconData icon, {Color? marker}) => IconButton(
           key: Key(key),
           tooltip: tooltip,
-          onPressed: () => _openTop(tooltip),
+          onPressed: () => switch (key) {
+            // Powiadomienia i czat – skrzynka (wiadomości dyspozytora, trasy, terminy); alerty – pulpit.
+            'main-notifications' || 'main-chat' => _go([_Crumb('inbox', l.menuInbox)]),
+            'main-alerts' => _select('dashboard'),
+            _ => _openTop(tooltip),
+          },
           icon: Stack(
               clipBehavior: Clip.none,
               children: [Icon(icon, color: scheme.onSurfaceVariant), if (marker != null) dot(marker)]),
@@ -309,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
         account: PopupMenuButton<String>(
           key: const Key('main-account'),
           tooltip: l.menuAccount,
-          onSelected: (id) => id == 'logout' ? widget.onLogout() : _openTop(l.menuAccount),
+          onSelected: (id) => id == 'logout' ? widget.onLogout() : _go([_Crumb('account', l.menuAccount)]),
           itemBuilder: (_) => [
             PopupMenuItem(value: 'account', child: Text(l.menuAccount)),
             PopupMenuItem(value: 'logout', child: Text(l.logout)),
@@ -336,7 +348,14 @@ class _HomeScreenState extends State<HomeScreen> {
             api: widget.session.api,
             companyId: company?['id'] as String?,
             userName: _userName,
-            onOpen: _openWip,
+            onOpen: (what) => switch (what) {
+              _ when what == l.mainNewOrder => _select('orders'),
+              _ when what == l.mainAssign => _select('live'),
+              _ when what == l.mainReport => _select('reports'),
+              _ when what == l.mainChannel => _go([_Crumb('inbox', l.menuInbox)]),
+              _ => _openWip(what),
+            },
+            onSection: _select,
             onDrivers: () => _select('drivers'),
             onScreen: (s) => setState(() => _screen = s),
           ),
@@ -460,7 +479,21 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(),
           // Centrala & Live Map – pozycje pojazdów z aplikacji kierowców.
           if (page == 11)
-            LiveScreen(key: ValueKey(('live', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
+            LiveScreen(
+                key: ValueKey(('live', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
+          else
+            const SizedBox(),
+          if (page == 12) PlannerScreen(key: const ValueKey('planner'), api: widget.session.api) else const SizedBox(),
+          if (page == 13) InboxScreen(key: const ValueKey('inbox'), api: widget.session.api) else const SizedBox(),
+          if (page == 14)
+            AccountScreen(
+              key: ValueKey(('account', _settings['display_name'])),
+              api: widget.session.api,
+              settings: _settings,
+              onChanged: _loadAccount,
+              onLanguage: widget.onLanguage ?? (_) {},
+              onLogout: widget.onLogout,
+            )
           else
             const SizedBox(),
           UnderConstructionScreen(
