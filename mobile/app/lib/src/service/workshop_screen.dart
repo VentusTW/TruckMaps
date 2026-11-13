@@ -1,6 +1,7 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:module_service/module_service.dart' show ReportScreen;
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
@@ -47,6 +48,50 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  /// Nowe zgłoszenie usterki (formularz modułu serwisu); po powrocie – świeże dane.
+  Future<void> _newOrder() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ReportScreen(api: widget.api)));
+    if (mounted) await _load();
+  }
+
+  /// Wolne stanowisko: wybór czekającego zgłoszenia i przyjęcie pojazdu (`accept`).
+  Future<void> _bringIn(FleetData data) async {
+    final l = context.l;
+    final waiting = [
+      for (final o in data.open)
+        if (o['status'] == 'new') o
+    ];
+    if (waiting.isEmpty) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(l.wsNoWaiting)));
+      return;
+    }
+    final chosen = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l.wsBringIn),
+        children: [
+          for (final o in waiting)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, o),
+              child: ListTile(
+                leading: Icon(o['urgency'] == 'stopped' ? Icons.car_crash_outlined : Icons.build_outlined),
+                title:
+                    Text('${data.vehicle(o['vehicle_id'])?['plate'] ?? data.vehicle(o['vehicle_id'])?['name'] ?? ''}'),
+                subtitle: Text('${o['description'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    try {
+      await widget.api.post('/api/m/service/orders/${chosen['id']}/accept', {});
+      if (mounted) await _load();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 
   Future<void> _load() async {
@@ -170,7 +215,7 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-              onPressed: () => widget.onOpen(l.wsNewOrder),
+              onPressed: () => _newOrder(),
               icon: const Icon(Icons.add_box_outlined, size: 18),
               label: Text(l.wsNewOrder),
             ),
@@ -312,7 +357,7 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
             Text(l.wsFreeNote, style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline)),
             const SizedBox(height: Gap.s),
             TextButton.icon(
-              onPressed: () => widget.onOpen(l.wsBringIn),
+              onPressed: () => _bringIn(data),
               icon: const Icon(Icons.play_arrow_outlined, size: 18),
               label: Text(l.wsBringIn),
             ),
