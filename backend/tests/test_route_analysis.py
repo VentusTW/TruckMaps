@@ -128,6 +128,20 @@ def test_way_restrictions(kind, value, level, fragment):
         assert (colored[0].start_index, colored[0].end_index) == (10, 20)
 
 
+def test_access_only_zone_far_from_ends_is_transit_and_avoided():
+    """„Ciężarówki tylko dojazd” daleko od startu i celu to tranzyt – pomarańczowy (omijany)."""
+    restriction = way_restriction(Kind.HGV_DESTINATION, None, "hgv=destination")
+    middle = [RouteEdge(way_id=1, begin_index=20, end_index=25, road_class="tertiary")]
+    near_end = [RouteEdge(way_id=1, begin_index=45, end_index=49, road_class="tertiary")]
+
+    transit = run(TRUCK, [restriction], points=LONG_LINE, edges=middle)
+    access = run(TRUCK, [restriction], points=LONG_LINE, edges=near_end)
+
+    assert transit.level == "orange"
+    assert "tranzytem" in transit.warnings[0].message
+    assert access.level == "yellow"
+
+
 @pytest.mark.parametrize(
     ("raw", "level", "fragment"),
     [

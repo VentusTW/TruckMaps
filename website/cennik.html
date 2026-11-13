@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="pricing.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:pricing.lead">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="page-head">
+      <div class="container">
+        
+        <h1 data-i18n="pricing.h1"></h1>
+        <p class="lead" data-i18n="pricing.lead"></p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:8px">
+      <div class="container">
+      <div class="grid grid-4" style="margin-top:28px">
+        <a class="card link" href="cennik-kierowca.html"><div class="icon" data-icon="phone"></div><h3 data-i18n="groups.driver.name"></h3><p class="muted" data-i18n="groups.driver.desc"></p><strong class="small" data-from-price="driver"></strong></a>
+        <a class="card link" href="cennik-przedsiebiorca.html"><div class="icon" data-icon="truck"></div><h3 data-i18n="groups.owner.name"></h3><p class="muted" data-i18n="groups.owner.desc"></p><strong class="small" data-from-price="owner"></strong></a>
+        <a class="card link" href="cennik-spedytor.html"><div class="icon" data-icon="box"></div><h3 data-i18n="groups.forwarder.name"></h3><p class="muted" data-i18n="groups.forwarder.desc"></p><strong class="small" data-from-price="forwarder"></strong></a>
+        <a class="card link" href="cennik-dyspozytor.html"><div class="icon" data-icon="headset"></div><h3 data-i18n="groups.dispatcher.name"></h3><p class="muted" data-i18n="groups.dispatcher.desc"></p><strong class="small" data-from-price="dispatcher"></strong></a>
+      </div>
+      </div>
+    </section>
+    <section class="section alt">
+      <div class="container grid grid-2" style="align-items:start">
+        <div>
+          <h2 data-i18n="pricing.billingTitle"></h2>
+          <p class="muted" data-i18n="pricing.billingLead"></p>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th data-i18n="pricing.thPeriod"></th><th data-i18n="pricing.thHow"></th><th data-i18n="pricing.thDiscount"></th><th data-i18n="pricing.thPrice"></th></tr></thead>
+              <tbody data-billing-table></tbody>
+            </table>
+          </div>
+          <p class="small muted" style="margin-top:10px" data-i18n="meta.vatNote"></p>
+        </div>
+        <div class="card">
+          <div class="icon" data-icon="coins"></div>
+          <h2 data-i18n="pricing.tokensTitle"></h2>
+          <p class="muted" data-i18n="pricing.tokensText"></p>
+          <a class="btn btn-ghost" href="tokeny.html" data-i18n="pricing.buyTokens"></a>
+        </div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="container prose" style="margin:0 auto">
+        <h2 class="center" data-i18n="pricing.faqTitle"></h2>
+        <div data-i18n-faq="pricing.faq"></div>
+      </div>
+    </section>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pricing.js"></script>
+</body>
+</html>

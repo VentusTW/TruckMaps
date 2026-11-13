@@ -16,6 +16,7 @@ from truckmaps.core import (
     fuel_prices,
     parkings,
     permits,
+    plans,
     reports,
     restrictions,
     road_points,
@@ -76,6 +77,17 @@ MAX_DETOUR_FACTOR = 1.25
 MAX_DETOUR_EXTRA_KM = 3.0
 # Miejsc przy starcie, celu i punktach pośrednich nie omijamy – tam trzeba dojechać.
 KEEP_NEAR_STOPS_M = 400.0
+# Kierunek jazdy przy starcie (z GPS): silnik tras wybiera drogę w tym kierunku, zamiast
+# kazać zawracać. Tolerancja w stopniach – większa wpuszcza też drugą jezdnię.
+START_HEADING_TOLERANCE = 45
+# Punkt „Jedź przez” po drugiej stronie drogi dwujezdniowej: w tym promieniu silnik tras
+# bierze pod uwagę obie jezdnie i wybiera tę, do której dojazd jest krótszy.
+VIA_RADIUS_M = 35
+# Preferencje dróg w Valhalli (0–1, domyślnie 0,5): ciężarówka mocno woli autostrady
+# i nie unika płatnych odcinków; bus i dostawczak – trochę mniej.
+TRUCK_USE_HIGHWAYS = 1.0
+TRUCK_USE_TOLLS = 0.8
+VAN_USE_HIGHWAYS = 0.8
 AVOID_LEVELS = {Level.ORANGE.label, Level.RED.label}
 # Miejsc, których pojazd nie przejedzie, trasa nie może zawierać – omijane zawsze, bez limitu
 # objazdu i także przy wyłączonym omijaniu trudnych dróg.
@@ -97,6 +109,12 @@ PARKING_RADIUS_M = 20000.0
 class Point(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
+    heading: float | None = Field(
+        default=None,
+        ge=0,
+        lt=360,
+        description="Kierunek jazdy w stopniach (0 = północ), np. z GPS przy przeliczaniu trasy",
+    )
 
 
 class RouteRequest(BaseModel):
@@ -115,6 +133,10 @@ class RouteRequest(BaseModel):
         default=None,
         max_length=50,
         description="Zaznaczone zezwolenia; brak – wszystkie ważne w dniu wyjazdu",
+    )
+    reroute: bool = Field(
+        default=False,
+        description="Przeliczenie w trakcie jazdy – nie liczy się do limitu tras planu",
     )
 
 
@@ -379,11 +401,7 @@ class ValhallaRouter:
         alternates: int = 0,
     ) -> Route:
         last = len(stops) - 1
-        locations = [
-            # Punkty pośrednie typu "through": bez zatrzymania i zawracania.
-            {"lat": p.lat, "lon": p.lon, "type": "break" if i in (0, last) else "through"}
-            for i, p in enumerate(stops)
-        ]
+        locations = [_location(p, i, last) for i, p in enumerate(stops)]
         request = {
             "locations": locations,
             **costing(vehicle),
@@ -621,6 +639,22 @@ def _chunks(points: list[tuple[float, float]], max_km: float):
     yield points[start:]
 
 
+def _location(point: Point, index: int, last: int) -> dict:
+    """Punkt trasy dla Valhalli.
+
+    Punkty pośrednie typu "through": bez zatrzymania i zawracania, z promieniem obejmującym
+    obie jezdnie drogi. Kierunek jazdy (start z GPS) – trasa rusza w tę stronę, bez zawracania.
+    """
+    end = index in (0, last)
+    location = {"lat": point.lat, "lon": point.lon, "type": "break" if end else "through"}
+    if not end:
+        location["radius"] = VIA_RADIUS_M
+    if point.heading is not None:
+        location["heading"] = round(point.heading)
+        location["heading_tolerance"] = START_HEADING_TOLERANCE
+    return location
+
+
 def costing(vehicle: VehicleIn) -> dict:
     """Profil Valhalli dla pojazdu: ciężarówka powyżej 3,5 t DMC, do 3,5 t – samochód.
 
@@ -631,7 +665,12 @@ def costing(vehicle: VehicleIn) -> dict:
     """
     if vehicle.is_hgv:
         return {"costing": "truck", "costing_options": {"truck": truck_options(vehicle)}}
-    van = {"height": vehicle.height_m, "width": vehicle.width_m, "use_tracks": 0.0}
+    van = {
+        "height": vehicle.height_m,
+        "width": vehicle.width_m,
+        "use_tracks": 0.0,
+        "use_highways": VAN_USE_HIGHWAYS,
+    }
     return {"costing": "auto", "costing_options": {"auto": van}}
 
 
@@ -648,6 +687,10 @@ def truck_options(vehicle: VehicleIn) -> dict:
         # Ciężarówka nie powinna szukać skrótów przez strefy zamieszkania i drogi gruntowe.
         "use_living_streets": 0.0,
         "use_tracks": 0.0,
+        # Autostrady i drogi ekspresowe przed skrótami przez wsie, nawet kosztem kilku minut;
+        # płatna autostrada też jest lepsza od objazdu przez miejscowości.
+        "use_highways": TRUCK_USE_HIGHWAYS,
+        "use_tolls": TRUCK_USE_TOLLS,
     }
 
 
@@ -1170,6 +1213,8 @@ def build_router(current_user) -> APIRouter:
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE, t("error.routing_unavailable")
             ) from exc
+        if not data.reroute:
+            plans.count_route(db, user.subject)
         extensions = request.app.state.extensions
         licensing = request.app.state.licensing
         bans = timebans.check_route(route, vehicle, departure)

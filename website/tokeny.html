@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="tokens.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:tokens.lead">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="page-head">
+      <div class="container">
+        <div class="breadcrumbs"><a href="index.html" data-i18n="nav.home"></a> / <a href="cennik.html" data-i18n="nav.pricing"></a></div>
+        <h1 data-i18n="tokens.h1"></h1>
+        <p class="lead" data-i18n="tokens.lead"></p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:8px">
+      <div class="container grid grid-2">
+        <div class="card">
+          <h2 data-i18n="tokens.usesTitle"></h2>
+          <ul class="check-list" data-i18n-list="tokens.uses"></ul>
+        </div>
+        <div class="card">
+          <h2 data-i18n="tokens.mixTitle"></h2>
+          <p class="muted" data-i18n="tokens.mixText"></p>
+          <a class="btn btn-ghost btn-sm" href="cennik-przedsiebiorca.html" data-i18n="common.seePlans"></a>
+        </div>
+      </div>
+    </section>
+    <section class="section alt">
+      <div class="container">
+        <h2 class="center" data-i18n="tokens.packsTitle"></h2>
+        <div class="token-packs" data-token-packs></div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="container grid grid-2" style="align-items:start">
+        <div class="card">
+          <h2 data-i18n="tokens.calcTitle"></h2>
+          <div class="calculator">
+            <div>
+              <label class="small muted" for="token-qty" data-i18n="tokens.calcLabel"></label>
+              <input type="range" value="100" step="5" data-token-range data-i18n-attr="aria-label:tokens.calcLabel">
+              <input id="token-qty" class="lang-select" style="width:140px;margin-top:8px" type="number" value="100" data-token-input>
+            </div>
+            <div class="calc-result">
+              <b data-calc-total></b>
+              <p class="small muted" data-calc-detail></p>
+              <a class="btn btn-primary btn-sm" href="rejestracja.html?tokens=100" data-calc-buy data-i18n="tokens.calcBuy"></a>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h2 data-i18n="tokens.stepsTitle"></h2>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th data-i18n="tokens.thQty"></th><th data-i18n="tokens.thDiscount"></th><th data-i18n="tokens.thUnit"></th></tr></thead>
+              <tbody data-token-steps></tbody>
+            </table>
+          </div>
+          <p class="info small" style="margin-top:14px" data-token-cap></p>
+          <p class="small muted" data-i18n="meta.vatNote"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/pricing.js"></script>
+</body>
+</html>

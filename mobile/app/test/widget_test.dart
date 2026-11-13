@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:truckmaps_app/main.dart';
 import 'package:truckmaps_app/src/auth.dart';
+import 'package:truckmaps_app/src/planner/planner_screen.dart' show mapTiles;
 
 http.Response json(Object body) => http.Response.bytes(utf8.encode(jsonEncode(body)), 200);
 
@@ -101,6 +102,7 @@ Future<void> settle(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() => mapTiles = () => const SizedBox());
   testWidgets('bez zapisanej sesji – ekran logowania', (tester) async {
     await tester.pumpWidget(
         TruckMapsApp(login: BrowserLogin('http://serwer.test', store: MemoryStore()), locale: const Locale('pl')));
@@ -109,7 +111,7 @@ void main() {
     expect(find.text('Zaloguj się e-mailem'), findsOneWidget);
   });
 
-  testWidgets('po zalogowaniu – pulpit główny z danymi; każda pozycja i przycisk prowadzi do „W budowie”',
+  testWidgets('po zalogowaniu – pulpit główny z danymi; przyciski prowadzą do gotowych ekranów',
       (tester) async {
     big(tester);
     await tester.pumpWidget(TruckMapsApp(
@@ -159,15 +161,6 @@ void main() {
     expect(find.text('EN 12195-1'), findsOneWidget);
     expect(find.text('Nadawca: Dyspozytor Zmianowy Berlin'), findsOneWidget);
 
-    Future<void> expectWip(String title) async {
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('W BUDOWIE'), findsOneWidget);
-      expect(find.text(title), findsWidgets);
-      await tester.tap(find.byKey(const Key('wip-back')));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('W BUDOWIE'), findsNothing);
-    }
-
     // Zlecenia i Załadunek – plan załadunku z modułu (bez pojazdów z przestrzenią ładunkową).
     await tester.tap(find.text('Zlecenia i Załadunek'));
     await settle(tester);
@@ -179,14 +172,42 @@ void main() {
     expect(find.text('Tabor Samochodowy i Sprzęt'), findsOneWidget);
     await tester.tap(find.text('Pulpit Główny').first);
     await tester.pump(const Duration(milliseconds: 300));
+    // Przyciski pulpitu prowadzą do gotowych ekranów, nie do „W budowie”.
+    Future<void> backHome() async {
+      await tester.tap(find.text('Pulpit Główny').first);
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
     await tester.tap(find.text('+ Nowe Zlecenie'));
-    await expectWip('+ Nowe Zlecenie');
-    await tester.tap(find.text('Przekieruj na MOP Świebodzin'));
-    await expectWip('Przekieruj na MOP Świebodzin');
+    await settle(tester);
+    expect(find.text('W BUDOWIE'), findsNothing);
+    expect(find.text('Brak pojazdów z przestrzenią ładunkową.'), findsOneWidget);
+    await backHome();
     await tester.tap(find.text('Otwórz 3D →'));
-    await expectWip('Symulator 3D Załadunku');
+    await settle(tester);
+    expect(find.text('Brak pojazdów z przestrzenią ładunkową.'), findsOneWidget);
+    await backHome();
+    await tester.tap(find.text('Przekieruj na MOP Świebodzin'));
+    await settle(tester);
+    expect(find.text('W BUDOWIE'), findsNothing);
+    expect(find.text('Centrala & Live Map'), findsWidgets);
+    await backHome();
     await tester.tap(find.byKey(const Key('main-notifications')));
-    await expectWip('Powiadomienia');
+    await settle(tester);
+    expect(find.text('W BUDOWIE'), findsNothing);
+    expect(find.text('Wiadomości'), findsWidgets);
+    await tester.tap(find.byKey(const Key('main-account')));
+    await settle(tester);
+    await tester.tap(find.text('Konto').last);
+    await settle(tester);
+    expect(find.text('W BUDOWIE'), findsNothing);
+    expect(find.byKey(const Key('live-share')), findsNothing); // brak pojazdów firmy w danych testu
+    await backHome();
+    // Kanał dyspozytorów – skrzynka; „Przypisz” – centrala z planowaniem tras.
+    await tester.tap(find.byKey(const Key('main-assign')));
+    await settle(tester);
+    expect(find.text('Centrala & Live Map'), findsWidgets);
+    expect(find.text('W BUDOWIE'), findsNothing);
   });
 
   testWidgets('bez danych pulpitu – czytelne stany puste', (tester) async {

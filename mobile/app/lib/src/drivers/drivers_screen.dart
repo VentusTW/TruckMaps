@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import 'driver_actions.dart';
 import 'drivers_data.dart';
 
 /// „Kierowcy i Czas Pracy”: lista kierowców firmy albo profil jednego ([driverId]) według projektu
@@ -191,7 +192,9 @@ class _DriversScreenState extends State<DriversScreen> {
               ),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-                onPressed: () => widget.onOpen(l.drvAdd),
+                onPressed: widget.companyId == null
+                    ? () => widget.onOpen(l.drvAdd)
+                    : () => inviteDriver(context, widget.api, widget.companyId!),
                 icon: const Icon(Icons.person_add_alt_outlined, size: 18),
                 label: Text(l.drvAdd),
               ),
@@ -402,7 +405,11 @@ class _DriversScreenState extends State<DriversScreen> {
     ]);
     final buttons = Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
       button(l.drvEdit, Icons.edit_note_outlined, onTap: () => widget.onEdit('${d['id']}', '${d['name']}')),
-      button(l.drvMessage, Icons.chat_outlined, primary: true),
+      button(l.drvMessage, Icons.chat_outlined,
+          primary: true,
+          onTap: widget.companyId == null || d['member_id'] == null
+              ? null
+              : () => messageDriver(context, widget.api, widget.companyId!, '${d['member_id']}', '${d['name']}')),
       button(l.drvDdd, Icons.download_for_offline_outlined),
       button(l.drvItd, Icons.description_outlined),
     ]);
@@ -838,7 +845,7 @@ class _DriversScreenState extends State<DriversScreen> {
               : IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: scheme.primaryContainer),
                   tooltip: l.drvCall,
-                  onPressed: () => widget.onOpen(l.drvCall),
+                  onPressed: () => callDriver(phone),
                   icon: const Icon(Icons.call, size: 18),
                 ),
         ),

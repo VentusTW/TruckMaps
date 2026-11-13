@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from truckmaps.core import (
@@ -18,18 +19,22 @@ from truckmaps.core import (
     currency,
     dashboard,
     devlogin,
+    dispatch,
     fuel_prices,
     geocoding,
     i18n,
     inbox,
+    live,
     mailer,
     passwords,
     permits,
+    plans,
     releases,
     reminders,
     reports,
     routing,
     shared,
+    tiles,
     trips,
     vehicles,
 )
@@ -108,6 +113,14 @@ def create_app(
     app.add_middleware(i18n.LanguageMiddleware)
     # Dziennik wywołań programu administracyjnego (kto, co, kiedy, skąd, z jakim wynikiem).
     app.add_middleware(admin.AuditMiddleware)
+    if settings.web_app_origins:
+        # Wersja przeglądarkowa aplikacji pod innym adresem woła API z tokenem w nagłówku.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=sorted(settings.web_app_origins),
+            allow_methods=["*"],
+            allow_headers=["Authorization", "Content-Type", "Accept-Language"],
+        )
 
     provider = None
     if settings.oidc_enabled:
@@ -167,9 +180,18 @@ def create_app(
     app.include_router(currency.build_router(auth.current_user))
     app.include_router(geocoding.build_router(auth.current_user))
     app.include_router(passwords.build_router(auth.current_user))
-    app.include_router(admin.build_router(auth.current_user, settings, licensing))
+    admin_router = admin.build_router(auth.current_user, settings, licensing)
+    app.include_router(admin_router)
+    app.include_router(plans.build_router(auth.current_user, admin_router.full_admin))
     app.include_router(inbox.build_router(auth.current_user, admin.describe_grant))
     app.include_router(dashboard.build_router(auth.current_user))
+    app.include_router(tiles.build_router(settings.tiles_dir))
+    app.include_router(live.build_router(auth.current_user))
+    app.include_router(dispatch.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
-        app.include_router(devlogin.build_router(provider, settings.public_url))
+        app.include_router(
+            devlogin.build_router(
+                provider, settings.public_url, web_origins=settings.web_app_origins
+            )
+        )
     return app

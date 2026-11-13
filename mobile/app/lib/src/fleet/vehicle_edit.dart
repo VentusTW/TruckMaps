@@ -53,12 +53,20 @@ class VehicleEditScreen extends StatefulWidget {
     required this.vehicleId,
     required this.onOpen,
     required this.onDone,
+    this.companyId,
+    this.onNewVehicle,
   });
 
   final CoreApi api;
   final String vehicleId;
   final ValueChanged<String> onOpen;
   final ValueChanged<bool> onDone;
+
+  /// Nowy pojazd tej firmy (puste [vehicleId]) – formularz z typowymi wartościami ciągnika.
+  final String? companyId;
+
+  /// „+ Nowy pojazd” – pusty formularz nowego pojazdu firmy.
+  final VoidCallback? onNewVehicle;
 
   @override
   State<VehicleEditScreen> createState() => _VehicleEditScreenState();
@@ -97,7 +105,21 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
   Future<void> _load() async {
     try {
       final all = uiMaps(await widget.api.get('/api/vehicles'));
-      final v = all.where((x) => x['id'] == widget.vehicleId).firstOrNull;
+      final v = widget.vehicleId.isEmpty
+          ? <String, dynamic>{
+              'company_id': widget.companyId,
+              'name': '',
+              'kind': 'tractor',
+              'height_m': 4.0,
+              'width_m': 2.55,
+              'length_m': 16.5,
+              'weight_t': 40,
+              'gvw_t': 40,
+              'axle_load_t': 11.5,
+              'axle_count': 5,
+              'trailer_type': 'curtain',
+            }
+          : all.where((x) => x['id'] == widget.vehicleId).firstOrNull;
       var drivers = const <Map<String, dynamic>>[];
       if (v?['company_id'] case final String company) {
         try {
@@ -138,7 +160,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
 
   bool get _towed => towedKinds.contains(_pick['kind']);
 
-  Future<void> _save() async {
+  Future<void> _save({bool stay = false}) async {
     final l = context.l;
     final v = _v;
     if (v == null) return;
@@ -155,10 +177,16 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       body[k] = _day[k] == null ? null : DateFormat('yyyy-MM-dd').format(_day[k]!);
     }
     body.addAll(_pick);
-    final id = Uri.encodeComponent(widget.vehicleId);
     setState(() => _saving = true);
     try {
-      await widget.api.put('/api/vehicles/$id', body);
+      var id = Uri.encodeComponent(widget.vehicleId);
+      if (widget.vehicleId.isEmpty) {
+        body.remove('id');
+        final created = await widget.api.post('/api/vehicles', body) as Map<String, dynamic>;
+        id = Uri.encodeComponent('${created['id']}');
+      } else {
+        await widget.api.put('/api/vehicles/$id', body);
+      }
       if (!_towed && _driverId != v['assigned_member_id']) {
         await widget.api.put('/api/vehicles/$id/driver', {'member_id': _driverId});
       }
@@ -167,7 +195,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.vehSaved)));
-      widget.onDone(true);
+      if (!stay) widget.onDone(true);
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
@@ -233,7 +261,8 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
               style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         ]),
       ),
-      OutlinedButton(onPressed: () => widget.onOpen(l.vehNewTemplate), child: Text(l.vehNewTemplate)),
+      OutlinedButton(
+          onPressed: widget.onNewVehicle ?? () => widget.onOpen(l.vehNewTemplate), child: Text(l.vehNewTemplate)),
     ]);
   }
 
@@ -655,7 +684,7 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
             ),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(side: BorderSide(color: colors.surfaceHigh)),
-              onPressed: () => widget.onOpen(l.drvDraft),
+              onPressed: _saving ? null : () => _save(stay: true),
               icon: const Icon(Icons.drafts_outlined, size: 18),
               label: Text(l.drvDraft),
             ),

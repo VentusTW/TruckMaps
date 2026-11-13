@@ -2,6 +2,11 @@ import 'package:app_auth/app_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('wersja przeglądarkowa wraca z logowania na tę samą stronę, bez kodu i fragmentu', () {
+    final page = Uri.parse('https://app.truckmaps.test/start?code=stary#/planer');
+    expect(BrowserLogin.webReturnUrl(page), 'https://app.truckmaps.test/start');
+  });
+
   test('sesja przetrwa zapis i odczyt z magazynu', () {
     final tokens = Tokens(access: 'a', expiresAt: DateTime.utc(2026, 10, 30, 12), refresh: 'r', userName: 'Anna');
     final back = Tokens.fromJson(tokens.toJson());

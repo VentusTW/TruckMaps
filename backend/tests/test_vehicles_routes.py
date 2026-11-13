@@ -386,9 +386,33 @@ def test_valhalla_router_sends_via_points_and_exclusions():
 
     sent = requests["/route"]
     assert [loc["type"] for loc in sent["locations"]] == ["break", "through", "break"]
+    # „Jedź przez” po drugiej stronie drogi: obie jezdnie w promieniu, bez kierunku.
+    assert [loc.get("radius") for loc in sent["locations"]] == [None, 35, None]
     assert sent["exclude_locations"] == [{"lat": 52.35, "lon": 18.0}]
     assert sent["costing_options"]["truck"]["use_living_streets"] == 0.0
+    # Autostrady przed skrótami przez wsie, płatne odcinki nie są omijane na siłę.
+    assert sent["costing_options"]["truck"]["use_highways"] == 1.0
+    assert sent["costing_options"]["truck"]["use_tolls"] == 0.8
     assert "edge.roundabout" in requests["/trace_attributes"]["filters"]["attributes"]
+
+
+def test_valhalla_router_sends_start_heading_to_avoid_u_turn():
+    sent = {}
+    shape = encode_polyline6([(16.9, 52.4), (21.0, 52.2)])
+
+    def valhalla(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/route":
+            sent.update(json.loads(request.content))
+        trip = {"summary": {"length": 1, "time": 60}, "legs": [{"shape": shape}]}
+        return httpx.Response(200, json={"trip": trip, "edges": []})
+
+    router = ValhallaRouter("http://valhalla.test", http=mock_client(valhalla))
+    start = Point(lat=52.4, lon=16.9, heading=271.6)
+    router.route([start, Point(**WARSAW)], VehicleIn(**TRUCK))
+
+    origin, destination = sent["locations"]
+    assert (origin["heading"], origin["heading_tolerance"]) == (272, 45)
+    assert "heading" not in destination
 
 
 def test_edges_fall_back_to_map_snap_when_exact_match_fails():
@@ -756,7 +780,12 @@ def test_van_up_to_3_5_t_is_routed_as_a_car_not_a_truck():
 
     # Zakazy dla ciężarówek busa nie dotyczą, ale wysokość i szerokość – tak.
     assert sent["costing"] == "auto"
-    assert sent["costing_options"]["auto"] == {"height": 2.7, "width": 2.1, "use_tracks": 0.0}
+    assert sent["costing_options"]["auto"] == {
+        "height": 2.7,
+        "width": 2.1,
+        "use_tracks": 0.0,
+        "use_highways": 0.8,
+    }
 
 
 def test_van_ignores_hgv_ban_but_not_weight_limit(database):
@@ -1335,3 +1364,30 @@ def test_permit_lets_the_vehicle_through_a_weight_limit_in_its_scope(database):
     empty = permit | {"max_weight_t": None}
     assert client.post("/api/permits", json=empty, headers=anna).status_code == 422
     assert client.get("/api/permits", headers=as_user("obcy")).json() == []
+
+
+def test_driver_start_plan_limits_vehicles_and_monthly_routes(database):
+    from truckmaps.core import plans
+
+    client = make_client(database)
+    with database.session() as db:
+        plans.assign(db, "driver.start", subject="anna")
+
+    body = route_body(client)  # pierwszy pojazd
+    second = client.post("/api/vehicles", json=TRUCK, headers=as_user("anna"))
+    assert second.status_code == 402
+    assert "Kierowca Start" in second.json()["detail"]
+    trailer = TRUCK | {"kind": "semitrailer", "name": "Naczepa"}
+    assert client.post("/api/vehicles", json=trailer, headers=as_user("anna")).status_code == 201
+
+    with database.session() as db:
+        db.add(plans.RouteUsage(subject="anna", month=plans._month(), count=29))
+        db.commit()
+    assert client.post("/api/routes", json=body, headers=as_user("anna")).status_code == 200
+    limited = client.post("/api/routes", json=body, headers=as_user("anna"))
+    assert limited.status_code == 402
+    assert "Start+" in limited.json()["detail"]
+    # Przeliczenie w trakcie jazdy działa mimo limitu.
+    rerouted = client.post("/api/routes", json=body | {"reroute": True}, headers=as_user("anna"))
+    assert rerouted.status_code == 200
+    assert client.get("/api/me/plan", headers=as_user("anna")).json()["routes_used"] == 30

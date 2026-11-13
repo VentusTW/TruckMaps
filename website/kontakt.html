@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="contact.title">TruckMaps</title>
+  <meta name="description" content="" data-i18n-attr="content:contact.lead">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <header id="site-header"></header>
+  <main>
+    <section class="page-head">
+      <div class="container">
+        
+        <h1 data-i18n="contact.h1"></h1>
+        <p class="lead" data-i18n="contact.lead"></p>
+      </div>
+    </section>
+    <section class="section" style="padding-top:8px">
+      <div class="container grid grid-3">
+        <div class="card">
+          <div class="icon" data-icon="pin"></div>
+          <h3 data-i18n="contact.office"></h3>
+          <p><span data-contact="company"></span><br><span data-contact="street"></span><br><span data-contact="city"></span></p>
+          <p><a data-contact="phone"></a><br><a data-contact="email"></a></p>
+          <p class="small muted" data-i18n="contact.hours"></p>
+        </div>
+        <div class="card">
+          <div class="icon" data-icon="users"></div>
+          <h3 data-i18n="contact.sales"></h3>
+          <p><a data-contact="phoneSales"></a><br><a data-contact="sales"></a></p>
+          <p class="small muted" data-i18n="contact.hours"></p>
+        </div>
+        <div class="card">
+          <div class="icon" data-icon="headset"></div>
+          <h3 data-i18n="contact.support"></h3>
+          <p><a data-contact="support"></a></p>
+          <p class="small muted" data-i18n="contact.supportHours"></p>
+        </div>
+      </div>
+    </section>
+    <section class="section alt">
+      <div class="container" style="max-width:760px">
+        <h2 data-i18n="contact.formTitle"></h2>
+        <form class="card" data-contact-form>
+          <div class="field-row">
+            <div class="field"><label for="c-name" data-i18n="contact.name"></label><input id="c-name" name="name" required autocomplete="name"></div>
+            <div class="field"><label for="c-email" data-i18n="contact.email"></label><input id="c-email" name="email" type="email" required autocomplete="email"></div>
+          </div>
+          <div class="field"><label for="c-topic" data-i18n="contact.topic"></label><select id="c-topic" name="topic" data-i18n-options="contact.topics"></select></div>
+          <div class="field"><label for="c-msg" data-i18n="contact.message"></label><textarea id="c-msg" name="message" rows="6" required></textarea></div>
+          <button class="btn btn-primary" type="submit" data-i18n="contact.send"></button>
+          <p class="small muted" style="margin-top:8px" data-i18n="contact.sendHint"></p>
+        </form>
+      </div>
+    </section>
+    <script>
+      document.querySelector("[data-contact-form]").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target.elements;
+        var body = f.message.value + "\n\n" + f.name.value + " <" + f.email.value + ">";
+        location.href = "mailto:" + TM.CONTACT.email + "?subject=" + encodeURIComponent("TruckMaps: " + f.topic.value) + "&body=" + encodeURIComponent(body);
+      });
+    </script>
+  </main>
+  <footer id="site-footer"></footer>
+  <script src="assets/js/i18n-pl.js"></script>
+  <script src="assets/js/i18n-en.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

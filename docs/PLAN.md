@@ -239,6 +239,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] **Wielojęzyczność od początku:** aplikacja – teksty w `lib/l10n/app_<język>.arb` (Flutter gen-l10n), język systemu, bez tłumaczenia – polski; liczby, daty i waluty według języka; moduły – nazwy i teksty w języku użytkownika (`pick` w `core_sdk`, większe moduły własne pliki .arb). Serwer – teksty w `truckmaps/core/locales/<język>.json`, język z `Accept-Language` (aplikacja go wysyła), w nim ostrzeżenia na trasie, zakazy, błędy, nazwy walut i parkingów, wyszukiwarka adresów; moduły serwera dodają teksty przez `truckmaps.sdk.i18n.register`. Test pilnuje, że każdy język ma wszystkie teksty. Na start: polski i angielski
   - [ ] kolejne języki (DE, CZ, SK, LT, RO, UA…) – tłumacz dostaje tylko pliki .arb i .json; nazwy modułów z serwera i strona testowa planera (`planner.html`) wciąż po polsku
 - [ ] Logowanie w wersji web i produkcyjne przekierowanie `truckmaps://auth/callback` (AppAuth) z Zitadelem pod https
+  - [x] wersja przeglądarkowa: logowanie w tej samej karcie, powrót z jednorazowym kodem na adres z `TRUCKMAPS_WEB_APP_ORIGINS` (bez fragmentu), wymiana kodu przy starcie; CORS dla tych adresów; ciasteczka `Secure`, gdy serwer jest pod https
+  - [x] serwer przyjmuje powrót na `truckmaps://auth/callback`
+  - [ ] aplikacja na telefonie: rejestracja schematu `truckmaps://` i logowanie bez adresu lokalnego (dziś 127.0.0.1); produkcyjny Zitadel pod https
 - [x] Mapa MapLibre, profil pojazdu
 - [x] Pojazdy w aplikacji: dodawanie, zmiana i usuwanie (wymiary, masy, osie, naczepa, ADR, stawki z przeliczaniem przy zmianie waluty, pojazd prywatny albo firmy), tablica rejestracyjna; przycisk „+” przy wyborze pojazdu w planerze; punkty A, B i pośrednie przeciągane na mapie (trasa liczona od nowa)
   - [x] lista pojazdów: widok „Kafelki” (przeciąganie naczepy na pojazd) albo „Tabela” – wybór zapamiętany na urządzeniu, domyślnie kafelki; w tabeli zakładki „Samochody” i „Naczepy i przyczepy” z liczbą pozycji, sortowanie po kliknięciu nagłówka, podpinanie przyciskiem w wierszu, kolumna „Najbliższy termin” (kolor po terminie i 30 dni przed), zakładki jako wyraźne przyciski z ikonami; na telefonie tylko nazwa, tablica, rodzaj i termin; wyszukiwanie po nazwie albo tablicy (także bez spacji) w obu widokach; listy rozwijane formularza mieszczą się na wąskim ekranie
@@ -256,7 +259,13 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [x] Planowanie trasy z kolorami ryzyka w aplikacji (ekran „Trasa”): mapa (flutter_map, kafelki OSM – działa też na Windows), start i cel z adresu, GPS albo dotknięcia mapy, punkty pośrednie, pojazd, godzina wyjazdu, omijanie trudnych dróg; trasa w kolorach oceny, znaki ograniczeń i zakazy ⛔ na mapie, lista ostrzeżeń, zakazy ruchu w czasie z przyciskiem wyjazdu bez postoju, koszt, alternatywy; okno z wyjaśnieniem, gdy trasy nie ma
 - [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
   - [ ] silnik MapLibre GL zamiast kafelków obrazkowych, w planerze i w nawigacji; kafelki wektorowe z OSM generowane u nas (Planetiler → PMTiles / MBTiles, co tydzień, za darmo), te same do mapy offline
+    - [x] kafelki wektorowe z OSM u nas: Planetiler (Java 21) → `infra/data/tiles/<kraj>.pmtiles` (`infra/build_tiles.ps1`), serwer oddaje je pod `/api/tiles` (fragmentami, `Range`); aplikacja rysuje je sama (`vector_map_tiles`, działa też na Windows, gdzie MapLibre GL nie działa), styl jasny OpenMapTiles; poza obszarem pliku – podkład obrazkowy OSM pod spodem
+    - [x] kolejne kraje: `europe.pmtiles` z pliku tras wszystkich krajów (PL, DE, CZ, SK, LT); aplikacja czyta kilka plików naraz (`MultiMapProvider` – kafelek z pliku, który obejmuje miejsce)
+    - [ ] aktualizacja kafelków razem z `update_data.ps1`, mapa offline na telefonie (pobranie pliku kraju), własny styl (punkt niżej), tryb nocny w stylu zamiast filtra kolorów
   - [ ] własny styl (własne kolory i ikony, bez kopiowania cudzej marki): tarcze numerów dróg w kolorach znaków danego kraju (A4, S52, E77, DK 79, 44…), nazwy ulic, numery domów, budynki 3D, cieniowanie terenu, drzewa 3D (na koniec – tylko wygląd)
+    - [x] styl dzienny i nocny (`lib/src/planner/map_style.dart`): pastelowe tło, lasy, woda, drogi szybkiego ruchu czerwone, krajowe / wojewódzkie pomarańczowe i żółte, ulice białe z obwódką, budynki od z13, numery domów od z17, rozstrzelone nazwy dzielnic; tarcze numerów dróg rysowane w aplikacji (`map_sprites.dart`: A / S / krajowe czerwone, E zielone, wojewódzkie żółte); noc w nawigacji – ciemny styl zamiast filtra kolorów; podpis © OpenMapTiles © OpenStreetMap
+    - [x] mapa dołączona do programu: `flutter build windows` kopiuje `infra/data/tiles/*.pmtiles` do `maps` obok TruckMaps.exe; program czyta ją bez sieci, bez niej – mapa z serwera; podgląd stylu: `flutter test test/map_style_test.dart` → `build/map_preview`
+    - [ ] budynki 3D, drzewa, cieniowanie terenu, widok pochylony w nawigacji (biblioteka rysuje płasko), żółte tarcze dróg wojewódzkich sprawdzić na danych, znaki ograniczeń masy na mapie (zrzut 4)
   - [ ] widok w nawigacji: pochylenie (3D), obrót za kierunkiem jazdy, przybliżenie zależne od prędkości i odległości do manewru
 - [x] Nawigacja (pierwsza wersja): GPS (geolocator, także Windows), mapa podąża za pojazdem, pasek „zostało X km”, symulacja jazdy i pozycji z dotknięcia mapy, zjazd z trasy → po kilku pozycjach nowa trasa od pozycji (bez minionych punktów pośrednich) i nowy korytarz
 - [x] Nawigacja: manewry i komunikaty głosowe – manewry Valhalli w odpowiedzi trasy (w języku zapytania, także dla alternatyw), karta następnego manewru (strzałka, odległość, napis), zapowiedzi ok. 1 km / 300 m / tuż przed / „jedź prosto przez …”, wyciszanie; mowa z syntezatora systemu bez sieci (Android TextToSpeech, Windows System.Speech)
@@ -265,7 +274,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] zapowiedzi zależne od prędkości (prędkość z kolejnych pozycji): przy 50 km/h ok. 1 km / 300 m, szybciej wcześniej (do 1,6 km / 480 m), wolno później (najmniej połowa)
   - [x] pasy ruchu z Valhalli (`turn_lanes`, maska kierunków → strzałki, pas do jazdy wyróżniony) – na naszych danych jeszcze nie sprawdzone (Valhalla nie działała)
   - [x] dopasowanie pozycji do drogi: na trasie znacznik pojazdu stoi na linii trasy (bez skakania obok jezdni)
-  - [ ] praca w tle i przy wygaszonym ekranie (usługa pierwszoplanowa z powiadomieniem na Androidzie, tryb tła na iOS), mapa offline
+  - [x] praca w tle i przy wygaszonym ekranie: Android – usługa pierwszoplanowa lokalizacji z powiadomieniem i blokadą uśpienia, iOS – tryb tła `location` i `audio`, aktywność „nawigacja samochodowa”
+  - [ ] mapa offline – z mapą wektorową
 - [ ] Ekran nawigacji w nowym układzie (wzór: zrzuty zapowiedzi TirNavi z 31.10.2026 – układ i pomysły, własny wygląd):
   - [x] półprzezroczyste ciemne karty z zaokrągleniami
   - [x] karta manewru: odległość, strzałka / rondo z numerem zjazdu, tarcza drogi, nazwa ulicy, kierunek z tablicy („Oświęcim”), **pasy ruchu** ze strzałkami (Valhalla – sprawdzić `turn_lanes` na naszych danych)
@@ -283,9 +293,40 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
     - tabela `road_points` (migracja 0033), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
     - zapowiedź głosowa ok. 500 m przed fotoradarem, pomiarem odcinkowym, przejazdem kolejowym, zakazem, trudnym miejscem i zgłoszeniem kierowcy
-  - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
+  - [x] znaki ograniczeń tylko na trasie (decyzja 13.11.2026 – bez znaków poza trasą); trasa omijająca albo przecinająca ograniczenia: pytanie „Masz zezwolenie?” (chyba że zezwolenie już użyte / wybrane), potem wybór zezwoleń i przeliczenie
+  - [x] „Wyślij kierowcy” w planerze dla pojazdu firmy (`live/send_route.dart`); w centrali trasa w kolorach oceny
   - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
   - [x] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
+- [ ] Ulepszenia trasy i prowadzenia (pomysły z ogłoszenia TirNavi 1.0.589 z 06.11.2026 – własne wykonanie):
+  - trasa bardziej pod ciężarówkę:
+    - [x] mocniejsza preferencja autostrad i dróg krajowych przed skrótami przez wsie, nawet kosztem kilku minut (koszty Valhalli: `use_highways`, kary za drogi niższej klasy)
+      - ciężarówka `use_highways` 1,0 i `use_tolls` 0,8, bus / dostawczak `use_highways` 0,8; do sprawdzenia na trasach testowych z kierowcami
+    - [x] unikanie zawracania przy wyznaczaniu i przeliczaniu trasy (`u_turn` / kierunek startu z GPS – `heading` w punkcie startowym)
+      - `heading` w punkcie (`Point.heading`, tolerancja 45°); nawigacja liczy kierunek z pozycji GPS i wysyła go przy przeliczeniu
+    - [x] punkt „Jedź przez” z kierunkiem jazdy: po drugiej stronie drogi → najkrótsza sensowna droga (`heading` / `preferred_side` dla punktu pośredniego)
+      - promień 35 m dla punktów „through” – silnik tras bierze obie jezdnie i wybiera krótszy dojazd
+    - [x] dokładniejsze strefy zakazu tranzytu ciężarówek (OSM `hgv=destination`, `access=destination`, strefy miejskie)
+      - „ciężarówki tylko dojazd” dalej niż 5 km od startu i celu = tranzyt, pomarańczowy i omijany; `access=destination` omija sam silnik tras
+    - [x] zamknięta droga blisko startu lub celu: od razu komunikat i dalsze prowadzenie (nie błąd wyznaczania)
+      - przeliczenie w trakcie jazdy pokazuje komunikat o przesuniętym starcie / celu; gdy przeliczenie się nie uda, prowadzenie po dotychczasowej trasie trwa
+    - [x] pominięty punkt „Jedź przez” – odpuszczany automatycznie; przystanek (załadunek / rozładunek) zostaje, aplikacja pyta, czy go pominąć
+      - minięty = pojazd o 1 km bliżej celu niż punkt i ponad 1 km od niego; przystanki to na razie parkingi / MOP dodane w trakcie jazdy (rodzaj punktu w planerze – później)
+  - prowadzenie:
+    - [x] na autostradzie zapowiedź zjazdu / węzła ok. 2 km wcześniej
+    - [ ] krótkie zadaszenia i galerie nie są ogłaszane jako tunel (próg długości odcinka `tunnel`, `covered=yes`) – dziś tuneli w ogóle nie zapowiadamy; przy dodawaniu zapowiedzi
+    - [ ] spokojniejsza mapa przy ok. 85 km/h – płynniejsze oddalanie i przybliżanie (wygładzenie zoomu zależnego od prędkości)
+    - [ ] tryb nocny dokładnie od zachodu słońca w miejscu pojazdu (obliczenie wschodu / zachodu z pozycji, bez sieci)
+  - pasek trasy i mapa:
+    - [ ] parkingi i stacje na pasku od razu po starcie i po każdym przeliczeniu
+    - [ ] na pasku tylko parkingi po stronie jazdy na autostradzie (strona drogi / dostęp z jezdni w danym kierunku)
+    - [ ] uzupełnienie fotoradarów (pełniejszy import OSM, zgłoszenia kierowców)
+  - ekran:
+    - [ ] tablety: większy ekran jazdy i napisy na mapie
+    - [ ] podzielony ekran i składane telefony (układ zależny od szerokości, nie od urządzenia)
+    - [ ] liczby nigdy się nie ucinają (dopasowanie rozmiaru, cyfry tabelaryczne)
+    - [ ] długie nazwy w „Moje miejsca” widoczne w całości (zawijanie)
+    - [ ] statystyki liczą każdy przejechany kilometr (także krótkie odcinki i przejazdy bez zakończonej nawigacji)
+  - [ ] aktualizacje w tle: numer wersji w „Ustawienia → O aplikacji”, nowa wersja po ponownym uruchomieniu
 - [x] Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans, czas jazdy, godzina przyjazdu, opóźnienie), pojazd w nagłówku („Marek · 40 t · 4 m”), kraje i przejścia graniczne na trasie, zakazy ruchu w każdym kraju („Niemcy: zakaz do 22:00”, „brak danych” dla krajów bez kalendarza), przycisk „Rozpocznij jazdę”
   - [x] pojazd w nagłówku wyniku trasy w planerze: „MAN TGX + Firanka · 40 t · 4 m” (nazwa z naczepą, DMC, wysokość)
   - [x] ekran „Przegląd trasy” (`planner/route_review.dart`) między planerem a nawigacją: warianty na mapie z etykietą km i czasu (dotknięcie wybiera), podsumowanie – dystans, czas jazdy, przyjazd, opóźnienie (postój w czasie zakazów; dla alternatyw „liczone tylko dla trasy proponowanej”), kraje z przejściami granicznymi (km, godzina wjazdu, znacznik kodu kraju na mapie), zakazy w każdym kraju i „Rozpocznij jazdę”
@@ -320,6 +361,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Typy kont (Przedsiębiorca, Spedytor, Kierowca), moduły kont K1–K4 i plany – [OFERTA.md](OFERTA.md); plany i ceny na razie poglądowe:
   - [x] firma ma rodzaj (wybór przy zakładaniu, zmienia właściciel): przewoźnik towarów (flota bez autobusów, kierowcy), spedycja – tylko towary (bez własnej floty i kierowców: właściciel i spedytorzy), transport osób (autobusy i busy z przyczepami, kierowcy); serwer pilnuje pojazdów i ról, zmiana na spedycję tylko bez floty i kierowców
   - [ ] moduły zależne od rodzaju firmy: zlecenia i przewoźnicy dla spedycji (K4), kursy dla transportu osób (K5)
+  - [x] plany i limity na serwerze (`core/plans.py`, cennik ze strony `website/`): konto prywatne albo firma, limity pojazdów z napędem, naczep, kierowców, kont biurowych i tras w miesiącu (Kierowca Start: 1 pojazd, 30 tras), dodatki podnoszą limit; bez planu – jak dotąd bez limitów planu; `GET /api/me/plan`, `GET /api/companies/{id}/plan`, `PUT /api/admin/plans` (pełny administrator), lista nieopłaconych po 10 dniach; przeliczenie w trakcie jazdy nie liczy się do limitu tras
+  - [ ] rejestracja ze strony zakłada plan, usuwanie nieopłaconych kont po 10 dniach, plan i limity widoczne w aplikacji, limit przy przeniesieniu pojazdu do firmy
   - [x] konto bez planu (kierowca): wyznaczanie tras i jeden pojazd prywatny; kolejne – po wykupieniu (moduł `vehicles_plus`)
   - [x] pojazdy według rodzaju, każdy osobno: ciągnik, samochód ciężarowy, samochód dostawczy (towary), autobus / bus do przewozu osób (miejsca siedzące i stojące), naczepa, przyczepa (zabudowa, cysterna z pojemnością); łączenie: ciągnik + naczepa, solówka / autobus / dostawczy + przyczepa (przeciąganie albo „Podepnij”); trasa dla pojazdu z podpiętą częścią; „w użyciu” (podpięta gdzie indziej, pojazd w nawigacji) na stonowanym czerwonym
   - [x] w użyciu: kto jedzie (imię kierowcy), przydział kierowców do pojazdów (K3), dokładna długość zestawu z dokumentów
@@ -467,6 +510,9 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
     - wskaźniki rdzenia: w trasie / ciągniki (wykorzystanie), dostępne, usterki i serwis, sprawność floty (% bez przeterminowanych terminów i napraw), terminy pojazdów (30 dni), przejazdy i km dziś, koszty przejazdów dziś (wg waluty), odchylenie km od planu (7 dni), nieprzeczytane wiadomości
     - gniazdo zbiorcze SDK `DASHBOARD_FEED` (`ExtensionRegistry.all_allowed` – wiele modułów naraz, tylko wykupione): Kierowcy – kierowcy z pojazdem, terminy kierowców (sprawy z akcją „napisz do kierowcy”); Serwis – otwarte zlecenia (pojazd stoi → pilne); Dokumenty – dokumenty wystawione dziś. Błąd modułu nie psuje pulpitu.
     - aplikacja: ekran „Pulpit operacyjny” (`operations/operations_screen.dart`) w stylu Stitch – nagłówek z chipem „Na żywo”, karty KPI, sprawy z filtrami i akcjami, szybkie akcje (planer, pojazdy, moduły, skrzynka), karta „Telematyka – brak integracji”; strumień SSE tylko gdy ekran widoczny, po zerwaniu ponowienie po 10 s; `CoreApi.events()` w `core_sdk`
+  - [x] **Centrala & Live Map bez telematyki**: pozycje z aplikacji kierowców, zawsze za zgodą kierowcy (pytanie raz, zapis na urządzeniu): w nawigacji pojazdem firmy co 30 s, a po włączeniu „Udostępniaj pozycję firmie” w koncie także bez nawigacji co 1 min (Android – w tle z powiadomieniem); serwer trzyma tylko ostatnią pozycję (`core/live.py`, migracja 0044, `POST /api/vehicles/{id}/position`, `GET /api/companies/{id}/live` dla właściciela i dyspozytorów); ekran `live/live_screen.dart`: mapa z pojazdami (tablica, kierunek, kolor stanu: w trasie / zakończył / brak sygnału po 5 min), lista z kierowcą, prędkością, km do celu i przyjazdem, odświeżanie co 15 s
+    - [x] trasy od dyspozytora (`core/dispatch.py`, migracja 0045): w centrali przy pojeździe „Zaplanuj trasę” – start domyślnie w bieżącej pozycji pojazdu albo dowolny, punkty „Jedź przez”, cel, trasa na mapie, kierowca i uwagi, „Wyślij kierowcy”; kierowca dostaje wiadomość w skrzynce z „Otwórz trasę”, wybiera start (od startu trasy / od swojej pozycji z dojazdem do startu), przegląd trasy i „Rozpocznij jazdę”; w centrali lista wysłanych tras ze stanem
+    - [ ] dalej: strumień zmian zamiast odświeżania, cel trasy (nazwa) z planera, włączanie udostępniania przy starcie aplikacji, historia przejazdu (tylko za osobną zgodą)
   - [ ] **nie da się bez telematyki** (CAN / FMS, TPMS, czujniki chłodni, GPS na żywo z pojazdów) – kafle ⚡ ukryte, wrócą po integracji: średnie spalanie floty i Eco-Score, alerty TPMS (ciśnienie, temperatura piasty), cold-chain / ATP (odchylenie temperatury), punktualność dostaw On-Time SLA i średnie opóźnienie, pozycje pojazdów na mapie na żywo, „prędkość handlowa”
   - [ ] **nie da się bez downlinku do pojazdu**: zdalny reset agregatu chłodniczego (ThermoKing / Carrier przez CAN) i inne komendy do pojazdu
   - [ ] **korytarze transportowe TEN-T** (A2 / A4 / A1, czas na granicy Jędrzychowice–Görlitz, zatory, roboty): wymagają danych o ruchu na żywo (płatne API ruchu albo własne pozycje floty) – do decyzji; bez nich tylko statystyka przejazdów firmy wg krajów

@@ -4,6 +4,11 @@
     <!-- Nawigacja: pozycja GPS w trakcie jazdy (tylko gdy aplikacja jest otwarta). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Nawigacja przy wygaszonym ekranie i w tle: usługa pierwszoplanowa z powiadomieniem. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Alarm czerwony: wibracja. -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     <application

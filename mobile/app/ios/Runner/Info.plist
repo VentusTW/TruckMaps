@@ -13,6 +13,11 @@
 	<string>TruckMaps uses the camera to read the code and data from the vehicle registration certificate.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TruckMaps reads vehicle data from the registration certificate photo you choose.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>audio</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>TruckMaps uses your location for navigation and to check that you follow the planned route.</string>
 	<key>CFBundleDisplayName</key>

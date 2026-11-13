@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func, select, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from truckmaps.core import plans
 from truckmaps.core.costs import CostRates
 from truckmaps.core.currency import UserSettings, display_name
 from truckmaps.core.db import Base, get_session
@@ -204,6 +205,16 @@ class JoinIn(BaseModel):
 
 class RoleIn(BaseModel):
     role: Role
+
+
+def role_counts(db: Session, company_id: str) -> dict[str, int]:
+    """Liczba członków firmy w każdej roli (do limitów planu)."""
+    rows = db.execute(
+        select(CompanyMember.role, func.count())
+        .where(CompanyMember.company_id == company_id)
+        .group_by(CompanyMember.role)
+    )
+    return {role: count for role, count in rows}
 
 
 def membership(db: Session, company_id: str, user: Principal) -> CompanyMember | None:
@@ -416,6 +427,7 @@ def build_router(current_user) -> APIRouter:
         company = db.get(Company, invite.company_id)
         if membership(db, company.id, user) is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, t("error.already_member"))
+        plans.check_member(db, company.id, invite.role, role_counts(db, company.id))
         me = CompanyMember(
             company_id=company.id,
             subject=user.subject,
@@ -436,6 +448,11 @@ def build_router(current_user) -> APIRouter:
         if member.role == Role.OWNER and data.role != Role.OWNER and _owners(db, company_id) == 1:
             raise HTTPException(status.HTTP_409_CONFLICT, t("error.company_needs_owner"))
         _check_role_allowed(db.get(Company, company_id), data.role)
+        if (data.role == Role.DRIVER) != (member.role == Role.DRIVER):
+            # Kierowca ↔ konto biurowe: inny limit planu firmy.
+            counts = role_counts(db, company_id)
+            counts[member.role] -= 1
+            plans.check_member(db, company_id, data.role, counts)
         member.role = data.role
         db.commit()
         return details(db, db.get(Company, company_id), me)

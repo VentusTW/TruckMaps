@@ -460,3 +460,32 @@ def test_private_vehicles_need_the_persons_consent(client, database, admins, com
         f"/api/admin/vehicles/{again['id']}/assign", json={"company_id": company}, headers=boss
     )
     assert assign.status_code == 403
+
+
+def test_full_admin_assigns_plan_and_member_limit_applies(client, admins, company):
+    body = {"plan": "owner.small", "company_id": company, "billing": "monthly"}
+    assert (
+        client.put("/api/admin/plans", json=body, headers=as_user("help", mfa=True)).status_code
+        == 403
+    )
+    response = client.put(
+        "/api/admin/plans", json=body | {"addons": {"driver": 1}}, headers=as_user("boss", mfa=True)
+    )
+    assert response.status_code == 200
+    assert response.json()["limits"]["drivers"] == 6
+    assert response.json()["payment_due"] is not None  # 10 dni na pierwszą wpłatę
+
+    seen = client.get(f"/api/companies/{company}/plan", headers=as_user("owner")).json()
+    assert (seen["name"], seen["limits"]["office"]) == ("Mała flota", 2)
+    assert client.get(f"/api/companies/{company}/plan", headers=as_user("obcy")).status_code == 404
+
+    # Konta biurowe: właściciel + 1 – trzecia osoba w biurze już się nie mieści.
+    for who in ("disp1", "disp2"):
+        code = client.post(
+            f"/api/companies/{company}/invites",
+            json={"role": "dispatcher"},
+            headers=as_user("owner"),
+        ).json()["code"]
+        joined = client.post(f"/api/invites/{code}/accept", json={}, headers=as_user(who))
+        assert joined.status_code == (200 if who == "disp1" else 402)
+    assert "2 kont biurowych" in joined.json()["detail"]

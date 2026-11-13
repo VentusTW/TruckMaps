@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'account/common.dart';
 import 'company/admin_access_screen.dart';
 import 'l10n.dart';
+import 'live/assigned_route.dart';
 import 'vehicles/service_dates.dart';
 
 /// Skrzynka wiadomości: prośby administratora TruckMaps o dostęp (wyróżnione, z decyzją od razu),
@@ -136,6 +137,15 @@ class _InboxScreenState extends State<InboxScreen> {
             if (data['vehicle_name'] != null) _vehicleName(data),
           ].join('\n')
         ),
+      'route_assigned' => (
+          l.inboxRouteAssigned(admin),
+          [
+            '${data['from'] ?? ''} → ${data['to'] ?? ''}',
+            _vehicleName(data),
+            if (data['distance_km'] != null) l.inboxRouteKm((data['distance_km'] as num).round()),
+            if ('${data['note'] ?? ''}'.isNotEmpty) '„${data['note']}”',
+          ].where((line) => line.isNotEmpty).join('\n')
+        ),
       _ => ('${message['kind']}', ''),
     };
     return Card(
@@ -152,6 +162,7 @@ class _InboxScreenState extends State<InboxScreen> {
                     'drivers.due' => Icons.badge_outlined,
                     'service.order_new' || 'service.order_done' => Icons.build_outlined,
                     'dispatch_note' => Icons.support_agent,
+                    'route_assigned' => Icons.alt_route,
                     _ => Icons.mail_outline,
                   }),
             const SizedBox(width: 8),
@@ -159,6 +170,16 @@ class _InboxScreenState extends State<InboxScreen> {
             Text(when, style: theme.textTheme.bodySmall),
           ]),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body)),
+          if (message['kind'] == 'route_assigned' && data['assignment_id'] != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: FilledButton.icon(
+                key: Key('open-route-${data['assignment_id']}'),
+                onPressed: () => openAssignedRoute(context, widget.api, '${data['assignment_id']}'),
+                icon: const Icon(Icons.navigation_outlined),
+                label: Text(l.inboxOpenRoute),
+              ),
+            ),
           if (actionable)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -199,6 +220,7 @@ String inboxTitle(AppLocalizations l, Map<String, dynamic> message) {
     'vehicle_due' => l.inboxVehicleDue(vehicle),
     'drivers.due' => l.inboxDriverDue('${data['driver_name']}'),
     'dispatch_note' => l.inboxDispatchNote(admin),
+    'route_assigned' => l.inboxRouteAssigned(admin),
     _ => '${message['kind']}',
   };
 }

@@ -101,11 +101,25 @@ void main() {
     await tester.tap(find.byKey(const Key('fleet-tab-all')));
     await tester.pump();
 
-    // Przyciski i brakujące dane → „W budowie”.
-    await tester.tap(find.byKey(const Key('fleet-add')));
+    // Baza jako filtr: w Tarnowie nie ma pojazdów, „Wszystkie bazy” – z powrotem pełna lista.
     await tester.tap(find.text('Tarnów'));
+    await tester.pump();
+    expect(find.text('Brak pojazdów spełniających filtr.'), findsOneWidget);
+    await tester.tap(find.text('Wszystkie bazy'));
+    await tester.pump();
+    expect(find.text('WI 4022P'), findsOneWidget);
+
+    // Kalendarz terminów: wszystkie terminy pojazdów po kolei.
+    await tester.tap(find.text('Kalendarz ›'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Przegląd · '), findsWidgets);
+    await tester.tap(find.text('Zamknij'));
+    await tester.pumpAndSettle();
+
+    // Przyciski bez ekranu → „W budowie”.
+    await tester.tap(find.byKey(const Key('fleet-add')));
     await tester.tap(find.byKey(const Key('fleet-row-t1')));
-    expect(opened, ['+ Dodaj Pojazd do Bazy', 'Tarnów', 'WI 4022P']);
+    expect(opened, ['+ Dodaj Pojazd do Bazy', 'WI 4022P']);
   });
 
   testWidgets('pulpit: prawdziwe dane zastępują pokazowe tylko tam, gdzie są', (tester) async {

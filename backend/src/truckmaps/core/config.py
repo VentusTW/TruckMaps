@@ -33,6 +33,13 @@ class Settings:
     dev_login_page: bool = False
     """Strona ``/`` z testowym logowaniem w przeglądarce."""
 
+    tiles_dir: Path | None = Path("infra/data/tiles")
+    """Katalog z plikami mapy wektorowej ``*.pmtiles``; brak katalogu – mapa obrazkowa OSM."""
+
+    web_app_origins: frozenset[str] = frozenset()
+    """Adresy wersji przeglądarkowej aplikacji (np. ``https://app.truckmaps.pl``): logowanie
+    może tam wrócić z jednorazowym kodem, a przeglądarka może z nich wołać API (CORS)."""
+
     database_url: str | None = None
     """Np. ``postgresql+psycopg://truckmaps:...@localhost:5432/truckmaps``; ``None`` – bez bazy."""
 
@@ -85,6 +92,12 @@ class Settings:
             zitadel_token=env.get("TRUCKMAPS_ZITADEL_TOKEN") or None,
             public_url=env.get("TRUCKMAPS_PUBLIC_URL", cls.public_url).rstrip("/"),
             dev_login_page=_flag(env, "TRUCKMAPS_DEV_LOGIN"),
+            tiles_dir=Path(env["TRUCKMAPS_TILES_DIR"])
+            if env.get("TRUCKMAPS_TILES_DIR")
+            else cls.tiles_dir,
+            web_app_origins=frozenset(
+                o.rstrip("/") for o in _split(env.get("TRUCKMAPS_WEB_APP_ORIGINS", ""), ",")
+            ),
             database_url=env.get("TRUCKMAPS_DATABASE_URL") or None,
             valhalla_url=env.get("TRUCKMAPS_VALHALLA_URL", cls.valhalla_url),
             photon_url=env.get("TRUCKMAPS_PHOTON_URL", cls.photon_url),

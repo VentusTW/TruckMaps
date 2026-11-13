@@ -1,6 +1,7 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:module_service/module_service.dart' show OrderScreen, ReportScreen;
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
@@ -62,6 +63,12 @@ class _RepairsScreenState extends State<RepairsScreen> {
     }
   }
 
+  /// Ekran modułu serwisu (zgłoszenie, karta zlecenia); po powrocie – świeże dane.
+  Future<void> _openModule(Widget screen) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+    if (mounted) await _load();
+  }
+
   bool _match(Map<String, dynamic> o, _Filter f) => switch (f) {
         _Filter.all => true,
         _Filter.progress => o['status'] == 'accepted' || o['status'] == 'in_progress',
@@ -121,7 +128,7 @@ class _RepairsScreenState extends State<RepairsScreen> {
           outlined(l.rpPrint, Icons.print_outlined),
           FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-            onPressed: () => widget.onOpen(l.wsNewOrder),
+            onPressed: () => _openModule(ReportScreen(api: widget.api)),
             icon: const Icon(Icons.add_circle_outline, size: 18),
             label: Text(l.wsNewOrder),
           ),
@@ -422,7 +429,7 @@ class _RepairsScreenState extends State<RepairsScreen> {
       const SizedBox(height: 20),
       history,
       const SizedBox(height: 20),
-      _closing(context),
+      _closing(context, o),
     ]);
   }
 
@@ -674,7 +681,7 @@ class _RepairsScreenState extends State<RepairsScreen> {
         Text(label, style: Theme.of(context).textTheme.labelSmall),
       ]);
 
-  Widget _closing(BuildContext context) {
+  Widget _closing(BuildContext context, Map<String, dynamic> o) {
     final l = context.l;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -709,7 +716,8 @@ class _RepairsScreenState extends State<RepairsScreen> {
             ),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: scheme.tertiaryContainer),
-              onPressed: () => widget.onOpen(l.rpApprove),
+              // Karta zlecenia modułu: przyjęcie, praca, zakończenie z protokołem odbioru i jego wydruk.
+              onPressed: () => _openModule(OrderScreen(api: widget.api, order: o)),
               icon: const Icon(Icons.verified_outlined, size: 18),
               label: Text(l.rpApprove),
             ),

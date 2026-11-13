@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import JSON, DateTime, ForeignKey, String, func, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from truckmaps.core import plans
 from truckmaps.core.companies import (
     MANAGES_VEHICLES,
     SERVICES_VEHICLES,
@@ -508,8 +509,32 @@ def build_router(current_user) -> APIRouter:
         )
         return vehicle_outs(db, list(db.scalars(query.order_by(VehicleProfile.name))), roles, user)
 
-    def check_private_limit(request: Request, db: Session, user: Principal) -> None:
-        """Konto bez planu: jeden pojazd prywatny; kolejne po wykupieniu ``vehicles_plus``."""
+    def vehicle_counts(db: Session, *where) -> tuple[int, int]:
+        """Pojazdy z napędem i naczepy / przyczepy spełniające ``where``."""
+        total = db.scalar(select(func.count()).where(*where)) or 0
+        trailer = VehicleProfile.kind.in_(plans.TRAILER_KINDS)
+        trailers = db.scalar(select(func.count()).where(*where, trailer)) or 0
+        return total - trailers, trailers
+
+    def check_company_limit(db: Session, company_id: str, kind: str) -> None:
+        """Plan firmy: limit pojazdów z napędem i naczep (bez planu – bez limitu)."""
+        plan = plans.company_plan(db, company_id)
+        if plan is not None:
+            powered, trailers = vehicle_counts(db, VehicleProfile.company_id == company_id)
+            plans.check_vehicle(db, plan, kind, powered, trailers)
+
+    def check_private_limit(request: Request, db: Session, user: Principal, kind: str) -> None:
+        """Konto z planem: limit planu (naczepy bez limitu). Bez planu: jeden pojazd prywatny;
+        kolejne po wykupieniu ``vehicles_plus``."""
+        plan = plans.user_plan(db, user.subject)
+        if plan is not None:
+            mine = (
+                VehicleProfile.owner_subject == user.subject,
+                VehicleProfile.company_id.is_(None),
+            )
+            powered, trailers = vehicle_counts(db, *mine)
+            plans.check_vehicle(db, plan, kind, powered, trailers)
+            return
         if request.app.state.licensing.is_granted(user, VEHICLES_PLUS):
             return
         private = db.scalar(
@@ -525,7 +550,9 @@ def build_router(current_user) -> APIRouter:
         roles = company_ids(db, user)
         _check_target(db, data, roles)
         if data.company_id is None:
-            check_private_limit(request, db, user)
+            check_private_limit(request, db, user, str(data.kind))
+        else:
+            check_company_limit(db, data.company_id, str(data.kind))
         vehicle = VehicleProfile(owner_subject=user.subject, **data.model_dump())
         db.add(vehicle)
         db.commit()

@@ -16,6 +16,7 @@ import 'place_field.dart';
 import 'route.dart';
 import '../vehicles/permits_screen.dart';
 import 'recent.dart';
+import '../live/send_route.dart';
 import 'route_review.dart';
 import '../navigation/navigation_screen.dart';
 
@@ -24,6 +25,9 @@ Widget Function() mapTiles = () => TileLayer(
       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'pl.truckmaps.truckmaps_app',
     );
+
+/// Podkład nocny (mapa wektorowa w ciemnych kolorach); `null` – nawigacja przyciemnia [mapTiles].
+Widget Function()? nightMapTiles;
 
 /// Planowanie trasy: start, cel i punkty pośrednie (adres, GPS albo kliknięcie na mapie),
 /// pojazd, godzina wyjazdu; trasa w kolorach ryzyka z ostrzeżeniami, zakazami ruchu
@@ -82,6 +86,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
 
   /// Zaznaczone zezwolenia na przejazd; `null` – wszystkie ważne w dniu wyjazdu.
   Set<String>? _permitIds;
+
+  /// Trasa (pojazd, start, cel), dla której już zapytano o zezwolenie – bez pytania w kółko.
+  String? _permitAskedFor;
   RouteResult? _result;
   int? _alternative;
   bool _busy = false;
@@ -262,6 +269,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         vehicleName: _vehicles.where((v) => v['id'] == vehicleId).map((v) => '${v['name']}').firstOrNull,
       ));
       _fit(result.route.points);
+      _askAboutPermit(result, '$vehicleId|${start.point}|${end.point}');
     } on ApiException catch (error) {
       // Nieaktualna trasa nie może zostać na mapie – wyglądałoby, że nic się nie zmieniło.
       setState(() => _result = null);
@@ -293,6 +301,40 @@ class _PlannerScreenState extends State<PlannerScreen> {
         _from.clear();
         _to.clear();
       });
+
+  /// Trasa omija albo przecina miejsca z ograniczeniami pojazdu (masa, wysokość…), a żadne
+  /// zezwolenie nie zostało użyte ani wybrane: pytanie „Masz zezwolenie?” – raz dla trasy.
+  Future<void> _askAboutPermit(RouteResult result, String key) async {
+    if (_permitIds != null || result.permitsUsed.isNotEmpty || _permitAskedFor == key) return;
+    // Znaki z mapy (masa, wysokość…); na zgłoszenia kierowców nie wydaje się zezwoleń.
+    bool signed(RoutePlace w) => w.limit != null && w.kind != 'reported';
+    final restricted = [
+      ...result.avoidedWarnings.where(signed),
+      ...result.route.warnings.where((w) => signed(w) && (w.level == 'red' || w.level == 'orange')),
+    ];
+    if (restricted.isEmpty || !mounted) return;
+    _permitAskedFor = key;
+    final l = context.l;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l.permitAskTitle),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(result.avoidedWarnings.isNotEmpty ? l.permitAskAvoided : l.permitAskThrough),
+          const SizedBox(height: 8),
+          for (final w in restricted.take(4)) Text('• ${w.message}'),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.permitAskNo)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.permitAskYes)),
+        ],
+      ),
+    );
+    if (yes == true && mounted) {
+      await _pickPermits();
+      if (mounted) await _calculate();
+    }
+  }
 
   /// „Mam zezwolenia”: ważne w dniu wyjazdu dla wybranego pojazdu, domyślnie wszystkie zaznaczone.
   Future<void> _pickPermits() async {
@@ -906,6 +948,27 @@ class _PlannerScreenState extends State<PlannerScreen> {
         icon: const Icon(Icons.fact_check_outlined),
         label: Text(l.routeReviewShort),
       ),
+      if (_vehicles.where((v) => v['id'] == _vehicleId).firstOrNull?['company_id'] case final String companyId) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const Key('planner-send-driver'),
+          onPressed: _start == null || _end == null
+              ? null
+              : () => sendRouteToDriver(
+                    context,
+                    api: widget.api,
+                    companyId: companyId,
+                    vehicleId: _vehicleId!,
+                    start: _start!,
+                    end: _end!,
+                    via: _via,
+                    route: shown,
+                    avoidDifficult: _avoid,
+                  ),
+          icon: const Icon(Icons.send_outlined),
+          label: Text(l.livePlanSend),
+        ),
+      ],
       if (shown.cost != null) ...[
         Text([l.costEstimate, if (shown.cost!.summaryParts(l) case final parts?) parts].join(' · '),
             style: theme.textTheme.bodySmall),

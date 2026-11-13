@@ -10,6 +10,7 @@ import 'src/auth.dart';
 import 'src/home.dart';
 import 'src/l10n.dart';
 import 'src/login.dart';
+import 'src/planner/vector_tiles.dart';
 
 /// Adres serwera TruckMaps: `flutter run --dart-define=TRUCKMAPS_SERVER=http://...`.
 const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http://localhost:8000');
@@ -17,7 +18,11 @@ const serverUrl = String.fromEnvironment('TRUCKMAPS_SERVER', defaultValue: 'http
 /// Pakiety modułów w tej wersji aplikacji.
 final modules = ModuleRegistry([HelloModule(), ServiceModule(), LoadModule(), DriversModule(), DocumentsModule()]);
 
-void main() => runApp(const TruckMapsApp());
+void main() {
+  // Mapa wektorowa: dołączona do programu albo z serwera (w tle – start aplikacji nie czeka).
+  useVectorMap(serverUrl);
+  runApp(const TruckMapsApp());
+}
 
 /// Pierwszy pasujący język systemu (po kodzie języka); bez dopasowania – polski.
 Locale resolveLocale(Locale? device, Iterable<Locale> supported) {

@@ -113,6 +113,45 @@ void main() {
     expect(find.textContaining('zgłoszenie innych kierowców'), findsOneWidget);
   });
 
+  testWidgets('trasa omija ograniczenie masy: pytanie o zezwolenie; pojazd firmy – „Wyślij kierowcy”',
+      (tester) async {
+    await pumpPlanner(tester, (request) async {
+      switch (request.url.path) {
+        case '/api/vehicles':
+          return json([
+            {'id': 'v1', 'name': 'MAN TGX', 'gvw_t': 40, 'height_m': 4.0, 'company_id': 'c1'}
+          ]);
+        case '/api/geocode/reverse':
+          return json({'label': 'Tarnów', 'lat': 50.0, 'lon': 21.0});
+        case '/api/routes':
+          return json({
+            ...route,
+            'avoided_warnings': [
+              {
+                'level': 'red',
+                'kind': 'weight',
+                'message': 'Ograniczenie masy rzeczywistej 12 t, pojazd 40 t',
+                'km': 2.1,
+                'lat': 50.0023,
+                'lon': 20.9874,
+                'limit': '12 t',
+              },
+            ],
+          });
+      }
+      return json(null, 404);
+    });
+
+    await tapMapTwice(tester);
+
+    expect(find.text('Masz zezwolenie na przejazd?'), findsOneWidget);
+    expect(find.text('• Ograniczenie masy rzeczywistej 12 t, pojazd 40 t'), findsOneWidget);
+    await tester.tap(find.text('Nie'));
+    await tester.pumpAndSettle();
+    expect(find.text('Masz zezwolenie na przejazd?'), findsNothing);
+    expect(find.byKey(const Key('planner-send-driver')), findsOneWidget);
+  });
+
   testWidgets('brak trasy – okno z wyjaśnieniem serwera', (tester) async {
     await pumpPlanner(tester, (request) async {
       switch (request.url.path) {
