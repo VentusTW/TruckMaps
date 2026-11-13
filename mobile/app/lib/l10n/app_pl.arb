@@ -3515,5 +3515,20 @@
   },
   "fleetCalendarEmpty": "Pojazdy firmy nie mają jeszcze wpisanych terminów.",
   "fleetDueInsurance": "Ubezpieczenie",
-  "vehNoPosition": "brak pozycji"
+  "vehNoPosition": "brak pozycji",
+  "drvInviteHint": "Kierowca dołączy do firmy kodem w aplikacji („Dołącz do firmy”). Kod jest jednorazowy i ważny 7 dni.",
+  "drvInviteNote": "Dla kogo (np. imię i nazwisko)",
+  "drvInviteCreate": "Utwórz kod",
+  "drvInviteCode": "Kod zaproszenia",
+  "drvInviteCodeHint": "Przekaż kod kierowcy – SMS-em albo przez telefon.",
+  "drvInviteCopy": "Kopiuj",
+  "drvMessageSend": "Wyślij",
+  "drvMessageSent": "Wiadomość wysłana: {name}",
+  "@drvMessageSent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

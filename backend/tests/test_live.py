@@ -173,3 +173,20 @@ def test_dispatcher_sends_route_with_own_start_to_driver(client):
         f"/api/companies/{company}/route-assignments", headers=as_user("ewa")
     ).json()
     assert [(a["driver_name"].endswith("jan"), a["state"]) for a in listed] == [(True, "accepted")]
+
+
+def test_dispatcher_message_to_driver_cab(client):
+    company = client.post("/api/companies", json=COMPANY, headers=as_user("owner")).json()["id"]
+    join(client, company, "jan", "driver")
+    members = client.get(f"/api/companies/{company}", headers=as_user("owner")).json()["members"]
+    jan = next(m["id"] for m in members if m["display_name"].endswith("jan"))
+    url = f"/api/companies/{company}/members/{jan}/message"
+
+    assert (
+        client.post(url, json={"text": "Zjedź na MOP"}, headers=as_user("jan")).status_code == 403
+    )
+    assert (
+        client.post(url, json={"text": "Zjedź na MOP"}, headers=as_user("owner")).status_code == 204
+    )
+    items = client.get("/api/me/messages", headers=as_user("jan")).json()["items"]
+    assert [(m["kind"], m["data"]["text"]) for m in items] == [("dispatch_note", "Zjedź na MOP")]

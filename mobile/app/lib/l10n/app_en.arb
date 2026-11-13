@@ -1683,5 +1683,20 @@
   },
   "fleetCalendarEmpty": "The company's vehicles have no deadlines entered yet.",
   "fleetDueInsurance": "Insurance",
-  "vehNoPosition": "no position"
+  "vehNoPosition": "no position",
+  "drvInviteHint": "The driver joins the company with the code in the app (“Join a company”). The code is single-use and valid for 7 days.",
+  "drvInviteNote": "For whom (e.g. full name)",
+  "drvInviteCreate": "Create code",
+  "drvInviteCode": "Invitation code",
+  "drvInviteCodeHint": "Give the code to the driver – by text message or phone.",
+  "drvInviteCopy": "Copy",
+  "drvMessageSend": "Send",
+  "drvMessageSent": "Message sent: {name}",
+  "@drvMessageSent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

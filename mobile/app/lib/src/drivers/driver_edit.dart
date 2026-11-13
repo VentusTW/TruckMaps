@@ -106,7 +106,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
 
   bool get _editable => _data?.module == true && _driver?['can_edit'] != false;
 
-  Future<void> _save() async {
+  Future<void> _save({bool stay = false}) async {
     final l = context.l;
     final d = _driver;
     if (d == null) return;
@@ -137,7 +137,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.drvSaved)));
-      widget.onDone(true);
+      if (!stay) widget.onDone(true);
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
@@ -665,7 +665,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
             ),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(side: BorderSide(color: colors.surfaceHigh)),
-              onPressed: () => widget.onOpen(l.drvDraft),
+              onPressed: () => _save(stay: true),
               icon: const Icon(Icons.drafts_outlined, size: 18),
               label: Text(l.drvDraft),
             ),

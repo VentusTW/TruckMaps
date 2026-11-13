@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, DateTime, Float, String, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -91,6 +91,10 @@ class AssignmentOut(BaseModel):
     state: AssignmentState
     created_at: datetime
     updated_at: datetime
+
+
+class NoteIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
 
 
 class StateIn(BaseModel):
@@ -182,6 +186,29 @@ def build_router(current_user) -> APIRouter:
         )
         db.commit()
         return _out(db, a)
+
+    @router.post(
+        "/api/companies/{company_id}/members/{member_id}/message",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    def message_member(
+        company_id: str, member_id: str, data: NoteIn, user: User, db: Db
+    ) -> Response:
+        """Wiadomość do kabiny: tekst od dyspozytora w skrzynce kierowcy."""
+        sender = require_member(db, company_id, user, PLANNERS)
+        member = db.get(CompanyMember, member_id)
+        if member is None or member.company_id != company_id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, t("dispatch.driver_not_found"))
+        inbox.send(
+            db,
+            [member.subject],
+            inbox.Kind.DISPATCH_NOTE,
+            sender_name=sender.display_name,
+            company_id=company_id,
+            data={"text": data.text.strip()},
+        )
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/api/companies/{company_id}/route-assignments")
     def company_assignments(company_id: str, user: User, db: Db) -> list[AssignmentOut]:

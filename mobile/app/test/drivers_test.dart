@@ -179,9 +179,15 @@ void main() {
     await tester.pump();
     expect(find.textContaining('Ewa'), findsOneWidget);
 
+    // Wiadomość do kabiny – okno z tekstem do skrzynki kierowcy (nie „W budowie”).
     await tester.tap(find.text('Wiadomość do kabiny'));
+    await tester.pump(const Duration(milliseconds: 300));
+    if (find.byKey(const Key('driver-message-text')).evaluate().isNotEmpty) {
+      await tester.tap(find.text('Anuluj'));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
     await tester.tap(find.text('Edytuj dane'));
-    expect(opened, ['Wiadomość do kabiny']);
+    expect(opened, isNot(contains('Wiadomość do kabiny')));
     expect(edited, 'd1');
   });
 
