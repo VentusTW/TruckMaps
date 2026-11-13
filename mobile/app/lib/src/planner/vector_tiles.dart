@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -39,8 +41,8 @@ Future<bool> useVectorMap(String serverUrl, {http.Client? client, Directory? loc
     final sources = local != null ? mapFiles(local) : <String>[];
     if (sources.isEmpty) sources.addAll(await _serverArchives(serverUrl, client));
     if (sources.isEmpty) return false;
-    // Jeden plik na raz (zwykle jeden kraj albo cała Europa); kolejne kraje – kolejne pliki.
-    final provider = await PmTilesVectorTileProvider.fromSource(sources.first);
+    // Kilka plików (kraje albo regiony): kafelek z pierwszego pliku, który obejmuje to miejsce.
+    final provider = MultiMapProvider([for (final s in sources) await PmTilesVectorTileProvider.fromSource(s)]);
     final providers = TileProviders({'openmaptiles': provider});
     final day = vtr.ThemeReader().read(truckMapStyle());
     final night = vtr.ThemeReader().read(truckMapStyle(night: true));
@@ -64,6 +66,47 @@ Future<bool> useVectorMap(String serverUrl, {http.Client? client, Directory? loc
     return true;
   } catch (_) {
     return false;
+  }
+}
+
+/// Kilka plików map jako jedno źródło: kafelek z pierwszego pliku, którego obszar obejmuje
+/// kafelek i który go ma (pliki mogą się nakładać, np. Polska i cała Europa).
+class MultiMapProvider extends VectorTileProvider {
+  MultiMapProvider(this.parts) : assert(parts.isNotEmpty);
+
+  final List<PmTilesVectorTileProvider> parts;
+
+  @override
+  int get maximumZoom => parts.map((p) => p.maximumZoom).reduce(math.max);
+
+  @override
+  int get minimumZoom => parts.map((p) => p.minimumZoom).reduce(math.min);
+
+  @override
+  Future<Uint8List> provide(TileIdentity tile) async {
+    ProviderException? missing;
+    for (final part in parts) {
+      if (!covers(part.archive.header.data, tile)) continue;
+      try {
+        return await part.provide(tile);
+      } on ProviderException catch (e) {
+        missing = e;
+      }
+    }
+    throw missing ?? ProviderException(message: 'Tile not found: $tile', retryable: Retryable.none, statusCode: 404);
+  }
+
+  /// Czy obszar pliku (nagłówek PMTiles v3: min/max długość i szerokość ×10⁷) obejmuje kafelek.
+  static bool covers(ByteData header, TileIdentity tile) {
+    double lon(int x) => x / (1 << tile.z) * 360 - 180;
+    double lat(int y) {
+      final n = math.pi - 2 * math.pi * y / (1 << tile.z);
+      return 180 / math.pi * math.atan(0.5 * (math.exp(n) - math.exp(-n)));
+    }
+
+    final minLon = header.getInt32(0x66, Endian.little) / 1e7, minLat = header.getInt32(0x6A, Endian.little) / 1e7;
+    final maxLon = header.getInt32(0x6E, Endian.little) / 1e7, maxLat = header.getInt32(0x72, Endian.little) / 1e7;
+    return lon(tile.x + 1) >= minLon && lon(tile.x) <= maxLon && lat(tile.y) >= minLat && lat(tile.y + 1) <= maxLat;
   }
 }
 

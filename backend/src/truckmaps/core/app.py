@@ -34,6 +34,7 @@ from truckmaps.core import (
     reports,
     routing,
     shared,
+    signs,
     tiles,
     trips,
     vehicles,
@@ -188,6 +189,7 @@ def create_app(
     app.include_router(tiles.build_router(settings.tiles_dir))
     app.include_router(live.build_router(auth.current_user))
     app.include_router(dispatch.build_router(auth.current_user))
+    app.include_router(signs.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
         app.include_router(
             devlogin.build_router(

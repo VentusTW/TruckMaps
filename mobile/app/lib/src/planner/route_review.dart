@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../l10n.dart';
 import '../navigation/navigation_screen.dart';
 import 'planner_screen.dart' show mapTiles;
+import 'restriction_signs.dart';
 import 'route.dart';
 
 /// Przegląd trasy przed jazdą: warianty z czasem i km na mapie, podsumowanie (dystans,
@@ -147,6 +148,7 @@ class _RouteReviewScreenState extends State<RouteReviewScreen> {
       ),
       children: [
         mapTiles(),
+        RestrictionSignsLayer(api: widget.api),
         PolylineLayer(polylines: [
           for (final (i, route) in _variants)
             if (i != _alternative)

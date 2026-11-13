@@ -16,6 +16,7 @@ import 'place_field.dart';
 import 'route.dart';
 import '../vehicles/permits_screen.dart';
 import 'recent.dart';
+import 'restriction_signs.dart';
 import 'route_review.dart';
 import '../navigation/navigation_screen.dart';
 
@@ -425,6 +426,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       ),
       children: [
         mapTiles(),
+        RestrictionSignsLayer(api: widget.api),
         PolylineLayer(polylines: [
           for (final alt in others)
             Polyline(points: alt.points, strokeWidth: 5, color: levelColor(alt.level).withOpacity(0.45)),

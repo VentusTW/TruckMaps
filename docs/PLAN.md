@@ -260,7 +260,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
 - [ ] Mapa wektorowa i offline (MapLibre / własne kafelki) – na telefon do nawigacji
   - [ ] silnik MapLibre GL zamiast kafelków obrazkowych, w planerze i w nawigacji; kafelki wektorowe z OSM generowane u nas (Planetiler → PMTiles / MBTiles, co tydzień, za darmo), te same do mapy offline
     - [x] kafelki wektorowe z OSM u nas: Planetiler (Java 21) → `infra/data/tiles/<kraj>.pmtiles` (`infra/build_tiles.ps1`), serwer oddaje je pod `/api/tiles` (fragmentami, `Range`); aplikacja rysuje je sama (`vector_map_tiles`, działa też na Windows, gdzie MapLibre GL nie działa), styl jasny OpenMapTiles; poza obszarem pliku – podkład obrazkowy OSM pod spodem
-    - [ ] kolejne kraje (jeden plik na kraj albo cała Europa), aktualizacja razem z `update_data.ps1`, mapa offline na telefonie (pobranie pliku kraju), własny styl (punkt niżej), tryb nocny w stylu zamiast filtra kolorów
+    - [x] kolejne kraje: `europe.pmtiles` z pliku tras wszystkich krajów (PL, DE, CZ, SK, LT); aplikacja czyta kilka plików naraz (`MultiMapProvider` – kafelek z pliku, który obejmuje miejsce)
+    - [ ] aktualizacja kafelków razem z `update_data.ps1`, mapa offline na telefonie (pobranie pliku kraju), własny styl (punkt niżej), tryb nocny w stylu zamiast filtra kolorów
   - [ ] własny styl (własne kolory i ikony, bez kopiowania cudzej marki): tarcze numerów dróg w kolorach znaków danego kraju (A4, S52, E77, DK 79, 44…), nazwy ulic, numery domów, budynki 3D, cieniowanie terenu, drzewa 3D (na koniec – tylko wygląd)
     - [x] styl dzienny i nocny (`lib/src/planner/map_style.dart`): pastelowe tło, lasy, woda, drogi szybkiego ruchu czerwone, krajowe / wojewódzkie pomarańczowe i żółte, ulice białe z obwódką, budynki od z13, numery domów od z17, rozstrzelone nazwy dzielnic; tarcze numerów dróg rysowane w aplikacji (`map_sprites.dart`: A / S / krajowe czerwone, E zielone, wojewódzkie żółte); noc w nawigacji – ciemny styl zamiast filtra kolorów; podpis © OpenMapTiles © OpenStreetMap
     - [x] mapa dołączona do programu: `flutter build windows` kopiuje `infra/data/tiles/*.pmtiles` do `maps` obok TruckMaps.exe; program czyta ją bez sieci, bez niej – mapa z serwera; podgląd stylu: `flutter test test/map_style_test.dart` → `build/map_preview`
@@ -292,7 +293,7 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
     - tabela `road_points` (migracja 0033), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
     - zapowiedź głosowa ok. 500 m przed fotoradarem, pomiarem odcinkowym, przejazdem kolejowym, zakazem, trudnym miejscem i zgłoszeniem kierowcy
-  - [ ] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”) – na mapie wektorowej
+  - [x] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”): `GET /api/map/signs` (widoczny obszar do 1°), warstwa `RestrictionSignsLayer` od z10 w planerze, przeglądzie trasy i centrali
   - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
   - [x] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
 - [ ] Ulepszenia trasy i prowadzenia (pomysły z ogłoszenia TirNavi 1.0.589 z 06.11.2026 – własne wykonanie):

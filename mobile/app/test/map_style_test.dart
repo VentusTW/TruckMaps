@@ -10,7 +10,9 @@ import 'package:truckmaps_app/src/planner/map_sprites.dart';
 import 'package:truckmaps_app/src/planner/map_style.dart';
 import 'package:truckmaps_app/src/planner/vector_tiles.dart';
 
-final _tiles = Directory('../../infra/data/tiles');
+/// Plik mapy z `infra/build_tiles.ps1` (cała Europa albo sama Polska) – tylko na komputerze z kafelkami.
+File _mapFile() => [for (final n in ['europe', 'poland']) File('../../infra/data/tiles/$n.pmtiles')]
+    .firstWhere((f) => f.existsSync(), orElse: () => File('../../infra/data/tiles/poland.pmtiles'));
 
 /// Podgląd stylu: kafelki z pliku mapy narysowane do PNG w `build/map_preview` (do obejrzenia).
 /// Nazwa → (zoom stylu, kafelek z14 x, y, ile kafelków na bok, powiększenie kafelka z14).
@@ -46,7 +48,7 @@ void main() {
           ..addFont(File(r'C:\Windows\Fonts\segoeui.ttf').readAsBytes().then(ByteData.sublistView));
         await font.load();
       }
-      final provider = await PmTilesVectorTileProvider.fromSource('${_tiles.path}/poland.pmtiles');
+      final provider = await PmTilesVectorTileProvider.fromSource(_mapFile().path);
       final out = Directory('build/map_preview')..createSync(recursive: true);
       for (final night in [false, true]) {
         final theme = ThemeReader().read(truckMapStyle(night: night));
@@ -80,5 +82,5 @@ void main() {
         }
       }
     });
-  }, skip: !File('../../infra/data/tiles/poland.pmtiles').existsSync());
+  }, skip: !_mapFile().existsSync());
 }
