@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import 'fleet_export.dart';
 import 'service_data.dart';
 
 /// „Raporty i Analityka” według projektu Stitch: przebiegi, kursy puste, koszt wozokilometra,
@@ -47,6 +48,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       if (mounted) setState(() => _data = data);
     } catch (e) {
       if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// Eksport tabeli pojazdów (km, godziny, koszty, serwis) do CSV – otwiera się w Excelu.
+  Future<void> _export() async {
+    final data = _data;
+    if (data == null) return;
+    final opened =
+        await openCsv(toCsv(fleetReportRows(context.l, data, (id) => _serviceCost(data, id))), 'raport-floty');
+    if (!opened && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.exportFailed)));
     }
   }
 
@@ -151,7 +163,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-              onPressed: () => widget.onOpen(l.anExport),
+              onPressed: _export,
               icon: const Icon(Icons.download_outlined, size: 18),
               label: Text(l.anExport),
             ),

@@ -1360,7 +1360,7 @@
   "anSubtitle": "Summary of {count} power units – {company}",
   "anKpiConfig": "Configure KPIs",
   "anSchedule": "Schedule BI report",
-  "anExport": "Export PDF/XLSX",
+  "anExport": "Export to Excel (CSV)",
   "anRange": "Range",
   "anLastMonths": "Last {count} months",
   "anVehicles": "Vehicles",
@@ -1407,7 +1407,7 @@
   "tcoSubtitle": "Cost-per-km structure, make benchmark and driver ranking",
   "tcoExciseShort": "Excise refund (BE / FR)",
   "tcoErpShort": "SAP / ERP export",
-  "tcoReport": "Management report PDF",
+  "tcoReport": "TCO report (Excel)",
   "tcoPeriod": "Period",
   "tcoMake": "Tractor make (OEM)",
   "tcoCards": "Fuel cards / suppliers",
@@ -1699,5 +1699,29 @@
       }
     }
   },
-  "wsNoWaiting": "No requests waiting to be taken in."
+  "wsNoWaiting": "No requests waiting to be taken in.",
+  "exportFailed": "Couldn't open the report file.",
+  "csvVehicle": "Vehicle",
+  "csvPlate": "Registration",
+  "csvTrips": "Trips",
+  "csvHours": "Driving hours",
+  "csvEmptyKm": "Empty km",
+  "csvIdle": "Idle [h]",
+  "csvTripCost": "Trip costs [{currency}]",
+  "@csvTripCost": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "csvCostPerKm": "Cost / km [{currency}]",
+  "@csvCostPerKm": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "csvServiceCost": "Service costs"
 }

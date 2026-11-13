@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import 'fleet_export.dart';
 import 'service_data.dart';
 
 /// „Koszty i TCO” według projektu Stitch: koszt wozokilometra i jego struktura (trasy, serwis),
@@ -46,6 +47,19 @@ class _TcoScreenState extends State<TcoScreen> {
       if (mounted) setState(() => _data = data);
     } catch (e) {
       if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// Raport TCO: koszty przejazdów i serwisu każdego pojazdu w CSV (Excel).
+  Future<void> _export() async {
+    final data = _data;
+    if (data == null) return;
+    double service(String id) => data.done
+        .where((o) => o['vehicle_id'] == id || data.vehicle(id)?['trailer_id'] == o['vehicle_id'])
+        .fold(0.0, (a, o) => a + orderTotal(o));
+    final opened = await openCsv(toCsv(fleetReportRows(context.l, data, service)), 'raport-tco');
+    if (!opened && mounted) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.exportFailed)));
     }
   }
 
@@ -144,7 +158,7 @@ class _TcoScreenState extends State<TcoScreen> {
               ),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-              onPressed: () => widget.onOpen(l.tcoReport),
+              onPressed: _export,
               icon: const Icon(Icons.download_outlined, size: 18),
               label: Text(l.tcoReport),
             ),

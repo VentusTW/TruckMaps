@@ -3076,7 +3076,7 @@
   },
   "anKpiConfig": "Konfiguruj KPI",
   "anSchedule": "Zaplanuj raport BI",
-  "anExport": "Eksportuj PDF/XLSX",
+  "anExport": "Eksportuj do Excela (CSV)",
   "anRange": "Zakres analizy",
   "anLastMonths": "Ostatnie {count} miesięcy",
   "@anLastMonths": {
@@ -3198,7 +3198,7 @@
   "tcoSubtitle": "Struktura kosztu wozokilometra, benchmark marek i ranking kierowców",
   "tcoExciseShort": "Zwrot akcyzy (BE / FR)",
   "tcoErpShort": "Eksport SAP / ERP",
-  "tcoReport": "Raport zarządczy PDF",
+  "tcoReport": "Raport TCO (Excel)",
   "tcoPeriod": "Okres rozliczeniowy",
   "tcoMake": "Marka ciągnika (OEM)",
   "tcoCards": "Karty flotowe / dostawcy",
@@ -3531,5 +3531,29 @@
       }
     }
   },
-  "wsNoWaiting": "Brak zgłoszeń czekających na przyjęcie."
+  "wsNoWaiting": "Brak zgłoszeń czekających na przyjęcie.",
+  "exportFailed": "Nie udało się otworzyć pliku z raportem.",
+  "csvVehicle": "Pojazd",
+  "csvPlate": "Nr rejestracyjny",
+  "csvTrips": "Przejazdy",
+  "csvHours": "Godziny jazdy",
+  "csvEmptyKm": "Puste km",
+  "csvIdle": "Postój [h]",
+  "csvTripCost": "Koszt przejazdów [{currency}]",
+  "@csvTripCost": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "csvCostPerKm": "Koszt / km [{currency}]",
+  "@csvCostPerKm": {
+    "placeholders": {
+      "currency": {
+        "type": "String"
+      }
+    }
+  },
+  "csvServiceCost": "Koszt serwisu"
 }
