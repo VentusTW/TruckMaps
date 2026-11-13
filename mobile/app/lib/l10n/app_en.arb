@@ -1667,5 +1667,10 @@
   "assignedFromPlanned": "From the route start",
   "assignedFromMyPosition": "From my position",
   "assignedFromMyPositionHint": "driving to the route start first",
-  "assignedNoPosition": "Couldn't get your position – turn on location or start from the route start."
+  "assignedNoPosition": "Couldn't get your position – turn on location or start from the route start.",
+  "permitAskTitle": "Do you have a permit?",
+  "permitAskAvoided": "The route avoids places restricted for this vehicle. With a permit it can go a shorter way:",
+  "permitAskThrough": "The route goes through places restricted for this vehicle:",
+  "permitAskYes": "Yes – choose a permit",
+  "permitAskNo": "No"
 }

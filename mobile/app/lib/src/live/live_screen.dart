@@ -8,8 +8,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
 import '../planner/planner_screen.dart' show mapTiles;
-import '../planner/restriction_signs.dart';
-import '../planner/route.dart' show PlannedRoute;
+import '../planner/route.dart' show PlannedRoute, levelColor;
 import 'route_plan_panel.dart';
 
 /// Pojazd firmy na mapie centrali (`GET /api/companies/{id}/live`).
@@ -263,15 +262,15 @@ class _LiveScreenState extends State<LiveScreen> {
       options: const MapOptions(initialCenter: LatLng(52.1, 19.1), initialZoom: 6),
       children: [
         mapTiles(),
-        RestrictionSignsLayer(api: widget.api),
         if (_planned != null)
           PolylineLayer(polylines: [
-            Polyline(
-                points: _planned!.points,
-                strokeWidth: 6,
-                color: const Color(0xFF1E66D0),
-                borderStrokeWidth: 2,
-                borderColor: Colors.white),
+            for (final (points, level) in _planned!.coloredParts)
+              Polyline(
+                  points: points,
+                  strokeWidth: level == 'red' ? 7 : 6,
+                  color: levelColor(level),
+                  borderStrokeWidth: 2,
+                  borderColor: Colors.white),
           ]),
         MarkerLayer(markers: [
           for (final v in _vehicles)

@@ -293,7 +293,8 @@ Czasy orientacyjne. Łącznie: **pierwszy przychód po ~10–12 miesiącach**, p
   - [x] ostrzeżenia z OSM na trasie z odległością: przejazd kolejowy (`railway=level_crossing`), zakaz wyprzedzania dla ciężarówek (`overtaking:hgv=no`), sygnalizacja świetlna, odcinkowy pomiar prędkości ze średnią prędkością na odcinku (`enforcement` / `average_speed`)
     - tabela `road_points` (migracja 0033), import `data_pipeline/import_road_points.py` (także w `update_data.ps1`), w odpowiedzi trasy `road_events` z km; na prawdziwych danych jeszcze nie zaimportowane
     - zapowiedź głosowa ok. 500 m przed fotoradarem, pomiarem odcinkowym, przejazdem kolejowym, zakazem, trudnym miejscem i zgłoszeniem kierowcy
-  - [x] znaki ograniczeń masy / wysokości na mapie także poza trasą (np. „7t”, „9t”): `GET /api/map/signs` (widoczny obszar do 1°), warstwa `RestrictionSignsLayer` od z10 w planerze, przeglądzie trasy i centrali
+  - [x] znaki ograniczeń tylko na trasie (decyzja 13.11.2026 – bez znaków poza trasą); trasa omijająca albo przecinająca ograniczenia: pytanie „Masz zezwolenie?” (chyba że zezwolenie już użyte / wybrane), potem wybór zezwoleń i przeliczenie
+  - [x] „Wyślij kierowcy” w planerze dla pojazdu firmy (`live/send_route.dart`); w centrali trasa w kolorach oceny
   - [x] aktualna prędkość: kolor ostrzegawczy przy przekroczeniu limitu
   - [x] skupianie punktów na małym przybliżeniu (np. parkingi jako koło z liczbą)
 - [ ] Ulepszenia trasy i prowadzenia (pomysły z ogłoszenia TirNavi 1.0.589 z 06.11.2026 – własne wykonanie):

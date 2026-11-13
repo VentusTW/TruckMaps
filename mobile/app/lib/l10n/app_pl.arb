@@ -3499,5 +3499,10 @@
   "assignedFromPlanned": "Od startu trasy",
   "assignedFromMyPosition": "Od mojej pozycji",
   "assignedFromMyPositionHint": "z dojazdem do startu trasy",
-  "assignedNoPosition": "Nie udało się ustalić Twojej pozycji – włącz lokalizację albo ruszaj od startu trasy."
+  "assignedNoPosition": "Nie udało się ustalić Twojej pozycji – włącz lokalizację albo ruszaj od startu trasy.",
+  "permitAskTitle": "Masz zezwolenie na przejazd?",
+  "permitAskAvoided": "Trasa omija miejsca z ograniczeniami dla tego pojazdu. Z zezwoleniem może pojechać krócej:",
+  "permitAskThrough": "Trasa prowadzi przez miejsca z ograniczeniami dla tego pojazdu:",
+  "permitAskYes": "Tak – wybierz zezwolenie",
+  "permitAskNo": "Nie"
 }
