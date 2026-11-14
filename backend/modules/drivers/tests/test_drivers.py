@@ -410,3 +410,121 @@ def test_dashboard_shows_assigned_drivers_and_their_deadlines(client, company):
     assert sent.status_code == 200
     inbox = client.get("/api/me/messages", headers=as_user("jan")).json()["items"]
     assert any(m["kind"] == "dispatch_note" and m["data"]["text"] == "Badania!" for m in inbox)
+
+
+def _b64(data: bytes) -> str:
+    import base64
+
+    return base64.b64encode(data).decode()
+
+
+def test_tacho_upload_card_and_vehicle_unit(client, company, ddd):
+    from datetime import UTC, datetime
+
+    monday = datetime(2026, 11, 2, tzinfo=UTC)
+    body = {"company_id": company["id"], "name": "Jan Kowalski", "member_id": None}
+    jan = client.post("/api/m/drivers/drivers", json=body, headers=as_user("olek")).json()
+    drive = 3 << 11
+    days = {
+        monday: [0, drive | 360, 660],  # 5 h jazdy bez przerwy
+        monday.replace(day=3): [0, drive | 360, 600],
+    }
+    upload = {"company_id": company["id"], "name": "C_JAN.DDD", "data": _b64(ddd.card(days))}
+    # Karta bez kierowcy w kartotece – trzeba wskazać kierowcę.
+    unknown = client.post("/api/m/drivers/tacho/upload", json=upload, headers=as_user("olek"))
+    assert unknown.status_code == 422 and ddd.CARD in unknown.json()["detail"]
+    bad = client.post(
+        "/api/m/drivers/tacho/upload",
+        json=upload | {"data": _b64(b"x" * 40)},
+        headers=as_user("olek"),
+    )
+    assert bad.status_code == 422
+    loaded = client.post(
+        "/api/m/drivers/tacho/upload",
+        json=upload | {"driver_id": jan["id"]},
+        headers=as_user("olek"),
+    )
+    assert loaded.status_code == 201, loaded.text
+    result = loaded.json()
+    assert (result["kind"], result["driver_name"], result["activities"]) == (
+        "card",
+        "Jan Kowalski",
+        5,
+    )
+    card = client.get(f"/api/m/drivers/drivers/{jan['id']}", headers=as_user("olek")).json()
+    assert card["card_number"] == ddd.CARD + "00"
+    assert card["card_downloaded_on"] == date.today().isoformat()
+    assert card["card_until"] == "2027-01-01"
+    # Ponowny odczyt tej samej karty – kierowca rozpoznany po numerze, bez podwójnych danych.
+    again = client.post("/api/m/drivers/tacho/upload", json=upload, headers=as_user("olek"))
+    assert again.status_code == 201
+    view = client.get(f"/api/m/drivers/drivers/{jan['id']}/tacho", headers=as_user("olek")).json()
+    driving = [s for s in view["segments"] if s["activity"] == "driving"]
+    assert [s["start"][:16] for s in driving] == ["2026-11-02T06:00", "2026-11-03T06:00"]
+    assert [(v["kind"], v["severity"]) for v in view["violations"]] == [("break", "serious")]
+    # Koniec danych po 14 h odpoczynku – liczniki dobowe od zera.
+    assert view["counters"]["continuous_driving"] == 0
+    assert view["counters"]["weekly_driving"] == 540
+    assert len(view["downloads"]) == 2
+    file = client.get(
+        f"/api/m/drivers/tacho/downloads/{result['id']}/file", headers=as_user("olek")
+    )
+    assert file.status_code == 200 and file.content[:3] == b"\x00\x02\x00"
+    assert (
+        client.get(f"/api/m/drivers/tacho/downloads/{result['id']}/file", headers=as_user("marek"))
+    ).status_code == 404
+
+    # Tachograf pojazdu: pojazd po numerze rejestracyjnym, aktywności dla kierowcy po karcie.
+    truck = client.post(
+        "/api/vehicles",
+        json=TRACTOR | {"company_id": company["id"], "plate": "WX 12345"},
+        headers=as_user("olek"),
+    ).json()
+    wednesday = monday.replace(day=4)
+    vu = {"company_id": company["id"], "name": "M_WX12345.DDD"}
+    words = [0, drive | 360, 540]
+    forbidden = client.post(
+        "/api/m/drivers/tacho/upload", json=vu | {"data": _b64(ddd.vu1(wednesday, words))},
+        headers=as_user("jan"),
+    )  # fmt: skip
+    assert forbidden.status_code == 403
+    loaded = client.post(
+        "/api/m/drivers/tacho/upload", json=vu | {"data": _b64(ddd.vu1(wednesday, words))},
+        headers=as_user("olek"),
+    )  # fmt: skip
+    assert loaded.status_code == 201, loaded.text
+    assert loaded.json()["vehicle_id"] == truck["id"] and loaded.json()["unmatched_cards"] == []
+    co_driver = ddd.vu2(monday.replace(day=5), [w | 1 << 15 for w in words])
+    second = client.post(
+        "/api/m/drivers/tacho/upload", json=vu | {"data": _b64(co_driver)}, headers=as_user("olek")
+    )
+    assert second.json()["unmatched_cards"] == ["PL000099999900 – Adam Nowak"]
+    vehicle = client.get(f"/api/vehicles/{truck['id']}", headers=as_user("olek")).json()
+    assert vehicle["tachograph_download_until"] == (date.today() + timedelta(days=90)).isoformat()
+    info = client.get(
+        f"/api/m/drivers/tacho/vehicles/{truck['id']}", headers=as_user("olek")
+    ).json()
+    assert len(info["downloads"]) == 2 and info["last_download"]
+    view = client.get(f"/api/m/drivers/drivers/{jan['id']}/tacho", headers=as_user("olek")).json()
+    assert [s["source"] for s in view["segments"] if s["activity"] == "driving"] == [
+        "card",
+        "card",
+        "vu",
+    ]
+    # Kierowca z kontem może wczytać swoją kartę, cudzej – nie.
+    other = ddd.card(days, number="PL000077777700")
+    denied = client.post(
+        "/api/m/drivers/tacho/upload",
+        json=upload | {"data": _b64(other), "driver_id": jan["id"]},
+        headers=as_user("jan"),
+    )
+    assert denied.status_code == 403
+    adam = client.post(
+        "/api/m/drivers/drivers", json=body | {"name": "Adam Nowak"}, headers=as_user("olek")
+    ).json()
+    taken = client.post(
+        "/api/m/drivers/tacho/upload",
+        json=upload | {"driver_id": adam["id"]},
+        headers=as_user("olek"),
+    )
+    assert taken.status_code == 409 and "Jan Kowalski" in taken.json()["detail"]

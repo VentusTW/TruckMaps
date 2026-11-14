@@ -21,5 +21,15 @@
   "drivers.field.card_until": "karta kierowcy",
   "drivers.field.card_download_until": "pobranie danych z karty kierowcy",
   "drivers.field.adr_until": "zaświadczenie ADR",
-  "drivers.field.attestation_until": "świadectwo kierowcy"
+  "drivers.field.attestation_until": "świadectwo kierowcy",
+  "tacho.not_ddd": "To nie jest plik z tachografu cyfrowego (.DDD).",
+  "tacho.truncated": "Plik .DDD jest uszkodzony albo niepełny.",
+  "tacho.not_card": "W pliku karty brakuje danych kierowcy albo aktywności.",
+  "tacho.not_vu": "W pliku tachografu pojazdu brakuje danych pojazdu i aktywności.",
+  "tacho.too_large": "Plik jest za duży (najwyżej {mb} MB).",
+  "tacho.choose_driver": "Karta {card} ({name}) nie jest przypisana do kierowcy – wybierz kierowcę i wczytaj plik z jego karty.",
+  "tacho.choose_vehicle": "Nie znaleziono pojazdu o numerze rejestracyjnym {plate} (VIN {vin}) – wczytaj plik z karty pojazdu.",
+  "tacho.forbidden": "Pliki pojazdów i kart innych kierowców wczytują właściciel i dyspozytorzy firmy.",
+  "tacho.card_taken": "Ta karta kierowcy jest już przypisana do: {name}.",
+  "tacho.not_found": "Nie znaleziono pliku z tachografu."
 }

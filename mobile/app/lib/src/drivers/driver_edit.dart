@@ -7,6 +7,7 @@ import '../l10n.dart';
 import '../records/records.dart';
 import 'driver_actions.dart';
 import 'drivers_data.dart';
+import 'tacho.dart';
 
 const _categories = ['B', 'C', 'C+E', 'D', 'D+E'];
 const _dates = [
@@ -637,11 +638,14 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
         Container(
           padding: const EdgeInsets.all(Gap.l),
           decoration: BoxDecoration(color: colors.surfaceLow, borderRadius: BorderRadius.circular(TruckTheme.radius)),
-          child: Row(children: [
-            Icon(Icons.timer_outlined, size: 18, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: Gap.s),
-            Expanded(child: Text(l.drvWorkTime, style: theme.textTheme.labelLarge)),
-            WipTag(what: l.drvWorkTime, onOpen: widget.onOpen),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(children: [
+              Icon(Icons.timer_outlined, size: 18, color: theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: Gap.s),
+              Expanded(child: Text(l.drvWorkTime, style: theme.textTheme.labelLarge)),
+            ]),
+            const SizedBox(height: Gap.s),
+            TachoSummary(api: widget.api, companyId: widget.companyId, driverId: widget.driverId),
           ]),
         ),
       ],

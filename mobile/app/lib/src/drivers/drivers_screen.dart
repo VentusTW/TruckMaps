@@ -7,6 +7,7 @@ import '../l10n.dart';
 import '../records/records.dart';
 import 'driver_actions.dart';
 import 'drivers_data.dart';
+import 'tacho.dart';
 
 /// „Kierowcy i Czas Pracy”: lista kierowców firmy albo profil jednego ([driverId]) według projektu
 /// Stitch. Dane z modułu Kierowcy (kartoteka, terminy, statystyki, historia) i z pojazdów rdzenia;
@@ -48,6 +49,7 @@ class _DriversScreenState extends State<DriversScreen> {
   Object? _error;
   Map<String, dynamic>? _stats;
   List<Map<String, dynamic>> _history = const [];
+  TachoData? _tachoData;
   String? _statsFor;
   int _tab = 0;
   String _query = '';
@@ -119,12 +121,20 @@ class _DriversScreenState extends State<DriversScreen> {
     final results = await Future.wait([
       get('/api/m/drivers/drivers/$id/stats?months=3'),
       get('/api/m/drivers/drivers/$id/history'),
+      get('/api/m/drivers/drivers/$id/tacho'),
     ]);
     if (!mounted) return;
     setState(() {
       _stats = results[0] is Map<String, dynamic> ? results[0] as Map<String, dynamic> : null;
       _history = uiMaps(results[1]);
+      _tachoData = results[2] is Map<String, dynamic> ? TachoData.fromJson(results[2] as Map<String, dynamic>) : null;
     });
+  }
+
+  /// Po wczytaniu pliku .DDD: liczniki, dni, naruszenia i termin pobrania karty.
+  Future<void> _reloadDetails() async {
+    _statsFor = null;
+    await _load();
   }
 
   @override
@@ -316,7 +326,7 @@ class _DriversScreenState extends State<DriversScreen> {
       return ListView(padding: EdgeInsets.all(pad), children: [
         _head(context, data, d),
         const SizedBox(height: gap),
-        _tacho(context, wide),
+        _tacho(context, data, d, wide),
         const SizedBox(height: gap),
         if (wide)
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -452,53 +462,43 @@ class _DriversScreenState extends State<DriversScreen> {
     );
   }
 
-  Widget _tacho(BuildContext context, bool wide) {
+  Widget _tacho(BuildContext context, DriversData data, Map<String, dynamic> d, bool wide) {
     final l = context.l;
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final colors = TruckColors.of(context);
-    final tiles = [
-      l.drvTachoContinuous,
-      l.drvTachoDaily,
-      l.drvTachoRest,
-      l.drvTachoWeek,
-      l.drvTachoTwoWeeks,
-      l.drvTachoHome,
-    ];
+    final tacho = _tachoData;
+    final at = tacho?.moment('at');
     return UiPanel(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         UiSectionHeader(
           title: l.drvTachoTitle,
           subtitle: l.drvTachoSubtitle,
           icon: Icons.av_timer_outlined,
-          trailing: WipTag(what: l.drvTachoTitle, onOpen: widget.onOpen),
+          trailing: data.module
+              ? TachoUploadButton(
+                  api: widget.api, companyId: widget.companyId, driverId: '${d['id']}', onDone: _reloadDetails)
+              : null,
         ),
         const SizedBox(height: Gap.l),
-        LayoutBuilder(builder: (context, size) {
-          final columns = wide ? 6 : (size.maxWidth >= 500 ? 3 : 2);
-          final width = (size.maxWidth - Gap.m * (columns - 1)) / columns;
-          return Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
-            for (final (i, label) in tiles.indexed)
-              Container(
-                width: width,
-                padding: const EdgeInsets.all(Gap.m),
-                decoration: BoxDecoration(
-                  color: i == 0 ? scheme.errorContainer.withOpacity(0.35) : colors.surfaceLow,
-                  borderRadius: BorderRadius.circular(TruckTheme.radius),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(label.toUpperCase(),
-                      maxLines: 2,
-                      style: theme.textTheme.labelSmall
-                          ?.copyWith(color: i == 0 ? scheme.error : scheme.onSurfaceVariant, letterSpacing: 0.4)),
-                  const SizedBox(height: Gap.s),
-                  Text('–', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: Gap.s),
-                  TruckProgressBar(value: 0, height: 5, color: i == 0 ? scheme.error : scheme.primary),
-                ]),
-              ),
-          ]);
-        }),
+        TachoCounters(data: tacho, wide: wide),
+        const SizedBox(height: Gap.m),
+        if (!data.module)
+          UiEmpty(l.drvNoModule)
+        else if (tacho == null || tacho.empty)
+          UiEmpty(l.tachoNoData)
+        else ...[
+          if (at != null)
+            Text(l.tachoAsOf(l.when(at)), style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline)),
+          const SizedBox(height: Gap.s),
+          TachoDays(data: tacho, limit: 7),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const Key('tacho-all-days'),
+              onPressed: () => showTachoDays(context, tacho),
+              child: Text(l.tachoShowAll),
+            ),
+          ),
+        ],
       ]),
     );
   }
@@ -610,14 +610,27 @@ class _DriversScreenState extends State<DriversScreen> {
           ),
         ];
       case 2:
+        final tacho = _tachoData;
         return [
+          UiPanel(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              UiSectionHeader(title: l.drvViolations, subtitle: l.tachoViolationsTitle, icon: Icons.gavel_outlined),
+              const SizedBox(height: Gap.l),
+              if (!data.module)
+                UiEmpty(l.drvNoModule)
+              else if (tacho == null || tacho.empty)
+                UiEmpty(l.tachoNoData)
+              else
+                TachoViolations(data: tacho),
+            ]),
+          ),
+          const SizedBox(height: 20),
           UiPanel(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               UiSectionHeader(
                 title: l.drvTabHistory,
                 subtitle: l.drvHistorySubtitle,
                 icon: Icons.history_outlined,
-                trailing: WipTag(what: l.drvViolations, onOpen: widget.onOpen),
               ),
               const SizedBox(height: Gap.l),
               if (_history.isEmpty) UiEmpty(l.drvHistoryEmpty),

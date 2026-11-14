@@ -21,5 +21,15 @@
   "drivers.field.card_until": "driver card",
   "drivers.field.card_download_until": "driver card data download",
   "drivers.field.adr_until": "ADR certificate",
-  "drivers.field.attestation_until": "driver attestation"
+  "drivers.field.attestation_until": "driver attestation",
+  "tacho.not_ddd": "This is not a digital tachograph file (.DDD).",
+  "tacho.truncated": "The .DDD file is damaged or incomplete.",
+  "tacho.not_card": "The card file has no driver or activity data.",
+  "tacho.not_vu": "The vehicle unit file has no vehicle or activity data.",
+  "tacho.too_large": "The file is too large (at most {mb} MB).",
+  "tacho.choose_driver": "Card {card} ({name}) is not linked to a driver – choose the driver and load the file from their card.",
+  "tacho.choose_vehicle": "No vehicle with registration {plate} (VIN {vin}) – load the file from the vehicle's page.",
+  "tacho.forbidden": "Vehicle files and other drivers' cards are loaded by the company owner and dispatchers.",
+  "tacho.card_taken": "This driver card is already linked to: {name}.",
+  "tacho.not_found": "Tachograph file not found."
 }

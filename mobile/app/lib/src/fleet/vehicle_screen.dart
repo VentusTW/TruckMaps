@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
+import '../drivers/tacho.dart';
 import '../l10n.dart';
 import '../records/records.dart';
 import '../vehicles/body_types.dart';
@@ -330,7 +331,7 @@ class _VehicleScreenState extends State<VehicleScreen> {
             '',
             status == FleetStatus.driving
                 ? UiTag(l.vehDriving, tone: 'ok', uppercase: false)
-                : WipTag(what: l.vehTacho, onOpen: widget.onOpen),
+                : VehicleTachoTag(api: widget.api, companyId: _company, vehicleId: widget.vehicleId),
           ),
         if (wide) const SizedBox(width: Gap.l) else const SizedBox(height: Gap.m),
         person(
