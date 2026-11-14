@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import '../vehicles/body_types.dart';
 
 const _towed = {'semitrailer', 'trailer'};
@@ -519,7 +520,22 @@ class _FleetScreenState extends State<FleetScreen> {
         bar: power.isEmpty ? null : euro6 / total,
         barColor: colors.success,
         left: Text(l.fleetKpiEuro6(pct(euro6))),
-        right: WipTag(what: l.fleetKpiWarranty, onOpen: widget.onOpen),
+        right: InkWell(
+          key: const Key('fleet-warranty'),
+          onTap: () => showRecords(context,
+              api: widget.api,
+              companyId: widget.companyId,
+              entityType: 'company',
+              entityId: widget.companyId ?? '-',
+              kind: 'warranty',
+              title: l.fleetKpiWarranty,
+              fields: [
+                RecordField('vehicle', l.fleetRecVehicle, required: true),
+                RecordField('until', l.vehValidTo, type: RecordFieldType.date, required: true),
+                RecordField('note', l.partNote),
+              ]),
+          child: Text(l.fleetKpiWarranty, style: TextStyle(color: scheme.primary)),
+        ),
       ),
     ];
   }
@@ -910,7 +926,24 @@ class _FleetScreenState extends State<FleetScreen> {
       card(Icons.tire_repair_outlined, l.fleetTyres, [
         Text(l.fleetTyresNote, style: small),
         const SizedBox(height: Gap.xs),
-        WipTag(what: l.fleetTyres, onOpen: widget.onOpen),
+        TextButton(
+          key: const Key('fleet-tyres'),
+          onPressed: () => showRecords(context,
+              api: widget.api,
+              companyId: widget.companyId,
+              entityType: 'company',
+              entityId: widget.companyId ?? '-',
+              kind: 'tyre',
+              title: l.fleetTyres,
+              fields: [
+                RecordField('vehicle', l.fleetRecVehicle, required: true),
+                RecordField('position', l.fleetTyrePosition),
+                RecordField('brand', l.fleetTyreBrand),
+                RecordField('mounted', l.fleetTyreMounted, type: RecordFieldType.date),
+                RecordField('tread_mm', l.fleetTyreTread, type: RecordFieldType.number),
+              ]),
+          child: Text(l.drvOpenList),
+        ),
       ]),
       card(Icons.shield_outlined, l.fleetPolicies, [
         Text(l.fleetPoliciesOc(l.number(insured), l.number(_all.length)), style: small),

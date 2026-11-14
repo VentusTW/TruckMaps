@@ -1,8 +1,10 @@
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import 'fleet_export.dart';
 import 'service_data.dart';
 
@@ -29,10 +31,196 @@ class TcoScreen extends StatefulWidget {
   State<TcoScreen> createState() => _TcoScreenState();
 }
 
+/// Ocena eco kierowcy (0–100) z przejazdów: kary za postój na pracującym silniku i puste km.
+int? ecoScore(Map<String, dynamic>? s) {
+  if (s == null) return null;
+  final km = ((s['distance_km'] as num?) ?? 0).toDouble();
+  if (km <= 0) return null;
+  final hours = ((s['hours'] as num?) ?? 0).toDouble();
+  final idle = ((s['idle_hours'] as num?) ?? 0).toDouble();
+  final empty = ((s['empty_km'] as num?) ?? 0).toDouble();
+  final idleShare = hours + idle > 0 ? idle / (hours + idle) : 0.0;
+  return (100 - 60 * idleShare - 40 * (empty / km).clamp(0, 1)).round().clamp(0, 100);
+}
+
+/// Marka pojazdu (pierwsze słowo nazwy, np. „MAN”, „Volvo”).
+String vehicleMake(Map<String, dynamic> v) => '${v['name'] ?? ''}'.trim().split(RegExp(r'\s+')).first;
+
 class _TcoScreenState extends State<TcoScreen> {
   FleetData? _data;
   Object? _error;
   String _query = '';
+
+  /// Filtr marki (OEM) i ceny paliwa z biuletynu KE.
+  String? _make;
+  Map<String, dynamic>? _fuel;
+
+  FleetData _filtered(FleetData d) {
+    if (_make == null) return d;
+    final vehicles = [
+      for (final v in d.vehicles)
+        if (vehicleMake(v) == _make || d.vehicles.any((p) => vehicleMake(p) == _make && p['trailer_id'] == v['id'])) v
+    ];
+    final ids = {for (final v in vehicles) '${v['id']}'};
+    return FleetData(
+      vehicles: vehicles,
+      orders: d.orders,
+      stats: {
+        for (final e in d.stats.entries)
+          if (ids.contains(e.key)) e.key: e.value
+      },
+      drivers: d.drivers,
+    );
+  }
+
+  Future<void> _pickMake() async {
+    final l = context.l;
+    final data = _data;
+    if (data == null) return;
+    final makes = {for (final v in data.power) vehicleMake(v)}..removeWhere((m) => m.isEmpty);
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(title: Text(l.tcoMake), children: [
+        RadioListTile<String>(
+            value: '', groupValue: _make ?? '', title: Text(l.anAll), onChanged: (v) => Navigator.pop(context, v)),
+        for (final m in makes)
+          RadioListTile<String>(
+              value: m, groupValue: _make ?? '', title: Text(m), onChanged: (v) => Navigator.pop(context, v)),
+      ]),
+    );
+    if (chosen != null) setState(() => _make = chosen.isEmpty ? null : chosen);
+  }
+
+  /// Zatwierdzenie premii: kierowcy z oceną eco, kwota do wpisania; zapis jako wpisy `bonus`.
+  Future<void> _bonuses(FleetData data) async {
+    final l = context.l;
+    final company = widget.companyId;
+    if (company == null) return;
+    final drivers = [
+      for (final d in data.drivers ?? const <Map<String, dynamic>>[]) (d, ecoScore(d['stats'] as Map<String, dynamic>?))
+    ];
+    final controllers = {
+      for (final (d, score) in drivers) '${d['id']}': TextEditingController(text: (score ?? 0) >= 80 ? '300' : '0'),
+    };
+    final month = DateFormat('yyyy-MM').format(DateTime.now());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${l.tcoBonuses} – $month'),
+        content: SizedBox(
+          width: 460,
+          child: drivers.isEmpty
+              ? Text(l.mainNoData)
+              : ListView(shrinkWrap: true, children: [
+                  for (final (d, score) in drivers)
+                    ListTile(
+                      dense: true,
+                      title: Text('${d['name']}'),
+                      subtitle: Text(l.tcoScoreValue(score == null ? '–' : '$score')),
+                      trailing: SizedBox(
+                        width: 110,
+                        child: TextField(
+                          controller: controllers['${d['id']}'],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(suffixText: 'PLN', isDense: true),
+                        ),
+                      ),
+                    ),
+                ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.tcoBonuses)),
+        ],
+      ),
+    );
+    final amounts = {for (final e in controllers.entries) e.key: num.tryParse(e.value.text.replaceAll(',', '.')) ?? 0};
+    for (final c in controllers.values) {
+      c.dispose();
+    }
+    if (ok != true) return;
+    final records = RecordsApi(widget.api, company);
+    for (final (d, score) in drivers) {
+      final amount = amounts['${d['id']}'] ?? 0;
+      if (amount > 0) {
+        await records.add(
+            'driver', '${d['id']}', 'bonus', {'month': month, 'score': score, 'amount': amount, 'currency': 'PLN'});
+      }
+    }
+    if (mounted) ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(l.tcoBonusesSaved)));
+  }
+
+  /// Ceny oleju napędowego w krajach UE (biuletyn KE, aktualizowany co tydzień).
+  Widget _fuelCard(BuildContext context) {
+    final l = context.l;
+    final theme = Theme.of(context);
+    final prices = ((_fuel?['diesel_eur'] as Map?) ?? const {}).cast<String, dynamic>();
+    final sorted = prices.entries.toList()..sort((a, b) => (a.value as num).compareTo(b.value as num));
+    return UiPanel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        UiSectionHeader(title: l.tcoFuelPrices, icon: Icons.local_gas_station_outlined),
+        const SizedBox(height: Gap.m),
+        if (sorted.isEmpty)
+          Text(l.tcoFuelNone, style: theme.textTheme.bodySmall)
+        else ...[
+          for (final e in sorted.take(8))
+            Row(children: [
+              Expanded(child: Text(e.key)),
+              Text('${l.number(e.value as num, decimals: 3)} €/l', style: theme.textTheme.labelLarge),
+            ]),
+          const SizedBox(height: Gap.s),
+          Text(l.tcoFuelDay('${_fuel?['day'] ?? ''}'), style: theme.textTheme.bodySmall),
+        ],
+      ]),
+    );
+  }
+
+  /// Anomalie: pojazdy z kosztem na km wyraźnie (ponad 30%) wyższym od średniej floty.
+  Widget _anomaliesCard(BuildContext context, FleetData data) {
+    final l = context.l;
+    final theme = Theme.of(context);
+    final rows = [
+      for (final v in data.power)
+        if (data.stats['${v['id']}'] case final s?)
+          if (((s['distance_km'] as num?) ?? 0) > 0) (v, tripCosts(s) / (s['distance_km'] as num))
+    ];
+    final avg = rows.isEmpty ? 0.0 : rows.fold(0.0, (a, r) => a + r.$2) / rows.length;
+    final high = [
+      for (final r in rows)
+        if (avg > 0 && r.$2 > avg * 1.3) r
+    ];
+    return UiPanel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        UiSectionHeader(title: l.tcoAnomalies, icon: Icons.shield_outlined),
+        const SizedBox(height: Gap.m),
+        if (high.isEmpty)
+          Text(rows.isEmpty ? l.mainNoData : l.tcoNoAnomalies, style: theme.textTheme.bodySmall)
+        else
+          for (final (v, perKm) in high)
+            Text(l.tcoAnomaly('${v['plate'] ?? v['name']}', l.number(perKm, decimals: 2),
+                l.number((perKm / avg - 1) * 100, decimals: 0))),
+      ]),
+    );
+  }
+
+  /// Eksport do ERP / SAP: ten sam plik CSV co raport TCO.
+  Widget _erpCard(BuildContext context) {
+    final l = context.l;
+    final theme = Theme.of(context);
+    return UiPanel(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        UiSectionHeader(title: l.tcoErp, icon: Icons.sync_alt_outlined),
+        const SizedBox(height: Gap.m),
+        Text(l.tcoErpCsvNote, style: theme.textTheme.bodySmall),
+        const SizedBox(height: Gap.s),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+              onPressed: _export, icon: const Icon(Icons.download_outlined, size: 18), label: Text(l.tcoReport)),
+        ),
+      ]),
+    );
+  }
 
   @override
   void initState() {
@@ -45,8 +233,10 @@ class _TcoScreenState extends State<TcoScreen> {
       final data =
           await FleetData.load(widget.api, widget.companyId, withStats: true, withDrivers: true, months: widget.months);
       if (mounted) setState(() => _data = data);
+      final fuel = await widget.api.get('/api/fuel-prices');
+      if (mounted && fuel is Map<String, dynamic>) setState(() => _fuel = fuel);
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && _data == null) setState(() => _error = e);
     }
   }
 
@@ -65,7 +255,7 @@ class _TcoScreenState extends State<TcoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final data = _data;
+    final data = _data == null ? null : _filtered(_data!);
     if (data == null) {
       return Center(child: _error == null ? const CircularProgressIndicator() : Text('$_error'));
     }
@@ -100,10 +290,8 @@ class _TcoScreenState extends State<TcoScreen> {
         const SizedBox(height: gap),
         Wrap(spacing: gap, runSpacing: gap, children: [
           SizedBox(width: third, child: _tonnage(context, data)),
-          SizedBox(
-              width: third,
-              child: _wipCard(context, l.tcoFuelPrices, l.tcoFuelPricesNote, Icons.local_gas_station_outlined)),
-          SizedBox(width: third, child: _wipCard(context, l.tcoAnomalies, l.tcoAnomaliesNote, Icons.shield_outlined)),
+          SizedBox(width: third, child: _fuelCard(context)),
+          SizedBox(width: third, child: _anomaliesCard(context, data)),
         ]),
         const SizedBox(height: gap),
         _drivers(context, data),
@@ -112,9 +300,7 @@ class _TcoScreenState extends State<TcoScreen> {
           SizedBox(
               width: wide ? (inner - gap) / 2 : inner,
               child: _wipCard(context, l.tcoExcise, l.tcoExciseNote, Icons.receipt_outlined)),
-          SizedBox(
-              width: wide ? (inner - gap) / 2 : inner,
-              child: _wipCard(context, l.tcoErp, l.tcoErpNote, Icons.sync_alt_outlined)),
+          SizedBox(width: wide ? (inner - gap) / 2 : inner, child: _erpCard(context)),
         ]),
       ]);
     });
@@ -152,7 +338,7 @@ class _TcoScreenState extends State<TcoScreen> {
             ])
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(side: BorderSide(color: colors.surfaceHigh)),
-                onPressed: () => widget.onOpen(label),
+                onPressed: () => label == l.tcoErpShort ? _export() : widget.onOpen(label),
                 icon: Icon(icon, size: 18),
                 label: Text(label),
               ),
@@ -191,7 +377,7 @@ class _TcoScreenState extends State<TcoScreen> {
     return UiPanel(
       child: Wrap(spacing: Gap.m, runSpacing: Gap.m, crossAxisAlignment: WrapCrossAlignment.center, children: [
         box(l.tcoPeriod, Text(l.anLastMonths(l.number(widget.months)), style: theme.textTheme.labelLarge)),
-        box(l.tcoMake, WipTag(what: l.tcoMake, onOpen: widget.onOpen), onTap: () => widget.onOpen(l.tcoMake)),
+        box(l.tcoMake, Text(_make ?? l.anAll, style: theme.textTheme.labelLarge), onTap: _pickMake),
         box(l.tcoCards, WipTag(what: l.tcoCards, onOpen: widget.onOpen), onTap: () => widget.onOpen(l.tcoCards)),
         box(
           l.tcoAvgKm,
@@ -437,7 +623,7 @@ class _TcoScreenState extends State<TcoScreen> {
               ),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-                onPressed: () => widget.onOpen(l.tcoBonuses),
+                onPressed: () => _bonuses(data),
                 child: Text(l.tcoBonuses),
               ),
             ]),
@@ -512,7 +698,15 @@ class _TcoScreenState extends State<TcoScreen> {
                   Expanded(
                       flex: 2,
                       child: Align(
-                          alignment: Alignment.centerRight, child: WipTag(what: l.tcoColScore, onOpen: widget.onOpen))),
+                          alignment: Alignment.centerRight,
+                          child: Builder(builder: (context) {
+                            final score = ecoScore(s.cast<String, dynamic>());
+                            return Text(score == null ? '–' : '$score',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                    color: score == null
+                                        ? null
+                                        : (score >= 80 ? colors.success : (score < 50 ? scheme.error : null))));
+                          }))),
                 ]);
               }),
             ),

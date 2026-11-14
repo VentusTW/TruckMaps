@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
+import '../vehicles/vehicle_form.dart' show kindLabel;
 import 'fleet_export.dart';
 import 'service_data.dart';
 
@@ -36,10 +38,140 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   FleetData? _data;
   Object? _error;
 
+  /// Filtry: pojazd (id), rodzaj pojazdu, baza; ukryte KPI (ustawienie firmy).
+  String? _vehicle, _kind, _base;
+  Set<int> _hiddenKpis = const {};
+  String? _schedule;
+
+  FleetData _filtered(FleetData d) {
+    bool keep(Map<String, dynamic> v) =>
+        (_vehicle == null || v['id'] == _vehicle) &&
+        (_kind == null || v['kind'] == _kind) &&
+        (_base == null || v['base_name'] == _base);
+    final vehicles = [
+      for (final v in d.vehicles)
+        if (keep(v) || d.vehicles.any((p) => keep(p) && p['trailer_id'] == v['id'])) v
+    ];
+    final ids = {for (final v in vehicles) '${v['id']}'};
+    return FleetData(
+      vehicles: vehicles,
+      orders: d.orders,
+      stats: {
+        for (final e in d.stats.entries)
+          if (ids.contains(e.key)) e.key: e.value
+      },
+      drivers: d.drivers,
+    );
+  }
+
+  Future<void> _loadSettings() async {
+    final company = widget.companyId;
+    if (company == null) return;
+    try {
+      final s = await RecordsApi(widget.api, company).settings();
+      if (!mounted) return;
+      setState(() {
+        _hiddenKpis = {for (final i in (s['analytics_hidden_kpis'] as List?) ?? const []) (i as num).toInt()};
+        _schedule = s['report_schedule'] as String?;
+      });
+    } catch (_) {}
+  }
+
+  /// Wybór wartości filtra; `''` – wszystkie.
+  Future<void> _pick(String title, List<(String, String)> options, String? current, ValueChanged<String?> set) async {
+    final l = context.l;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(title: Text(title), children: [
+        RadioListTile<String>(
+            value: '', groupValue: current ?? '', title: Text(l.anAll), onChanged: (v) => Navigator.pop(context, v)),
+        for (final (value, label) in options)
+          RadioListTile<String>(
+              value: value, groupValue: current ?? '', title: Text(label), onChanged: (v) => Navigator.pop(context, v)),
+      ]),
+    );
+    if (chosen != null) setState(() => set(chosen.isEmpty ? null : chosen));
+  }
+
+  void _filterTap(String label) {
+    final l = context.l;
+    final data = _data;
+    if (data == null) return;
+    if (label == l.anVehicles) {
+      _pick(label, [for (final v in data.power) ('${v['id']}', '${v['plate'] ?? v['name']}')], _vehicle,
+          (v) => _vehicle = v);
+    } else if (label == l.anSpec) {
+      final kinds = {for (final v in data.power) '${v['kind']}'};
+      _pick(label, [for (final k in kinds) (k, kindLabel(l, k))], _kind, (v) => _kind = v);
+    } else if (label == l.anHub) {
+      final bases = {
+        for (final v in data.vehicles)
+          if (v['base_name'] != null) '${v['base_name']}'
+      };
+      _pick(label, [for (final b in bases) (b, b)], _base, (v) => _base = v);
+    }
+  }
+
+  /// Widoczne KPI (ustawienie firmy dla wszystkich w biurze).
+  Future<void> _configKpis() async {
+    final l = context.l;
+    final titles = [l.anTotalKm, l.anCostKm, l.anRevenue, l.anBurn];
+    final hidden = {..._hiddenKpis};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: Text(l.anKpiConfig),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            for (final (i, t) in titles.indexed)
+              CheckboxListTile(
+                value: !hidden.contains(i),
+                title: Text(t),
+                onChanged: (on) => setDialog(() => on == true ? hidden.remove(i) : hidden.add(i)),
+              ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l.save)),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _hiddenKpis = hidden);
+    if (widget.companyId case final company?) {
+      await RecordsApi(widget.api, company).putSetting('analytics_hidden_kpis', hidden.toList()..sort());
+    }
+  }
+
+  /// Raport cykliczny do skrzynki biura (i e-mailem): co tydzień albo co miesiąc.
+  Future<void> _configSchedule() async {
+    final l = context.l;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(title: Text(l.anSchedule), children: [
+        for (final (value, label) in [
+          ('', l.anScheduleOff),
+          ('weekly', l.anScheduleWeekly),
+          ('monthly', l.anScheduleMonthly)
+        ])
+          RadioListTile<String>(
+              value: value,
+              groupValue: _schedule ?? '',
+              title: Text(label),
+              onChanged: (v) => Navigator.pop(context, v)),
+      ]),
+    );
+    if (chosen == null || widget.companyId == null) return;
+    await RecordsApi(widget.api, widget.companyId!).putSetting('report_schedule', chosen.isEmpty ? null : chosen);
+    if (mounted) setState(() => _schedule = chosen.isEmpty ? null : chosen);
+  }
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadSettings();
   }
 
   Future<void> _load() async {
@@ -55,8 +187,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Future<void> _export() async {
     final data = _data;
     if (data == null) return;
+    final shown = _filtered(data);
     final opened =
-        await openCsv(toCsv(fleetReportRows(context.l, data, (id) => _serviceCost(data, id))), 'raport-floty');
+        await openCsv(toCsv(fleetReportRows(context.l, shown, (id) => _serviceCost(shown, id))), 'raport-floty');
     if (!opened && mounted) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.exportFailed)));
     }
@@ -68,7 +201,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final data = _data;
+    final data = _data == null ? null : _filtered(_data!);
     if (data == null) {
       return Center(child: _error == null ? const CircularProgressIndicator() : Text('$_error'));
     }
@@ -86,7 +219,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         _filters(context, inner),
         const SizedBox(height: gap),
         Wrap(spacing: gap, runSpacing: gap, children: [
-          for (final k in _kpis(context, data)) SizedBox(width: kpiWidth, child: k),
+          for (final (i, k) in _kpis(context, data).indexed)
+            if (!_hiddenKpis.contains(i)) SizedBox(width: kpiWidth, child: k),
         ]),
         const SizedBox(height: gap),
         if (wide)
@@ -157,7 +291,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             for (final (label, icon) in [(l.anKpiConfig, Icons.tune_outlined), (l.anSchedule, Icons.event_outlined)])
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(side: BorderSide(color: colors.surfaceHigh)),
-                onPressed: () => widget.onOpen(label),
+                onPressed: () => label == l.anKpiConfig ? _configKpis() : _configSchedule(),
                 icon: Icon(icon, size: 18),
                 label: Text(label),
               ),
@@ -180,9 +314,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final colors = TruckColors.of(context);
     final items = [
       (l.anRange, l.anLastMonths(l.number(widget.months)), Icons.calendar_today_outlined, true),
-      (l.anVehicles, l.anAllVehicles, Icons.local_shipping_outlined, false),
-      (l.anSpec, l.anAllTypes, Icons.category_outlined, false),
-      (l.anHub, widget.companyName, Icons.warehouse_outlined, false),
+      (
+        l.anVehicles,
+        _vehicle == null
+            ? l.anAllVehicles
+            : '${_data?.vehicle(_vehicle)?['plate'] ?? _data?.vehicle(_vehicle)?['name'] ?? ''}',
+        Icons.local_shipping_outlined,
+        false
+      ),
+      (l.anSpec, _kind == null ? l.anAllTypes : kindLabel(l, _kind!), Icons.category_outlined, false),
+      (l.anHub, _base ?? widget.companyName, Icons.warehouse_outlined, false),
     ];
     final columns = inner >= 900 ? 4 : 2;
     final width = (inner - 40 - Gap.m * (columns - 1)) / columns;
@@ -195,7 +336,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               Text(label.toUpperCase(), style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
               const SizedBox(height: Gap.xs),
               InkWell(
-                onTap: real ? null : () => widget.onOpen(label),
+                onTap: real ? null : () => _filterTap(label),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: Gap.m, vertical: Gap.s),
                   decoration: BoxDecoration(
@@ -449,7 +590,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   Expanded(
                       flex: 2,
                       child: Align(
-                          alignment: Alignment.centerRight, child: WipTag(what: l.anColRating, onOpen: widget.onOpen))),
+                          alignment: Alignment.centerRight,
+                          child: Builder(builder: (context) {
+                            final all = [
+                              for (final (_, s2, sv2) in rows)
+                                (((s2?['distance_km'] as num?) ?? 0).toDouble(), tripCosts(s2) + sv2)
+                            ];
+                            final fleetKm = all.fold(0.0, (a, x) => a + x.$1);
+                            final fleetAvg = fleetKm == 0 ? 0.0 : all.fold(0.0, (a, x) => a + x.$2) / fleetKm;
+                            if (km == 0 || fleetAvg == 0) return const Text('–');
+                            final diff = ((routes + service) / km / fleetAvg - 1) * 100;
+                            return Text('${diff >= 0 ? '+' : ''}${l.number(diff, decimals: 0)}%',
+                                style: theme.textTheme.labelLarge
+                                    ?.copyWith(color: diff > 10 ? scheme.error : (diff < -10 ? colors.success : null)));
+                          }))),
                 ]);
               }),
             ),

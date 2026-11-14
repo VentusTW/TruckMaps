@@ -30,6 +30,10 @@ class Kind(StrEnum):
     """Zbliża się albo minął termin pojazdu (przegląd, ubezpieczenie, serwis wg przebiegu)."""
     DISPATCH_NOTE = "dispatch_note"
     ROUTE_ASSIGNED = "route_assigned"
+    REPORT_SCHEDULED = "report_scheduled"
+    """Raport cykliczny firmy (``data``: dni okresu, przejazdy, km)."""
+    PART_REQUEST = "part_request"
+    """Zapotrzebowanie na część z warsztatu (``data``: część, ilość, zlecenie)."""
     """Trasa od dyspozytora (``data["assignment_id"]``, skąd, dokąd, pojazd, uwagi)."""
     """Wiadomość dyspozytora do kierowcy z pulpitu operacyjnego (tekst w ``data["text"]``)."""
 

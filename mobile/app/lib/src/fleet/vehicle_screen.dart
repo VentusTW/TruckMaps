@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import '../vehicles/body_types.dart';
 import 'fleet_screen.dart' show FleetStatus, fleetStatus;
 
@@ -50,6 +51,9 @@ class _VehicleScreenState extends State<VehicleScreen> {
 
   /// Ostatnia pozycja z Centrali & Live Map (tylko dla właściciela i dyspozytorów).
   Map<String, dynamic>? _live;
+  Map<String, dynamic>? _assignment;
+
+  String? get _company => _all?.where((v) => v['id'] == widget.vehicleId).firstOrNull?['company_id'] as String?;
 
   DateTime get _today {
     final t = widget.today ?? DateTime.now();
@@ -96,6 +100,12 @@ class _VehicleScreenState extends State<VehicleScreen> {
         final live = await optional('/api/companies/${Uri.encodeComponent('$company')}/live');
         if (mounted && live is List) {
           setState(() => _live = uiMaps(live).where((p) => p['vehicle_id'] == widget.vehicleId).firstOrNull);
+        }
+        final routes = await optional('/api/companies/${Uri.encodeComponent('$company')}/route-assignments');
+        if (mounted && routes is List) {
+          setState(() => _assignment = uiMaps(routes)
+              .where((a) => a['vehicle_id'] == widget.vehicleId && (a['state'] == 'sent' || a['state'] == 'accepted'))
+              .firstOrNull);
         }
       }
     } catch (e) {
@@ -264,7 +274,21 @@ class _VehicleScreenState extends State<VehicleScreen> {
         Center(
             child: Icon(towed ? Icons.rv_hookup_outlined : Icons.local_shipping_outlined,
                 size: 44, color: scheme.primary.withOpacity(0.6))),
-        Positioned(right: 6, bottom: 6, child: WipTag(what: l.drvPhoto, onOpen: widget.onOpen)),
+        Positioned(
+            right: 0,
+            bottom: 0,
+            child: IconButton(
+              key: const Key('veh-photo'),
+              tooltip: l.drvPhoto,
+              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+              onPressed: () => showFiles(context,
+                  api: widget.api,
+                  companyId: _company,
+                  entityType: 'vehicle',
+                  entityId: widget.vehicleId,
+                  title: l.drvPhoto,
+                  kind: 'photo'),
+            )),
       ]),
     );
     Widget person(IconData icon, String label, Widget main, String sub, Widget? chip) => Expanded(
@@ -747,21 +771,44 @@ class _VehicleScreenState extends State<VehicleScreen> {
           Expanded(
               child:
                   Text(l.vehPositionTitle, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
-          WipTag(what: l.vehPositionTitle, onOpen: widget.onOpen),
+          if (_live case final live? when live['at'] != null)
+            UiTag(DateFormat('dd.MM HH:mm').format(DateTime.parse('${live['at']}').toLocal()),
+                tone: 'info', uppercase: false),
         ]),
         const SizedBox(height: Gap.m),
         Container(
           height: 150,
           alignment: Alignment.center,
           decoration: BoxDecoration(color: colors.surfaceLow, borderRadius: BorderRadius.circular(TruckTheme.radius)),
-          child: Icon(Icons.satellite_alt_outlined, size: 40, color: scheme.outline),
+          child: switch (_live) {
+            final live? when live['lat'] != null => Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.location_on, size: 36, color: scheme.primary),
+                Text('${(live['lat'] as num).toStringAsFixed(5)}, ${(live['lon'] as num).toStringAsFixed(5)}',
+                    style: theme.textTheme.labelLarge),
+                if (live['driver'] != null) Text('${live['driver']}', style: theme.textTheme.bodySmall),
+                if (live['speed_kmh'] case final num speed)
+                  Text('${speed.round()} km/h', style: theme.textTheme.bodySmall),
+              ]),
+            _ => Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.satellite_alt_outlined, size: 40, color: scheme.outline),
+                Text(l.vehNoPosition, style: theme.textTheme.bodySmall),
+              ]),
+          },
         ),
         const SizedBox(height: Gap.m),
         UiBox(
           padding: const EdgeInsets.all(Gap.m),
           child: Row(children: [
             Expanded(child: Text(l.vehCurrentOrder, style: theme.textTheme.labelLarge)),
-            WipTag(what: l.vehCurrentOrder, onOpen: widget.onOpen),
+            Flexible(
+              child: Text(
+                  switch (_assignment) {
+                    final a? => '${(a['origin'] as Map)['label']} → ${(a['destination'] as Map)['label']}',
+                    _ => l.drvNoActiveRoute,
+                  },
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.bodySmall),
+            ),
           ]),
         ),
       ]),

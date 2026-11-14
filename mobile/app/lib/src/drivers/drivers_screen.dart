@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import 'driver_actions.dart';
 import 'drivers_data.dart';
 
@@ -594,7 +595,16 @@ class _DriversScreenState extends State<DriversScreen> {
               const SizedBox(height: Gap.s),
               Row(children: [
                 Expanded(child: Text(l.drvFiles, style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline))),
-                WipTag(what: l.drvFiles, onOpen: widget.onOpen),
+                TextButton(
+                  key: const Key('drv-files'),
+                  onPressed: () => showFiles(context,
+                      api: widget.api,
+                      companyId: widget.companyId,
+                      entityType: 'driver',
+                      entityId: '${d['id']}',
+                      title: l.drvFiles),
+                  child: Text(l.drvOpenFiles),
+                ),
               ]),
             ]),
           ),
@@ -658,7 +668,22 @@ class _DriversScreenState extends State<DriversScreen> {
                   child: Text(l.drvOrderTitle.toUpperCase(),
                       style: theme.textTheme.labelSmall?.copyWith(color: scheme.primary, letterSpacing: 0.6)),
                 ),
-                WipTag(what: l.drvOrderTitle, onOpen: widget.onOpen),
+                if (widget.companyId case final company?)
+                  FutureBuilder<dynamic>(
+                    future: widget.api.get('/api/companies/$company/route-assignments'),
+                    builder: (context, snap) {
+                      final active = [
+                        for (final a in snap.data is List ? snap.data as List : const [])
+                          if ((a as Map)['driver_name'] == d['name'] &&
+                              (a['state'] == 'sent' || a['state'] == 'accepted'))
+                            a
+                      ];
+                      if (active.isEmpty) return Text(l.drvNoActiveRoute, style: theme.textTheme.bodySmall);
+                      final a = active.first;
+                      return Text('${(a['origin'] as Map)['label']} → ${(a['destination'] as Map)['label']}',
+                          style: theme.textTheme.labelLarge);
+                    },
+                  ),
               ]),
               const SizedBox(height: Gap.s),
               UiEmpty(l.drvOrderNone),
@@ -702,7 +727,22 @@ class _DriversScreenState extends State<DriversScreen> {
               UiSectionHeader(
                 title: l.drvLocationTitle,
                 icon: Icons.map_outlined,
-                trailing: WipTag(what: l.drvLocationTitle, onOpen: widget.onOpen),
+                trailing: widget.companyId == null
+                    ? null
+                    : FutureBuilder<dynamic>(
+                        future: widget.api.get('/api/companies/${widget.companyId}/live'),
+                        builder: (context, snap) {
+                          final mine = [
+                            for (final p in snap.data is List ? snap.data as List : const [])
+                              if ((p as Map)['driver'] == d['name'] && p['lat'] != null) p
+                          ];
+                          if (mine.isEmpty) return Text(l.vehNoPosition, style: theme.textTheme.bodySmall);
+                          final p = mine.first;
+                          return Text(
+                              '${p['plate'] ?? p['name']} · ${(p['lat'] as num).toStringAsFixed(4)}, ${(p['lon'] as num).toStringAsFixed(4)}',
+                              style: theme.textTheme.labelMedium);
+                        },
+                      ),
               ),
               const SizedBox(height: Gap.m),
               Container(
@@ -790,7 +830,22 @@ class _DriversScreenState extends State<DriversScreen> {
           padding: const EdgeInsets.all(Gap.m),
           child: Row(children: [
             Expanded(child: Text(l.drvLeave, style: theme.textTheme.labelLarge)),
-            WipTag(what: l.drvLeave, onOpen: widget.onOpen),
+            TextButton(
+              key: const Key('drv-leave'),
+              onPressed: () => showRecords(context,
+                  api: widget.api,
+                  companyId: widget.companyId,
+                  entityType: 'driver',
+                  entityId: '${_driver?['id'] ?? ''}',
+                  kind: 'leave',
+                  title: l.drvLeave,
+                  fields: [
+                    RecordField('from', l.drvLeaveFrom, type: RecordFieldType.date, required: true),
+                    RecordField('to', l.drvLeaveTo, type: RecordFieldType.date, required: true),
+                    RecordField('type', l.drvLeaveType),
+                  ]),
+              child: Text(l.drvOpenList),
+            ),
           ]),
         ),
       ]),
@@ -850,7 +905,26 @@ class _DriversScreenState extends State<DriversScreen> {
                 ),
         ),
         row(Icons.router_outlined, l.drvGarmin, WipTag(what: l.drvGarmin, onOpen: widget.onOpen)),
-        row(Icons.emergency_outlined, l.drvIce, WipTag(what: l.drvIce, onOpen: widget.onOpen), alarm: true),
+        row(
+            Icons.emergency_outlined,
+            l.drvIce,
+            TextButton(
+              key: const Key('drv-ice'),
+              onPressed: () => showRecords(context,
+                  api: widget.api,
+                  companyId: widget.companyId,
+                  entityType: 'driver',
+                  entityId: '${d['id']}',
+                  kind: 'ice',
+                  title: l.drvIce,
+                  fields: [
+                    RecordField('name', l.drvIceName, required: true),
+                    RecordField('phone', l.drvPhone, required: true),
+                    RecordField('relation', l.drvIceRelation),
+                  ]),
+              child: Text(l.drvOpenList),
+            ),
+            alarm: true),
         UiBox(
           padding: const EdgeInsets.all(Gap.m),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

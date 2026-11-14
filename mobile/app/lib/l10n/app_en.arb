@@ -718,7 +718,13 @@
   "cardRepairBanner": "Vehicle in repair – out of service",
   "kpiInUseTitle": "In use",
   "kpiShare": "{percent}% of the fleet",
-  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}},
+  "@kpiShare": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "soonTitle": "Coming soon",
   "soonInspections": "Inspections and test station booking",
   "soonCepik": "CEPiK export",
@@ -751,7 +757,13 @@
   "vehicleBaseSetsCompany": "Choosing a base assigns the vehicle to its company.",
   "vehiclesFleetTitle": "Fleet",
   "vehiclesFleetUnits": "Units: {count}",
-  "@vehiclesFleetUnits": {"placeholders": {"count": {"type": "String"}}},
+  "@vehiclesFleetUnits": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "vehiclesAllKinds": "All vehicles",
   "vehiclesQuickFilter": "Quick status filter",
   "vehiclesColDriverBase": "Driver / base",
@@ -1005,9 +1017,9 @@
   "drvHistoryEmpty": "No recorded changes.",
   "drvHistorySubtitle": "Driver register changes (who and when)",
   "drvIce": "Emergency contact (ICE)",
-  "drvIceName": "Contact name",
+  "drvIceName": "Full name",
   "drvIcePhone": "ICE phone number",
-  "drvIceRelation": "Relationship",
+  "drvIceRelation": "Relation (spouse, brother…)",
   "drvIceTitle": "ICE emergency contact (In Case of Emergency)",
   "drvId": "ID: {id}",
   "drvItd": "ITD report",
@@ -1723,5 +1735,154 @@
       }
     }
   },
-  "csvServiceCost": "Service costs"
+  "csvServiceCost": "Service costs",
+  "recordRequired": "This field is required.",
+  "recordNeedsCompany": "Available for companies – create or join one.",
+  "recordEmpty": "No entries.",
+  "recordAdd": "Add",
+  "recordDelete": "Delete",
+  "filesEmpty": "No files.",
+  "filesAdd": "Add file",
+  "partName": "Name",
+  "partNumber": "Part number",
+  "partQty": "Quantity",
+  "partMinQty": "Minimum stock",
+  "partPrice": "Net price",
+  "partLocation": "Storage location",
+  "partOrder": "Order",
+  "partNote": "Notes",
+  "partsTitle": "Parts and stock",
+  "partsSubtitle": "Stock levels, items below minimum and requests from the workshop.",
+  "partsCount": "Items: {count}",
+  "@partsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "partsValue": "Value: {value}",
+  "@partsValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "partsLow": "Below minimum: {count}",
+  "@partsLow": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "partsLowTitle": "To order",
+  "partsStock": "Parts stock",
+  "partsRequests": "Requests from the workshop",
+  "partsRequestSent": "Request added – see the Parts tab.",
+  "ecoTitle": "Eco: fuel and CO₂",
+  "ecoSubtitle": "Estimate from GPS trips and vehicle fuel consumption – last {months} months.",
+  "@ecoSubtitle": {
+    "placeholders": {
+      "months": {
+        "type": "int"
+      }
+    }
+  },
+  "ecoKm": "Driven",
+  "ecoFuel": "Fuel (estimate)",
+  "ecoCo2": "CO₂ emissions",
+  "ecoPer100": "Average / 100 km",
+  "ecoEmpty": "Empty kilometres",
+  "ecoIdle": "Fuel while idling",
+  "ecoByVehicle": "Vehicles",
+  "ecoNoConsumption": "no fuel consumption in the vehicle profile – add it in vehicle editing",
+  "ecoEmptyShare": "empty {percent}%",
+  "@ecoEmptyShare": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "ecoNote": "CO₂: 2.64 kg per litre of diesel; idling: 2.5 l/h. Exact data once telematics is connected.",
+  "wsTargetValue": "{value} {unit}",
+  "@wsTargetValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "wsSetTarget": "Set target",
+  "wsSetBudget": "Set budget",
+  "rpColNumber": "No.",
+  "rpColDescription": "Description",
+  "rpColStatus": "Status",
+  "rpPlanDate": "Date",
+  "rpPlanBay": "Bay",
+  "rpPlanMechanic": "Mechanic",
+  "rpPlan": "Plan",
+  "rpCheckItem": "Task",
+  "rpCheckDone": "Done (yes / no, notes)",
+  "rpOpenChecklist": "Open list",
+  "anAll": "All",
+  "anScheduleOff": "No scheduled report",
+  "anScheduleWeekly": "Weekly",
+  "anScheduleMonthly": "Monthly",
+  "tcoScoreValue": "Eco score: {score}",
+  "@tcoScoreValue": {
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoBonusesSaved": "Bonuses saved for the drivers.",
+  "tcoFuelNone": "No fuel prices – downloaded weekly from the European Commission bulletin.",
+  "tcoFuelDay": "EC bulletin of {day}",
+  "@tcoFuelDay": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoNoAnomalies": "No vehicles with a cost per km clearly above average.",
+  "tcoAnomaly": "{vehicle}: {perKm} / km (+{percent}% above average)",
+  "@tcoAnomaly": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      },
+      "perKm": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoErpCsvNote": "CSV file with vehicle costs for import into SAP or another ERP system.",
+  "drvOpenFiles": "Files",
+  "drvOpenList": "Open",
+  "drvNoActiveRoute": "No active route from the dispatcher.",
+  "drvLeaveFrom": "From",
+  "drvLeaveTo": "To",
+  "drvLeaveType": "Type (holiday, sick leave…)",
+  "drvChangeDate": "Date",
+  "drvChangeFields": "Change",
+  "drvChangeSaved": "Profile changes saved",
+  "drvDelegationCountry": "Country",
+  "fleetRecVehicle": "Vehicle (plate)",
+  "fleetTyrePosition": "Position (e.g. axle 1 left)",
+  "fleetTyreBrand": "Brand and size",
+  "fleetTyreMounted": "Mounted on",
+  "fleetTyreTread": "Tread [mm]",
+  "vehCertAfterSave": "Available after saving the vehicle",
+  "vehCertNumber": "Certificate number"
 }

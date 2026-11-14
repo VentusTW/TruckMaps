@@ -285,5 +285,8 @@
   "plan.wrong_owner": "Driver plans are for personal accounts, the others for companies.",
   "error.tiles_not_found": "No such map file.",
   "dispatch.not_found": "Route from the dispatcher not found.",
-  "dispatch.driver_not_found": "The selected person is not a member of the company."
+  "dispatch.driver_not_found": "The selected person is not a member of the company.",
+  "records.not_found": "Entry not found.",
+  "records.bad_file": "Invalid file.",
+  "records.file_too_large": "The file is too large (at most {mb} MB)."
 }

@@ -5,6 +5,7 @@ import 'package:module_service/module_service.dart' show ReportScreen;
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import 'service_data.dart';
 
 /// „Warsztat i Serwis” według projektu Stitch: dostępność floty, przestoje, otwarte zlecenia i koszty
@@ -20,11 +21,15 @@ class WorkshopScreen extends StatefulWidget {
     required this.onOpenOrder,
     required this.onOpenRepairs,
     required this.onOpenTco,
+    this.onSection,
     this.today,
   });
 
   final CoreApi api;
   final String? companyId;
+
+  /// Inny ekran aplikacji (`parts` – Części i magazyn).
+  final ValueChanged<String>? onSection;
   final String companyName;
   final ValueChanged<String> onOpen;
   final void Function(String id, String name) onOpenOrder;
@@ -38,6 +43,9 @@ class WorkshopScreen extends StatefulWidget {
 
 class _WorkshopScreenState extends State<WorkshopScreen> {
   FleetData? _data;
+
+  /// Ustawienia warsztatu firmy: `bays`, `mttr_target_h`, `monthly_budget`.
+  Map<String, dynamic> _settings = const {};
   Object? _error;
   String _query = '';
   int _page = 0;
@@ -94,10 +102,68 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
     }
   }
 
+  int get _bayCount => ((_settings['bays'] as num?) ?? 4).toInt().clamp(1, 20);
+
+  /// Zmiana ustawienia warsztatu (liczba z okna).
+  Future<void> _setNumber(String key, String title, {String? suffix}) async {
+    final company = widget.companyId;
+    if (company == null) return;
+    final value = await askNumber(context, title, current: _settings[key] as num?, suffix: suffix);
+    if (value == null) return;
+    await RecordsApi(widget.api, company).putSetting(key, value);
+    if (mounted) setState(() => _settings = {..._settings, key: value});
+  }
+
+  /// Harmonogram SKP / UDT / tachografów: terminy pojazdów po kolei.
+  Future<void> _schedule(FleetData data) async {
+    final l = context.l;
+    final format = DateFormat.yMMMd(l.localeName);
+    final today = DateTime.now();
+    final items = [
+      for (final v in data.vehicles)
+        for (final (field, label) in [
+          ('inspection_until', l.fleetDueInspection),
+          ('udt_until', l.fleetDueUdt),
+          ('tachograph_until', l.fleetDueTachograph),
+        ])
+          if (DateTime.tryParse('${v[field] ?? ''}') case final d?) (d, label, '${v['plate'] ?? v['name']}'),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l.wsTabSchedule),
+        content: SizedBox(
+          width: 460,
+          height: 400,
+          child: items.isEmpty
+              ? Center(child: Text(l.fleetCalendarEmpty))
+              : ListView(children: [
+                  for (final (day, label, vehicle) in items)
+                    ListTile(
+                      dense: true,
+                      leading: Icon(Icons.event_outlined,
+                          color: day.isBefore(today) ? Theme.of(context).colorScheme.error : null),
+                      title: Text('$label · $vehicle'),
+                      subtitle: Text(format.format(day)),
+                    ),
+                ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: Text(MaterialLocalizations.of(context).closeButtonLabel)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _load() async {
     try {
       final data = await FleetData.load(widget.api, widget.companyId);
       if (mounted) setState(() => _data = data);
+      if (widget.companyId case final company?) {
+        final settings = await RecordsApi(widget.api, company).settings();
+        if (mounted) setState(() => _settings = settings);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
@@ -202,8 +268,9 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
             Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
               tab(l.wsTabBays, Icons.view_quilt_outlined, selected: true, onTap: () {}),
               tab(l.wsTabOrders, Icons.assignment_outlined, count: data.open.length, onTap: widget.onOpenRepairs),
-              tab(l.mainSubParts, Icons.inventory_2_outlined, dot: true),
-              tab(l.wsTabSchedule, Icons.event_outlined),
+              tab(l.mainSubParts, Icons.inventory_2_outlined,
+                  dot: true, onTap: widget.onSection == null ? null : () => widget.onSection!('parts')),
+              tab(l.wsTabSchedule, Icons.event_outlined, onTap: () => _schedule(data)),
             ]),
           ]),
           Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
@@ -289,7 +356,13 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
         ])),
         Row(children: [
           Expanded(child: Text(l.wsMttrNote(l.number(mttr.length)))),
-          WipTag(what: l.wsMttrTarget, onOpen: widget.onOpen),
+          TextButton(
+            key: const Key('ws-mttr-target'),
+            onPressed: () => _setNumber('mttr_target_h', l.wsMttrTarget, suffix: l.wsHours),
+            child: Text(_settings['mttr_target_h'] is num
+                ? l.wsTargetValue(l.number(_settings['mttr_target_h'] as num, decimals: 1), l.wsHours)
+                : l.wsSetTarget),
+          ),
         ]),
         bar: avgMttr == null ? 0 : (avgMttr / 24).clamp(0, 1),
         barColor: scheme.primaryContainer,
@@ -318,9 +391,17 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
         ])),
         Row(children: [
           Expanded(child: Text(l.wsMonthOrders(l.number(month.length)))),
-          WipTag(what: l.wsBudget, onOpen: widget.onOpen),
+          TextButton(
+            key: const Key('ws-budget'),
+            onPressed: () => _setNumber('monthly_budget', l.wsBudget, suffix: 'PLN'),
+            child: Text(_settings['monthly_budget'] is num
+                ? l.wsTargetValue(l.number(_settings['monthly_budget'] as num, decimals: 0), 'PLN')
+                : l.wsSetBudget),
+          ),
         ]),
-        bar: 0,
+        bar: _settings['monthly_budget'] is num && (_settings['monthly_budget'] as num) > 0
+            ? (monthCost / (_settings['monthly_budget'] as num)).clamp(0, 1).toDouble()
+            : 0,
       ),
     ];
   }
@@ -334,7 +415,7 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
       for (final o in data.open)
         if (o['status'] != 'new') o
     ];
-    final shown = active.take(4).toList();
+    final shown = active.take(_bayCount).toList();
     final columns = inner >= 900 ? 4 : (inner >= 560 ? 2 : 1);
     final width = (inner - 40 - Gap.m * (columns - 1)) / columns;
     Widget bay(int i, Map<String, dynamic>? o) {
@@ -421,14 +502,19 @@ class _WorkshopScreenState extends State<WorkshopScreen> {
               child: Text(l.wsBaysTitle, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600))),
           UiTag(l.wsBusy(l.number(shown.length)), tone: 'ok', uppercase: false),
           const SizedBox(width: Gap.s),
-          WipTag(what: l.wsBaysTitle, onOpen: widget.onOpen),
+          IconButton(
+            key: const Key('ws-bays'),
+            tooltip: l.rpBaysConfig,
+            onPressed: () => _setNumber('bays', l.rpBaysConfig),
+            icon: const Icon(Icons.tune_outlined, size: 18),
+          ),
         ]),
         Text(l.wsBaysSubtitle, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: Gap.l),
         if (data.orders == null) UiEmpty(l.vehNoServiceModule),
         if (data.orders != null)
           Wrap(spacing: Gap.m, runSpacing: Gap.m, children: [
-            for (var i = 0; i < 4; i++) bay(i, i < shown.length ? shown[i] : null),
+            for (var i = 0; i < _bayCount; i++) bay(i, i < shown.length ? shown[i] : null),
           ]),
       ]),
     );

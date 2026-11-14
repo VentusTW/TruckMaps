@@ -1710,7 +1710,13 @@
   "cardRepairBanner": "Pojazd w naprawie – wyłączony z użytku",
   "kpiInUseTitle": "W użyciu",
   "kpiShare": "{percent}% floty",
-  "@kpiShare": {"placeholders": {"percent": {"type": "String"}}},
+  "@kpiShare": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "soonTitle": "Wkrótce",
   "soonInspections": "Przeglądy i rezerwacje SKP",
   "soonCepik": "Eksport CEPiK",
@@ -1743,7 +1749,13 @@
   "vehicleBaseSetsCompany": "Wybór bazy przypisze pojazd do jej firmy.",
   "vehiclesFleetTitle": "Tabor",
   "vehiclesFleetUnits": "Jednostek: {count}",
-  "@vehiclesFleetUnits": {"placeholders": {"count": {"type": "String"}}},
+  "@vehiclesFleetUnits": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
   "vehiclesAllKinds": "Wszystkie pojazdy",
   "vehiclesQuickFilter": "Szybki filtr stanu",
   "vehiclesColDriverBase": "Kierowca / baza",
@@ -2326,9 +2338,9 @@
   "drvHistoryEmpty": "Brak zapisanych zmian.",
   "drvHistorySubtitle": "Zmiany w kartotece kierowcy (kto i kiedy)",
   "drvIce": "Kontakt awaryjny (ICE)",
-  "drvIceName": "Imię i nazwisko kontaktu",
+  "drvIceName": "Imię i nazwisko",
   "drvIcePhone": "Numer telefonu ICE",
-  "drvIceRelation": "Relacja / pokrewieństwo",
+  "drvIceRelation": "Kim jest (żona, brat…)",
   "drvIceTitle": "Kontakt awaryjny ICE (In Case of Emergency)",
   "drvId": "ID: {id}",
   "@drvId": {
@@ -3555,5 +3567,154 @@
       }
     }
   },
-  "csvServiceCost": "Koszt serwisu"
+  "csvServiceCost": "Koszt serwisu",
+  "recordRequired": "To pole jest wymagane.",
+  "recordNeedsCompany": "Dostępne dla firmy – załóż firmę albo dołącz do niej.",
+  "recordEmpty": "Brak wpisów.",
+  "recordAdd": "Dodaj",
+  "recordDelete": "Usuń",
+  "filesEmpty": "Brak plików.",
+  "filesAdd": "Dodaj plik",
+  "partName": "Nazwa",
+  "partNumber": "Numer katalogowy",
+  "partQty": "Ilość",
+  "partMinQty": "Stan minimalny",
+  "partPrice": "Cena netto",
+  "partLocation": "Miejsce w magazynie",
+  "partOrder": "Zlecenie",
+  "partNote": "Uwagi",
+  "partsTitle": "Części i magazyn",
+  "partsSubtitle": "Stany magazynowe, braki poniżej minimum i zapotrzebowanie z warsztatu.",
+  "partsCount": "Pozycji: {count}",
+  "@partsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "partsValue": "Wartość: {value}",
+  "@partsValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "partsLow": "Poniżej minimum: {count}",
+  "@partsLow": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "partsLowTitle": "Do zamówienia",
+  "partsStock": "Magazyn części",
+  "partsRequests": "Zapotrzebowanie z warsztatu",
+  "partsRequestSent": "Zapotrzebowanie dodane – widać je w zakładce Części.",
+  "ecoTitle": "Eko: spalanie i CO₂",
+  "ecoSubtitle": "Szacunek z przejazdów GPS i spalania z profili pojazdów – ostatnie {months} mies.",
+  "@ecoSubtitle": {
+    "placeholders": {
+      "months": {
+        "type": "int"
+      }
+    }
+  },
+  "ecoKm": "Przejechane",
+  "ecoFuel": "Paliwo (szacunek)",
+  "ecoCo2": "Emisja CO₂",
+  "ecoPer100": "Średnio / 100 km",
+  "ecoEmpty": "Puste kilometry",
+  "ecoIdle": "Paliwo na postoju",
+  "ecoByVehicle": "Pojazdy",
+  "ecoNoConsumption": "brak spalania w profilu pojazdu – uzupełnij w edycji pojazdu",
+  "ecoEmptyShare": "puste {percent}%",
+  "@ecoEmptyShare": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "ecoNote": "CO₂: 2,64 kg na litr oleju napędowego; postój z pracującym silnikiem: 2,5 l/h. Dokładne dane – po podłączeniu telematyki.",
+  "wsTargetValue": "{value} {unit}",
+  "@wsTargetValue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "wsSetTarget": "Ustaw cel",
+  "wsSetBudget": "Ustaw budżet",
+  "rpColNumber": "Nr",
+  "rpColDescription": "Opis",
+  "rpColStatus": "Stan",
+  "rpPlanDate": "Termin",
+  "rpPlanBay": "Stanowisko",
+  "rpPlanMechanic": "Mechanik",
+  "rpPlan": "Zaplanuj",
+  "rpCheckItem": "Czynność",
+  "rpCheckDone": "Wykonano (tak / nie, uwagi)",
+  "rpOpenChecklist": "Otwórz listę",
+  "anAll": "Wszystkie",
+  "anScheduleOff": "Bez raportu cyklicznego",
+  "anScheduleWeekly": "Co tydzień",
+  "anScheduleMonthly": "Co miesiąc",
+  "tcoScoreValue": "Ocena eco: {score}",
+  "@tcoScoreValue": {
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoBonusesSaved": "Premie zapisane przy kierowcach.",
+  "tcoFuelNone": "Brak cen paliwa – pobierane co tydzień z biuletynu Komisji Europejskiej.",
+  "tcoFuelDay": "Biuletyn KE z dnia {day}",
+  "@tcoFuelDay": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoNoAnomalies": "Brak pojazdów z kosztem na km wyraźnie wyższym od średniej.",
+  "tcoAnomaly": "{vehicle}: {perKm} / km (+{percent}% od średniej)",
+  "@tcoAnomaly": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      },
+      "perKm": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "tcoErpCsvNote": "Plik CSV z kosztami pojazdów do importu w SAP lub innym systemie ERP.",
+  "drvOpenFiles": "Pliki",
+  "drvOpenList": "Otwórz",
+  "drvNoActiveRoute": "Brak aktywnej trasy od dyspozytora.",
+  "drvLeaveFrom": "Od",
+  "drvLeaveTo": "Do",
+  "drvLeaveType": "Rodzaj (wypoczynkowy, L4…)",
+  "drvChangeDate": "Data",
+  "drvChangeFields": "Zmiana",
+  "drvChangeSaved": "Zapisano zmiany w profilu",
+  "drvDelegationCountry": "Kraj",
+  "fleetRecVehicle": "Pojazd (nr rej.)",
+  "fleetTyrePosition": "Pozycja (np. oś 1 lewa)",
+  "fleetTyreBrand": "Marka i rozmiar",
+  "fleetTyreMounted": "Data montażu",
+  "fleetTyreTread": "Bieżnik [mm]",
+  "vehCertAfterSave": "Dostępne po zapisaniu pojazdu",
+  "vehCertNumber": "Numer świadectwa"
 }

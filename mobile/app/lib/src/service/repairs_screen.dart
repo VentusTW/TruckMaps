@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:module_service/module_service.dart' show OrderScreen, ReportScreen;
+import 'package:module_service/module_service.dart' show OrderScreen, ReportScreen, openHtml;
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
+import 'parts_screen.dart';
 import 'service_data.dart';
 
 enum _Filter { all, progress, waiting, done }
@@ -63,6 +67,38 @@ class _RepairsScreenState extends State<RepairsScreen> {
     }
   }
 
+  /// Liczba stanowisk warsztatu (ustawienie firmy, ekran Naprawy i Serwis).
+  Future<void> _baysConfig() async {
+    final company = widget.companyId;
+    if (company == null) return;
+    final records = RecordsApi(widget.api, company);
+    final current = (await records.settings())['bays'] as num?;
+    if (!mounted) return;
+    final value = await askNumber(context, context.l.rpBaysConfig, current: current ?? 4);
+    if (value != null) await records.putSetting('bays', value);
+  }
+
+  /// Dzienne zlecenia do druku: otwarte zlecenia (stan, pojazd, opis, pilność) w przeglądarce.
+  Future<void> _printDaily() async {
+    final l = context.l;
+    final data = _data;
+    if (data == null) return;
+    String esc(Object? v) => const HtmlEscape().convert('${v ?? ''}');
+    final day = DateFormat.yMMMMd(l.localeName).format(_now);
+    final rows = [
+      for (final o in data.open)
+        '<tr><td>${esc(o['number'] ?? '')}</td><td>${esc(data.vehicle(o['vehicle_id'])?['plate'] ?? data.vehicle(o['vehicle_id'])?['name'])}</td>'
+            '<td>${esc(o['description'])}</td><td>${esc(o['status'])}</td><td>${o['urgency'] == 'stopped' ? '⚠' : ''}</td></tr>',
+    ].join();
+    final html = '<!doctype html><meta charset="utf-8"><title>${esc(l.rpPrint)}</title>'
+        '<style>body{font:14px system-ui;margin:24px}table{border-collapse:collapse;width:100%}'
+        'td,th{border:1px solid #999;padding:6px;text-align:left}</style>'
+        '<h1>${esc(l.rpPrint)} – ${esc(day)}</h1><table><tr><th>${esc(l.rpColNumber)}</th><th>${esc(l.anColVehicle)}</th>'
+        '<th>${esc(l.rpColDescription)}</th><th>${esc(l.rpColStatus)}</th><th>!</th></tr>$rows</table>'
+        '<script>window.print()</script>';
+    await openHtml(html, 'zlecenia-${DateFormat('yyyy-MM-dd').format(_now)}');
+  }
+
   /// Ekran modułu serwisu (zgłoszenie, karta zlecenia); po powrocie – świeże dane.
   Future<void> _openModule(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
@@ -112,7 +148,8 @@ class _RepairsScreenState extends State<RepairsScreen> {
               backgroundColor: colors.card,
               foregroundColor: scheme.onSurface,
               side: BorderSide(color: colors.surfaceHigh)),
-          onPressed: () => widget.onOpen(label),
+          onPressed: () =>
+              label == l.rpPrint ? _printDaily() : (label == l.rpBaysConfig ? _baysConfig() : widget.onOpen(label)),
           icon: Icon(icon, size: 18),
           label: Text(label),
         );
@@ -331,13 +368,32 @@ class _RepairsScreenState extends State<RepairsScreen> {
                 : l.rpRate(l.number(o['labour_rate'] as num, decimals: 2), '${o['currency'] ?? ''}'),
             style: small),
       ]),
-      box(colors.surfaceLow, Icons.local_shipping_outlined, l.rpPlanning,
-          WipTag(what: l.rpPlanning, onOpen: widget.onOpen), [
-        Text(o['odometer_km'] == null ? '–' : l.rpOdometer(l.number(o['odometer_km'] as num)), style: small),
-        if (v?['inspection_until'] != null)
-          Text(l.rpInspection(DateFormat.yMd(l.localeName).format(DateTime.parse('${v!['inspection_until']}'))),
-              style: small),
-      ]),
+      box(
+          colors.surfaceLow,
+          Icons.local_shipping_outlined,
+          l.rpPlanning,
+          TextButton(
+            key: const Key('rp-planning'),
+            onPressed: () => showRecords(context,
+                api: widget.api,
+                companyId: widget.companyId,
+                entityType: 'order',
+                entityId: '${o['id']}',
+                kind: 'order_plan',
+                title: l.rpPlanning,
+                fields: [
+                  RecordField('date', l.rpPlanDate, type: RecordFieldType.date, required: true),
+                  RecordField('bay', l.rpPlanBay),
+                  RecordField('mechanic', l.rpPlanMechanic),
+                ]),
+            child: Text(l.rpPlan),
+          ),
+          [
+            Text(o['odometer_km'] == null ? '–' : l.rpOdometer(l.number(o['odometer_km'] as num)), style: small),
+            if (v?['inspection_until'] != null)
+              Text(l.rpInspection(DateFormat.yMd(l.localeName).format(DateTime.parse('${v!['inspection_until']}'))),
+                  style: small),
+          ]),
     ];
     final head = UiPanel(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -470,14 +526,47 @@ class _RepairsScreenState extends State<RepairsScreen> {
           padding: const EdgeInsets.all(Gap.m),
           child: Row(children: [
             Expanded(child: Text(l.rpChecklist, style: theme.textTheme.bodySmall)),
-            WipTag(what: l.rpChecklist, onOpen: widget.onOpen),
+            TextButton(
+              key: const Key('rp-checklist'),
+              onPressed: () => showRecords(context,
+                  api: widget.api,
+                  companyId: widget.companyId,
+                  entityType: 'order',
+                  entityId: '${o['id']}',
+                  kind: 'checklist',
+                  title: l.rpChecklist,
+                  fields: [
+                    RecordField('item', l.rpCheckItem, required: true),
+                    RecordField('done', l.rpCheckDone),
+                  ]),
+              child: Text(l.rpOpenChecklist),
+            ),
           ]),
         ),
       ]),
     );
   }
 
+  /// Pozycje dopisane do zlecenia w warsztacie (przed protokołem) – wpisy `order_part`.
+  final Map<String, List<Map<String, dynamic>>> _extra = {};
+
+  Future<void> _loadExtra(String orderId) async {
+    final company = widget.companyId;
+    if (company == null) return;
+    try {
+      final items =
+          await RecordsApi(widget.api, company).list(entityType: 'order', entityId: orderId, kind: 'order_part');
+      if (mounted) {
+        setState(() => _extra[orderId] = [for (final i in items) (i['data'] as Map<String, dynamic>?) ?? {}]);
+      }
+    } catch (_) {}
+  }
+
   Widget _parts(BuildContext context, Map<String, dynamic> o) {
+    if (!_extra.containsKey('${o['id']}')) {
+      _extra['${o['id']}'] = const [];
+      _loadExtra('${o['id']}');
+    }
     final l = context.l;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -503,8 +592,11 @@ class _RepairsScreenState extends State<RepairsScreen> {
             Expanded(flex: 3, child: Text(money(sum), textAlign: TextAlign.end, style: theme.textTheme.labelLarge)),
           ]),
         );
-    final parts = uiMaps(o['parts']);
-    final net = orderTotal(o);
+    // Części z protokołu i pozycje dopisane w warsztacie (przed zakończeniem zlecenia).
+    final extra = _extra['${o['id']}'] ?? const <Map<String, dynamic>>[];
+    final parts = [...uiMaps(o['parts']), ...extra];
+    final extraSum = extra.fold<double>(0, (a, p) => a + ((p['price'] as num?) ?? 0) * ((p['quantity'] as num?) ?? 1));
+    final net = orderTotal(o) + extraSum;
     return UiPanel(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -535,7 +627,7 @@ class _RepairsScreenState extends State<RepairsScreen> {
             const Divider(),
             Row(children: [
               Expanded(child: Text(l.rpPartsSum, style: theme.textTheme.bodySmall)),
-              Text(money(partsTotal(o)), style: theme.textTheme.bodySmall),
+              Text(money(partsTotal(o) + extraSum), style: theme.textTheme.bodySmall),
             ]),
             Row(children: [
               Expanded(child: Text(l.rpLabourSum, style: theme.textTheme.bodySmall)),
@@ -557,7 +649,19 @@ class _RepairsScreenState extends State<RepairsScreen> {
         const SizedBox(height: Gap.m),
         FilledButton.icon(
           style: FilledButton.styleFrom(backgroundColor: colors.surfaceLow, foregroundColor: scheme.primary),
-          onPressed: () => widget.onOpen(l.rpRequest),
+          onPressed: widget.companyId == null
+              ? () => widget.onOpen(l.rpRequest)
+              : () async {
+                  // Zapotrzebowanie do magazynu (ekran Części) z numerem tego zlecenia.
+                  final data = await editRecord(
+                      context, l.rpRequest, partRequestFields(l), {'order': '${o['number'] ?? o['id']}'});
+                  if (data == null) return;
+                  await RecordsApi(widget.api, widget.companyId!)
+                      .add('company', widget.companyId!, 'part_request', data);
+                  if (mounted) {
+                    ScaffoldMessenger.maybeOf(this.context)?.showSnackBar(SnackBar(content: Text(l.partsRequestSent)));
+                  }
+                },
           icon: const Icon(Icons.add_shopping_cart_outlined, size: 18),
           label: Text(l.rpRequest),
         ),
@@ -710,7 +814,22 @@ class _RepairsScreenState extends State<RepairsScreen> {
           ),
           Wrap(spacing: Gap.s, runSpacing: Gap.s, children: [
             OutlinedButton.icon(
-              onPressed: () => widget.onOpen(l.rpAddItem),
+              onPressed: widget.companyId == null
+                  ? () => widget.onOpen(l.rpAddItem)
+                  : () => showRecords(
+                        context,
+                        api: widget.api,
+                        companyId: widget.companyId,
+                        entityType: 'order',
+                        entityId: '${o['id']}',
+                        kind: 'order_part',
+                        title: l.rpAddItem,
+                        fields: [
+                          RecordField('name', l.partName, required: true),
+                          RecordField('quantity', l.partQty, type: RecordFieldType.number),
+                          RecordField('price', l.partPrice, type: RecordFieldType.number),
+                        ],
+                      ).then((_) => _loadExtra('${o['id']}')),
               icon: const Icon(Icons.add_circle_outline, size: 18),
               label: Text(l.rpAddItem),
             ),

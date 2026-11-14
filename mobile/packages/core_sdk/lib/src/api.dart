@@ -64,6 +64,18 @@ class CoreApi {
 
   Future<dynamic> delete(String path) => _send((headers) => _client.delete(uri(path), headers: headers));
 
+  /// Plik binarny z serwera (zdjęcie, skan dokumentu) – bez dekodowania JSON.
+  Future<List<int>> getBytes(String path) async {
+    Future<http.Response> attempt() async => _client.get(uri(path), headers: {
+          'Authorization': 'Bearer ${await _tokens.token()}',
+          if (language != null) 'Accept-Language': language!,
+        });
+    var response = await attempt();
+    if (response.statusCode == 401 && await _tokens.refresh()) response = await attempt();
+    if (response.statusCode >= 400) throw ApiException(response.statusCode, _message(null, response.statusCode));
+    return response.bodyBytes;
+  }
+
   /// Zdarzenia Server-Sent Events (np. pulpit operacyjny na żywo): nazwa i dane JSON.
   /// Anulowanie subskrypcji zamyka połączenie.
   Stream<({String event, dynamic data})> events(String path) async* {
