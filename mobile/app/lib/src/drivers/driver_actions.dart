@@ -97,3 +97,29 @@ Future<void> messageDriver(BuildContext context, CoreApi api, String companyId, 
 
 /// „Zadzwoń”: numer w aplikacji telefonu (na komputerze – program do połączeń, jeśli jest).
 Future<void> callDriver(String phone) => launchUrl(Uri(scheme: 'tel', path: phone.replaceAll(' ', '')));
+
+/// Karta drogowa (moduł Dokumenty): podpowiedzi z danych firmy, pojazdu i kierowcy, nowy dokument
+/// i PDF w przeglądarce.
+Future<void> generateRoadCard(BuildContext context, CoreApi api,
+    {required String companyId, String? vehicleId, required String driverName, String phone = ''}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  try {
+    final prefill = await api.post('/api/m/documents/prefill', {
+      'kind': 'road_card',
+      'company_id': companyId,
+      if (vehicleId != null) 'vehicle_id': vehicleId,
+      'driver_name': driverName,
+      'driver_phone': phone,
+    }) as Map<String, dynamic>;
+    final doc = await api.post('/api/m/documents/documents', {
+      'kind': 'road_card',
+      'company_id': companyId,
+      if (vehicleId != null) 'vehicle_id': vehicleId,
+      'data': prefill['data'] ?? {},
+    }) as Map<String, dynamic>;
+    final link = await api.post('/api/m/documents/documents/${doc['id']}/link', {}) as Map<String, dynamic>;
+    await launchUrl(api.uri('${link['path']}'), mode: LaunchMode.externalApplication);
+  } catch (error) {
+    messenger?.showSnackBar(SnackBar(content: Text('$error')));
+  }
+}

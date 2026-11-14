@@ -20,6 +20,8 @@ import 'account/account_screen.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'planner/planner_screen.dart';
+import 'service/eco_screen.dart';
+import 'service/parts_screen.dart';
 import 'live/live_screen.dart';
 import 'under_construction.dart';
 import 'updates.dart';
@@ -197,7 +199,9 @@ class _HomeScreenState extends State<HomeScreen> {
       'planner' => 12,
       'inbox' => 13,
       'account' => 14,
-      _ => 15,
+      'parts' => 15,
+      'eco' => 16,
+      _ => 17,
     };
     final order = _trail.where((c) => c.id == 'order').lastOrNull;
     final companyName = (company?['name'] as String?) ?? '';
@@ -442,6 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onOpenOrder: openOrder,
               onOpenRepairs: () => _select('repairs'),
               onOpenTco: () => _select('tco'),
+              onSection: _select,
             )
           else
             const SizedBox(),
@@ -501,6 +506,16 @@ class _HomeScreenState extends State<HomeScreen> {
               onLanguage: widget.onLanguage ?? (_) {},
               onLogout: widget.onLogout,
             )
+          else
+            const SizedBox(),
+          if (page == 15)
+            PartsScreen(
+                key: ValueKey(('parts', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
+          else
+            const SizedBox(),
+          if (page == 16)
+            EcoScreen(
+                key: ValueKey(('eco', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
           else
             const SizedBox(),
           UnderConstructionScreen(

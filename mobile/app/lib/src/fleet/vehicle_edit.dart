@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
 import '../vehicles/body_types.dart';
 import 'vehicle_screen.dart' show towedKinds;
 
@@ -561,9 +562,45 @@ class _VehicleEditScreenState extends State<VehicleEditScreen> {
           SizedBox(width: wide ? Gap.m : 0, height: wide ? 0 : Gap.m),
           cert(l.vehAtp, _date(context, l.vehValidTo, 'atp_until')),
           SizedBox(width: wide ? Gap.m : 0, height: wide ? 0 : Gap.m),
-          cert(l.vehXl, WipTag(what: l.vehXl, onOpen: widget.onOpen)),
+          cert(
+              l.vehXl,
+              widget.vehicleId.isEmpty
+                  ? Text(l.vehCertAfterSave, style: theme.textTheme.bodySmall)
+                  : TextButton(
+                      key: const Key('veh-xl'),
+                      onPressed: () => showRecords(context,
+                          api: widget.api,
+                          companyId: widget.companyId ?? _v?['company_id'] as String?,
+                          entityType: 'vehicle',
+                          entityId: widget.vehicleId,
+                          kind: 'xl',
+                          title: l.vehXl,
+                          fields: [
+                            RecordField('number', l.vehCertNumber),
+                            RecordField('until', l.vehValidTo, type: RecordFieldType.date, required: true),
+                          ]),
+                      child: Text(l.drvOpenList),
+                    )),
           SizedBox(width: wide ? Gap.m : 0, height: wide ? 0 : Gap.m),
-          cert(l.vehGdp, WipTag(what: l.vehGdp, onOpen: widget.onOpen)),
+          cert(
+              l.vehGdp,
+              widget.vehicleId.isEmpty
+                  ? Text(l.vehCertAfterSave, style: theme.textTheme.bodySmall)
+                  : TextButton(
+                      key: const Key('veh-gdp'),
+                      onPressed: () => showRecords(context,
+                          api: widget.api,
+                          companyId: widget.companyId ?? _v?['company_id'] as String?,
+                          entityType: 'vehicle',
+                          entityId: widget.vehicleId,
+                          kind: 'gdp',
+                          title: l.vehGdp,
+                          fields: [
+                            RecordField('number', l.vehCertNumber),
+                            RecordField('until', l.vehValidTo, type: RecordFieldType.date, required: true),
+                          ]),
+                      child: Text(l.drvOpenList),
+                    )),
         ],
       ),
     ]);

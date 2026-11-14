@@ -14,7 +14,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from truckmaps.core import inbox
+from truckmaps.core import inbox, records
 from truckmaps.core.db import Database, try_job_lock
 from truckmaps.core.fleet import PeriodicJob, service_staff
 from truckmaps.core.timebans import HOME_ZONE
@@ -96,6 +96,9 @@ class ReminderSender:
                 with self._database.session() as db:
                     if sent := send_reminders(db):
                         log.info("Przypomnienia o terminach pojazdów: %d", sent)
+                with self._database.session() as db:
+                    if sent := records.send_scheduled_reports(db):
+                        log.info("Raporty cykliczne firm: %d", sent)
             except Exception as exc:  # noqa: BLE001 – błąd nie może zatrzymać serwera
                 log.warning("Nie udało się wysłać przypomnień: %s", exc)
             run_jobs(self._database, self._jobs)

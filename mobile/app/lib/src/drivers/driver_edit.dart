@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
+import '../records/records.dart';
+import 'driver_actions.dart';
 import 'drivers_data.dart';
 
 const _categories = ['B', 'C', 'C+E', 'D', 'D+E'];
@@ -53,6 +55,12 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _notes = TextEditingController();
+
+  /// Dodatkowe pola kartoteki (PESEL, adres, umowa…) – jeden wpis `profile` kierowcy.
+  final Map<String, TextEditingController> _extra = {};
+  String? _profileId;
+
+  TextEditingController _ex(String key) => _extra.putIfAbsent(key, TextEditingController.new);
   final Map<String, DateTime?> _day = {};
   final Set<String> _cats = {};
   bool _adrTank = false;
@@ -65,7 +73,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
 
   @override
   void dispose() {
-    for (final c in [_first, _last, _phone, _email, _notes]) {
+    for (final c in [_first, _last, _phone, _email, _notes, ..._extra.values]) {
       c.dispose();
     }
     super.dispose();
@@ -77,7 +85,16 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
     try {
       final data = await DriversData.load(widget.api, company);
       final d = data.byId(widget.driverId);
+      final profile = await RecordsApi(widget.api, company)
+          .list(entityType: 'driver', entityId: widget.driverId, kind: 'profile')
+          .catchError((_) => <Map<String, dynamic>>[]);
       if (!mounted) return;
+      if (profile.firstOrNull case final p?) {
+        _profileId = '${p['id']}';
+        for (final e in ((p['data'] as Map?) ?? const {}).entries) {
+          _ex('${e.key}').text = '${e.value ?? ''}';
+        }
+      }
       setState(() {
         _data = data;
         _driver = d;
@@ -135,6 +152,21 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
         'attestation_until': d['attestation_until'],
         'adr_tank': _adrTank,
       });
+      if (!mounted) return;
+      if (widget.companyId case final company?) {
+        final records = RecordsApi(widget.api, company);
+        final extra = {for (final e in _extra.entries) e.key: e.value.text.trim()};
+        if (_profileId case final id?) {
+          await records.update(id, extra);
+        } else if (extra.values.any((v) => v.isNotEmpty)) {
+          _profileId = '${(await records.add('driver', widget.driverId, 'profile', extra))['id']}';
+        }
+        if (!mounted) return;
+        await records.add('driver', widget.driverId, 'change', {
+          'date': DateTime.now().toIso8601String().substring(0, 10),
+          'fields': l.drvChangeSaved,
+        }).catchError((_) => <String, dynamic>{});
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l.drvSaved)));
       if (!stay) widget.onDone(true);
@@ -218,13 +250,29 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
                 backgroundColor: colors.card,
                 foregroundColor: scheme.onSurface,
                 side: BorderSide(color: colors.surfaceHigh)),
-            onPressed: () => widget.onOpen(l.drvChanges),
+            onPressed: () => showRecords(context,
+                api: widget.api,
+                companyId: widget.companyId,
+                entityType: 'driver',
+                entityId: widget.driverId,
+                kind: 'change',
+                title: l.drvChanges,
+                fields: [
+                  RecordField('date', l.drvChangeDate, type: RecordFieldType.date),
+                  RecordField('fields', l.drvChangeFields),
+                ]),
             icon: const Icon(Icons.history_outlined, size: 18),
             label: Text(l.drvChanges),
           ),
           FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: scheme.primaryContainer),
-            onPressed: () => widget.onOpen(l.drvRoadCard),
+            onPressed: widget.companyId == null || _driver == null
+                ? () => widget.onOpen(l.drvRoadCard)
+                : () => generateRoadCard(context, widget.api,
+                    companyId: widget.companyId!,
+                    vehicleId: _driver!['vehicle_id'] as String?,
+                    driverName: '${_driver!['name'] ?? ''}',
+                    phone: '${_driver!['phone'] ?? ''}'),
             icon: const Icon(Icons.badge_outlined, size: 18),
             label: Text(l.drvRoadCard),
           ),
@@ -274,7 +322,23 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
       tile(l.drvTractorTile, '${vehicle?['plate'] ?? vehicle?['name'] ?? '–'}', '${vehicle?['name'] ?? ''}',
           Icons.local_shipping_outlined),
       tile(l.drvDelegation, '–', '', Icons.event_outlined,
-          noteWidget: WipTag(what: l.drvDelegation, onOpen: widget.onOpen)),
+          noteWidget: TextButton(
+            key: const Key('drv-delegation'),
+            onPressed: () => showRecords(context,
+                api: widget.api,
+                companyId: widget.companyId,
+                entityType: 'driver',
+                entityId: widget.driverId,
+                kind: 'delegation',
+                title: l.drvDelegation,
+                fields: [
+                  RecordField('from', l.drvLeaveFrom, type: RecordFieldType.date, required: true),
+                  RecordField('to', l.drvLeaveTo, type: RecordFieldType.date),
+                  RecordField('country', l.drvDelegationCountry),
+                  RecordField('note', l.partNote),
+                ]),
+            child: Text(l.drvOpenList),
+          )),
     ];
     if (!wide) {
       return Column(children: [for (final t in tiles) Padding(padding: const EdgeInsets.only(bottom: 12), child: t)]);
@@ -356,16 +420,6 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
         ),
       ]);
 
-  /// Pole, którego kartoteka jeszcze nie ma – wyłączone, ze znacznikiem „W budowie”.
-  Widget _wip(BuildContext context, String label) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _label(context, label),
-        InputDecorator(
-          isEmpty: true,
-          decoration: const InputDecoration(isDense: true, enabled: false),
-          child: Align(alignment: Alignment.centerLeft, child: WipTag(what: label, onOpen: widget.onOpen)),
-        ),
-      ]);
-
   Widget _date(BuildContext context, String label, String field, {bool required = false}) {
     final l = context.l;
     final value = _day[field];
@@ -420,19 +474,29 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
         const SizedBox(height: Gap.s),
         Text(l.drvPhoto, style: theme.textTheme.labelMedium),
         const SizedBox(height: Gap.xs),
-        WipTag(what: l.drvPhoto, onOpen: widget.onOpen),
+        TextButton(
+          key: const Key('drv-photo'),
+          onPressed: () => showFiles(context,
+              api: widget.api,
+              companyId: widget.companyId,
+              entityType: 'driver',
+              entityId: widget.driverId,
+              title: l.drvPhoto,
+              kind: 'photo'),
+          child: Text(l.drvPhoto),
+        ),
       ]),
     );
     final fields = _grid(wide, [
       _text(context, l.drvFirstName, _first, required: true, key: const Key('drv-first')),
       _text(context, l.drvLastName, _last, required: true, key: const Key('drv-last')),
-      _wip(context, l.drvCitizenship),
-      _wip(context, l.drvPesel),
-      _wip(context, l.drvBirth),
+      _text(context, l.drvCitizenship, _ex('drvCitizenship')),
+      _text(context, l.drvPesel, _ex('drvPesel')),
+      _text(context, l.drvBirth, _ex('drvBirth')),
       _text(context, l.drvWorkPhone, _phone, required: true, icon: Icons.call_outlined, key: const Key('drv-phone')),
       _text(context, l.drvEmail, _email, key: const Key('drv-email')),
-      _wip(context, l.drvLanguages),
-      _wip(context, l.drvAddress),
+      _text(context, l.drvLanguages, _ex('drvLanguages')),
+      _text(context, l.drvAddress, _ex('drvAddress')),
     ]);
     return _section(
       context,
@@ -464,7 +528,11 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
               Text(l.drvIceTitle.toUpperCase(), style: theme.textTheme.labelMedium?.copyWith(color: scheme.error)),
             ]),
             const SizedBox(height: Gap.m),
-            _grid(wide, [_wip(context, l.drvIceName), _wip(context, l.drvIceRelation), _wip(context, l.drvIcePhone)]),
+            _grid(wide, [
+              _text(context, l.drvIceName, _ex('drvIceName')),
+              _text(context, l.drvIceRelation, _ex('drvIceRelation')),
+              _text(context, l.drvIcePhone, _ex('drvIcePhone'))
+            ]),
           ]),
         ),
       ],
@@ -522,10 +590,10 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
         _grid(
             wide,
             [
-              _wip(context, l.drvLicenseNo),
+              _text(context, l.drvLicenseNo, _ex('drvLicenseNo')),
               categories,
               _date(context, l.drvLicenseUntil, 'license_until'),
-              _wip(context, l.drvLicenseCountry),
+              _text(context, l.drvLicenseCountry, _ex('drvLicenseCountry')),
             ],
             columns: 4),
         Container(
@@ -542,7 +610,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
             ]),
           ]),
         ),
-        _grid(wide, [adrType, _wip(context, l.drvAdrNo), _date(context, l.drvAdrUntil, 'adr_until')]),
+        _grid(wide, [adrType, _text(context, l.drvAdrNo, _ex('drvAdrNo')), _date(context, l.drvAdrUntil, 'adr_until')]),
       ],
     );
   }
@@ -559,12 +627,12 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
       Icons.credit_card_outlined,
       [
         _grid(wide, [
-          _wip(context, l.drvCardNo),
+          _text(context, l.drvCardNo, _ex('drvCardNo')),
           _date(context, l.drvCardUntil2, 'card_until', required: true),
-          _wip(context, l.drvCardCountry),
+          _text(context, l.drvCardCountry, _ex('drvCardCountry')),
           _date(context, l.drvNextRead, 'card_download_until'),
-          _wip(context, l.drvReader),
-          _wip(context, l.drvCrew),
+          _text(context, l.drvReader, _ex('drvReader')),
+          _text(context, l.drvCrew, _ex('drvCrew')),
         ]),
         Container(
           padding: const EdgeInsets.all(Gap.l),
@@ -592,9 +660,9 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
       Icons.work_outline,
       [
         _grid(wide, [
-          _wip(context, l.drvContract),
-          _wip(context, l.drvBase),
-          _wip(context, l.drvRotation),
+          _text(context, l.drvContract, _ex('drvContract')),
+          _text(context, l.drvBase, _ex('drvBase')),
+          _text(context, l.drvRotation, _ex('drvRotation')),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _label(context, l.drvTractorTile),
             InputDecorator(
@@ -604,7 +672,7 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
             ),
           ]),
           _date(context, l.drvHired, 'hired_on'),
-          _wip(context, l.drvSalary),
+          _text(context, l.drvSalary, _ex('drvSalary')),
         ]),
         _text(context, l.drvNotes, _notes, lines: 3, key: const Key('drv-notes')),
         const SizedBox(height: Gap.m),
@@ -628,7 +696,16 @@ class _DriverEditScreenState extends State<DriverEditScreen> {
       l.drvSecFiles,
       l.drvSecFilesSub,
       Icons.folder_outlined,
-      badge: WipTag(what: l.drvSecFiles, onOpen: widget.onOpen),
+      badge: TextButton(
+        key: const Key('drv-sec-files'),
+        onPressed: () => showFiles(context,
+            api: widget.api,
+            companyId: widget.companyId,
+            entityType: 'driver',
+            entityId: widget.driverId,
+            title: l.drvSecFiles),
+        child: Text(l.drvOpenFiles),
+      ),
       [UiEmpty(l.drvFilesNone)],
     );
   }
