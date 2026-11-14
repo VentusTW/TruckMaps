@@ -6,6 +6,7 @@ import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
 import '../records/records.dart';
 import 'fleet_export.dart';
+import 'fuel_cards.dart';
 import 'service_data.dart';
 
 /// „Koszty i TCO” według projektu Stitch: koszt wozokilometra i jego struktura (trasy, serwis),
@@ -272,7 +273,7 @@ class _TcoScreenState extends State<TcoScreen> {
       return ListView(padding: EdgeInsets.all(pad), children: [
         _header(context),
         const SizedBox(height: gap),
-        _filters(context, km, routes, service),
+        _filters(context, data, km, routes, service),
         const SizedBox(height: gap),
         if (wide)
           IntrinsicHeight(
@@ -354,7 +355,7 @@ class _TcoScreenState extends State<TcoScreen> {
     );
   }
 
-  Widget _filters(BuildContext context, double km, double routes, double service) {
+  Widget _filters(BuildContext context, FleetData data, double km, double routes, double service) {
     final l = context.l;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -378,7 +379,8 @@ class _TcoScreenState extends State<TcoScreen> {
       child: Wrap(spacing: Gap.m, runSpacing: Gap.m, crossAxisAlignment: WrapCrossAlignment.center, children: [
         box(l.tcoPeriod, Text(l.anLastMonths(l.number(widget.months)), style: theme.textTheme.labelLarge)),
         box(l.tcoMake, Text(_make ?? l.anAll, style: theme.textTheme.labelLarge), onTap: _pickMake),
-        box(l.tcoCards, WipTag(what: l.tcoCards, onOpen: widget.onOpen), onTap: () => widget.onOpen(l.tcoCards)),
+        box(l.tcoCards,
+            FuelCardsSummary(api: widget.api, companyId: widget.companyId, months: widget.months, stats: data.stats)),
         box(
           l.tcoAvgKm,
           Text.rich(TextSpan(children: [

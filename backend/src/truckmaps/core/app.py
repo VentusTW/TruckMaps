@@ -20,6 +20,7 @@ from truckmaps.core import (
     dashboard,
     devlogin,
     dispatch,
+    fuel_cards,
     fuel_prices,
     geocoding,
     i18n,
@@ -190,6 +191,7 @@ def create_app(
     app.include_router(live.build_router(auth.current_user))
     app.include_router(dispatch.build_router(auth.current_user))
     app.include_router(records.build_router(auth.current_user))
+    app.include_router(fuel_cards.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
         app.include_router(
             devlogin.build_router(

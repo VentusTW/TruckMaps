@@ -288,5 +288,9 @@
   "dispatch.driver_not_found": "Wybrana osoba nie należy do firmy.",
   "records.not_found": "Nie znaleziono wpisu.",
   "records.bad_file": "Nieprawidłowy plik.",
-  "records.file_too_large": "Plik jest za duży (najwyżej {mb} MB)."
+  "records.file_too_large": "Plik jest za duży (najwyżej {mb} MB).",
+  "fuel.bad_file": "Nieprawidłowy plik CSV.",
+  "fuel.too_large": "Plik jest za duży (najwyżej {mb} MB).",
+  "fuel.no_columns": "Nie rozpoznano kolumn wyciągu – potrzebne są co najmniej data, ilość (litry) i kwota.",
+  "fuel.no_rows": "W pliku nie ma żadnego tankowania z datą, ilością i kwotą."
 }
