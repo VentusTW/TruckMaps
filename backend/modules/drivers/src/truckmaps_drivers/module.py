@@ -10,7 +10,10 @@ Przydział kierowcy z kontem to przydział rdzenia (``assigned_driver``); moduł
 historię przydziałów (od–do) i zmian w kartotece. Korzysta tylko z SDK rdzenia.
 """
 
+import base64
+import binascii
 import json
+import re
 import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
@@ -19,7 +22,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import JSON, Date, DateTime, String, Text, UniqueConstraint, delete, select, update
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    delete,
+    func,
+    select,
+    update,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from truckmaps.sdk import (
@@ -35,10 +52,12 @@ from truckmaps.sdk import (
     i18n,
 )
 from truckmaps.sdk.i18n import t
-from truckmaps_drivers import rules
+from truckmaps_drivers import hours, rules, tacho
 
 MANAGERS = {"owner", "dispatcher"}
 MAX_TRIPS_SHOWN = 50
+MAX_TACHO_BYTES = 20 * 1024 * 1024
+TACHO_DAYS = 28
 
 
 def _now() -> datetime:
@@ -76,6 +95,8 @@ class Driver(Base):
     """Karta kierowcy (tachograf) – ważna 5 lat."""
     card_downloaded_on: Mapped[date | None] = mapped_column(Date)
     card_download_until: Mapped[date | None] = mapped_column(Date)
+    card_number: Mapped[str | None] = mapped_column(String(20))
+    """Numer karty kierowcy – z pliku .DDD (łączy dane z tachografów pojazdów)."""
     """Pobranie danych z karty – co najmniej co 28 dni."""
     adr_until: Mapped[date | None] = mapped_column(Date)
     adr_tank: Mapped[bool] = mapped_column(default=False)
@@ -115,6 +136,73 @@ class Change(Base):
     """created, updated, assigned, released, card_download."""
     changes: Mapped[dict] = mapped_column(JSON, default=dict)
     """Pole → [przed, po] (tekst); przydział – pojazd."""
+
+
+class TachoDownload(Base):
+    """Wczytany plik .DDD (karta kierowcy albo tachograf pojazdu) – w całości, do archiwum."""
+
+    __tablename__ = "tacho_downloads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(String(36), index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    """card albo vu."""
+    generation: Mapped[int] = mapped_column(Integer, default=1)
+    driver_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    vehicle_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    card_number: Mapped[str | None] = mapped_column(String(20))
+    holder_name: Mapped[str | None] = mapped_column(String(200))
+    vin: Mapped[str | None] = mapped_column(String(17))
+    plate: Mapped[str | None] = mapped_column(String(20))
+    period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    activities: Mapped[int] = mapped_column(Integer, default=0)
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    by_name: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class TachoActivity(Base):
+    """Odcinek aktywności kierowcy (UTC) z karty albo z tachografu pojazdu."""
+
+    __tablename__ = "tacho_activities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(String(36), index=True)
+    download_id: Mapped[str] = mapped_column(String(36), index=True)
+    source: Mapped[str] = mapped_column(String(10))
+    driver_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    vehicle_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    card_number: Mapped[str] = mapped_column(String(20), default="")
+    start: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    activity: Mapped[str] = mapped_column(String(12))
+    slot: Mapped[int] = mapped_column(Integer, default=0)
+    crew: Mapped[bool] = mapped_column(default=False)
+    manual: Mapped[bool] = mapped_column(default=False)
+
+
+class TachoPlace(Base):
+    """Miejsce rozpoczęcia albo zakończenia dziennego okresu pracy."""
+
+    __tablename__ = "tacho_places"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_id: Mapped[str] = mapped_column(String(36), index=True)
+    download_id: Mapped[str] = mapped_column(String(36), index=True)
+    source: Mapped[str] = mapped_column(String(10))
+    driver_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    vehicle_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    card_number: Mapped[str] = mapped_column(String(20), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    entry: Mapped[str] = mapped_column(String(10))
+    country: Mapped[str] = mapped_column(String(4), default="")
+    region: Mapped[int] = mapped_column(Integer, default=0)
+    odometer: Mapped[int] = mapped_column(Integer, default=0)
+    lat: Mapped[float | None] = mapped_column(Float)
+    lon: Mapped[float | None] = mapped_column(Float)
 
 
 EDITABLE = [
@@ -199,6 +287,7 @@ class DriverOut(BaseModel):
     card_until: date | None
     card_downloaded_on: date | None
     card_download_until: date | None
+    card_number: str | None = None
     adr_until: date | None
     adr_tank: bool
     attestation_until: date | None
@@ -206,6 +295,158 @@ class DriverOut(BaseModel):
     dues: list[Due] = []
     can_edit: bool = False
     updated_at: datetime
+
+
+class TachoUploadIn(BaseModel):
+    company_id: str
+    name: str = Field(min_length=1, max_length=200, examples=["C_20261114_1012_J_KOWALSKI.DDD"])
+    data: str = Field(description="Zawartość pliku w base64")
+    driver_id: str | None = Field(default=None, description="Kierowca (plik karty)")
+    vehicle_id: str | None = Field(default=None, description="Pojazd (plik tachografu)")
+
+
+class TachoDownloadOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    kind: str
+    generation: int
+    driver_id: str | None
+    vehicle_id: str | None
+    name: str
+    card_number: str | None
+    holder_name: str | None
+    vin: str | None
+    plate: str | None
+    period_start: datetime | None
+    period_end: datetime | None
+    activities: int
+    size: int
+    by_name: str
+    created_at: datetime
+
+
+class TachoUploadOut(TachoDownloadOut):
+    driver_name: str | None = None
+    unmatched_cards: list[str] = []
+    """Karty z tachografu pojazdu bez kierowcy w kartotece (numer – posiadacz)."""
+
+
+class TachoSegmentOut(BaseModel):
+    start: datetime
+    end: datetime
+    activity: str
+    source: str
+    manual: bool = False
+
+
+class TachoPlaceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    at: datetime
+    entry: str
+    country: str
+    odometer: int
+    lat: float | None
+    lon: float | None
+
+
+class ViolationOut(BaseModel):
+    kind: str
+    severity: str
+    start: datetime
+    end: datetime
+    value: float
+    limit: float
+
+
+class CountersOut(BaseModel):
+    at: datetime | None = None
+    continuous_driving: float = 0
+    continuous_limit: float = hours.CONTINUOUS_DRIVING
+    daily_driving: float = 0
+    daily_limit: float = hours.EXTENDED_DRIVING
+    extensions_left: int = hours.EXTENSIONS_PER_WEEK
+    daily_rest_due: datetime | None = None
+    reduced_rests_left: int = hours.REDUCED_DAILY_PER_WEEK
+    weekly_driving: float = 0
+    weekly_limit: float = hours.WEEKLY_DRIVING
+    fortnight_driving: float = 0
+    fortnight_limit: float = hours.FORTNIGHT_DRIVING
+    weekly_rest_due: datetime | None = None
+    last_weekly_rest: datetime | None = None
+
+
+class TachoOut(BaseModel):
+    driver_id: str
+    card_number: str | None
+    days: int
+    segments: list[TachoSegmentOut]
+    violations: list[ViolationOut]
+    counters: CountersOut
+    places: list[TachoPlaceOut]
+    downloads: list[TachoDownloadOut]
+
+
+class VehicleTachoOut(BaseModel):
+    vehicle_id: str
+    last_download: datetime | None
+    downloads: list[TachoDownloadOut]
+
+
+def _card_key(number: str | None) -> str:
+    """Numer karty bez indeksów wymiany i odnowienia (ostatnie 2 znaki)."""
+    return (number or "").strip().upper()[:14]
+
+
+def _plate_key(plate: str | None) -> str:
+    return re.sub(r"[^0-9A-Z]", "", (plate or "").upper())
+
+
+def tacho_view(
+    driver_id: str,
+    card_number: str | None,
+    rows: list,
+    places: list,
+    downloads: list,
+    days: int = TACHO_DAYS,
+) -> TachoOut:
+    """Odcinki z karty mają pierwszeństwo; z tachografu pojazdu – tylko dni bez danych karty."""
+    card_days = {_aware(r.start).date() for r in rows if r.source == "card"}
+    used = [r for r in rows if r.source == "card" or _aware(r.start).date() not in card_days]
+    used.sort(key=lambda r: _aware(r.start))
+    analysis = hours.analyse(
+        [hours.Segment(_aware(r.start), _aware(r.end), r.activity) for r in used]
+    )
+    since = None
+    if used:
+        last = max(_aware(r.end) for r in used)
+        since = datetime.combine(last.date() - timedelta(days=days - 1), datetime.min.time(), UTC)
+    return TachoOut(
+        driver_id=driver_id,
+        card_number=card_number,
+        days=days,
+        segments=[
+            TachoSegmentOut(
+                start=_aware(r.start), end=_aware(r.end), activity=r.activity, source=r.source,
+                manual=r.manual,
+            )
+            for r in used
+            if since is None or _aware(r.end) > since
+        ],
+        violations=[
+            ViolationOut(**v.__dict__)
+            for v in analysis.violations
+            if since is None or v.end > since
+        ],
+        counters=CountersOut(**analysis.counters.__dict__),
+        places=[
+            TachoPlaceOut.model_validate(p)
+            for p in places
+            if since is None or _aware(p.at) >= since
+        ],
+        downloads=[TachoDownloadOut.model_validate(d) for d in downloads],
+    )  # fmt: skip
 
 
 class AssignIn(BaseModel):
@@ -602,6 +843,13 @@ class DriversModule(Module):
             release_all(db, driver)
             db.execute(delete(Assignment).where(Assignment.driver_id == driver.id))
             db.execute(delete(Change).where(Change.driver_id == driver.id))
+            db.execute(delete(TachoActivity).where(TachoActivity.driver_id == driver.id))
+            db.execute(delete(TachoPlace).where(TachoPlace.driver_id == driver.id))
+            db.execute(
+                update(TachoDownload)
+                .where(TachoDownload.driver_id == driver.id)
+                .values(driver_id=None)
+            )
             db.delete(driver)
             db.commit()
             return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -628,6 +876,230 @@ class DriversModule(Module):
             log(db, driver, user, "card_download", {"card_downloaded_on": [before, _text(day)]})
             db.commit()
             return outs(db, user, [driver])[0]
+
+        # ── Tachograf (.DDD) ───────────────────────────────────────────────────────────────
+
+        def company_driver(db: Session, company_id: str, driver_id: str) -> Driver:
+            driver = db.get(Driver, driver_id)
+            if driver is None or driver.company_id != company_id:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("drivers.not_found"))
+            return driver
+
+        def replace(db: Session, table, column, value, source: str, start, end) -> None:
+            """Usuwa wcześniej wczytane dane z tego samego okresu (ponowny odczyt karty)."""
+            if start is None or end is None:
+                return
+            moment = table.start if table is TachoActivity else table.at
+            db.execute(
+                delete(table).where(
+                    column == value, table.source == source, moment >= start, moment < end
+                )
+            )
+
+        def matched_vehicle(db: Session, user: Principal, data: TachoUploadIn, parsed):
+            vehicles = [v for v in fleet.vehicles(db, user) if v.company_id == data.company_id]
+            if data.vehicle_id:
+                vehicle = next((v for v in vehicles if v.id == data.vehicle_id), None)
+                if vehicle is None:
+                    raise HTTPException(status.HTTP_404_NOT_FOUND, t("drivers.vehicle_not_found"))
+                return vehicle
+            key = _plate_key(parsed.plate)
+            vehicle = next((v for v in vehicles if key and _plate_key(v.plate) == key), None)
+            if vehicle is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    t("tacho.choose_vehicle", plate=parsed.plate or "–", vin=parsed.vin or "–"),
+                )
+            return vehicle
+
+        @router.post("/tacho/upload", status_code=status.HTTP_201_CREATED)
+        def tacho_upload(data: TachoUploadIn, user: User, db: Db) -> TachoUploadOut:
+            """Wczytuje plik .DDD z karty kierowcy albo z tachografu pojazdu: aktywności,
+            miejsca, data pobrania (karta – następne za 28 dni, pojazd – za 90 dni). Pliki
+            pojazdu i cudze karty wczytuje obsługa firmy; kierowca – swoją kartę."""
+            current = role(db, user, data.company_id)
+            if current is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("drivers.company_not_found"))
+            try:
+                content = base64.b64decode(data.data.split(",")[-1], validate=True)
+            except (binascii.Error, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, t("tacho.not_ddd")
+                ) from error
+            if len(content) > MAX_TACHO_BYTES:
+                raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, t("tacho.too_large", mb=20))
+            try:
+                parsed = tacho.parse(content)
+            except tacho.TachoError as error:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t(error.code)) from error
+            drivers = list(db.scalars(select(Driver).where(Driver.company_id == data.company_id)))
+            by_card = {_card_key(d.card_number): d for d in drivers if d.card_number}
+            day = today()
+            record = TachoDownload(
+                company_id=data.company_id, kind=parsed.kind, generation=parsed.generation,
+                name=data.name, card_number=parsed.card_number[:20] or None,
+                holder_name=parsed.holder_name[:200] or None, vin=parsed.vin[:17] or None,
+                plate=parsed.plate[:20] or None, period_start=parsed.period_start,
+                period_end=parsed.period_end, activities=len(parsed.activities), size=len(content),
+                content=content, by_name=_user_name(user),
+            )  # fmt: skip
+            driver: Driver | None = None
+            unmatched: list[str] = []
+            if parsed.kind == "card":
+                if data.driver_id:
+                    driver = company_driver(db, data.company_id, data.driver_id)
+                else:
+                    driver = by_card.get(_card_key(parsed.card_number))
+                if driver is None:
+                    raise HTTPException(
+                        status.HTTP_422_UNPROCESSABLE_CONTENT,
+                        t("tacho.choose_driver", name=parsed.holder_name, card=parsed.card_number),
+                    )
+                if current not in MANAGERS and driver.subject != user.subject:
+                    raise HTTPException(status.HTTP_403_FORBIDDEN, t("tacho.forbidden"))
+                owner = by_card.get(_card_key(parsed.card_number))
+                if owner is not None and owner.id != driver.id:
+                    raise HTTPException(
+                        status.HTTP_409_CONFLICT, t("tacho.card_taken", name=owner.name)
+                    )
+                before = _text(driver.card_downloaded_on)
+                driver.card_number = parsed.card_number[:20] or driver.card_number
+                driver.card_downloaded_on = day
+                driver.card_download_until = day + timedelta(days=rules.CARD_DOWNLOAD_DAYS)
+                if parsed.card_expiry and not driver.card_until:
+                    driver.card_until = parsed.card_expiry
+                driver.updated_at = _now()
+                log(db, driver, user, "card_download", {"card_downloaded_on": [before, _text(day)]})
+                record.driver_id = driver.id
+                db.add(record)
+                db.flush()
+                for table in (TachoActivity, TachoPlace):
+                    replace(
+                        db, table, table.driver_id, driver.id, "card", parsed.period_start,
+                        parsed.period_end,
+                    )  # fmt: skip
+            else:
+                if current not in MANAGERS:
+                    raise HTTPException(status.HTTP_403_FORBIDDEN, t("tacho.forbidden"))
+                vehicle = matched_vehicle(db, user, data, parsed)
+                fleet.record_tacho_download(db, vehicle.id, day)
+                record.vehicle_id = vehicle.id
+                db.add(record)
+                db.flush()
+                for table in (TachoActivity, TachoPlace):
+                    replace(
+                        db, table, table.vehicle_id, vehicle.id, "vu", parsed.period_start,
+                        parsed.period_end,
+                    )  # fmt: skip
+                unmatched = sorted(
+                    f"{number} – {name}"
+                    for number, name in parsed.cards().items()
+                    if _card_key(number) not in by_card
+                )
+            for item in parsed.activities:
+                owner = driver or by_card.get(_card_key(item.card_number))
+                db.add(
+                    TachoActivity(
+                        company_id=data.company_id, download_id=record.id, source=parsed.kind,
+                        driver_id=owner.id if owner else None, vehicle_id=record.vehicle_id,
+                        card_number=item.card_number[:20], start=item.start, end=item.end,
+                        activity=item.activity, slot=item.slot, crew=item.crew, manual=item.manual,
+                    )
+                )  # fmt: skip
+            for place in parsed.places:
+                owner = driver or by_card.get(_card_key(place.card_number))
+                db.add(
+                    TachoPlace(
+                        company_id=data.company_id, download_id=record.id, source=parsed.kind,
+                        driver_id=owner.id if owner else None, vehicle_id=record.vehicle_id,
+                        card_number=place.card_number[:20], at=place.at, entry=place.entry,
+                        country=place.country, region=place.region, odometer=place.odometer,
+                        lat=place.lat, lon=place.lon,
+                    )
+                )  # fmt: skip
+            db.commit()
+            return TachoUploadOut.model_validate(record).model_copy(
+                update={
+                    "driver_name": driver.name if driver else None,
+                    "unmatched_cards": unmatched,
+                }
+            )
+
+        @router.get("/drivers/{driver_id}/tacho")
+        def driver_tacho(driver_id: str, user: User, db: Db, days: int = TACHO_DAYS) -> TachoOut:
+            """Czas pracy kierowcy z plików .DDD: odcinki aktywności z ostatnich ``days`` dni
+            danych, naruszenia 561/2006, liczniki pozostałego czasu jazdy, miejsca, odczyty."""
+            driver = load(db, user, driver_id)
+            days = max(1, min(days, 366))
+            last = db.scalar(
+                select(func.max(TachoActivity.end)).where(TachoActivity.driver_id == driver.id)
+            )
+            rows: list = []
+            places: list = []
+            if last is not None:
+                # Trzy tygodnie wcześniej – limit dwutygodniowy i odpoczynek tygodniowy.
+                since = _aware(last) - timedelta(days=days + 21)
+                rows = list(
+                    db.scalars(
+                        select(TachoActivity).where(
+                            TachoActivity.driver_id == driver.id, TachoActivity.end > since
+                        )
+                    )
+                )
+                places = list(
+                    db.scalars(
+                        select(TachoPlace)
+                        .where(TachoPlace.driver_id == driver.id, TachoPlace.at > since)
+                        .order_by(TachoPlace.at)
+                    )
+                )
+            downloads = list(
+                db.scalars(
+                    select(TachoDownload)
+                    .where(TachoDownload.driver_id == driver.id)
+                    .order_by(TachoDownload.created_at.desc())
+                    .limit(20)
+                )
+            )
+            return tacho_view(driver.id, driver.card_number, rows, places, downloads, days)
+
+        @router.get("/tacho/vehicles/{vehicle_id}")
+        def vehicle_tacho(vehicle_id: str, user: User, db: Db) -> VehicleTachoOut:
+            """Odczyty tachografu pojazdu (ostatni – data pobrania danych z VU)."""
+            vehicle = fleet.vehicle(db, user, vehicle_id)
+            if vehicle is None or vehicle.company_id is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("drivers.vehicle_not_found"))
+            downloads = list(
+                db.scalars(
+                    select(TachoDownload)
+                    .where(TachoDownload.vehicle_id == vehicle_id, TachoDownload.kind == "vu")
+                    .order_by(TachoDownload.created_at.desc())
+                    .limit(20)
+                )
+            )
+            return VehicleTachoOut(
+                vehicle_id=vehicle_id,
+                last_download=downloads[0].created_at if downloads else None,
+                downloads=[TachoDownloadOut.model_validate(d) for d in downloads],
+            )
+
+        @router.get("/tacho/downloads/{download_id}/file")
+        def tacho_file(download_id: str, user: User, db: Db) -> Response:
+            """Oryginalny plik .DDD (archiwum do kontroli)."""
+            record = db.get(TachoDownload, download_id)
+            current = role(db, user, record.company_id) if record else None
+            own = False
+            if record is not None and record.driver_id:
+                owner = db.get(Driver, record.driver_id)
+                own = owner is not None and owner.subject == user.subject
+            if record is None or current is None or (current not in MANAGERS and not own):
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("tacho.not_found"))
+            safe = re.sub(r"[^0-9A-Za-z._-]", "_", record.name)
+            return Response(
+                record.content,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f'attachment; filename="{safe}"'},
+            )
 
         # ── Przydział do pojazdów ──────────────────────────────────────────────────────────
 
@@ -770,6 +1242,10 @@ class DriversModule(Module):
                 .where(Assignment.vehicle_id == merged_id)
                 .values(vehicle_id=kept_id)
             )
+            for table in (TachoDownload, TachoActivity, TachoPlace):
+                db.execute(
+                    update(table).where(table.vehicle_id == merged_id).values(vehicle_id=kept_id)
+                )
 
         fleet.on_driver_assigned(driver_assigned)
         fleet.on_vehicles_merged(vehicles_merged)

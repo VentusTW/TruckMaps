@@ -186,6 +186,10 @@ class Fleet(Protocol):
         """Przegląd techniczny zrobiony w serwisie: ostatni przegląd i nowa ważność pojazdu."""
         ...
 
+    def record_tacho_download(self, db: Session, vehicle_id: str, day: date) -> None:
+        """Pobrano dane z tachografu pojazdu – następne pobranie za 90 dni."""
+        ...
+
     def cargo(self, db: Session, vehicle_id: str) -> CargoInfo:
         """Przestrzeń ładunkowa i ładowność pojazdu (bez sprawdzania widoczności)."""
         ...

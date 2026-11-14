@@ -2441,10 +2441,10 @@
   "drvTabRoute": "Bieżąca Trasa & Telemetria Eco-Drive",
   "drvTachoContinuous": "Jazda ciągła",
   "drvTachoDaily": "Jazda dzienna",
-  "drvTachoHome": "Powrót do bazy",
+  "drvTachoHome": "Odpoczynek tygodniowy",
   "drvTachoRest": "Odpoczynek dobowy",
   "drvTachoSubtitle": "Monitoring limitów wg Rozporządzenia (WE) 561/2006 oraz Pakietu Mobilności UE",
-  "drvTachoTitle": "Stan Tachografu Na Żywo",
+  "drvTachoTitle": "Czas Pracy z Tachografu",
   "drvTachoTwoWeeks": "Dwutygodniowy",
   "drvTachoWeek": "Czas tygodniowy",
   "drvToday": "Dzisiaj",
@@ -3716,5 +3716,177 @@
   "fleetTyreMounted": "Data montażu",
   "fleetTyreTread": "Bieżnik [mm]",
   "vehCertAfterSave": "Dostępne po zapisaniu pojazdu",
-  "vehCertNumber": "Numer świadectwa"
+  "vehCertNumber": "Numer świadectwa",
+  "tachoUpload": "Wczytaj plik .DDD",
+  "tachoFileType": "Pliki z tachografu",
+  "tachoUploaded": "Wczytano {name}: {count} odcinków aktywności",
+  "@tachoUploaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tachoUnmatched": "Karty bez kierowcy w kartotece: {cards}",
+  "@tachoUnmatched": {
+    "placeholders": {
+      "cards": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoPickFailed": "Na tym urządzeniu nie można wybrać pliku .DDD – użyj aplikacji na komputerze.",
+  "tachoNoData": "Brak danych z tachografu – wczytaj plik .DDD z karty kierowcy.",
+  "tachoAsOf": "Stan na {when} (koniec danych z pliku)",
+  "@tachoAsOf": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoLeft": "zostało {value}",
+  "@tachoLeft": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoDue": "najpóźniej rozpocząć",
+  "tachoExtLeft": "wydłużenia do 10 h: {count}",
+  "@tachoExtLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tachoDays": "Dni pracy z tachografu",
+  "tachoShowAll": "Wszystkie dni",
+  "tachoClose": "Zamknij",
+  "tachoDaySummary": "jazda {driving} • praca {work}",
+  "@tachoDaySummary": {
+    "placeholders": {
+      "driving": {
+        "type": "String"
+      },
+      "work": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoActDriving": "Jazda",
+  "tachoActWork": "Praca",
+  "tachoActAvailable": "Dyspozycyjność",
+  "tachoActRest": "Odpoczynek",
+  "tachoActUnknown": "Brak danych",
+  "tachoPlaceBegin": "początek pracy",
+  "tachoPlaceEnd": "koniec pracy",
+  "tachoViolationsTitle": "Naruszenia (Rozporządzenie 561/2006)",
+  "tachoViolationsNone": "Brak naruszeń w ostatnich {days} dniach danych.",
+  "@tachoViolationsNone": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "tachoViolationCount": "naruszenia: {count}",
+  "@tachoViolationCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tachoSevMinor": "Drobne",
+  "tachoSevSerious": "Poważne",
+  "tachoSevVerySerious": "Bardzo poważne",
+  "tachoVDailyDriving": "Dzienny czas jazdy {value} h (limit {limit} h)",
+  "@tachoVDailyDriving": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVWeeklyDriving": "Tygodniowy czas jazdy {value} h (limit {limit} h)",
+  "@tachoVWeeklyDriving": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVFortnight": "Czas jazdy w dwóch tygodniach {value} h (limit {limit} h)",
+  "@tachoVFortnight": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVBreak": "Jazda bez przerwy {value} h (limit {limit} h)",
+  "@tachoVBreak": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVDailyRest": "Odpoczynek dobowy {value} h (wymagane {limit} h)",
+  "@tachoVDailyRest": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVWeeklyRest": "Odpoczynek tygodniowy {value} h (wymagane {limit} h)",
+  "@tachoVWeeklyRest": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoVWeeklyLate": "Odpoczynek tygodniowy rozpoczęty {value} h za późno",
+  "@tachoVWeeklyLate": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoLastVu": "Pobrano {date}",
+  "@tachoLastVu": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "tachoNeverVu": "Brak odczytu"
 }

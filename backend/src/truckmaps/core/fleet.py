@@ -1,7 +1,7 @@
 """Pojazdy dla modułów (``truckmaps.sdk.fleet.Fleet``) – widoczność jak w ``/api/vehicles``."""
 
 from collections.abc import Callable, Iterator
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -23,6 +23,9 @@ from truckmaps.sdk.fleet import (
     TripInfo,
     VehicleInfo,
 )
+
+TACHO_DOWNLOAD_DAYS = 90
+"""Dane z tachografu pojazdu pobiera się co najmniej co 90 dni."""
 
 PeriodicJob = tuple[str, Callable[[Session], int]]
 
@@ -190,6 +193,11 @@ class CoreFleet:
         if vehicle is not None:
             vehicle.last_inspection = day
             vehicle.inspection_until = valid_until
+
+    def record_tacho_download(self, db: Session, vehicle_id: str, day: date) -> None:
+        vehicle = db.get(VehicleProfile, vehicle_id)
+        if vehicle is not None:
+            vehicle.tachograph_download_until = day + timedelta(days=TACHO_DOWNLOAD_DAYS)
 
     def cargo(self, db: Session, vehicle_id: str) -> CargoInfo:
         vehicle = db.get(VehicleProfile, vehicle_id)

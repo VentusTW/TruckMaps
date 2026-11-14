@@ -39,6 +39,7 @@ dependencies:
   module_documents:
     path: ../packages/module_documents
   image_picker: ^1.1.2
+  file_selector_platform_interface: ^2.6.2
   mobile_scanner: ^5.1.1
   google_mlkit_text_recognition: ^0.15.0
   vector_map_tiles: ^7.3.1
