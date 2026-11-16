@@ -14,10 +14,12 @@ class DocumentsTexts {
 
   String get moduleName => _t('Dokumenty', 'Documents');
   String get moduleDescription => _t(
-      'List przewozowy CMR, zlecenie transportowe, karta drogowa, potwierdzenie dostawy (POD) i protokół szkody '
+      'List przewozowy CMR, zlecenie transportowe, karta drogowa, potwierdzenie dostawy (POD), protokół załadunku '
+          'i protokół szkody '
           'z podpisem na ekranie wypełniane z danych firmy, pojazdu, kierowcy, trasy i przejazdów; własne pola, '
           'logo firmy, wydruk PDF.',
-      'CMR consignment note, transport order, vehicle log sheet, proof of delivery (POD) and damage report signed '
+      'CMR consignment note, transport order, vehicle log sheet, proof of delivery (POD), loading report '
+          'and damage report signed '
           'on screen, filled in from company, vehicle, driver, route and trip data; custom fields, company logo, '
           'PDF print.');
   String get menu => _t('Dokumenty', 'Documents');

@@ -129,5 +129,15 @@
   "documents.field.damage_description": "Description of damage",
   "documents.field.damage_cause": "Cause of damage",
   "documents.field.witnesses": "Present when drawn up (witnesses)",
-  "documents.col.damaged": "Pcs missing / damaged"
+  "documents.col.damaged": "Pcs missing / damaged",
+  "documents.kind.loading_report": "Loading and securing report",
+  "documents.basis.loading_report": "Condition, quantity and arrangement of the load when taken over – CMR Convention art. 8–9 (checking the consignment, carrier's reservations), Polish Transport Law; securing – Directive 2014/47/EU (Annex III), EN 12195-1.",
+  "documents.field.loaded_at": "Loading date and time",
+  "documents.field.loading_place": "Place of loading",
+  "documents.field.ldm": "Loading metres [LDM]",
+  "documents.field.arrangement": "Load arrangement (order, side, stacking)",
+  "documents.field.securing": "Securing (straps – number, anti-slip mats, bars, blocking)",
+  "documents.field.goods_condition": "Condition of goods and packaging",
+  "documents.field.sender_signature": "Sender's / loader's signature",
+  "documents.field.total_kg": "Total gross weight [kg]"
 }
