@@ -443,7 +443,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final perKm = km == 0 ? null : (routeCost + service) / km;
     final revenue = _revenueIn(data);
     final fuel = _fuelIn(data);
-    final costs = routeCost + service + (fuel ?? 0);
+    // Tankowania z kart (gdy są) zastępują szacunek kosztów tras – jak w TCO, bez podwójnego paliwa.
+    final cardFuel = fuel != null && fuel > 0;
+    final costs = (cardFuel ? fuel : routeCost) + service;
     final burns = [
       for (final v in data.power)
         if (v['consumption_loaded'] is num) (v['consumption_loaded'] as num).toDouble()
@@ -502,7 +504,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             else ...[
               Text(l.anRevenuePerKm(revenue.perKm == null ? '–' : l.number(revenue.perKm!, decimals: 2)),
                   style: theme.textTheme.bodySmall),
-              Text((fuel == null ? l.anMarginCosts : l.anMarginCostsFuel)(l.number(costs, decimals: 0)),
+              Text((!cardFuel ? l.anMarginCosts : l.anMarginCostsFuel)(l.number(costs, decimals: 0)),
                   style: theme.textTheme.bodySmall),
               Text(l.anMargin(l.number(revenue.total - costs, decimals: 0)),
                   key: const Key('an-margin'),

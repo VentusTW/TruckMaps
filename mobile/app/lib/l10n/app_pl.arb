@@ -3975,7 +3975,7 @@
       }
     }
   },
-  "anMarginCostsFuel": "Koszty (trasy, serwis, karty paliwowe): {value} PLN",
+  "anMarginCostsFuel": "Koszty (paliwo z kart, serwis): {value} PLN",
   "@anMarginCostsFuel": {
     "placeholders": {
       "value": {
