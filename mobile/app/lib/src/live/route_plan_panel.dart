@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../l10n.dart';
 import '../planner/place_field.dart';
 import '../planner/route.dart';
+import '../service/revenue.dart';
 import 'live_screen.dart' show LiveVehicle;
 
 /// Centrala: trasa dla pojazdu firmy wysyłana kierowcy. Start domyślnie w bieżącej pozycji
@@ -40,6 +41,8 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
   final _startText = TextEditingController();
   final _endText = TextEditingController();
   final _note = TextEditingController();
+  final _amount = TextEditingController(), _rate = TextEditingController();
+  String _currency = 'PLN';
   final List<TextEditingController> _viaText = [];
   final List<Place?> _via = [];
   Place? _start, _end;
@@ -64,7 +67,7 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
 
   @override
   void dispose() {
-    for (final c in [_startText, _endText, _note, ..._viaText]) {
+    for (final c in [_startText, _endText, _note, _amount, _rate, ..._viaText]) {
       c.dispose();
     }
     super.dispose();
@@ -129,7 +132,9 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
     if (start == null || end == null || route == null || driver == null) return;
     setState(() => _busy = true);
     try {
-      await widget.api.post('/api/companies/${widget.companyId}/route-assignments', {
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      final l = context.l;
+      final sent = await widget.api.post('/api/companies/${widget.companyId}/route-assignments', {
         'vehicle_id': widget.vehicle.id,
         'driver_member_id': driver,
         'origin': _stop(start),
@@ -140,6 +145,16 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
         'distance_km': route.distanceKm,
         'duration_min': route.durationMin,
       });
+      // Przychód zlecenia (opcjonalny) – trasa jest już wysłana, więc błąd zapisu tylko zgłaszamy.
+      final amount = parseAmount(_amount.text), perKm = parseAmount(_rate.text);
+      if ((amount != null || perKm != null) && sent is Map) {
+        try {
+          await saveRevenue(widget.api, widget.companyId, '${sent['id']}',
+              amount: amount, ratePerKm: amount == null ? perKm : null, currency: _currency);
+        } catch (error) {
+          messenger?.showSnackBar(SnackBar(content: Text(l.revSaveFailed('$error'))));
+        }
+      }
       widget.onSent(_drivers.firstWhere((d) => d.$1 == driver).$2);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -268,6 +283,13 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
             maxLines: 2,
             decoration: InputDecoration(labelText: l.livePlanNote, border: const OutlineInputBorder()),
           ),
+          RevenueFields(
+            amount: _amount,
+            rate: _rate,
+            currency: _currency,
+            onCurrency: (c) => setState(() => _currency = c),
+          ),
+          const SizedBox(height: 12),
           FilledButton.icon(
             key: const Key('plan-send'),
             onPressed: _busy || _driver == null ? null : _send,

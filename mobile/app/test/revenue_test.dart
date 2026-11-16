@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:truckmaps_app/src/l10n.dart';
+import 'package:truckmaps_app/src/live/live_screen.dart' show LiveVehicle;
+import 'package:truckmaps_app/src/live/route_plan_panel.dart';
 import 'package:truckmaps_app/src/live/send_route.dart';
 import 'package:truckmaps_app/src/planner/place_field.dart';
 import 'package:truckmaps_app/src/planner/route.dart';
@@ -267,5 +269,64 @@ void main() {
     final put = calls.singleWhere((r) => r.method == 'PUT');
     expect(put.url.path, '/api/companies/c1/route-assignments/a9/revenue');
     expect(jsonDecode(put.body), {'rate_per_km': 5.5, 'currency': 'EUR'});
+  });
+
+  testWidgets('panel wysyłki trasy na mapie zapisuje kwotę zlecenia', (tester) async {
+    big(tester);
+    final calls = <http.Request>[];
+    final client = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((r) async {
+        calls.add(r);
+        return switch (r.url.path) {
+          '/api/companies/c1' => json({
+              'members': [
+                {'id': 'm1', 'role': 'driver', 'display_name': 'Jan'}
+              ]
+            }),
+          '/api/routes' => json({
+              'distance_km': 600.0,
+              'duration_min': 420.0,
+              'geometry': [
+                [19.94, 50.06],
+                [13.4, 52.52]
+              ],
+              'analysis': {'level': 'green', 'segments': [], 'warnings': []},
+              'cost': null,
+              'alternatives': [],
+            }),
+          '/api/companies/c1/route-assignments' => json({'id': 'a7'}),
+          _ => json({'assignment_id': 'a7', 'amount': 4200}),
+        };
+      }),
+    );
+    String? sent;
+    await tester.pumpWidget(localized(Scaffold(
+      body: RoutePlanPanel(
+        api: client,
+        companyId: 'c1',
+        vehicle: const LiveVehicle(id: 'v1', name: 'Volvo', position: LatLng(50.06, 19.94)),
+        onRoute: (_) {},
+        onClose: () {},
+        onSent: (name) => sent = name,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.descendant(of: find.byKey(const Key('plan-end')), matching: find.byType(TextField)), '52.52, 13.4');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('GPS 52.52, 13.4').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('plan-calculate')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('revenue-amount')), '4 200');
+    await tester.ensureVisible(find.byKey(const Key('plan-send')));
+    await tester.tap(find.byKey(const Key('plan-send')));
+    await tester.pumpAndSettle();
+    expect(sent, 'Jan');
+    final put = calls.singleWhere((r) => r.method == 'PUT');
+    expect(put.url.path, '/api/companies/c1/route-assignments/a7/revenue');
+    expect(jsonDecode(put.body), {'amount': 4200, 'currency': 'PLN'});
   });
 }
