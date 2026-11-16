@@ -119,5 +119,15 @@
   "documents.field.received_by": "Received by (full name)",
   "documents.field.consignee_signature": "Consignee's signature",
   "documents.field.driver_signature": "Driver's signature",
-  "documents.bad_signature": "Invalid signature image."
+  "documents.bad_signature": "Invalid signature image.",
+  "documents.kind.damage_report": "Damage / claim report",
+  "documents.basis.damage_report": "Record of loss, damage or delay – CMR Convention art. 17–29 (carrier liability) and art. 30 (reservations: apparent damage on delivery, non-apparent within 7 days, delay within 21 days), art. 32 (1-year limitation); Polish Transport Law art. 74–76 (damage report, claim).",
+  "documents.field.found_at": "Date and time found",
+  "documents.field.found_place": "Place where damage was found",
+  "documents.field.damage_type": "Type of damage (loss / damage / delay)",
+  "documents.field.damage_value": "Estimated value of damage",
+  "documents.field.damage_description": "Description of damage",
+  "documents.field.damage_cause": "Cause of damage",
+  "documents.field.witnesses": "Present when drawn up (witnesses)",
+  "documents.col.damaged": "Pcs missing / damaged"
 }

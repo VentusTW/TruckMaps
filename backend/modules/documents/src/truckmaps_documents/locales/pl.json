@@ -119,5 +119,15 @@
   "documents.field.received_by": "Odebrał (imię i nazwisko)",
   "documents.field.consignee_signature": "Podpis odbiorcy",
   "documents.field.driver_signature": "Podpis kierowcy",
-  "documents.bad_signature": "Nieprawidłowy obraz podpisu."
+  "documents.bad_signature": "Nieprawidłowy obraz podpisu.",
+  "documents.kind.damage_report": "Protokół szkody / reklamacji",
+  "documents.basis.damage_report": "Ustalenie ubytku, uszkodzenia lub opóźnienia – Konwencja CMR art. 17–29 (odpowiedzialność przewoźnika) i art. 30 (zastrzeżenia: szkody widoczne przy odbiorze, niewidoczne w 7 dni, opóźnienie w 21 dni), art. 32 (przedawnienie 1 rok); ustawa Prawo przewozowe art. 74–76 (protokół szkody, reklamacja).",
+  "documents.field.found_at": "Data i godzina stwierdzenia",
+  "documents.field.found_place": "Miejsce stwierdzenia szkody",
+  "documents.field.damage_type": "Rodzaj szkody (ubytek / uszkodzenie / opóźnienie)",
+  "documents.field.damage_value": "Szacowana wartość szkody",
+  "documents.field.damage_description": "Opis szkody",
+  "documents.field.damage_cause": "Przyczyna szkody",
+  "documents.field.witnesses": "Obecni przy sporządzeniu (świadkowie)",
+  "documents.col.damaged": "Sztuk brak. / uszk."
 }

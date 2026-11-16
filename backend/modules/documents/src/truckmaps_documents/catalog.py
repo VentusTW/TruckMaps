@@ -145,4 +145,31 @@ POD = Kind(
     ),
 )
 
-KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD)}
+DAMAGE = Kind(
+    id="damage_report",
+    prefix="PS",
+    fields=(
+        Field("document_ref", "text", 0.5),
+        Field("found_at", "text", 0.25),
+        Field("seal_number", "text", 0.25),
+        Field("found_place", "text", 1.0),
+        Field("carrier", "multiline", 0.5),
+        Field("sender", "multiline", 0.5),
+        Field("consignee", "multiline", 0.5),
+        Field("insurance", "multiline", 0.5),
+        Field("driver_name", "text", 0.5),
+        Field("tractor_plate", "text", 0.25),
+        Field("trailer_plate", "text", 0.25),
+        Field("goods", "rows", 1.0, "", ("nature", "packages", "packing", "gross_kg", "damaged")),
+        Field("damage_type", "text", 0.5),
+        Field("damage_value", "text", 0.5),
+        Field("damage_description", "multiline", 1.0),
+        Field("damage_cause", "multiline", 1.0),
+        Field("witnesses", "multiline", 0.5),
+        Field("notes", "multiline", 0.5),
+        Field("driver_signature", "signature", 0.5),
+        Field("consignee_signature", "signature", 0.5),
+    ),
+)
+
+KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, DAMAGE)}

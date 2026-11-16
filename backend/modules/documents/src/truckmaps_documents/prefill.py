@@ -181,6 +181,17 @@ def _vehicle(result: Prefill, vehicle: DrivingInfo | None) -> None:
     result.set("trailer_plate", vehicle.trailer_plate, "vehicle")
 
 
+def _insurance(result: Prefill, profile: Profile) -> None:
+    if profile.ocp_policy:
+        insurance = t(
+            "documents.text.ocp",
+            policy=profile.ocp_policy,
+            insurer=profile.ocp_insurer or "–",
+            sum=profile.ocp_sum or "–",
+        )
+        result.set("insurance", insurance, "profile")
+
+
 def _issued(result: Prefill, src: Sources) -> None:
     profile = src.profile
     result.set("issued_place", profile.issue_place or profile.city, "profile")
@@ -252,14 +263,7 @@ def _order(result: Prefill, src: Sources) -> None:
         result.set("goods", rows, "cargo")
         result.set("dangerous_goods", src.cargo.dangerous_goods, "cargo")
     profile = src.profile
-    if profile.ocp_policy:
-        insurance = t(
-            "documents.text.ocp",
-            policy=profile.ocp_policy,
-            insurer=profile.ocp_insurer or "–",
-            sum=profile.ocp_sum or "–",
-        )
-        result.set("insurance", insurance, "profile")
+    _insurance(result, profile)
     contact = ", ".join(p for p in (profile.contact_person, profile.phone, profile.email) if p)
     result.set("contact_person", contact, "profile")
     result.set("issued_date", src.today.isoformat(), "auto")
@@ -317,7 +321,32 @@ def _pod(result: Prefill, src: Sources) -> None:
         result.set("goods", _goods(src.cargo, "nature packages packing gross_kg"), "cargo")
 
 
-FILLERS = {"cmr": _cmr, "transport_order": _order, "road_card": _road_card, "pod": _pod}
+def _damage(result: Prefill, src: Sources) -> None:
+    carrier = company_block(src.company, src.profile)
+    if src.profile.licence_number:
+        carrier += "\n" + t("documents.text.licence", value=src.profile.licence_number)
+    result.set("carrier", carrier, "company")
+    _insurance(result, src.profile)
+    _vehicle(result, src.vehicle)
+    result.set("driver_name", src.driver_name, "driver")
+    last = src.route.stops[-1] if src.route and src.route.stops else None
+    if last:
+        result.set("found_place", _place(last), "route")
+    if last and last.at:
+        result.set("found_at", last.at.strftime("%Y-%m-%d %H:%M"), "route")
+    else:
+        result.set("found_at", src.today.isoformat(), "auto")
+    if src.cargo:
+        result.set("goods", _goods(src.cargo, "nature packages packing gross_kg"), "cargo")
+
+
+FILLERS = {
+    "cmr": _cmr,
+    "transport_order": _order,
+    "road_card": _road_card,
+    "pod": _pod,
+    "damage_report": _damage,
+}
 
 
 def prefill(kind: str, src: Sources) -> Prefill:
