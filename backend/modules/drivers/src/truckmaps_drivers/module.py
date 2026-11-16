@@ -1102,11 +1102,34 @@ class DriversModule(Module):
                 raise HTTPException(status.HTTP_403_FORBIDDEN, t("drivers.edit_forbidden"))
             days = max(1, min(days, 366))
             day = today()
+            drivers = list(
+                db.scalars(
+                    select(Driver).where(Driver.company_id == company_id).order_by(Driver.name)
+                )
+            )
+            # Dwa zapytania dla całej firmy zamiast kilku na kierowcę: koniec danych każdego
+            # kierowcy, potem odcinki od najwcześniejszego potrzebnego dnia (jak w tacho_of).
+            lasts = {
+                driver_id: _aware(last)
+                for driver_id, last in db.execute(
+                    select(TachoActivity.driver_id, func.max(TachoActivity.end))
+                    .where(TachoActivity.driver_id.in_([d.id for d in drivers]))
+                    .group_by(TachoActivity.driver_id)
+                )
+            }
+            rows: dict[str, list] = defaultdict(list)
+            if lasts:
+                earliest = min(lasts.values()) - timedelta(days=days + 21)
+                for row in db.scalars(
+                    select(TachoActivity).where(
+                        TachoActivity.driver_id.in_(list(lasts)), TachoActivity.end > earliest
+                    )
+                ):
+                    if _aware(row.end) > lasts[row.driver_id] - timedelta(days=days + 21):
+                        rows[row.driver_id].append(row)
             found = []
-            for driver in db.scalars(
-                select(Driver).where(Driver.company_id == company_id).order_by(Driver.name)
-            ):
-                view = tacho_of(db, driver, days)
+            for driver in drivers:
+                view = tacho_view(driver.id, driver.card_number, rows[driver.id], [], [], days)
                 levels = [v.severity for v in view.violations]
                 states = [s for _, _, s in rules.dues(driver, day)]
                 found.append(
