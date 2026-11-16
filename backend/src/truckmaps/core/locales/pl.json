@@ -286,6 +286,7 @@
   "error.tiles_not_found": "Nie ma takiego pliku mapy.",
   "dispatch.not_found": "Nie znaleziono trasy od dyspozytora.",
   "dispatch.driver_not_found": "Wybrana osoba nie należy do firmy.",
+  "revenue.distance_unknown": "Trasa nie ma długości – podaj kwotę zamiast stawki za km.",
   "records.not_found": "Nie znaleziono wpisu.",
   "records.bad_file": "Nieprawidłowy plik.",
   "records.file_too_large": "Plik jest za duży (najwyżej {mb} MB).",

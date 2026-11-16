@@ -3137,7 +3137,7 @@
       }
     }
   },
-  "anRevenue": "Przychód flotowy m/m",
+  "anRevenue": "Przychód ze zleceń",
   "anBurn": "Średnie spalanie",
   "anBurnNote": "Z kart pojazdów (z ładunkiem)",
   "anEuro6": "Euro 6 / EV: {count} z {total}",
@@ -3947,6 +3947,86 @@
   "@tcoFuelCardsOther": {
     "placeholders": {
       "amounts": {
+        "type": "String"
+      }
+    }
+  },
+  "anRevenuePerKm": "• Na km: {value} PLN/km",
+  "@anRevenuePerKm": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "anMargin": "Marża: {value} PLN",
+  "@anMargin": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "anMarginCosts": "Koszty (trasy, serwis): {value} PLN",
+  "@anMarginCosts": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "anMarginCostsFuel": "Koszty (trasy, serwis, karty paliwowe): {value} PLN",
+  "@anMarginCostsFuel": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "anRevenueOrders": "Zlecenia z przychodem: {count} z {total}",
+  "@anRevenueOrders": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "anRevenueUnconverted": "Bez kursu (poza sumą): {currencies}",
+  "@anRevenueUnconverted": {
+    "placeholders": {
+      "currencies": {
+        "type": "String"
+      }
+    }
+  },
+  "anRevenueNone": "Przychody widzą właściciel i dyspozytor",
+  "anRevenueEnter": "Wpisz przychody",
+  "revTitle": "Przychody ze zleceń transportowych",
+  "revNone": "Brak zleceń w okresie – wyślij trasę kierowcy z planera.",
+  "revNoAccess": "Przychody widzą i wpisują właściciel i dyspozytor.",
+  "revAmount": "Kwota zlecenia",
+  "revCurrency": "Waluta",
+  "revRatePerKm": "Stawka za km (gdy brak kwoty)",
+  "revEdit": "Przychód zlecenia",
+  "revRemove": "Usuń przychód",
+  "revMissing": "brak przychodu",
+  "revInvalid": "Podaj kwotę albo stawkę za km.",
+  "revClose": "Zamknij",
+  "revSaveFailed": "Trasa wysłana, ale nie zapisano przychodu: {error}",
+  "@revSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csvRevenue": "Przychód ({currency})",
+  "@csvRevenue": {
+    "placeholders": {
+      "currency": {
         "type": "String"
       }
     }
