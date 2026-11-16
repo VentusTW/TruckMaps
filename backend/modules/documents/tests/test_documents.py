@@ -330,6 +330,11 @@ def test_prefill_posting_declaration_from_route_and_period(client, company):
     result = client.post(f"{API}/prefill", json=bilateral, headers=as_user("olek")).json()
     assert "transport_type" not in result["data"]
     assert any("dwustronny" in w for w in result["warnings"])
+    # Kraje nieznane (jeden przystanek bez kraju) – bez zgadywania i bez ostrzeżenia.
+    unknown = body | {"route": {"stops": [{"label": "Lyon"}, stops[1]]}}
+    result = client.post(f"{API}/prefill", json=unknown, headers=as_user("olek")).json()
+    assert "transport_type" not in result["data"] and result["warnings"] == []
+    assert result["sources"]["period_from"] == "auto"
     bad = body | {"date_from": "2026-11-14", "date_to": "2026-11-12"}
     assert client.post(f"{API}/prefill", json=bad, headers=as_user("olek")).status_code == 422
 

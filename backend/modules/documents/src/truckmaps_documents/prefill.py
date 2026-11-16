@@ -306,14 +306,15 @@ def _road_card(result: Prefill, src: Sources) -> None:
 
 def posting_operation(home: str, stops: list[Stop]) -> tuple[str, list[str]] | None:
     """Rodzaj przewozu z krajów załadunku i rozładunku (dyrektywa 2020/1057 art. 1):
-    kabotaż – oba w tym samym obcym kraju, cross-trade – oba poza krajem siedziby i różne.
-    ``None`` – przewóz dwustronny albo tranzyt (bez delegowania) lub brak krajów."""
+    kabotaż – oba w tym samym obcym kraju, cross-trade – oba poza krajem siedziby i różne,
+    ``bilateral`` – przewóz z kraju siedziby albo do niego (bez delegowania).
+    ``None`` – nie wiadomo (brak kraju firmy albo krajów załadunku i rozładunku)."""
     countries = [s.country.upper() for s in stops if s.country]
     if len(countries) < 2 or not home:
         return None
     first, last = countries[0], countries[-1]
     if home in (first, last):
-        return None
+        return "bilateral", []
     if first == last:
         return "cabotage", [first]
     return "cross_trade", [first, last]
@@ -332,20 +333,20 @@ def _posting(result: Prefill, src: Sources) -> None:
     _vehicle(result, src.vehicle)
     start, end = src.period or (src.today, src.today)
     stops = src.route.stops if src.route else []
+    source = "auto"
     if src.period is None and stops and stops[0].at:
         start = end = stops[0].at.date()
         if stops[-1].at:
             end = max(start, stops[-1].at.date())
-    result.set(
-        "period_from", start.isoformat(), "route" if src.period is None and stops else "auto"
-    )
-    result.set("period_to", end.isoformat(), "route" if src.period is None and stops else "auto")
-    if stops:
-        operation = posting_operation((profile.country or "").upper(), stops)
-        if operation is None:
+        source = "route"
+    result.set("period_from", start.isoformat(), source)
+    result.set("period_to", end.isoformat(), source)
+    operation = posting_operation((profile.country or "").upper(), stops)
+    if operation is not None:
+        kind, countries = operation
+        if kind == "bilateral":
             result.warnings.append(t("documents.warn.not_posting"))
         else:
-            kind, countries = operation
             result.set("transport_type", t(f"documents.text.{kind}"), "route")
             result.set("host_country", ", ".join(countries), "route")
     result.set("notes", t("documents.text.posting_notes"), "auto")
