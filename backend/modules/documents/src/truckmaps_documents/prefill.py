@@ -304,7 +304,60 @@ def _road_card(result: Prefill, src: Sources) -> None:
         result.set("odometer_start", max(0, vehicle.odometer_km - total), "trips")
 
 
-FILLERS = {"cmr": _cmr, "transport_order": _order, "road_card": _road_card}
+def posting_operation(home: str, stops: list[Stop]) -> tuple[str, list[str]] | None:
+    """Rodzaj przewozu z krajów załadunku i rozładunku (dyrektywa 2020/1057 art. 1):
+    kabotaż – oba w tym samym obcym kraju, cross-trade – oba poza krajem siedziby i różne.
+    ``None`` – przewóz dwustronny albo tranzyt (bez delegowania) lub brak krajów."""
+    countries = [s.country.upper() for s in stops if s.country]
+    if len(countries) < 2 or not home:
+        return None
+    first, last = countries[0], countries[-1]
+    if home in (first, last):
+        return None
+    if first == last:
+        return "cabotage", [first]
+    return "cross_trade", [first, last]
+
+
+def _posting(result: Prefill, src: Sources) -> None:
+    carrier = company_block(src.company, src.profile)
+    if src.profile.licence_number:
+        carrier += "\n" + t("documents.text.licence", value=src.profile.licence_number)
+    result.set("carrier", carrier, "company")
+    profile = src.profile
+    contact = "\n".join(p for p in (profile.contact_person, profile.phone, profile.email) if p)
+    result.set("contact_person", contact, "profile")
+    result.set("driver_name", src.driver_name, "driver")
+    result.set("applicable_law", (profile.country or "").upper(), "profile")
+    _vehicle(result, src.vehicle)
+    start, end = src.period or (src.today, src.today)
+    stops = src.route.stops if src.route else []
+    if src.period is None and stops and stops[0].at:
+        start = end = stops[0].at.date()
+        if stops[-1].at:
+            end = max(start, stops[-1].at.date())
+    result.set(
+        "period_from", start.isoformat(), "route" if src.period is None and stops else "auto"
+    )
+    result.set("period_to", end.isoformat(), "route" if src.period is None and stops else "auto")
+    if stops:
+        operation = posting_operation((profile.country or "").upper(), stops)
+        if operation is None:
+            result.warnings.append(t("documents.warn.not_posting"))
+        else:
+            kind, countries = operation
+            result.set("transport_type", t(f"documents.text.{kind}"), "route")
+            result.set("host_country", ", ".join(countries), "route")
+    result.set("notes", t("documents.text.posting_notes"), "auto")
+    _issued(result, src)
+
+
+FILLERS = {
+    "cmr": _cmr,
+    "transport_order": _order,
+    "road_card": _road_card,
+    "posting_declaration": _posting,
+}
 
 
 def prefill(kind: str, src: Sources) -> Prefill:
