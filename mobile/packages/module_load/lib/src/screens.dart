@@ -528,7 +528,9 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
     });
     try {
       final plan = await call();
-      if (mounted) setState(() => _plan = plan as Map<String, dynamic>);
+      if (!mounted) return;
+      setState(() => _plan = plan as Map<String, dynamic>);
+      _shareCargo(plan as Map<String, dynamic>);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
@@ -539,6 +541,24 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
         });
       }
     }
+  }
+
+  /// Ładunek policzonego planu dla innych modułów (np. dokument z planera trasy).
+  void _shareCargo(Map<String, dynamic> plan) {
+    final t = LoadTexts.of(context);
+    currentCargo.value = {
+      'vehicle_id': _vehicleId,
+      'items': [
+        for (final i in _items)
+          {
+            'kind': i.kind,
+            'count': _parse(i.count.text)?.round() ?? 1,
+            'weight_kg': _parse(i.weight.text) ?? 0,
+            'label': _cargoName(t, i),
+          },
+      ],
+      if (plan['ldm'] is num) 'ldm': plan['ldm'],
+    };
   }
 
   /// Ręczne ułożenie (przeciągnięte palety): serwer liczy naciski i ostrzeżenia od nowa.

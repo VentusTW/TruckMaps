@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../l10n.dart';
 import '../planner/place_field.dart';
 import '../planner/route.dart';
+import '../planner/route_actions.dart';
 import '../service/revenue.dart';
 import 'live_screen.dart' show LiveVehicle;
 
@@ -50,6 +51,7 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
   bool _busy = false;
   String? _error;
   PlannedRoute? _route;
+  RouteResult? _result;
   List<(String, String)> _drivers = const [];
   String? _driver;
 
@@ -117,8 +119,11 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
         'vehicle_id': widget.vehicle.id,
         'avoid_difficult': _avoid,
       }) as Map<String, dynamic>;
-      final route = RouteResult.fromJson(body).route;
-      setState(() => _route = route);
+      final result = RouteResult.fromJson(body), route = result.route;
+      setState(() {
+        _result = result;
+        _route = route;
+      });
       widget.onRoute(route);
     } catch (error) {
       setState(() => _error = '$error');
@@ -297,6 +302,20 @@ class _RoutePlanPanelState extends State<RoutePlanPanel> {
             label: Text(l.livePlanSend),
           ),
         ],
+        if (_start != null && _end != null)
+          RouteActionButtons(
+            data: () => routeData(
+              companyId: widget.companyId,
+              vehicleId: widget.vehicle.id,
+              start: _start!,
+              end: _end!,
+              via: _via.whereType<Place>().toList(),
+              route: route,
+              countries: _result?.countries ?? const [],
+              departure: _result?.departure,
+              arrival: _result?.arrival,
+            ),
+          ),
       ],
     ]);
   }
