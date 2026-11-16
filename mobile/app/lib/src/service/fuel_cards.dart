@@ -84,11 +84,15 @@ class FuelCardsSummary extends StatefulWidget {
     required this.months,
     this.stats = const {},
     this.picker,
+    this.onChanged,
   });
 
   final CoreApi api;
   final String? companyId;
   final int months;
+
+  /// Po zamknięciu okna (mógł być import) – np. przeliczenie struktury kosztów.
+  final VoidCallback? onChanged;
 
   /// Statystyki przejazdów pojazdów (`distance_km`) – do spalania l/100 km.
   final Map<String, Map<String, dynamic>> stats;
@@ -140,6 +144,7 @@ class _FuelCardsSummaryState extends State<FuelCardsSummary> {
       ),
     );
     await _load();
+    widget.onChanged?.call();
   }
 
   @override

@@ -55,6 +55,7 @@ class _TcoScreenState extends State<TcoScreen> {
   /// Filtr marki (OEM) i ceny paliwa z biuletynu KE.
   String? _make;
   Map<String, dynamic>? _fuel;
+  Map<String, dynamic>? _cards;
 
   FleetData _filtered(FleetData d) {
     if (_make == null) return d;
@@ -234,6 +235,7 @@ class _TcoScreenState extends State<TcoScreen> {
       final data =
           await FleetData.load(widget.api, widget.companyId, withStats: true, withDrivers: true, months: widget.months);
       if (mounted) setState(() => _data = data);
+      await _loadCards();
       final fuel = await widget.api.get('/api/fuel-prices');
       if (mounted && fuel is Map<String, dynamic>) setState(() => _fuel = fuel);
     } catch (e) {
@@ -254,6 +256,37 @@ class _TcoScreenState extends State<TcoScreen> {
     }
   }
 
+  /// Tankowania z kart paliwowych w okresie (rzeczywisty koszt paliwa zamiast szacunku tras).
+  Future<void> _loadCards() async {
+    final company = widget.companyId;
+    if (company == null) return;
+    try {
+      final cards = await FuelCardsApi(widget.api, company).summary(months: widget.months);
+      if (mounted) setState(() => _cards = cards);
+    } catch (_) {}
+  }
+
+  /// Kwota tankowań w PLN pojazdów z widoku (bez filtra marki – także bez pojazdu) i kwoty
+  /// w innych walutach (nie przeliczamy kursów).
+  (double, Map<String, double>) _cardFuel(FleetData data) {
+    final ids = {for (final v in data.vehicles) '${v['id']}'};
+    var pln = 0.0;
+    final other = <String, double>{};
+    for (final v in uiMaps(_cards?['vehicles'])) {
+      final id = v['vehicle_id'];
+      if (id == null ? _make != null : !ids.contains('$id')) continue;
+      for (final e in ((v['amount'] as Map?) ?? const {}).entries) {
+        final value = (e.value as num).toDouble();
+        if (e.key == 'PLN') {
+          pln += value;
+        } else {
+          other.update('${e.key}', (a) => a + value, ifAbsent: () => value);
+        }
+      }
+    }
+    return (pln, other);
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data == null ? null : _filtered(_data!);
@@ -262,7 +295,10 @@ class _TcoScreenState extends State<TcoScreen> {
     }
     final l = context.l;
     final km = data.stats.values.fold(0.0, (a, s) => a + ((s['distance_km'] as num?) ?? 0));
-    final routes = data.stats.values.fold(0.0, (a, s) => a + tripCosts(s));
+    final (cardFuel, otherFuel) = _cardFuel(data);
+    final cards = cardFuel > 0;
+    final routes = cards ? cardFuel : data.stats.values.fold(0.0, (a, s) => a + tripCosts(s));
+    final note = otherFuel.isEmpty ? null : fuelAmounts(l, otherFuel);
     final service = data.done.fold(0.0, (a, o) => a + orderTotal(o));
     return LayoutBuilder(builder: (context, size) {
       const gap = 20.0;
@@ -278,13 +314,13 @@ class _TcoScreenState extends State<TcoScreen> {
         if (wide)
           IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(flex: 7, child: _structure(context, km, routes, service)),
+              Expanded(flex: 7, child: _structure(context, km, routes, service, cards: cards, other: note)),
               const SizedBox(width: gap),
               Expanded(flex: 5, child: _benchmark(context, data)),
             ]),
           )
         else ...[
-          _structure(context, km, routes, service),
+          _structure(context, km, routes, service, cards: cards, other: note),
           const SizedBox(height: gap),
           _benchmark(context, data),
         ],
@@ -379,8 +415,14 @@ class _TcoScreenState extends State<TcoScreen> {
       child: Wrap(spacing: Gap.m, runSpacing: Gap.m, crossAxisAlignment: WrapCrossAlignment.center, children: [
         box(l.tcoPeriod, Text(l.anLastMonths(l.number(widget.months)), style: theme.textTheme.labelLarge)),
         box(l.tcoMake, Text(_make ?? l.anAll, style: theme.textTheme.labelLarge), onTap: _pickMake),
-        box(l.tcoCards,
-            FuelCardsSummary(api: widget.api, companyId: widget.companyId, months: widget.months, stats: data.stats)),
+        box(
+            l.tcoCards,
+            FuelCardsSummary(
+                api: widget.api,
+                companyId: widget.companyId,
+                months: widget.months,
+                stats: data.stats,
+                onChanged: _loadCards)),
         box(
           l.tcoAvgKm,
           Text.rich(TextSpan(children: [
@@ -394,14 +436,24 @@ class _TcoScreenState extends State<TcoScreen> {
     );
   }
 
-  Widget _structure(BuildContext context, double km, double routes, double service) {
+  /// [cards] – koszt paliwa z kart zamiast szacunku tras; [other] – tankowania w innych walutach.
+  Widget _structure(BuildContext context, double km, double routes, double service,
+      {bool cards = false, String? other}) {
     final l = context.l;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final colors = TruckColors.of(context);
     final total = routes + service;
     final parts = [
-      (l.tcoRoutes, l.tcoRoutesNote, routes, scheme.primary, true),
+      cards
+          ? (
+              l.tcoFuelCards,
+              other == null ? l.tcoFuelCardsNote : l.tcoFuelCardsOther(other),
+              routes,
+              scheme.primary,
+              true
+            )
+          : (l.tcoRoutes, l.tcoRoutesNote, routes, scheme.primary, true),
       (l.tcoService, l.tcoServiceNote, service, scheme.primaryContainer, true),
       (l.tcoWages, l.tcoWagesNote, 0.0, scheme.outline, false),
       (l.tcoDepreciation, l.tcoDepreciationNote, 0.0, scheme.outlineVariant, false),

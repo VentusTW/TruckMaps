@@ -3940,5 +3940,15 @@
   "fuelColAmount": "Kwota",
   "fuelColLast": "Ostatnie",
   "fuelNoVehicle": "Bez pojazdu",
-  "fuelClose": "Zamknij"
+  "fuelClose": "Zamknij",
+  "tcoFuelCards": "Paliwo i AdBlue z kart (rzeczywiste)",
+  "tcoFuelCardsNote": "Z wczytanych wyciągów – zamiast szacunku kosztów tras",
+  "tcoFuelCardsOther": "Z wczytanych wyciągów; bez kwot w innych walutach: {amounts}",
+  "@tcoFuelCardsOther": {
+    "placeholders": {
+      "amounts": {
+        "type": "String"
+      }
+    }
+  }
 }

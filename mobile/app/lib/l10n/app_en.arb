@@ -1939,5 +1939,8 @@
   "fuelColAmount": "Amount",
   "fuelColLast": "Latest",
   "fuelNoVehicle": "No vehicle",
-  "fuelClose": "Close"
+  "fuelClose": "Close",
+  "tcoFuelCards": "Fuel and AdBlue from cards (actual)",
+  "tcoFuelCardsNote": "From loaded statements – instead of the route cost estimate",
+  "tcoFuelCardsOther": "From loaded statements; amounts in other currencies not included: {amounts}"
 }
