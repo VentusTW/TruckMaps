@@ -466,6 +466,26 @@ def test_tacho_upload_card_and_vehicle_unit(client, company, ddd):
     assert view["counters"]["continuous_driving"] == 0
     assert view["counters"]["weekly_driving"] == 540
     assert len(view["downloads"]) == 2
+    # Podsumowanie zgodności firmy (Analityka) – tylko obsługa firmy.
+    summary = client.get(
+        "/api/m/drivers/compliance", params={"company_id": company["id"]}, headers=as_user("olek")
+    ).json()
+    (row,) = [d for d in summary["drivers"] if d["driver_id"] == jan["id"]]
+    assert (row["has_data"], row["violations"], row["serious"], row["very_serious"]) == (
+        True,
+        1,
+        1,
+        0,
+    )
+    assert row["last_violation"].startswith("2026-11-02")
+    assert summary["days"] == 28
+    assert (
+        client.get(
+            "/api/m/drivers/compliance",
+            params={"company_id": company["id"]},
+            headers=as_user("marek"),
+        )
+    ).status_code in (403, 404)
     file = client.get(
         f"/api/m/drivers/tacho/downloads/{result['id']}/file", headers=as_user("olek")
     )

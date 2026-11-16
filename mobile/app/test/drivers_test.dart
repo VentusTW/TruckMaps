@@ -170,6 +170,9 @@ void main() {
     expect(find.text('+48 601 928 344'), findsOneWidget);
     expect(find.text('„Pauza 45h w Niemczech”'), findsOneWidget);
     expect(find.text('12'), findsOneWidget); // przejazdy
+    // Eco-score z przejazdów zamiast „W budowie”.
+    expect(find.byKey(const Key('drv-eco')), findsOneWidget);
+    expect(find.textContaining('/100'), findsOneWidget);
     expect(find.text('Dni z przejazdami: 1'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('drv-tab-1')));
