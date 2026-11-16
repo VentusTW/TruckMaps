@@ -304,7 +304,20 @@ def _road_card(result: Prefill, src: Sources) -> None:
         result.set("odometer_start", max(0, vehicle.odometer_km - total), "trips")
 
 
-FILLERS = {"cmr": _cmr, "transport_order": _order, "road_card": _road_card}
+def _pod(result: Prefill, src: Sources) -> None:
+    result.set("carrier", company_block(src.company, src.profile), "company")
+    _vehicle(result, src.vehicle)
+    result.set("driver_name", src.driver_name, "driver")
+    if src.route and src.route.stops:
+        last = src.route.stops[-1]
+        result.set("delivery_place", _place(last), "route")
+        if last.at:
+            result.set("arrival", last.at.strftime("%Y-%m-%d %H:%M"), "route")
+    if src.cargo:
+        result.set("goods", _goods(src.cargo, "nature packages packing gross_kg"), "cargo")
+
+
+FILLERS = {"cmr": _cmr, "transport_order": _order, "road_card": _road_card, "pod": _pod}
 
 
 def prefill(kind: str, src: Sources) -> Prefill:

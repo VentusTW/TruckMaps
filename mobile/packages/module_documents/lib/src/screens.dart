@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'signature.dart';
 import 'texts.dart';
 
 const _base = '/api/m/documents';
@@ -236,6 +237,9 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
   List<Map<String, dynamic>> _vehicles = [];
   final _text = <String, TextEditingController>{};
   final _rows = <String, List<Map<String, TextEditingController>>>{};
+
+  /// Podpisy złożone na ekranie (base64: PNG z aplikacji, JPEG po zapisie).
+  final _signs = <String, String>{};
   Map<String, String> _sources = {};
   List<String> _warnings = [];
   Map<String, dynamic>? _document;
@@ -285,6 +289,8 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
       final key = '${f['key']}';
       if (f['type'] == 'rows') {
         _rows[key] = [for (final row in _list(data[key])) _rowControllers(f, row)];
+      } else if (f['type'] == 'signature') {
+        if (data[key] case final String sign when sign.isNotEmpty) _signs[key] = sign;
       } else {
         _text[key] = TextEditingController(text: data[key] == null ? '' : '${data[key]}');
       }
@@ -311,6 +317,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
       ].where((row) => row.isNotEmpty).toList();
       if (values.isNotEmpty) data[key] = values;
     });
+    data.addAll(_signs);
     return data;
   }
 
@@ -411,6 +418,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
     final source = _sources[key];
     final helper = source == null ? null : t.source(source);
     if (type == 'rows') return _table(t, f, helper);
+    if (type == 'signature') return _signature(t, f);
     final controller = _text[key]!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -427,6 +435,53 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
               ? IconButton(tooltip: t.pickDate, icon: const Icon(Icons.event), onPressed: () => _pickDay(controller))
               : null,
         ),
+      ),
+    );
+  }
+
+  Widget _signature(DocumentsTexts t, Map<String, dynamic> f) {
+    final key = '${f['key']}';
+    final sign = _signs[key];
+    Widget? image;
+    if (sign != null) {
+      try {
+        image = Image.memory(base64Decode(sign), height: 80, fit: BoxFit.contain);
+      } on FormatException {
+        image = null;
+      }
+    }
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${f['label']}', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          if (image != null)
+            Container(key: Key('signed-$key'), color: Colors.white, child: image)
+          else
+            Text(t.notSigned, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: [
+            OutlinedButton.icon(
+              key: Key('sign-$key'),
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final png = await signOnScreen(context, '${f['label']}');
+                      if (png != null && mounted) setState(() => _signs[key] = png);
+                    },
+              icon: const Icon(Icons.draw_outlined),
+              label: Text(sign == null ? t.sign : t.signAgain),
+            ),
+            if (sign != null)
+              TextButton(
+                key: Key('unsign-$key'),
+                onPressed: _busy ? null : () => setState(() => _signs.remove(key)),
+                child: Text(t.signRemove),
+              ),
+          ]),
+        ]),
       ),
     );
   }
@@ -773,7 +828,8 @@ class _TemplateScreenState extends State<TemplateScreen> {
     final initial = TextEditingController(text: _defaults[key] ?? '');
     var type = '${extra?['type'] ?? 'text'}';
     var width = (extra?['width'] as num?)?.toDouble() ?? 1.0;
-    final rows = base?['type'] == 'rows';
+    // Tabele i podpisy bez wartości domyślnej.
+    final rows = const {'rows', 'signature'}.contains(base?['type']);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(

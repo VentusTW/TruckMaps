@@ -9,6 +9,7 @@ import 'src/screens.dart';
 import 'src/texts.dart';
 
 export 'src/screens.dart';
+export 'src/signature.dart' show signOnScreen;
 export 'src/texts.dart';
 
 class DocumentsModule extends TruckMapsModule {
