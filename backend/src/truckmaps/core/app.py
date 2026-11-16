@@ -33,6 +33,7 @@ from truckmaps.core import (
     releases,
     reminders,
     reports,
+    revenue,
     routing,
     shared,
     tiles,
@@ -190,6 +191,7 @@ def create_app(
     app.include_router(live.build_router(auth.current_user))
     app.include_router(dispatch.build_router(auth.current_user))
     app.include_router(records.build_router(auth.current_user))
+    app.include_router(revenue.build_router(auth.current_user))
     if settings.dev_login_page and provider is not None:
         app.include_router(
             devlogin.build_router(

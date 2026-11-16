@@ -7,11 +7,13 @@ import '../l10n.dart';
 import '../records/records.dart';
 import '../vehicles/vehicle_form.dart' show kindLabel;
 import 'fleet_export.dart';
+import 'revenue.dart';
 import 'service_data.dart';
 
 /// „Raporty i Analityka” według projektu Stitch: przebiegi, kursy puste, koszt wozokilometra,
 /// spalanie i ranking taboru z przejazdów TruckMaps (`/api/vehicles/{id}/stats`) i kosztów napraw
-/// modułu Serwis. Przychody, marże, korytarze i zgodność prawna – „W budowie”.
+/// modułu Serwis, przychody ze zleceń transportowych i marża (`/api/companies/{id}/revenue/summary`,
+/// tankowania z kart paliwowych, gdy są). Korytarze i zgodność prawna – „W budowie”.
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({
     super.key,
@@ -37,6 +39,10 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   FleetData? _data;
   Object? _error;
+
+  /// Przychody ze zleceń (`null` – brak dostępu) i tankowania z kart w PLN według pojazdu.
+  Map<String, dynamic>? _revenue;
+  Map<String?, double>? _fuel;
 
   /// Filtry: pojazd (id), rodzaj pojazdu, baza; ukryte KPI (ustawienie firmy).
   String? _vehicle, _kind, _base;
@@ -176,8 +182,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   Future<void> _load() async {
     try {
+      final revenue = loadRevenueSummary(widget.api, widget.companyId, months: widget.months);
+      final fuel = loadFuelCardCost(widget.api, widget.companyId, months: widget.months);
       final data = await FleetData.load(widget.api, widget.companyId, withStats: true, months: widget.months);
-      if (mounted) setState(() => _data = data);
+      final (r, f) = (await revenue, await fuel);
+      if (mounted) {
+        setState(() {
+          _data = data;
+          _revenue = r;
+          _fuel = f;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
@@ -188,12 +203,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final data = _data;
     if (data == null) return;
     final shown = _filtered(data);
-    final opened =
-        await openCsv(toCsv(fleetReportRows(context.l, shown, (id) => _serviceCost(shown, id))), 'raport-floty');
+    final revenue = {
+      for (final v in uiMaps(_revenue?['vehicles'])) '${v['vehicle_id']}': ((v['total'] as num?) ?? 0).toDouble()
+    };
+    final rows =
+        fleetReportRows(context.l, shown, (id) => _serviceCost(shown, id), revenue: _revenue == null ? null : revenue);
+    final opened = await openCsv(toCsv(rows), 'raport-floty');
     if (!opened && mounted) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l.exportFailed)));
     }
   }
+
+  /// Otwiera listę zleceń z przychodami; po zmianach odświeża podsumowanie.
+  Future<void> _enterRevenue() async {
+    final company = widget.companyId;
+    if (company == null) return;
+    final changed = await showDialog<bool>(
+        context: context,
+        builder: (_) => RevenueOrdersDialog(api: widget.api, companyId: company, months: widget.months));
+    if (changed == true) {
+      final r = await loadRevenueSummary(widget.api, company, months: widget.months);
+      if (mounted) setState(() => _revenue = r);
+    }
+  }
+
+  bool get _filtering => _vehicle != null || _kind != null || _base != null;
 
   double _serviceCost(FleetData data, String vehicleId) => data.done
       .where((o) => o['vehicle_id'] == vehicleId || data.vehicle(vehicleId)?['trailer_id'] == o['vehicle_id'])
@@ -357,6 +391,45 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  /// Przychód w okresie dla pokazanych pojazdów (filtry) – suma, na km, zlecenia, waluty bez kursu.
+  ({double total, double? perKm, int count, int orders, List<String> unconverted})? _revenueIn(FleetData data) {
+    final r = _revenue;
+    if (r == null) return null;
+    final unconverted = [for (final c in (r['unconverted'] as List?) ?? const []) '$c'];
+    if (!_filtering) {
+      return (
+        total: ((r['total'] as num?) ?? 0).toDouble(),
+        perKm: (r['per_km'] as num?)?.toDouble(),
+        count: ((r['count'] as num?) ?? 0).toInt(),
+        orders: ((r['orders_total'] as num?) ?? 0).toInt(),
+        unconverted: unconverted,
+      );
+    }
+    final ids = {for (final v in data.vehicles) '${v['id']}'};
+    final shown = [
+      for (final v in uiMaps(r['vehicles']))
+        if (ids.contains('${v['vehicle_id']}')) v
+    ];
+    final total = shown.fold(0.0, (a, v) => a + ((v['total'] as num?) ?? 0));
+    final km = shown.fold(0.0, (a, v) => a + ((v['km'] as num?) ?? 0));
+    return (
+      total: total,
+      perKm: km == 0 ? null : total / km,
+      count: shown.fold(0, (a, v) => a + ((v['count'] as num?) ?? 0).toInt()),
+      orders: uiMaps(r['orders']).where((o) => ids.contains('${o['vehicle_id']}')).length,
+      unconverted: unconverted,
+    );
+  }
+
+  /// Tankowania z kart (PLN) pokazanych pojazdów; bez filtrów – także tankowania bez pojazdu.
+  double? _fuelIn(FleetData data) {
+    final f = _fuel;
+    if (f == null) return null;
+    if (!_filtering) return f.values.fold<double>(0, (a, b) => a + b);
+    final ids = {for (final v in data.vehicles) '${v['id']}'};
+    return f.entries.where((e) => ids.contains(e.key)).fold<double>(0, (a, e) => a + e.value);
+  }
+
   List<Widget> _kpis(BuildContext context, FleetData data) {
     final l = context.l;
     final theme = Theme.of(context);
@@ -368,6 +441,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final routeCost = stats.fold(0.0, (a, s) => a + tripCosts(s));
     final service = data.done.fold(0.0, (a, o) => a + orderTotal(o));
     final perKm = km == 0 ? null : (routeCost + service) / km;
+    final revenue = _revenueIn(data);
+    final fuel = _fuelIn(data);
+    final costs = routeCost + service + (fuel ?? 0);
     final burns = [
       for (final v in data.power)
         if (v['consumption_loaded'] is num) (v['consumption_loaded'] as num).toDouble()
@@ -418,10 +494,36 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       card(
           l.anRevenue,
           Icons.account_balance_wallet_outlined,
-          '–',
-          '',
+          revenue == null ? '–' : l.number(revenue.total, decimals: 0),
+          revenue == null ? '' : 'PLN',
           [
-            WipTag(what: l.anRevenue, onOpen: widget.onOpen),
+            if (revenue == null)
+              Text(l.anRevenueNone, style: theme.textTheme.bodySmall)
+            else ...[
+              Text(l.anRevenuePerKm(revenue.perKm == null ? '–' : l.number(revenue.perKm!, decimals: 2)),
+                  style: theme.textTheme.bodySmall),
+              Text((fuel == null ? l.anMarginCosts : l.anMarginCostsFuel)(l.number(costs, decimals: 0)),
+                  style: theme.textTheme.bodySmall),
+              Text(l.anMargin(l.number(revenue.total - costs, decimals: 0)),
+                  key: const Key('an-margin'),
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: revenue.total - costs < 0 ? scheme.error : colors.success)),
+              Text(l.anRevenueOrders(l.number(revenue.count), l.number(revenue.orders)),
+                  style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
+              if (revenue.unconverted.isNotEmpty)
+                Text(l.anRevenueUnconverted(revenue.unconverted.join(', ')),
+                    style: theme.textTheme.labelSmall?.copyWith(color: scheme.error)),
+              if (widget.companyId != null)
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    key: const Key('an-revenue-enter'),
+                    onPressed: _enterRevenue,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: Text(l.anRevenueEnter),
+                  ),
+                ),
+            ],
           ],
           iconBg: scheme.tertiaryContainer,
           iconFg: scheme.onTertiaryContainer),

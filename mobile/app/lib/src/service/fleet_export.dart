@@ -8,7 +8,9 @@ import 'service_data.dart';
 
 /// Wiersze raportu floty: pojazd, przejazdy, km, godziny, puste km, postój, koszty z przejazdów
 /// (w każdej walucie) i koszty serwisu – te same dane, które pokazują Raporty i TCO.
-List<List<String>> fleetReportRows(AppLocalizations l, FleetData data, double Function(String vehicleId) serviceCost) {
+/// [revenue] – przychód ze zleceń (PLN) według pojazdu; `null` – bez kolumny przychodu.
+List<List<String>> fleetReportRows(AppLocalizations l, FleetData data, double Function(String vehicleId) serviceCost,
+    {Map<String, double>? revenue}) {
   final currencies = <String>{
     for (final v in data.power)
       ...((data.stats['${v['id']}']?['costs'] as Map?)?.keys.map((k) => '$k') ?? const <String>[]),
@@ -21,6 +23,7 @@ List<List<String>> fleetReportRows(AppLocalizations l, FleetData data, double Fu
       for (final c in currencies) l.csvTripCost(c),
       for (final c in currencies) l.csvCostPerKm(c),
       l.csvServiceCost,
+      if (revenue != null) l.csvRevenue('PLN'),
     ],
     for (final v in data.power)
       () {
@@ -39,6 +42,7 @@ List<List<String>> fleetReportRows(AppLocalizations l, FleetData data, double Fu
           for (final c in currencies) n(costs[c] as num?, 2),
           for (final c in currencies) n(perKm[c] as num?, 2),
           n(serviceCost('${v['id']}'), 2),
+          if (revenue != null) n(revenue['${v['id']}'] ?? 0, 2),
         ];
       }(),
   ];

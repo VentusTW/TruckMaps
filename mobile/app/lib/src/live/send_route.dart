@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import '../l10n.dart';
 import '../planner/place_field.dart' show Place;
 import '../planner/route.dart' show PlannedRoute;
+import '../service/revenue.dart';
 
 /// „Wyślij kierowcy” z planera: wybór kierowcy firmy i uwagi, potem trasa trafia do jego
-/// skrzynki (`POST /api/companies/{id}/route-assignments`). Zwraca imię kierowcy albo `null`.
+/// skrzynki (`POST /api/companies/{id}/route-assignments`). Opcjonalnie przychód zlecenia (kwota albo
+/// stawka za km i waluta) – zapisany zaraz po wysłaniu. Zwraca imię kierowcy albo `null`.
 Future<String?> sendRouteToDriver(
   BuildContext context, {
   required CoreApi api,
@@ -38,12 +40,15 @@ Future<String?> sendRouteToDriver(
   }
   var driver = drivers.first.$1;
   final note = TextEditingController();
+  final amount = TextEditingController(), rate = TextEditingController();
+  var currency = 'PLN';
   final send = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
         title: Text(l.livePlanSend),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text('${start.label} → ${end.label}'),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -59,7 +64,10 @@ Future<String?> sendRouteToDriver(
             maxLines: 2,
             decoration: InputDecoration(labelText: l.livePlanNote, border: const OutlineInputBorder()),
           ),
-        ]),
+          const SizedBox(height: 4),
+          RevenueFields(
+              amount: amount, rate: rate, currency: currency, onCurrency: (c) => setState(() => currency = c)),
+        ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.cancel)),
           FilledButton.icon(
@@ -73,11 +81,14 @@ Future<String?> sendRouteToDriver(
     ),
   );
   final text = note.text.trim();
+  final value = parseAmount(amount.text), perKm = parseAmount(rate.text);
   note.dispose();
+  amount.dispose();
+  rate.dispose();
   if (send != true) return null;
   Map<String, dynamic> stop(Place p) => {'lat': p.point.latitude, 'lon': p.point.longitude, 'label': p.label};
   try {
-    await api.post('/api/companies/$companyId/route-assignments', {
+    final sent = await api.post('/api/companies/$companyId/route-assignments', {
       'vehicle_id': vehicleId,
       'driver_member_id': driver,
       'origin': stop(start),
@@ -89,6 +100,15 @@ Future<String?> sendRouteToDriver(
       'duration_min': route.durationMin,
     });
     final name = drivers.firstWhere((d) => d.$1 == driver).$2;
+    if ((value != null || perKm != null) && sent is Map) {
+      try {
+        await saveRevenue(api, companyId, '${sent['id']}',
+            amount: value, ratePerKm: value == null ? perKm : null, currency: currency);
+      } catch (error) {
+        messenger?.showSnackBar(SnackBar(content: Text(l.revSaveFailed('$error'))));
+        return name;
+      }
+    }
     messenger?.showSnackBar(SnackBar(content: Text(l.livePlanSent(name))));
     return name;
   } catch (error) {
