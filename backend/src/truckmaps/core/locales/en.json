@@ -289,5 +289,9 @@
   "revenue.distance_unknown": "The route has no length – enter an amount instead of a rate per km.",
   "records.not_found": "Entry not found.",
   "records.bad_file": "Invalid file.",
-  "records.file_too_large": "The file is too large (at most {mb} MB)."
+  "records.file_too_large": "The file is too large (at most {mb} MB).",
+  "fuel.bad_file": "Invalid CSV file.",
+  "fuel.too_large": "The file is too large (at most {mb} MB).",
+  "fuel.no_columns": "Statement columns not recognised – at least date, quantity (litres) and amount are needed.",
+  "fuel.no_rows": "The file has no fuelling with a date, quantity and amount."
 }

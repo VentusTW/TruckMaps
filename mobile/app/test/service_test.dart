@@ -90,12 +90,13 @@ final orders = [
       hours: 3.0),
 ];
 
-CoreApi api() => CoreApi(
+CoreApi api({Map<String, dynamic>? cards}) => CoreApi(
       baseUrl: 'http://serwer.test',
       token: 't',
       client: MockClient((r) async => json(switch (r.url.path) {
             '/api/vehicles' => vehicles,
             '/api/m/service/orders' => orders,
+            '/api/companies/c1/fuel-cards/summary' => cards ?? <String, dynamic>{},
             '/api/vehicles/v1/stats' => {
                 'trips': 40,
                 'distance_km': 40000,
@@ -229,5 +230,31 @@ void main() {
     expect(find.text('Janusz Bogucki'), findsOneWidget);
     expect(find.text('32410 km'), findsOneWidget);
     expect(find.text('Przyrost przy pełnym ładunku: +6 l / 100 km'), findsOneWidget);
+  });
+
+  testWidgets('TCO: paliwo z kart zamiast szacunku tras, inne waluty w opisie', (tester) async {
+    big(tester);
+    final cards = {
+      'count': 3,
+      'liters': 20000,
+      'amount': {'PLN': 150000, 'EUR': 500},
+      'vehicles': [
+        {
+          'vehicle_id': 'v1',
+          'amount': {'PLN': 100000, 'EUR': 500}
+        },
+        {
+          'vehicle_id': null,
+          'amount': {'PLN': 50000}
+        },
+      ],
+    };
+    await tester
+        .pumpWidget(localized(Scaffold(body: TcoScreen(api: api(cards: cards), companyId: 'c1', onOpen: (_) {}))));
+    await tester.pumpAndSettle();
+    expect(find.text('Paliwo i AdBlue z kart (rzeczywiste)'), findsOneWidget);
+    expect(find.text('Koszty tras (paliwo, myto – szacunek)'), findsNothing);
+    expect(find.text('3 PLN/km'), findsOneWidget); // 150 000 PLN z kart / 50 000 km
+    expect(find.textContaining('bez kwot w innych walutach: 500,00 EUR'), findsOneWidget);
   });
 }

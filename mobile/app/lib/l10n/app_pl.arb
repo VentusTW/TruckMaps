@@ -3889,6 +3889,68 @@
     }
   },
   "tachoNeverVu": "Brak odczytu",
+  "fuelImport": "Wczytaj wyciąg CSV",
+  "fuelFileType": "Wyciągi z kart paliwowych (CSV)",
+  "fuelPickFailed": "Na tym urządzeniu nie można wybrać pliku – użyj aplikacji na komputerze.",
+  "fuelSummary": "{count} tankowań • {liters} l • {amount}",
+  "@fuelSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "liters": {
+        "type": "String"
+      },
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "fuelNoneShort": "Wczytaj wyciąg CSV",
+  "fuelNone": "Brak tankowań z kart w tym okresie – wczytaj wyciąg CSV od wystawcy karty.",
+  "fuelImported": "Wczytano tankowania: {count} (już były: {duplicates}, pominięte wiersze: {skipped})",
+  "@fuelImported": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "duplicates": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  },
+  "fuelUnmatched": "Bez pojazdu w firmie (zapisane przy firmie): {items}",
+  "@fuelUnmatched": {
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
+  },
+  "fuelTitle": "Karty paliwowe – tankowania",
+  "fuelFormats": "Wyciągi CSV z DKV, UTA, E100, Orlen Flota, Shell, BP, Circle K i innych – kolumny rozpoznawane po nagłówkach (co najmniej data, ilość i kwota). Ponowne wczytanie nie dubluje tankowań.",
+  "fuelColVehicle": "Pojazd",
+  "fuelColCount": "Tankowania",
+  "fuelColLiters": "Paliwo [l]",
+  "fuelColAdblue": "AdBlue [l]",
+  "fuelColConsumption": "l/100 km",
+  "fuelColAmount": "Kwota",
+  "fuelColLast": "Ostatnie",
+  "fuelNoVehicle": "Bez pojazdu",
+  "fuelClose": "Zamknij",
+  "tcoFuelCards": "Paliwo i AdBlue z kart (rzeczywiste)",
+  "tcoFuelCardsNote": "Z wczytanych wyciągów – zamiast szacunku kosztów tras",
+  "tcoFuelCardsOther": "Z wczytanych wyciągów; bez kwot w innych walutach: {amounts}",
+  "@tcoFuelCardsOther": {
+    "placeholders": {
+      "amounts": {
+        "type": "String"
+      }
+    }
+  },
   "anRevenuePerKm": "• Na km: {value} PLN/km",
   "@anRevenuePerKm": {
     "placeholders": {
