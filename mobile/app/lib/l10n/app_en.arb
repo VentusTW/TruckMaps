@@ -1946,7 +1946,7 @@
   "anRevenuePerKm": "• Per km: {value} PLN/km",
   "anMargin": "Margin: {value} PLN",
   "anMarginCosts": "Costs (routes, service): {value} PLN",
-  "anMarginCostsFuel": "Costs (routes, service, fuel cards): {value} PLN",
+  "anMarginCostsFuel": "Costs (card fuel, service): {value} PLN",
   "anRevenueOrders": "Orders with revenue: {count} of {total}",
   "anRevenueUnconverted": "No exchange rate (not in total): {currencies}",
   "anRevenueNone": "Revenue is visible to the owner and dispatchers",

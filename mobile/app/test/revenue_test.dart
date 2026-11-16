@@ -145,9 +145,9 @@ void main() {
     expect(find.text('Przychód ze zleceń'.toUpperCase()), findsOneWidget);
     expect(find.text('12300 PLN', findRichText: true), findsOneWidget);
     expect(find.text('• Na km: 6 PLN/km'), findsOneWidget);
-    // Trasy 4000 + 2000, karty 1500 → koszty 7500, marża 12 300 − 7500.
-    expect(find.text('Koszty (trasy, serwis, karty paliwowe): 7500 PLN'), findsOneWidget);
-    expect(find.text('Marża: 4800 PLN'), findsOneWidget);
+    // Karty 1500 zastępują szacunek tras (4000 + 2000) → koszty 1500, marża 12 300 − 1500.
+    expect(find.text('Koszty (paliwo z kart, serwis): 1500 PLN'), findsOneWidget);
+    expect(find.text('Marża: 10800 PLN'), findsOneWidget);
     expect(find.text('Zlecenia z przychodem: 2 z 2'), findsOneWidget);
     expect(find.text('Bez kursu (poza sumą): HUF'), findsOneWidget);
   });
