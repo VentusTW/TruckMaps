@@ -41,6 +41,38 @@ Widget _error(BuildContext context, Object? error, VoidCallback retry) => Center
 String _day(DateTime day) =>
     '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
 
+/// Kategorie tematyczne dokumentów (kolejność w menu) i ich rodzaje. Rodzaj spoza listy – „Inne”.
+const documentGroups = <String, List<String>>{
+  'transport': ['cmr', 'consignment_note', 'transport_order', 'pod'],
+  'cargo': ['loading_report', 'securing_declaration', 'pallet_note', 'damage_report'],
+  'special': ['adr_document', 'sent_data', 'edd_data', 'oversize_permit_data'],
+  'driver': ['road_card', 'driver_activity', 'working_time', 'business_trip', 'posting_declaration'],
+  'vehicle': ['vehicle_handover', 'cabin_checklist'],
+};
+
+const _groupIcons = {
+  'transport': Icons.local_shipping_outlined,
+  'cargo': Icons.inventory_2_outlined,
+  'special': Icons.warning_amber_outlined,
+  'driver': Icons.badge_outlined,
+  'vehicle': Icons.rv_hookup_outlined,
+};
+
+/// Kategoria rodzaju dokumentu (`other` – spoza [documentGroups]).
+String kindGroup(String kind) =>
+    documentGroups.entries.where((e) => e.value.contains(kind)).firstOrNull?.key ?? 'other';
+
+/// Rodzaje pogrupowane wg kategorii (kolejność kategorii z [documentGroups], w kategorii – jak w katalogu).
+Map<String, List<T>> _grouped<T>(Iterable<T> items, String Function(T) kind) {
+  final out = {
+    for (final g in [...documentGroups.keys, 'other']) g: <T>[]
+  };
+  for (final item in items) {
+    out[kindGroup(kind(item))]!.add(item);
+  }
+  return out..removeWhere((_, v) => v.isEmpty);
+}
+
 /// Wybór rodzaju dokumentu (`null` – anulowano); [only] – tylko te rodzaje.
 Future<String?> chooseKind(BuildContext context, CoreApi api, {Set<String>? only}) async {
   final kinds = [
@@ -49,21 +81,57 @@ Future<String?> chooseKind(BuildContext context, CoreApi api, {Set<String>? only
   ];
   if (!context.mounted) return null;
   final t = DocumentsTexts.of(context);
+  final groups = _grouped(kinds, (k) => '${k['id']}');
   return showModalBottomSheet<String>(
     context: context,
+    isScrollControlled: true,
     builder: (context) => SafeArea(
-      child: ListView(shrinkWrap: true, children: [
-        ListTile(title: Text(t.chooseKind, style: Theme.of(context).textTheme.titleMedium)),
-        for (final k in kinds)
-          ListTile(
-            key: Key('kind-${k['id']}'),
-            leading: const Icon(Icons.description_outlined),
-            title: Text('${k['name']}'),
-            onTap: () => Navigator.of(context).pop('${k['id']}'),
-          ),
-      ]),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+        child: ListView(shrinkWrap: true, children: [
+          ListTile(title: Text(t.chooseKind, style: Theme.of(context).textTheme.titleMedium)),
+          for (final MapEntry(key: group, value: items) in groups.entries) ...[
+            _GroupHeader(group: group),
+            for (final k in items)
+              ListTile(
+                key: Key('kind-${k['id']}'),
+                dense: true,
+                leading: const Icon(Icons.description_outlined),
+                title: Text('${k['name']}'),
+                onTap: () => Navigator.of(context).pop('${k['id']}'),
+              ),
+          ],
+        ]),
+      ),
     ),
   );
+}
+
+/// Nagłówek kategorii dokumentów (ikona, nazwa, opcjonalnie liczba).
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.group, this.count, this.padding = const EdgeInsets.fromLTRB(16, 16, 16, 4)});
+
+  final String group;
+  final int? count;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    return Padding(
+      padding: padding,
+      child: Row(children: [
+        Icon(_groupIcons[group] ?? Icons.folder_outlined, size: 20, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(DocumentsTexts.of(context).group(group),
+              style: theme.textTheme.titleSmall?.copyWith(color: color, fontWeight: FontWeight.w600)),
+        ),
+        if (count != null) Text('$count', style: theme.textTheme.labelMedium),
+      ]),
+    );
+  }
 }
 
 /// Dokumenty firmy: lista, nowy dokument, dane firmy i wzory (właściciel, dyspozytorzy).
@@ -150,10 +218,85 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     if (mounted && _companyId != null) _reload();
   }
 
+  /// Wybrana kategoria (`null` – wszystkie).
+  String? _group;
+
   Future<void> _new() async {
-    final kind = await chooseKind(context, widget.api);
+    final kind = await chooseKind(context, widget.api, only: _group == null ? null : documentGroups[_group]?.toSet());
     if (kind == null || !mounted) return;
-    await _push(DocumentFormScreen(api: widget.api, companyId: _companyId!, kind: kind, linkOpener: widget.linkOpener));
+    await _create(kind);
+  }
+
+  Future<void> _create(String kind) =>
+      _push(DocumentFormScreen(api: widget.api, companyId: _companyId!, kind: kind, linkOpener: widget.linkOpener));
+
+  Widget _documentTile(Map<String, dynamic> d) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.description_outlined),
+          title: Text('${d['number']}'),
+          subtitle: Text([
+            _kindNames['${d['kind']}'] ?? '${d['kind']}',
+            '${d['created_by_name']}',
+            if (DateTime.tryParse('${d['created_at']}') case final at?) _day(at.toLocal()),
+          ].join(' · ')),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _push(DocumentFormScreen(
+            api: widget.api,
+            companyId: _companyId!,
+            kind: '${d['kind']}',
+            document: d,
+            linkOpener: widget.linkOpener,
+          )),
+        ),
+      );
+
+  /// Dokumenty w kategoriach: nagłówek, szybkie „nowy” dla każdego rodzaju, lista dokumentów.
+  Widget _documentGroups(List<Map<String, dynamic>> documents) {
+    final t = DocumentsTexts.of(context);
+    final kinds = _grouped(_kindNames.keys, (k) => k);
+    final docs = _grouped(documents, (d) => '${d['kind']}');
+    final groups = [
+      for (final g in {...kinds.keys, ...docs.keys})
+        if (_group == null || _group == g) g,
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Wrap(spacing: 8, runSpacing: 4, children: [
+          ChoiceChip(
+            key: const Key('documents-group-all'),
+            label: Text('${t.allGroups} (${documents.length})'),
+            selected: _group == null,
+            onSelected: (_) => setState(() => _group = null),
+          ),
+          for (final g in {...kinds.keys, ...docs.keys})
+            ChoiceChip(
+              key: Key('documents-group-$g'),
+              avatar: Icon(_groupIcons[g] ?? Icons.folder_outlined, size: 18),
+              label: Text('${t.group(g)} (${docs[g]?.length ?? 0})'),
+              selected: _group == g,
+              onSelected: (_) => setState(() => _group = _group == g ? null : g),
+            ),
+        ]),
+      ),
+      for (final g in groups) ...[
+        _GroupHeader(group: g, count: docs[g]?.length ?? 0, padding: const EdgeInsets.fromLTRB(0, 16, 0, 4)),
+        Wrap(spacing: 8, runSpacing: 4, children: [
+          for (final k in kinds[g] ?? const <String>[])
+            ActionChip(
+              key: Key('documents-new-$k'),
+              avatar: const Icon(Icons.add, size: 18),
+              label: Text(_kindNames[k] ?? k),
+              onPressed: () => _create(k),
+            ),
+        ]),
+        const SizedBox(height: 4),
+        if (docs[g] case final list?)
+          for (final d in list) _documentTile(d)
+        else
+          Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(t.groupEmpty)),
+      ],
+    ]);
   }
 
   Future<void> _templates() async {
@@ -211,31 +354,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               builder: (context, docs) {
                 if (docs.hasError) return _error(context, docs.error, _reload);
                 if (!docs.hasData) return const LinearProgressIndicator();
-                if (docs.data!.isEmpty) {
-                  return Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(t.empty));
-                }
-                return Column(children: [
-                  for (final d in docs.data!)
-                    Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.description_outlined),
-                        title: Text('${d['number']}'),
-                        subtitle: Text([
-                          _kindNames['${d['kind']}'] ?? '${d['kind']}',
-                          '${d['created_by_name']}',
-                          if (DateTime.tryParse('${d['created_at']}') case final at?) _day(at.toLocal()),
-                        ].join(' · ')),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _push(DocumentFormScreen(
-                          api: widget.api,
-                          companyId: _companyId!,
-                          kind: '${d['kind']}',
-                          document: d,
-                          linkOpener: widget.linkOpener,
-                        )),
-                      ),
-                    ),
-                ]);
+                return _documentGroups(docs.data!);
               },
             ),
           ]),

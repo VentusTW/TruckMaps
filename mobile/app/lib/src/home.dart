@@ -1,6 +1,7 @@
 import 'package:core_sdk/core_sdk.dart' hide UnderConstructionScreen;
 import 'package:flutter/gestures.dart' show kBackMouseButton;
 import 'package:flutter/material.dart';
+import 'package:module_documents/module_documents.dart' show DocumentsScreen;
 import 'package:module_load/module_load.dart' show LoadPlanScreen;
 import 'package:url_launcher/url_launcher.dart';
 
@@ -174,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ShellItem('orders', l.mainMenuOrders, Icons.inventory_2_outlined, group: group),
       ShellItem('load3d', l.mainMenuLoad3d, Icons.view_in_ar_outlined, group: group, tag: '3D'),
       ShellItem('drivers', l.mainMenuDrivers, Icons.timer_outlined, group: group, tag: '561/2006', tagLive: true),
+      ShellItem('documents', l.mainMenuDocuments, Icons.description_outlined, group: group),
       ShellItem('service', l.mainMenuService, Icons.build_outlined, group: l.mainMenuGroupService),
       ShellItem('repairs', l.mainSubRepairs, Icons.assignment_outlined, group: l.mainMenuGroupService, sub: true),
       ShellItem('parts', l.mainSubParts, Icons.inventory_2_outlined, group: l.mainMenuGroupService, sub: true),
@@ -203,7 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'account' => 14,
       'parts' => 15,
       'eco' => 16,
-      _ => 17,
+      'documents' => 17,
+      _ => 18,
     };
     final order = _trail.where((c) => c.id == 'order').lastOrNull;
     final companyName = (company?['name'] as String?) ?? '';
@@ -518,6 +521,11 @@ class _HomeScreenState extends State<HomeScreen> {
           if (page == 16)
             EcoScreen(
                 key: ValueKey(('eco', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
+          else
+            const SizedBox(),
+          // Dokumenty firmy pogrupowane tematycznie (moduł Dokumenty).
+          if (page == 17)
+            DocumentsScreen(key: ValueKey(('documents', company?['id'])), api: widget.session.api)
           else
             const SizedBox(),
           UnderConstructionScreen(

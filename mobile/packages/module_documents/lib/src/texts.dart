@@ -32,6 +32,18 @@ class DocumentsTexts {
   String get empty => _t('Brak dokumentów.', 'No documents.');
   String get add => _t('Nowy dokument', 'New document');
   String get chooseKind => _t('Rodzaj dokumentu', 'Document type');
+  String get allGroups => _t('Wszystkie', 'All');
+  String get groupEmpty => _t('Brak dokumentów w tej kategorii.', 'No documents in this category.');
+
+  /// Nazwa kategorii tematycznej dokumentów (zob. `documentGroups`).
+  String group(String id) => switch (id) {
+        'transport' => _t('Przewóz i zlecenia', 'Carriage and orders'),
+        'cargo' => _t('Załadunek i ładunek', 'Loading and cargo'),
+        'special' => _t('Towary szczególne i zezwolenia', 'Special goods and permits'),
+        'driver' => _t('Kierowca i czas pracy', 'Driver and working time'),
+        'vehicle' => _t('Pojazd', 'Vehicle'),
+        _ => _t('Inne', 'Other'),
+      };
   String get routeAction => _t('Dokument', 'Document');
   String get profile => _t('Dane firmy i logo', 'Company details and logo');
   String get templates => _t('Wzory dokumentów', 'Document templates');
