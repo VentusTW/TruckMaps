@@ -12,7 +12,7 @@ from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Base, Database
 from truckmaps.core.routing import Route
-from truckmaps.sdk import DrivingInfo, Principal
+from truckmaps.sdk import DRIVER_DIRECTORY, DrivingInfo, Principal
 
 TRACTOR = {
     "name": "MAN TGX",
@@ -548,3 +548,25 @@ def test_tacho_upload_card_and_vehicle_unit(client, company, ddd):
         headers=as_user("olek"),
     )
     assert taken.status_code == 409 and "Jan Kowalski" in taken.json()["detail"]
+
+
+def test_driver_directory_for_documents(client, company, database):
+    body = {
+        "company_id": company["id"],
+        "name": "Jan Kowalski",
+        "hired_on": "2024-03-01",
+        "member_id": member_id(client, company["id"], "jan"),
+        "license_categories": ["C", "CE"],
+        "card_until": "2027-05-01",
+    }
+    created = client.post("/api/m/drivers/drivers", json=body, headers=as_user("olek"))
+    assert created.status_code == 201, created.text
+    directory = client.app.state.extensions.get(DRIVER_DIRECTORY)
+    with database.session() as db:
+        by_account = directory.find(db, company["id"], "jan")
+        by_name = directory.find(db, company["id"], None, " Jan Kowalski ")
+        other = directory.find(db, "inna-firma", "jan", "Jan Kowalski")
+    assert by_account == by_name and other is None
+    assert by_account.hired_on == date(2024, 3, 1)
+    assert by_account.license_categories == ["C", "CE"]
+    assert by_account.deadlines == {"card": date(2027, 5, 1)}

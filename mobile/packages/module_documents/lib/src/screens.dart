@@ -68,7 +68,27 @@ Future<String?> chooseKind(BuildContext context, CoreApi api, {Set<String>? only
 
 /// Dokumenty firmy: lista, nowy dokument, dane firmy i wzory (właściciel, dyspozytorzy).
 /// Rodzaje dokumentów, które wypełnia trasa z planera.
-const routeKinds = {'cmr', 'transport_order', 'road_card', 'posting_declaration', 'pod', 'damage_report', 'loading_report'};
+const routeKinds = {
+  'cmr',
+  'consignment_note',
+  'transport_order',
+  'road_card',
+  'posting_declaration',
+  'pod',
+  'damage_report',
+  'loading_report',
+  'securing_declaration',
+  'pallet_note',
+  'adr_document',
+  'business_trip',
+  'cabin_checklist',
+  'sent_data',
+  'edd_data',
+  'oversize_permit_data',
+};
+
+/// Rodzaje z okresem „od–do” (wysyłane do podpowiedzi jako `date_from` / `date_to`).
+const periodKinds = {'road_card', 'posting_declaration', 'driver_activity', 'business_trip', 'working_time'};
 
 /// „Dokument” przy trasie z planera: wybór rodzaju i formularz wypełniony z trasy i ładunku
 /// (zob. [RouteData]).
@@ -280,7 +300,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
   DateTime _to = DateTime.now();
 
   /// Wzory z okresem: karta drogowa (przejazdy) i oświadczenie o delegowaniu (IMI).
-  bool get _periodKind => widget.kind == 'road_card' || widget.kind == 'posting_declaration';
+  bool get _periodKind => periodKinds.contains(widget.kind);
   bool _busy = false;
   String? _message;
 

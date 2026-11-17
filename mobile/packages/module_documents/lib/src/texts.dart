@@ -14,14 +14,17 @@ class DocumentsTexts {
 
   String get moduleName => _t('Dokumenty', 'Documents');
   String get moduleDescription => _t(
-      'List przewozowy CMR, zlecenie transportowe, karta drogowa, potwierdzenie dostawy (POD), protokół załadunku '
-          'i protokół szkody '
-          'z podpisem na ekranie wypełniane z danych firmy, pojazdu, kierowcy, trasy i przejazdów; własne pola, '
-          'logo firmy, wydruk PDF.',
-      'CMR consignment note, transport order, vehicle log sheet, proof of delivery (POD), loading report '
-          'and damage report signed '
-          'on screen, filled in from company, vehicle, driver, route and trip data; custom fields, company logo, '
-          'PDF print.');
+      'Listy przewozowe CMR i krajowy, zlecenie transportowe, karta drogowa, POD, protokoły załadunku, szkody '
+          'i przekazania pojazdu z podpisem na ekranie, karta paletowa, oświadczenia o mocowaniu ładunku '
+          'i o delegowaniu (IMI), dokument przewozowy ADR, zaświadczenie o działalności kierowcy, delegacja '
+          'z dietami, ewidencja czasu pracy, lista dokumentów do kontroli, dane do SENT, e-DD i zezwoleń – '
+          'wypełniane z danych firmy, pojazdu, kierowcy, trasy, ładunku i przejazdów; własne pola, logo firmy, '
+          'wydruk PDF.',
+      'CMR and domestic consignment notes, transport order, vehicle log sheet, POD, loading, damage and vehicle '
+          'handover reports signed on screen, pallet note, load securing and posting (IMI) declarations, ADR '
+          'transport document, attestation of driver activities, business trip with per diems, working time '
+          'record, roadside check list, SENT, e-AD and permit data – filled in from company, vehicle, driver, '
+          'route, cargo and trip data; custom fields, company logo, PDF print.');
   String get menu => _t('Dokumenty', 'Documents');
   String get noCompany =>
       _t('Dokumenty są dostępne dla członków firmy.', 'Documents are available to company members.');

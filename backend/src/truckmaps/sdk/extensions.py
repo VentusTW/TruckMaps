@@ -141,6 +141,40 @@ class NoDriverCheck:
 DRIVER_CHECK = ExtensionPoint("driver_check", DriverCheck)
 
 
+class DriverRecord(BaseModel):
+    """Dane kierowcy z kartoteki (moduł Kierowcy) – do dokumentów i list kontrolnych."""
+
+    name: str
+    phone: str | None = None
+    hired_on: date | None = None
+    card_number: str | None = None
+    license_categories: list[str] = []
+    deadlines: dict[str, date] = {}
+    """Terminy: ``license``, ``code95``, ``medical``, ``psych``, ``card``, ``card_download``,
+    ``adr``, ``attestation`` – tylko ustawione."""
+
+
+@runtime_checkable
+class DriverDirectory(Protocol):
+    def find(
+        self, db: Session, company_id: str, subject: str | None, name: str = ""
+    ) -> DriverRecord | None:
+        """Kierowca firmy po koncie (``subject``) albo po imieniu i nazwisku; ``None`` – brak."""
+        ...
+
+
+class NoDriverDirectory:
+    """Rdzeń bez modułu kierowców nie ma kartoteki kierowców."""
+
+    def find(
+        self, db: Session, company_id: str, subject: str | None, name: str = ""
+    ) -> DriverRecord | None:
+        return None
+
+
+DRIVER_DIRECTORY = ExtensionPoint("driver_directory", DriverDirectory)
+
+
 class DashboardKpi(BaseModel):
     """Wskaźnik na pulpicie operacyjnym; etykietę dobiera aplikacja po ``key`` (teksty w .arb)."""
 

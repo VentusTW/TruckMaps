@@ -1,7 +1,7 @@
 """Pojazdy i baza danych dla modułów – bez sięgania do wnętrza rdzenia."""
 
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Protocol
 
@@ -134,6 +134,10 @@ class DrivingInfo:
     """Nr rejestracyjny podpiętej naczepy / przyczepy."""
     odometer_km: int | None = None
     """Ostatni znany stan licznika pojazdu."""
+    deadlines: dict[str, date] = field(default_factory=dict)
+    """Terminy pojazdu (``inspection``, ``insurance``, ``ocp``, ``tachograph``,
+    ``tachograph_download``, ``adr``, ``atp``, ``tdt``, ``udt``); naczepy z przedrostkiem
+    ``trailer_`` – tylko ustawione."""
 
 
 @dataclass(frozen=True)

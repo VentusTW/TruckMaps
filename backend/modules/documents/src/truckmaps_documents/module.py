@@ -12,6 +12,7 @@ import base64
 import binascii
 import io
 import json
+import logging
 import re
 import unicodedata
 import uuid
@@ -19,7 +20,7 @@ from datetime import UTC, date, datetime, time
 from importlib import resources
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from PIL import Image as PilImage
 from PIL import UnidentifiedImageError
 from pydantic import BaseModel, Field, field_validator
@@ -29,16 +30,18 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from truckmaps.sdk import (
     DASHBOARD_FEED,
+    DRIVER_DIRECTORY,
     CoreContext,
     DashboardKpi,
     DashboardPart,
+    DriverRecord,
     Module,
     Principal,
     i18n,
 )
 from truckmaps.sdk.i18n import t
 from truckmaps_documents import render
-from truckmaps_documents.catalog import KINDS, Kind
+from truckmaps_documents.catalog import KINDS, PERIOD_KINDS, TRIP_KINDS, Kind
 from truckmaps_documents.catalog import Field as DocField
 from truckmaps_documents.pdf import Image
 from truckmaps_documents.prefill import (
@@ -62,6 +65,9 @@ SIGNATURE_BOX = (600, 200)
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -318,6 +324,21 @@ def _filename(doc: Document) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in doc.number)
 
 
+def driver_record(
+    request: Request, db: Session, user: Principal, company_id: str, subject: str | None, name: str
+) -> DriverRecord | None:
+    """Kierowca z kartoteki – gniazdo ``DRIVER_DIRECTORY`` (moduł Kierowcy, jeśli wykupiony)."""
+    licensing = request.app.state.licensing
+    directory, _ = request.app.state.extensions.get_allowed(
+        DRIVER_DIRECTORY, lambda module: module == "core" or licensing.is_granted(user, module)
+    )
+    try:
+        return directory.find(db, company_id, subject, name)
+    except Exception:  # noqa: BLE001 – brak danych kierowcy nie blokuje dokumentu
+        log.exception("Kartoteka kierowców niedostępna")
+        return None
+
+
 class DocumentsModule(Module):
     id = "documents"
     name = "Dokumenty"
@@ -492,7 +513,7 @@ class DocumentsModule(Module):
             return template_out(found_kind, data)
 
         @router.post("/prefill")
-        def make_prefill(data: PrefillIn, user: User, db: Db) -> PrefillOut:
+        def make_prefill(data: PrefillIn, user: User, db: Db, request: Request) -> PrefillOut:
             """Podpowiedzi pól z danych firmy, pojazdu, trasy, ładunku i przejazdów."""
             kind_or_404(data.kind)
             member(db, user, data.company_id)
@@ -506,27 +527,9 @@ class DocumentsModule(Module):
                 driver_phone=data.driver_phone,
                 today=_now().date(),
             )
-            if data.vehicle_id:
-                check_vehicle(db, user, data.vehicle_id, data.company_id)
-                src.vehicle = fleet.driving(db, data.vehicle_id)
-                driver = src.vehicle.assigned_driver if src.vehicle else None
-                if driver and not src.driver_name:
-                    names = {m.subject: m.name for m in fleet.members(db, data.company_id)}
-                    src.driver_name = names.get(driver, "")
-                if data.kind == "road_card":
-                    start = data.date_from or src.today
-                    end = data.date_to or start
-                    if end < start:
-                        raise HTTPException(
-                            status.HTTP_422_UNPROCESSABLE_CONTENT, t("documents.bad_period")
-                        )
-                    src.period = (start, end)
-                    src.trips = fleet.trips(
-                        db,
-                        vehicle_ids=[data.vehicle_id],
-                        since=datetime.combine(start, time.min, UTC),
-                    )
-            if data.kind == "posting_declaration" and (data.date_from or data.date_to):
+            if data.kind in PERIOD_KINDS and (
+                data.date_from or data.date_to or data.kind == "road_card"
+            ):
                 start = data.date_from or data.date_to or src.today
                 end = data.date_to or start
                 if end < start:
@@ -534,6 +537,27 @@ class DocumentsModule(Module):
                         status.HTTP_422_UNPROCESSABLE_CONTENT, t("documents.bad_period")
                     )
                 src.period = (start, end)
+            subject = None
+            if data.vehicle_id:
+                check_vehicle(db, user, data.vehicle_id, data.company_id)
+                src.vehicle = fleet.driving(db, data.vehicle_id)
+                subject = src.vehicle.assigned_driver if src.vehicle else None
+                if subject and not src.driver_name:
+                    names = {m.subject: m.name for m in fleet.members(db, data.company_id)}
+                    src.driver_name = names.get(subject, "")
+                if data.kind in TRIP_KINDS:
+                    start = (src.period or (src.today, src.today))[0]
+                    src.trips = fleet.trips(
+                        db,
+                        vehicle_ids=[data.vehicle_id],
+                        since=datetime.combine(start, time.min, UTC),
+                    )
+            if subject or src.driver_name:
+                src.driver = driver_record(
+                    request, db, user, data.company_id, subject, src.driver_name
+                )
+                if src.driver and not src.driver_name:
+                    src.driver_name = src.driver.name
             result = prefill(data.kind, src)
             return PrefillOut(data=result.data, sources=result.sources, warnings=result.warnings)
 

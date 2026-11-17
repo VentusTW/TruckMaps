@@ -1,7 +1,7 @@
 import json
 import re
 import zlib
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from importlib import resources
 
 import pytest
@@ -11,14 +11,14 @@ from truckmaps_documents import pdf
 from truckmaps_documents.catalog import KINDS
 from truckmaps_documents.module import Base as DocumentsBase
 from truckmaps_documents.module import DocumentsModule
-from truckmaps_documents.prefill import Template, fields_for
+from truckmaps_documents.prefill import Template, fields_for, per_diem_days
 from truckmaps_documents.render import Doc, to_html, to_pdf
 
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
 from truckmaps.core.db import Base, Database
-from truckmaps.sdk import Principal, i18n
+from truckmaps.sdk import DRIVER_DIRECTORY, DriverRecord, Principal, i18n
 
 TRACTOR = {
     "name": "MAN TGX",
@@ -661,3 +661,241 @@ def test_loading_report_prefill_signatures_and_print(client, company):
     assert "6 pasów" in page and "EN 12195-1" in page and "Podpis nadawcy / załadowcy" in page
     printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
     assert printed.startswith(b"%PDF") and b"".join(_streams(printed)).count(b" Do Q") == 2
+
+
+PALLET_EUR = "palety EUR"
+ROUTE_DE = {
+    "stops": [
+        {"label": "Poznań", "country": "PL", "at": "2026-11-16T06:00:00Z", "type": "loading"},
+        {"label": "Berlin", "country": "DE", "at": "2026-11-16T14:00:00Z"},
+        {"label": "Hamburg", "country": "DE", "at": "2026-11-17T09:00:00Z", "type": "unloading"},
+        {"label": "Słubice", "country": "PL", "at": "2026-11-17T16:00:00Z"},
+    ],
+    "distance_km": 1250.4,
+    "duration_min": 900,
+}
+CARGO = {
+    "items": [
+        {"kind": "euro", "count": 10, "weight_kg": 400, "label": "Płytki"},
+        {"kind": "euro", "count": 2, "weight_kg": 100, "label": "Klej"},
+        {"kind": "custom", "count": 1, "weight_kg": 50, "label": "Skrzynia"},
+    ],
+    "dangerous_goods": "UN 1263 FARBA, 3, III, (D/E)",
+}
+
+
+def _prefill(client, body: dict, user: str = "olek") -> dict:
+    response = client.post(f"{API}/prefill", json=body, headers=as_user(user))
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+class FakeDirectory:
+    def __init__(self, record):
+        self.record = record
+        self.calls = []
+
+    def find(self, db, company_id, subject, name=""):
+        self.calls.append((company_id, subject, name))
+        return self.record
+
+
+def _directory(client, **deadlines):
+    record = DriverRecord(
+        name="Jan Kowalski",
+        hired_on=date(2020, 3, 1),
+        card_number="PL123",
+        deadlines={k: date.fromisoformat(v) for k, v in deadlines.items()},
+    )
+    fake = FakeDirectory(record)
+    client.app.state.extensions.provide(DRIVER_DIRECTORY, fake, priority=10, owner="drivers")
+    return fake
+
+
+def test_every_kind_prefills_and_prints(client, company):
+    cid, owner = company["id"], as_user("olek")
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=owner)
+    for kind in KINDS:
+        body = {"kind": kind, "company_id": cid, "vehicle_id": company["tractor"],
+                "route": ROUTE_DE, "cargo": CARGO}  # fmt: skip
+        data = _prefill(client, body)["data"]
+        assert set(data) <= {f.key for f in KINDS[kind].fields}, (kind, set(data))
+        saved = client.post(f"{API}/documents", json={"kind": kind, "company_id": cid,
+                            "data": data}, headers=owner)  # fmt: skip
+        assert saved.status_code == 201, (kind, saved.text)
+        doc = saved.json()
+        assert doc["number"].startswith(KINDS[kind].prefix + "/")
+        printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner)
+        assert printed.content.startswith(b"%PDF"), kind
+
+
+def test_consignment_note_like_cmr_without_adr(client, company):
+    body = {"kind": "consignment_note", "company_id": company["id"],
+            "vehicle_id": company["tractor"], "route": ROUTE_DE, "cargo": CARGO}  # fmt: skip
+    data = _prefill(client, body)["data"]
+    assert data["loading_place_date"] == "Poznań (PL)\n2026-11-16"
+    assert data["delivery_place"] == "Słubice (PL)" and len(data["goods"]) == 3
+    assert data["goods"][0]["gross_kg"] == 4000 and "dangerous_goods" not in data
+    assert data["tractor_plate"] == "WGM 1234A"
+
+
+def test_driver_activity_reasons_period_and_driver_directory(client, company):
+    cid = company["id"]
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=as_user("olek"))
+    fake = _directory(client)
+    body = {"kind": "driver_activity", "company_id": cid, "vehicle_id": company["tractor"],
+            "date_from": "2026-11-02", "date_to": "2026-11-13"}  # fmt: skip
+    result = _prefill(client, body)
+    data, sources = result["data"], result["sources"]
+    assert fake.calls and fake.calls[0][0] == cid and fake.calls[0][2] == "Jan"
+    assert data["driver_name"] == "Jan" and data["work_start"] == "2020-03-01"
+    assert sources["work_start"] == "driver"
+    assert (data["period_from"], data["period_to"]) == ("2026-11-02 00:00", "2026-11-13 23:59")
+    assert data["reasons"][1]["reason"] == "przebywał na urlopie wypoczynkowym"
+    assert len(data["reasons"]) == 6 and all(r["mark"] == "" for r in data["reasons"])
+    assert data["signer_name"] == "Ola Nowak" and "561/2006" in data["driver_statement"]
+    bad = body | {"date_to": "2026-11-01"}
+    assert client.post(f"{API}/prefill", json=bad, headers=as_user("olek")).status_code == 422
+    # Bez pojazdu: kierowca po imieniu i nazwisku z kartoteki.
+    bare = {"kind": "driver_activity", "company_id": cid, "driver_name": "Jan Kowalski"}
+    assert _prefill(client, bare)["data"]["work_start"] == "2020-03-01"
+    assert fake.calls[-1] == (cid, None, "Jan Kowalski")
+
+
+def test_per_diem_days_rules():
+    assert per_diem_days(7, foreign=False) == 0
+    assert per_diem_days(10, foreign=False) == 0.5
+    assert per_diem_days(13, foreign=False) == 1
+    assert per_diem_days(30, foreign=False) == 1.5
+    assert per_diem_days(35, foreign=False) == 2
+    assert per_diem_days(6, foreign=False, whole_trip_h=40) == 0.5
+    assert per_diem_days(5, foreign=True) == 0.33
+    assert per_diem_days(10, foreign=True) == 0.5
+    assert per_diem_days(27, foreign=True) == 1.33
+    assert per_diem_days(48, foreign=True) == 2
+
+
+def test_business_trip_countries_and_per_diems_from_route(client, company):
+    cid = company["id"]
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=as_user("olek"))
+    body = {"kind": "business_trip", "company_id": cid, "vehicle_id": company["tractor"],
+            "route": ROUTE_DE}  # fmt: skip
+    result = _prefill(client, body)
+    data, sources = result["data"], result["sources"]
+    assert data["destination"] == "Poznań (PL) → Berlin (DE) → Hamburg (DE) → Słubice (PL)"
+    assert data["transport"] == "MAN TGX WGM 1234A"
+    assert (data["period_from"], data["period_to"]) == ("2026-11-16", "2026-11-17")
+    assert sources["period_from"] == "route"
+    assert [(c["country"], c["hours"]) for c in data["countries"]] == [
+        ("PL", 8.0), ("DE", 26.0), ("PL", 0.0)]  # fmt: skip
+    pl, de, _ = data["per_diems"]
+    assert (pl["days"], pl["rate"], pl["currency"], pl["amount"]) == (0.5, 45, "PLN", 22.5)
+    assert (de["days"], de["rate"], de["currency"], de["amount"]) == (1.33, 49, "EUR", 65.17)
+    assert data["per_diem_total"] == "22.50 PLN; 65.17 EUR"
+    assert "art. 21a" in data["notes"]
+    # Kraj spoza tabeli stawek – stawka do wpisania.
+    other = {
+        "stops": [
+            {"label": "Dyneburg", "country": "LV", "at": "2026-11-16T06:00:00Z"},
+            {"label": "Ryga", "country": "LV", "at": "2026-11-16T20:00:00Z"},
+        ]
+    }
+    diems = _prefill(client, body | {"route": other})["data"]["per_diems"]
+    assert diems == [{"country": "LV", "days": 1, "currency": ""}]
+
+
+def test_working_time_days_from_trips(client, company):
+    tractor = company["tractor"]
+    day = datetime(2026, 11, 10, 6, 0, tzinfo=UTC)
+    for start, hours, km in ((day, 4, 300), (day + timedelta(hours=5), 3, 210),
+                             (day + timedelta(days=1), 2, 100)):  # fmt: skip
+        trip = {
+            "started_at": start.isoformat(),
+            "ended_at": (start + timedelta(hours=hours)).isoformat(),
+            "distance_km": km,
+        }
+        saved = client.post(f"/api/vehicles/{tractor}/trips", json=trip, headers=as_user("jan"))
+        assert saved.status_code == 201, saved.text
+    body = {"kind": "working_time", "company_id": company["id"], "vehicle_id": tractor,
+            "date_from": "2026-11-10", "date_to": "2026-11-11"}  # fmt: skip
+    data = _prefill(client, body)["data"]
+    assert data["days"] == [
+        {"date": "2026-11-10", "start": "06:00", "end": "14:00", "driving_h": 7.0, "km": 510},
+        {"date": "2026-11-11", "start": "06:00", "end": "08:00", "driving_h": 2.0, "km": 100},
+    ]
+    assert data["total_driving_h"] == 9.0 and data["total_km"] == 610
+    assert data["driver_name"] == "Jan" and "tachografu" in data["notes"]
+
+
+def test_cabin_checklist_from_vehicle_and_driver_deadlines(client, company):
+    cid, owner = company["id"], as_user("olek")
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=owner)
+    today = datetime.now(UTC).date()
+    vehicle = client.post("/api/vehicles", json=TRACTOR | {
+        "company_id": cid, "plate": "WGM 5555X", "hazmat": True,
+        "inspection_until": (today - timedelta(days=1)).isoformat(),
+        "insurance_until": (today + timedelta(days=10)).isoformat(),
+        "tachograph_until": (today + timedelta(days=400)).isoformat(),
+    }, headers=owner)  # fmt: skip
+    assert vehicle.status_code == 201, vehicle.text
+    _directory(client, license=(today + timedelta(days=900)).isoformat())
+    body = {"kind": "cabin_checklist", "company_id": cid, "vehicle_id": vehicle.json()["id"],
+            "driver_name": "Jan Kowalski"}  # fmt: skip
+    result = _prefill(client, body)
+    rows = {r["document"]: r for r in result["data"]["checklist"]}
+    assert rows["Prawo jazdy"]["status"] == "ważny"
+    assert rows["Dowód rejestracyjny z ważnym przeglądem"]["status"] == "po terminie"
+    assert rows["Polisa OC"]["status"] == "kończy się (≤ 30 dni)"
+    assert rows["Legalizacja tachografu (tabliczka)"]["status"] == "ważny"
+    assert "status" not in rows["Karta kierowcy"]
+    assert rows["Polisa OCP przewoźnika"]["status"] == "OCP-77"
+    assert rows["Wypis z licencji wspólnotowej / zezwolenia"]["status"] == "LW/0001/2026"
+    assert "Instrukcje pisemne ADR i wyposażenie" in rows
+    assert "Zaświadczenie ADR kierowcy" in rows
+    assert any("Dowód rejestracyjny z ważnym przeglądem" in w for w in result["warnings"])
+    assert result["data"]["check_date"] == today.isoformat()
+
+
+def test_handover_pallets_securing_and_adr_from_vehicle_route_cargo(client, company):
+    cid = company["id"]
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=as_user("olek"))
+    base = {"company_id": cid, "vehicle_id": company["tractor"], "route": ROUTE_DE, "cargo": CARGO}
+    handover = _prefill(client, base | {"kind": "vehicle_handover"})["data"]
+    assert handover["odometer"] == 250_000 and handover["vehicle"] == "MAN TGX"
+    assert handover["handover_place"] == "Warszawa" and handover["driver_name"] == "Jan"
+    assert handover["equipment"][0] == {"item": "Dowód rejestracyjny", "count": "", "state": ""}
+    assert "art. 124" in handover["notes"]
+
+    pallets = _prefill(client, base | {"kind": "pallet_note"})["data"]
+    assert pallets["pallets"] == [{"pallet_type": PALLET_EUR, "delivered": 12}]
+    assert pallets["exchange_place"] == "Słubice (PL)"
+    assert pallets["exchange_at"] == "2026-11-17 16:00"
+
+    securing = _prefill(client, base | {"kind": "securing_declaration"})["data"]
+    assert securing["total_kg"] == 4250 and securing["loading_place"] == "Poznań (PL)"
+    assert "EN 12195-1" in securing["statement"]
+
+    adr = _prefill(client, base | {"kind": "adr_document"})["data"]
+    assert adr["dangerous_goods"].startswith("UN 1263")
+    assert adr["delivery_place"] == "Słubice (PL)" and "UNECE" in adr["written_instructions"]
+    assert adr["issued_place"] == "Warszawa"
+
+
+def test_data_forms_sent_edd_and_oversize_permit(client, company):
+    base = {"company_id": company["id"], "vehicle_id": company["tractor"], "route": ROUTE_DE,
+            "cargo": CARGO}  # fmt: skip
+    sent = _prefill(client, base | {"kind": "sent_data"})["data"]
+    assert sent["loading_place"] == "Poznań (PL)" and sent["delivery_place"] == "Słubice (PL)"
+    assert sent["start_at"] == "2026-11-16 06:00" and sent["duration_h"] == 15.0
+    assert sent["goods"][0] == {"packages": 10, "nature": "Płytki", "gross_kg": 4000}
+    assert "PUESC" in sent["notes"] and "reference_number" not in sent
+
+    edd = _prefill(client, base | {"kind": "edd_data"})["data"]
+    assert edd["dispatch_date"] == "2026-11-16"
+    assert edd["goods"][0] == {"nature": "Płytki", "quantity": 10, "unit": PALLET_EUR}
+
+    permit = _prefill(client, base | {"kind": "oversize_permit_data"})["data"]
+    assert permit["route_description"].endswith("Słubice (PL)\n1250 km")
+    assert (permit["period_from"], permit["period_to"]) == ("2026-11-16", "2026-11-17")
+    assert "Masa ładunku: 4250 kg" in permit["cargo_description"]
+    assert permit["trips_count"] == 1 and permit["vehicle_type"]
