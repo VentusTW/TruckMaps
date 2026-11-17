@@ -52,6 +52,9 @@ abstract class TruckMapsModule {
 
   /// Sekcje pulpitu startowego – to, co wymaga uwagi (np. otwarte usterki, terminy kierowców).
   List<DashboardSection> dashboardSections(ModuleContext context) => const [];
+
+  /// Akcje przy wyznaczonej trasie w planerze i w panelu wysyłki trasy (np. „Dokument”).
+  List<RouteAction> routeActions(ModuleContext context) => const [];
 }
 
 /// Pojazd w postaci z `GET /api/vehicles` (id, name, plate, kind, company_id, can_edit…).
@@ -95,3 +98,23 @@ class DashboardSection {
   final WidgetBuilder builder;
   final int order;
 }
+
+/// Trasa z planera dla akcji modułów: `company_id`, `vehicle_id`, `route` (`stops` z `label`, `country`
+/// – ISO-2 albo brak, `at` – ETA ISO 8601, `type` – loading / unloading / via; `distance_km`, `duration_min`,
+/// `cost_amount`, `cost_currency`) i opcjonalnie `cargo` z planu załadunku ([currentCargo]).
+typedef RouteData = Map<String, dynamic>;
+
+/// Akcja modułu przy wyznaczonej trasie (planer, panel wysyłki trasy), np. „Dokument”.
+class RouteAction {
+  const RouteAction({required this.id, required this.label, required this.icon, required this.run});
+
+  final String id;
+  final String Function(Locale locale) label;
+  final IconData icon;
+  final Future<void> Function(BuildContext context, RouteData route) run;
+}
+
+/// Ładunek ostatnio policzonego planu załadunku: `vehicle_id`, `items` (`kind`, `count`, `weight_kg`, `label`)
+/// i `ldm`; `null` – brak planu. Ustawia moduł Załadunek, czytają inne (np. dokument z planera) – bez
+/// zależności między modułami.
+final currentCargo = ValueNotifier<Map<String, dynamic>?>(null);
