@@ -139,5 +139,20 @@
   "documents.field.securing": "Securing (straps – number, anti-slip mats, bars, blocking)",
   "documents.field.goods_condition": "Condition of goods and packaging",
   "documents.field.sender_signature": "Sender's / loader's signature",
-  "documents.field.total_kg": "Total gross weight [kg]"
+  "documents.field.total_kg": "Total gross weight [kg]",
+  "documents.kind.posting_declaration": "Posting declaration for a driver (IMI)",
+  "documents.basis.posting_declaration": "Directive (EU) 2020/1057 Art. 1(11), Implementing Regulation (EU) 2021/2179. The declaration is submitted in the public IMI portal (postingdeclaration.eu) before the posting starts – this document collects the data to enter there and serves as the copy for the cab.",
+  "documents.field.driver_birth_date": "Driver's date of birth",
+  "documents.field.driver_licence_number": "Driving licence number",
+  "documents.field.driver_address": "Driver's address",
+  "documents.field.driver_id_document": "Identity document (type and number)",
+  "documents.field.contract_start": "Employment contract start",
+  "documents.field.applicable_law": "Law applicable to the contract",
+  "documents.field.host_country": "Host country",
+  "documents.field.transport_type": "Type of transport",
+  "documents.sign.carrier_rep": "Carrier's signature",
+  "documents.text.cabotage": "cabotage",
+  "documents.text.cross_trade": "cross-trade",
+  "documents.text.posting_notes": "Submit the declaration in the IMI portal before the posting starts. In the cab: a copy of the declaration, proof of transport (CMR) and tachograph records.",
+  "documents.warn.not_posting": "The route is a bilateral operation or transit – posting usually does not apply (Directive 2020/1057). Check the loading and unloading countries."
 }

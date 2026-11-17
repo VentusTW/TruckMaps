@@ -6,6 +6,7 @@ import '../dashboard/main_dashboard.dart';
 import '../l10n.dart';
 import '../records/records.dart';
 import '../vehicles/vehicle_form.dart' show kindLabel;
+import 'analytics_cards.dart';
 import 'fleet_export.dart';
 import 'revenue.dart';
 import 'service_data.dart';
@@ -13,7 +14,8 @@ import 'service_data.dart';
 /// „Raporty i Analityka” według projektu Stitch: przebiegi, kursy puste, koszt wozokilometra,
 /// spalanie i ranking taboru z przejazdów TruckMaps (`/api/vehicles/{id}/stats`) i kosztów napraw
 /// modułu Serwis, przychody ze zleceń transportowych i marża (`/api/companies/{id}/revenue/summary`,
-/// tankowania z kart paliwowych, gdy są). Korytarze i zgodność prawna – „W budowie”.
+/// tankowania z kart paliwowych, gdy są), korytarze tras od dyspozytora i zgodność prawna
+/// (naruszenia 561/2006 z modułu Kierowcy, terminy dokumentów).
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({
     super.key,
@@ -43,6 +45,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   /// Przychody ze zleceń (`null` – brak dostępu) i tankowania z kart w PLN według pojazdu.
   Map<String, dynamic>? _revenue;
   Map<String?, double>? _fuel;
+
+  /// Naruszenia i terminy z modułu Kierowcy (`null` – moduł nieaktywny).
+  Map<String, dynamic>? _compliance;
 
   /// Filtry: pojazd (id), rodzaj pojazdu, baza; ukryte KPI (ustawienie firmy).
   String? _vehicle, _kind, _base;
@@ -184,13 +189,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     try {
       final revenue = loadRevenueSummary(widget.api, widget.companyId, months: widget.months);
       final fuel = loadFuelCardCost(widget.api, widget.companyId, months: widget.months);
+      final compliance = loadCompliance(widget.api, widget.companyId);
       final data = await FleetData.load(widget.api, widget.companyId, withStats: true, months: widget.months);
-      final (r, f) = (await revenue, await fuel);
+      final (r, f, c) = (await revenue, await fuel, await compliance);
       if (mounted) {
         setState(() {
           _data = data;
           _revenue = r;
           _fuel = f;
+          _compliance = c;
         });
       }
     } catch (e) {
@@ -246,7 +253,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       final wide = inner >= 900;
       final kpiColumns = wide ? 4 : (inner >= 560 ? 2 : 1);
       final kpiWidth = (inner - gap * (kpiColumns - 1)) / kpiColumns;
-      final l = context.l;
       return ListView(padding: EdgeInsets.all(pad), children: [
         _header(context, data),
         const SizedBox(height: gap),
@@ -262,13 +268,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Expanded(flex: 8, child: _trend(context, data)),
               const SizedBox(width: gap),
-              Expanded(flex: 4, child: _wipCard(context, l.anCorridors, l.anCorridorsNote, Icons.alt_route_outlined)),
+              Expanded(flex: 4, child: _corridors(data)),
             ]),
           )
         else ...[
           _trend(context, data),
           const SizedBox(height: gap),
-          _wipCard(context, l.anCorridors, l.anCorridorsNote, Icons.alt_route_outlined),
+          _corridors(data),
         ],
         const SizedBox(height: gap),
         if (wide)
@@ -278,7 +284,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             Expanded(
               flex: 4,
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                _wipCard(context, l.anCompliance, l.anComplianceNote, Icons.policy_outlined),
+                ComplianceCard(compliance: _compliance, vehicles: data.vehicles),
                 const SizedBox(height: gap),
                 _source(context, data),
               ]),
@@ -287,7 +293,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         else ...[
           _ranking(context, data),
           const SizedBox(height: gap),
-          _wipCard(context, l.anCompliance, l.anComplianceNote, Icons.policy_outlined),
+          ComplianceCard(compliance: _compliance, vehicles: data.vehicles),
           const SizedBox(height: gap),
           _source(context, data),
         ],
@@ -440,12 +446,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final empty = stats.fold(0.0, (a, s) => a + ((s['empty_km'] as num?) ?? 0));
     final routeCost = stats.fold(0.0, (a, s) => a + tripCosts(s));
     final service = data.done.fold(0.0, (a, o) => a + orderTotal(o));
-    final perKm = km == 0 ? null : (routeCost + service) / km;
     final revenue = _revenueIn(data);
     final fuel = _fuelIn(data);
     // Tankowania z kart (gdy są) zastępują szacunek kosztów tras – jak w TCO, bez podwójnego paliwa.
     final cardFuel = fuel != null && fuel > 0;
-    final costs = (cardFuel ? fuel : routeCost) + service;
+    final driveCost = cardFuel ? fuel : routeCost;
+    final costs = driveCost + service;
+    final perKm = km == 0 ? null : costs / km;
     final burns = [
       for (final v in data.power)
         if (v['consumption_loaded'] is num) (v['consumption_loaded'] as num).toDouble()
@@ -490,7 +497,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         TruckProgressBar(value: 1 - share, height: 6, color: colors.success),
       ]),
       card(l.anCostKm, Icons.payments_outlined, perKm == null ? '–' : l.number(perKm, decimals: 2), 'PLN / km', [
-        Text(l.anRouteCosts(km == 0 ? '–' : l.number(routeCost / km, decimals: 2)), style: theme.textTheme.bodySmall),
+        Text((cardFuel ? l.anFuelCardCosts : l.anRouteCosts)(km == 0 ? '–' : l.number(driveCost / km, decimals: 2)),
+            key: const Key('an-cost-drive'), style: theme.textTheme.bodySmall),
         Text(l.anServiceCosts(km == 0 ? '–' : l.number(service / km, decimals: 2)), style: theme.textTheme.bodySmall),
       ]),
       card(
@@ -717,14 +725,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
-  Widget _wipCard(BuildContext context, String title, String note, IconData icon) {
-    final theme = Theme.of(context);
-    return UiPanel(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        UiSectionHeader(title: title, icon: icon, trailing: WipTag(what: title, onOpen: widget.onOpen)),
-        const SizedBox(height: Gap.m),
-        Text(note, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-      ]),
+  /// Korytarze z tras dyspozytora pokazanych pojazdów (filtry ekranu).
+  Widget _corridors(FleetData data) {
+    final r = _revenue;
+    return CorridorsCard(
+      corridors: r == null
+          ? null
+          : corridorsFrom(uiMaps(r['orders']),
+              vehicleIds: _filtering ? {for (final v in data.vehicles) '${v['id']}'} : null),
     );
   }
 

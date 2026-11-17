@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'axle_strip.dart';
 import 'deck_view.dart';
 import 'panels.dart';
 import 'sim_view.dart';
@@ -528,7 +529,9 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
     });
     try {
       final plan = await call();
-      if (mounted) setState(() => _plan = plan as Map<String, dynamic>);
+      if (!mounted) return;
+      setState(() => _plan = plan as Map<String, dynamic>);
+      _shareCargo(plan as Map<String, dynamic>);
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
@@ -539,6 +542,24 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
         });
       }
     }
+  }
+
+  /// Ładunek policzonego planu dla innych modułów (np. dokument z planera trasy).
+  void _shareCargo(Map<String, dynamic> plan) {
+    final t = LoadTexts.of(context);
+    currentCargo.value = {
+      'vehicle_id': _vehicleId,
+      'items': [
+        for (final i in _items)
+          {
+            'kind': i.kind,
+            'count': _parse(i.count.text)?.round() ?? 1,
+            'weight_kg': _parse(i.weight.text) ?? 0,
+            'label': _cargoName(t, i),
+          },
+      ],
+      if (plan['ldm'] is num) 'ldm': plan['ldm'],
+    };
   }
 
   /// Ręczne ułożenie (przeciągnięte palety): serwer liczy naciski i ostrzeżenia od nowa.
@@ -1088,6 +1109,10 @@ class SimulatorCard extends StatelessWidget {
               'edit': Icons.open_with,
             }),
         const SizedBox(height: Gap.m),
+        if (plan?['vehicle'] case final Map<String, dynamic> vehicle) ...[
+          AxleStrip(vehicle: vehicle),
+          const SizedBox(height: Gap.m),
+        ],
         if (plan == null)
           Container(
             height: 220,

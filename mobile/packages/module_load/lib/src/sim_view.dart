@@ -138,6 +138,9 @@ class SimScene {
         rows = (plan['rows'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>(),
         axles = (plan['axles'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>(),
         tractor = plan['tractor'] != null,
+        vehicleKind = (plan['vehicle'] as Map<String, dynamic>?)?['kind'] as String?,
+        vehicleAxles = ((plan['vehicle'] as Map<String, dynamic>?)?['axles'] as List<dynamic>? ?? const [])
+            .cast<Map<String, dynamic>>(),
         gear = {
           for (final g in (plan['equipment'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>())
             '${g['id']}': (g['required'] as int?) ?? 0,
@@ -149,6 +152,10 @@ class SimScene {
   final List<Map<String, dynamic>> rows;
   final List<Map<String, dynamic>> axles;
   final bool tractor;
+
+  /// Naciski wszystkich osi pojazdu (`PlanOut.vehicle`): `combination` albo `rigid`; puste – brak danych.
+  final String? vehicleKind;
+  final List<Map<String, dynamic>> vehicleAxles;
 
   /// Sprzęt z listy VDI 2700: ile sztuk potrzeba.
   final Map<String, int> gear;
@@ -898,10 +905,14 @@ class SimPainter extends CustomPainter {
   void _section(Canvas canvas, Size size) {
     final s = scene;
     const floor = 1.2;
-    final total = s.length + 1.4;
-    final scale = math.min(size.width / total, size.height / (s.inner + floor + 1.0));
-    final left = (size.width - s.length * scale) / 2;
-    final ground = size.height - 0.5 * scale;
+    final wheels = s.vehicleAxles;
+    // Z osiami pojazdu: rysunek od kabiny (oś kierowana przed przestrzenią) i miejsce na naciski pod kołami.
+    final front = wheels.isEmpty ? 0.0 : math.min(0.0, _d(wheels.first['x_m']) - 1.3);
+    final total = s.length - front + 1.4;
+    final below = wheels.isEmpty ? 0.5 : 1.0;
+    final scale = math.min(size.width / total, size.height / (s.inner + floor + 0.5 + below));
+    final left = (size.width - (s.length - front) * scale) / 2 - front * scale;
+    final ground = size.height - below * scale;
     Offset pt(double x, double z) => Offset(left + x * scale, ground - (z + floor) * scale);
     final line = Paint()
       ..style = PaintingStyle.stroke
@@ -911,14 +922,31 @@ class SimPainter extends CustomPainter {
     canvas.drawLine(Offset(0, ground), Offset(size.width, ground), line);
     // Podwozie, koła, podpory.
     canvas.drawRect(Rect.fromPoints(pt(0, 0), pt(s.length, -0.3)), Paint()..color = const Color(0xFF334155));
-    final axle = s.trailerAxles ?? s.length * 0.7;
-    for (final dx in [-1.31, 0.0, 1.31]) {
-      final c = Offset(left + (axle + dx) * scale, ground - 0.5 * scale);
+    void wheel(double x, [Color? ring]) {
+      final c = Offset(left + x * scale, ground - 0.5 * scale);
       canvas.drawCircle(c, 0.5 * scale, Paint()..color = const Color(0xFF111827));
       canvas.drawCircle(c, 0.24 * scale, Paint()..color = const Color(0xFFCBD5E1));
+      if (ring != null) {
+        canvas.drawCircle(
+            c,
+            0.56 * scale,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = math.max(2, 0.08 * scale)
+              ..color = ring);
+      }
     }
-    canvas.drawLine(pt(2.4, -0.3), Offset(left + 2.4 * scale, ground), line..strokeWidth = 3);
-    line.strokeWidth = 1.4;
+
+    if (wheels.isEmpty) {
+      final axle = s.trailerAxles ?? s.length * 0.7;
+      for (final dx in [-1.31, 0.0, 1.31]) {
+        wheel(axle + dx);
+      }
+      canvas.drawLine(pt(2.4, -0.3), Offset(left + 2.4 * scale, ground), line..strokeWidth = 3);
+      line.strokeWidth = 1.4;
+    } else {
+      _vehicle(canvas, pt, scale, ground, wheel);
+    }
     // Przestrzeń ładunkowa: ściana czołowa, dach, drzwi.
     canvas.drawRect(Rect.fromPoints(pt(0, 0), pt(s.length, s.inner)), Paint()..color = _floor.withOpacity(0.35));
     canvas.drawRect(Rect.fromPoints(pt(0, 0), pt(s.length, s.inner)), line);
@@ -1009,6 +1037,19 @@ class SimPainter extends CustomPainter {
     _dimension(canvas, pt(0, s.inner + 0.45), pt(s.length, s.inner + 0.45), texts.metres(s.length), _ink);
     _dimension(canvas, pt(s.length + 0.45, 0), pt(s.length + 0.45, s.inner), texts.metres(s.inner), _ink,
         vertical: true);
+    if (!vectors && s.cog != null) {
+      // Środek ciężkości ładunku zawsze widoczny: znacznik nad ładunkiem i linia do podłogi.
+      final top = pt(s.cog!, s.inner - 0.35);
+      canvas.drawLine(
+          pt(s.cog!, 0),
+          top,
+          Paint()
+            ..color = cogColor
+            ..strokeWidth = 1.5);
+      final r = math.max(9.0, 0.26 * scale);
+      canvas.drawCircle(top, r, Paint()..color = cogColor);
+      _text(canvas, texts.cogMark, top, Colors.white, size: math.max(8, r * 0.8), bold: true);
+    }
     if (vectors && s.cog != null) {
       final c = pt(s.cog!, s.cogHeight);
       final r = math.max(8.0, 0.3 * scale);
@@ -1026,6 +1067,47 @@ class SimPainter extends CustomPainter {
             ..strokeWidth = 1.5);
       _arrow(canvas, c - Offset(r, 0), c - Offset(r + 1.5 * scale, 0), '0.8 g');
       _arrow(canvas, c + Offset(0, r), c + Offset(0, r + 0.9 * scale), '1 g');
+    }
+  }
+
+  /// Przekrój: kabina, rama i koła pojazdu w miejscu osi, z naciskiem pod każdą osią (kolor wg limitu).
+  void _vehicle(Canvas canvas, Offset Function(double, double) pt, double scale, double ground,
+      void Function(double, [Color?]) wheel) {
+    final s = scene;
+    final axles = s.vehicleAxles;
+    final first = _d(axles.first['x_m']);
+    final cabColor = dark ? const Color(0xFF475569) : Colors.white;
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = _frame;
+    // Rama ciągnika / podwozie solówki.
+    final frameEnd = s.vehicleKind == 'combination' ? _d(axles[1]['x_m']) + 0.8 : 0.0;
+    canvas.drawRect(
+        Rect.fromPoints(pt(first - 1.2, -0.55), pt(frameEnd, -0.8)), Paint()..color = const Color(0xFF334155));
+    // Kabina nad osią kierowaną.
+    final cab = RRect.fromRectAndCorners(
+      Rect.fromPoints(pt(first - 1.25, -0.5), pt(math.min(first + 1.0, -0.15), 1.9)),
+      topLeft: Radius.circular(0.4 * scale),
+      topRight: Radius.circular(0.15 * scale),
+    );
+    canvas.drawRRect(cab, Paint()..color = cabColor);
+    canvas.drawRRect(cab, line);
+    canvas.drawRect(
+        Rect.fromPoints(pt(first - 1.1, 0.6), pt(first - 0.3, 1.5)), Paint()..color = _frame.withOpacity(0.35));
+    for (final a in axles) {
+      final x = _d(a['x_m']);
+      final color = switch ('${a['status']}') {
+        'over' => const Color(0xFFDC2626),
+        'warn' => const Color(0xFFF59E0B),
+        _ => const Color(0xFF16A34A),
+      };
+      final group = a['id'] == 'trailer' ? [-1.31, 0.0, 1.31] : [0.0];
+      for (final dx in group) {
+        wheel(x + dx, color);
+      }
+      _text(canvas, texts.tonnes(_d(a['load_kg'])), Offset(pt(x, 0).dx, ground + 0.45 * scale), color,
+          size: math.max(10, 0.3 * scale), bold: true);
     }
   }
 

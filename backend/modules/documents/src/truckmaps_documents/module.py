@@ -526,6 +526,14 @@ class DocumentsModule(Module):
                         vehicle_ids=[data.vehicle_id],
                         since=datetime.combine(start, time.min, UTC),
                     )
+            if data.kind == "posting_declaration" and (data.date_from or data.date_to):
+                start = data.date_from or data.date_to or src.today
+                end = data.date_to or start
+                if end < start:
+                    raise HTTPException(
+                        status.HTTP_422_UNPROCESSABLE_CONTENT, t("documents.bad_period")
+                    )
+                src.period = (start, end)
             result = prefill(data.kind, src)
             return PrefillOut(data=result.data, sources=result.sources, warnings=result.warnings)
 

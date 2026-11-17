@@ -57,6 +57,8 @@ class OrderRevenue(BaseModel):
     """Kwota w walucie zlecenia; ``None`` – przychodu nie wpisano."""
     currency: str | None
     rate_per_km: float | None
+    value: float | None = None
+    """Kwota w walucie podsumowania (tylko ``summary``); ``None`` – brak kwoty lub kursu."""
 
 
 class MonthRevenue(BaseModel):
@@ -242,6 +244,7 @@ def build_router(current_user) -> APIRouter:
             if value is None:
                 missing.add(source)
                 continue
+            order.value = round(value, 2)
             distance = a.distance_km or 0
             total += value
             if distance:

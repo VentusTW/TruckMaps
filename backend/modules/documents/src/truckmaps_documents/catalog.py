@@ -199,4 +199,30 @@ LOADING = Kind(
     ),
 )
 
-KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, DAMAGE, LOADING)}
+POSTING = Kind(
+    id="posting_declaration",
+    prefix="DEL",
+    fields=(
+        Field("carrier", "multiline", 0.5),
+        Field("contact_person", "multiline", 0.5),
+        Field("driver_name", "text", 0.5),
+        Field("driver_birth_date", "date", 0.25),
+        Field("driver_licence_number", "text", 0.25),
+        Field("driver_address", "multiline", 0.5),
+        Field("driver_id_document", "text", 0.5),
+        Field("contract_start", "date", 0.25),
+        Field("applicable_law", "text", 0.25),
+        Field("host_country", "text", 0.25),
+        Field("transport_type", "text", 0.25),
+        Field("period_from", "date", 0.25),
+        Field("period_to", "date", 0.25),
+        Field("tractor_plate", "text", 0.25),
+        Field("trailer_plate", "text", 0.25),
+        Field("notes", "multiline", 1.0),
+        Field("issued_place", "text", 0.5),
+        Field("issued_date", "date", 0.5),
+    ),
+    signatures=("carrier_rep",),
+)
+
+KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, POSTING, DAMAGE, LOADING)}
