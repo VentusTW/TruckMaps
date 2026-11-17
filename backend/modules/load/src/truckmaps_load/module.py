@@ -33,6 +33,9 @@ from truckmaps.sdk import CoreContext, Module, Principal, i18n
 from truckmaps.sdk.fleet import BODY_GROUP, BODY_GROUPS, CargoInfo
 from truckmaps.sdk.i18n import t
 from truckmaps_load import report
+from truckmaps_load.axles import RIGID_GVW_KG, AxleReport, TractorSetup
+from truckmaps_load.axles import combination as combination_axles
+from truckmaps_load.axles import rigid as rigid_axles
 from truckmaps_load.cargo import (
     BUILT_IN,
     CATALOG,
@@ -263,6 +266,8 @@ class PlanOut(BaseModel):
     forces: Forces | None = None
     tractor: Tractor | None = None
     """Ciągnik siodłowy (naczepa / zestaw) – typowa geometria."""
+    vehicle: AxleReport | None = None
+    """Naciski wszystkich osi pojazdu z limitami i ostrzeżeniami (jak w Axle Plan)."""
     equipment: list[Equipment] = []
     norms: list[Norm] = []
     mats: bool = False
@@ -348,6 +353,30 @@ def axle_loads(placed: list[Placed], points: list[Support]) -> list[Axle]:
         )
         for s, load in ((a, front), (b, rear))
     ]  # fmt: skip
+
+
+def vehicle_axles(
+    placed: list[Placed], points: list[Support], cargo: CargoInfo | None
+) -> AxleReport | None:
+    """Naciski wszystkich osi pojazdu (ciągnik + naczepa albo solo) – ``None``: brak danych."""
+    if cargo is None or len(points) != 2:
+        return None
+    loads = [(p.weight_kg, p.x_m + p.length_m / 2) for p in placed]
+    a, b = points
+    tare = a.tare + b.tare
+    if cargo.kind in ("semitrailer", "combination"):
+        own = TRACTOR_TARE_KG if cargo.kind == "combination" else TYPICAL_TRACTOR_KG
+        return combination_axles(
+            loads, a.x, b.x, tare, b.limit or GROUP_LIMIT_KG[3], TractorSetup(tare_kg=own),
+            a.tare / tare if tare else 0.35,
+        )  # fmt: skip
+    if cargo.kind == "rigid":
+        gvw = cargo.gvw_kg or RIGID_GVW_KG.get(cargo.axle_count or 2, RIGID_GVW_KG[4])
+        return rigid_axles(
+            loads, a.x, b.x, tare, a.limit or STEER_AXLE_KG, b.limit or GROUP_LIMIT_KG[1], gvw,
+            a.tare / tare if tare else 0.6,
+        )  # fmt: skip
+    return None
 
 
 def _overload(axles: list[Axle]) -> float:
@@ -488,7 +517,9 @@ FULL_CHECKS = 40
 
 
 def _tractor_overload(axles: list[Axle], cargo: CargoInfo | None) -> float:
-    """Przekroczenia ciągnika siodłowego [kg]: osie, DMC, za mało na osi napędowej."""
+    """Przekroczenia ciągnika siodłowego [kg]: osie, masa ciągnika (18 t), za mało na osi
+    napędowej. Masa ciągnika tylko przy układaniu – gdy się nie da, zostaje ostrzeżenie
+    (szacunek z typowej geometrii nie oblewa art. 61)."""
     if not cargo or cargo.kind not in ("semitrailer", "combination") or len(axles) != 2:
         return 0.0
     own = TRACTOR_TARE_KG if cargo.kind == "combination" else TYPICAL_TRACTOR_KG
@@ -497,6 +528,7 @@ def _tractor_overload(axles: list[Axle], cargo: CargoInfo | None) -> float:
         max(0.0, tr.front_kg - tr.front_limit_kg)
         + max(0.0, tr.drive_kg - tr.drive_limit_kg)
         + max(0.0, DRIVE_MIN_SHARE * tr.gvw_kg - tr.drive_kg)
+        + max(0.0, tr.front_kg + tr.drive_kg - TractorSetup().tractor_limit_kg)
     )
 
 
@@ -690,6 +722,20 @@ def evaluate(
                   drive=round(tractor_info.drive_kg), gvw=round(tractor_info.gvw_kg),
                   share=round(tractor_info.drive_share * 100))
             )  # fmt: skip
+    vehicle = vehicle_axles(placed, points, cargo)
+    # Ostrzeżenia, których nie dają już osie i ciągnik powyżej.
+    extra = {"tractor", "steer_low", "cargo_back"}
+    if vehicle and vehicle.kind == "rigid":
+        extra |= {"gross", "drive_share"}
+    for problem in vehicle.problems if vehicle else []:
+        if problem in extra:
+            warnings.append(
+                t(f"load.axles.{problem}", tractor=vehicle.tractor_kg or 0,
+                  limit=round(vehicle.tractor_limit_kg or vehicle.gross_limit_kg),
+                  gross=vehicle.gross_kg, gross_limit=round(vehicle.gross_limit_kg),
+                  share=round(vehicle.drive_share * 100), steer=vehicle.axles[0].load_kg,
+                  min=vehicle.axles[0].min_kg or 0)
+            )  # fmt: skip
     outside = [
         p for p in placed
         if p.x_m < -1e-6 or p.y_m < -1e-6 or p.x_m + p.length_m > deck_length + 1e-6
@@ -722,6 +768,8 @@ def evaluate(
     fits = not unplaced and (payload is None or total <= payload) and ok_axles and not outside
     secured = straps_ok and lashing_ok and bool(placed)
     tractor_ok = tractor_info is None or not tractor_problems(tractor_info)
+    if vehicle and {"gross", "drive_share"} & set(vehicle.problems):
+        tractor_ok = False
     norms = [
         Norm(id="en12642", ok=data.body_code != "unknown" and (holds or not front_wall)),
         Norm(id="en12195", ok=secured),
@@ -769,6 +817,7 @@ def evaluate(
             lashing_daN=lashing,
         ),  # fmt: skip
         tractor=tractor_info,
+        vehicle=vehicle,
         equipment=gear,
         norms=norms,
         mats=data.mats,

@@ -67,6 +67,25 @@ class LoadTexts {
         'drawbar_front' => _t('Przednia oś przyczepy', 'Trailer front axle'),
         _ => name,
       };
+  String axleName(String id) => switch (id) {
+        'steer' => _t('Oś kierowana', 'Steer axle'),
+        'drive' => _t('Oś napędowa', 'Drive axle'),
+        'trailer' => _t('Osie naczepy', 'Trailer axles'),
+        'front' => _t('Oś przednia', 'Front axle'),
+        'rear' => _t('Osie tylne', 'Rear axles'),
+        _ => id,
+      };
+  String get tractorWeight => _t('Masa ciągnika', 'Tractor weight');
+  String get grossWeight => _t('Masa całkowita', 'Gross weight');
+  String axleUse(String tonnes, String pct) => '$tonnes · $pct%';
+  String driveAxleShare(String pct, String min) =>
+      _t('Oś napędowa: $pct% masy całkowitej (min. $min%)', 'Drive axle: $pct% of gross weight (min. $min%)');
+  String steerBelowMin(String tonnes) =>
+      _t('Za mało na osi kierowanej – min. $tonnes', 'Too little on the steer axle – min. $tonnes');
+  String get cogMark => _t('ŚC', 'CoG');
+  String get axleLegend => _t(
+      'Zielony – w normie, pomarańczowy – ponad 90% limitu, czerwony – przekroczony. Szacunek, nie zastępuje ważenia.',
+      'Green – fine, orange – above 90% of the limit, red – over the limit. An estimate, not a substitute for weighing.');
   String tonnes(double kg) => '${NumberFormat('0.0', locale.toLanguageTag()).format(kg / 1000)} t';
   String get disclaimer => _t(
       'Szacunek pomocniczy, nie certyfikat. Za rozmieszczenie i zabezpieczenie ładunku odpowiadają ładujący i kierowca.',

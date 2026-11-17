@@ -122,6 +122,8 @@ def test_revenue_entered_per_order_and_summarized(client, setup):
         "Kraków → Berlin",
         "Kraków → Wieliczka",
     }
+    # Kwota przeliczona na walutę podsumowania – do grupowania korytarzy w aplikacji.
+    assert next(o for o in summary["orders"] if o["assignment_id"] == lyon)["value"] == 9500
 
     assert (client.delete(f"{base}/{local}/revenue", headers=as_user("owner"))).status_code == 204
     summary = client.get(
@@ -144,6 +146,7 @@ def test_foreign_currency_without_rate_is_kept_apart(client, setup):
     ).json()
     assert summary["amount"] == {"EUR": 2000}
     assert (summary["total"], summary["unconverted"], summary["per_km"]) == (0, ["EUR"], None)
+    assert summary["orders"][0]["value"] is None
 
 
 def test_other_company_order_not_found(client, setup):

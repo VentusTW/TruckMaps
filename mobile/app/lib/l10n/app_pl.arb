@@ -2320,7 +2320,7 @@
   "drvDelegation": "Cykl delegacji (pakiet)",
   "drvDraft": "Zapisz wersję roboczą",
   "drvDriving": "W trasie",
-  "drvEcoScore": "Ocena Eco-Drive z CAN",
+  "drvEcoScore": "Eco-score (przybliżenie)",
   "drvEdit": "Edytuj dane",
   "drvEditCrumb": "Edycja profilu",
   "drvEditShort": "Edytuj",
@@ -3166,8 +3166,8 @@
       }
     }
   },
-  "anCorridors": "Rentowność korytarzy",
-  "anCorridorsNote": "Zysk na km trasy wymaga przychodów ze zleceń – pojawi się z modułem Zlecenia i Załadunek.",
+  "anCorridors": "Korytarze tras",
+  "anCorridorsNote": "Najczęstsze relacje z tras wysłanych przez dyspozytora – kursy, km i przychód.",
   "anRanking": "Ranking taboru",
   "anRankingNote": "Przebieg, koszty tras i napraw, koszt na km",
   "anTop": "Top {count} z {total}",
@@ -3189,8 +3189,8 @@
   "anColPerKm": "PLN/km",
   "anColRating": "Rating",
   "anNoData": "Brak danych.",
-  "anCompliance": "Zgodność prawna i audyty",
-  "anComplianceNote": "Pakiet Mobilności, paczki inspekcyjne ITD/BAG i ślad węglowy ESG – w przygotowaniu.",
+  "anCompliance": "Zgodność prawna",
+  "anComplianceNote": "Naruszenia czasu pracy (561/2006) z plików tachografu .DDD i terminy dokumentów kierowców oraz pojazdów.",
   "anConnector": "Źródło danych",
   "anSynced": "Dane z TruckMaps",
   "anSyncedNote": "Przejazdy: {trips} • zlecenia serwisowe: {orders}",
@@ -4030,5 +4030,150 @@
         "type": "String"
       }
     }
-  }
+  },
+  "anCorridorsNone": "Brak tras od dyspozytora w tym okresie.",
+  "anCorridorTrips": "{trips} kursów • {km} km",
+  "@anCorridorTrips": {
+    "placeholders": {
+      "trips": {
+        "type": "String"
+      },
+      "km": {
+        "type": "String"
+      }
+    }
+  },
+  "anCorridorRevenue": "Przychód {value} PLN • {perKm} PLN/km",
+  "@anCorridorRevenue": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "perKm": {
+        "type": "String"
+      }
+    }
+  },
+  "anCorridorNoRevenue": "Bez wpisanego przychodu",
+  "anFuelCardCosts": "• Paliwo z kart: {value} PLN/km",
+  "@anFuelCardCosts": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "anComplianceNoModule": "Moduł Kierowcy jest nieaktywny – naruszeń czasu pracy nie sprawdzono.",
+  "anComplianceNoTacho": "Brak danych z tachografu – wczytaj pliki .DDD w module Kierowcy.",
+  "anComplianceViolations": "Naruszenia 561/2006: {count} (ostatnie {days} dni danych)",
+  "@anComplianceViolations": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "anComplianceSerious": "Poważne: {serious} • bardzo poważne: {verySerious}",
+  "@anComplianceSerious": {
+    "placeholders": {
+      "serious": {
+        "type": "String"
+      },
+      "verySerious": {
+        "type": "String"
+      }
+    }
+  },
+  "anComplianceDrivers": "Kierowcy z naruszeniami: {count} z {total}",
+  "@anComplianceDrivers": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "anComplianceDocs": "Terminy dokumentów: {overdue} po terminie, {soon} wkrótce",
+  "@anComplianceDocs": {
+    "placeholders": {
+      "overdue": {
+        "type": "String"
+      },
+      "soon": {
+        "type": "String"
+      }
+    }
+  },
+  "anComplianceDocsOk": "Wszystkie terminy dokumentów aktualne.",
+  "anComplianceDue": "{vehicle}: {what} – {day}",
+  "@anComplianceDue": {
+    "placeholders": {
+      "vehicle": {
+        "type": "String"
+      },
+      "what": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "drvEcoValue": "{score}/100",
+  "@drvEcoValue": {
+    "placeholders": {
+      "score": {
+        "type": "int"
+      }
+    }
+  },
+  "drvEcoNone": "Za mało przejazdów do oceny.",
+  "drvEcoEmpty": "Kursy puste {share}: {points}/{max} pkt",
+  "@drvEcoEmpty": {
+    "placeholders": {
+      "share": {
+        "type": "String"
+      },
+      "points": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "drvEcoIdle": "Bezczynność w trasie {share}: {points}/{max} pkt",
+  "@drvEcoIdle": {
+    "placeholders": {
+      "share": {
+        "type": "String"
+      },
+      "points": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "drvEcoFuel": "Spalanie pojazdów {value} l/100 km: {points}/{max} pkt",
+  "@drvEcoFuel": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      },
+      "points": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "drvEcoNote": "Przybliżenie z przejazdów TruckMaps i deklarowanego spalania pojazdów – bez danych CAN i telematyki."
 }

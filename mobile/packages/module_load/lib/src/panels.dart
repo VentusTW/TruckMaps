@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 
+import 'axle_strip.dart';
 import 'sim_view.dart';
 import 'texts.dart';
 
@@ -16,6 +17,7 @@ List<Map<String, dynamic>> _list(Map<String, dynamic> plan, String key) =>
 /// Środek ciężkości w porządku: żadna oś nie przeciążona, oś napędowa ciągnika ma ≥ 25%.
 bool cogBalanced(Map<String, dynamic> plan) {
   if (_list(plan, 'axles').any((a) => a['over'] == true)) return false;
+  if (plan['vehicle'] case {'problems': final List<dynamic> problems} when problems.isNotEmpty) return false;
   final tractor = plan['tractor'] as Map<String, dynamic>?;
   if (tractor == null) return true;
   return _d(tractor['drive_share']) >= 0.25 &&
@@ -329,10 +331,18 @@ class AxlePanel extends StatelessWidget {
     final caption = theme.textTheme.bodySmall?.copyWith(color: scheme.secondary);
     final axles = _list(plan, 'axles');
     final tractor = plan['tractor'] as Map<String, dynamic>?;
+    final vehicle = plan['vehicle'] as Map<String, dynamic>?;
     final ok = cogBalanced(plan);
-    Widget bar(String label, num load, num? limit, {bool? over, String? note, bool noteBad = false}) {
+    final gross = vehicle?['gross_kg'] as num? ?? tractor?['gvw_kg'] as num?;
+    final grossLimit = vehicle?['gross_limit_kg'] as num? ?? tractor?['gvw_limit_kg'] as num?;
+    Widget bar(String label, num load, num? limit, {bool? over, bool? warn, String? note, bool noteBad = false}) {
       final ratio = _ratio(load, limit);
       final isOver = over ?? (limit != null && load > limit);
+      final color = isOver
+          ? scheme.error
+          : (warn ?? ratio > 0.9)
+              ? loadColor(context, 'warn')
+              : null;
       return Padding(
         padding: const EdgeInsets.only(bottom: Gap.m),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -342,7 +352,7 @@ class AxlePanel extends StatelessWidget {
               limit == null
                   ? t.tonnes(load.toDouble())
                   : '${t.tonnes(load.toDouble())} / ${t.tonnes(limit.toDouble())}',
-              style: theme.textTheme.labelLarge?.copyWith(color: isOver ? scheme.error : null),
+              style: theme.textTheme.labelLarge?.copyWith(color: color),
             ),
           ]),
           if (limit != null) ...[
@@ -363,6 +373,26 @@ class AxlePanel extends StatelessWidget {
       );
     }
 
+    Widget vehicleBar(Map<String, dynamic> a) {
+      final id = '${a['id']}';
+      final load = _d(a['load_kg']);
+      final min = a['min_kg'] as num?;
+      final drive = id == 'drive' || id == 'rear';
+      final share = _d(vehicle?['drive_share']);
+      final minShare = _d(vehicle?['drive_min_share']);
+      return bar(
+        t.axleName(id),
+        load,
+        a['limit_kg'] as num?,
+        over: a['status'] == 'over',
+        warn: a['status'] == 'warn',
+        note: drive
+            ? t.driveAxleShare(t.number((share * 100).round()), t.number((minShare * 100).round()))
+            : (min != null && load < min ? t.steerBelowMin(t.tonnes(min.toDouble())) : null),
+        noteBad: drive ? share < minShare : true,
+      );
+    }
+
     return SectionCard(
       title: t.axleDistribution,
       icon: Icons.balance,
@@ -373,7 +403,12 @@ class AxlePanel extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(t.axleIntro, style: caption),
         const SizedBox(height: Gap.m),
-        if (tractor != null) ...[
+        if (vehicle != null) ...[
+          for (final a in _list(vehicle, 'axles')) vehicleBar(a),
+          for (final axle in axles.where((a) => a['name'] == 'kingpin'))
+            bar(t.axle('kingpin'), axle['load_kg'] as num, axle['limit_kg'] as num?, over: axle['over'] == true),
+          if (vehicle['tractor_kg'] case final num kg) bar(t.tractorWeight, kg, vehicle['tractor_limit_kg'] as num?),
+        ] else if (tractor != null) ...[
           bar(t.tractorFront, _d(tractor['front_kg']), _d(tractor['front_limit_kg'])),
           bar(
             t.tractorDrive,
@@ -383,10 +418,15 @@ class AxlePanel extends StatelessWidget {
             noteBad: _d(tractor['drive_share']) < 0.25,
           ),
         ],
-        for (final axle in axles)
-          bar(t.axle(axle['name'] as String), axle['load_kg'] as num, axle['limit_kg'] as num?,
-              over: axle['over'] == true),
-        if (tractor != null)
+        if (vehicle == null)
+          for (final axle in axles)
+            bar(t.axle(axle['name'] as String), axle['load_kg'] as num, axle['limit_kg'] as num?,
+                over: axle['over'] == true),
+        if (vehicle != null) ...[
+          Text(t.axleLegend, style: caption),
+          const SizedBox(height: Gap.m),
+        ],
+        if (gross != null && grossLimit != null)
           Container(
             padding: const EdgeInsets.all(Gap.m),
             decoration: BoxDecoration(
@@ -397,15 +437,15 @@ class AxlePanel extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   SectionLabel(t.gvw),
-                  BigNumber(value: t.tonnes(_d(tractor['gvw_kg'])), size: 20),
+                  BigNumber(value: t.tonnes(gross.toDouble()), size: 20),
                 ]),
               ),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 SectionLabel(t.gvwLimit),
                 Text(
-                  t.tonnes(_d(tractor['gvw_limit_kg'])),
+                  t.tonnes(grossLimit.toDouble()),
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: _d(tractor['gvw_kg']) > _d(tractor['gvw_limit_kg']) ? scheme.error : scheme.primary,
+                    color: gross > grossLimit ? scheme.error : scheme.primary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

@@ -100,6 +100,9 @@ void main() {
           }
           if (path == '/api/m/documents/documents/d1/link') return json({'path': '/api/shared/abc', 'filename': 'x'});
           if (path == '/api/m/documents/templates/cmr' && request.method == 'GET') return json(templateOut());
+          if (path == '/api/m/documents/templates/posting_declaration') {
+            return json({...templateOut(), 'kind': 'posting_declaration'});
+          }
           if (path == '/api/m/documents/templates/cmr') {
             final extra = [
               for (final (i, x) in ((body as Map)['extra_fields'] as List).indexed)
@@ -231,6 +234,18 @@ void main() {
     expect(body['route'], route);
     expect(body['cargo'], cargo);
     expect(find.text('from the load plan'), findsOneWidget);
+  });
+
+  testWidgets('posting declaration (IMI): period sent with the prefill', (tester) async {
+    tall(tester);
+    await tester.pumpWidget(app(DocumentFormScreen(api: api(), companyId: 'c1', kind: 'posting_declaration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('document-fill')));
+    await tester.pumpAndSettle();
+    final body = requests.lastWhere((r) => r.$2 == '/api/m/documents/prefill').$3 as Map;
+    expect(body['kind'], 'posting_declaration');
+    expect(body, contains('date_from'));
+    expect(body, contains('date_to'));
   });
 
   testWidgets('template: rename, hide and add a company field', (tester) async {

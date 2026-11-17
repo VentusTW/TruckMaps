@@ -274,6 +274,9 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
   String? _vehicleId;
   DateTime _from = DateTime.now();
   DateTime _to = DateTime.now();
+
+  /// Wzory z okresem: karta drogowa (przejazdy) i oświadczenie o delegowaniu (IMI).
+  bool get _periodKind => widget.kind == 'road_card' || widget.kind == 'posting_declaration';
   bool _busy = false;
   String? _message;
 
@@ -367,7 +370,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
         if (_vehicleId != null) 'vehicle_id': _vehicleId,
         if (widget.route != null) 'route': widget.route,
         if (widget.cargo != null) 'cargo': widget.cargo,
-        if (widget.kind == 'road_card') ...{'date_from': _day(_from), 'date_to': _day(_to)},
+        if (_periodKind) ...{'date_from': _day(_from), 'date_to': _day(_to)},
       }) as Map<String, dynamic>;
       final data = result['data'] as Map<String, dynamic>;
       setState(() {
@@ -572,7 +575,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
               ],
               onChanged: (id) => setState(() => _vehicleId = id),
             ),
-            if (widget.kind == 'road_card')
+            if (_periodKind)
               Wrap(spacing: 8, children: [
                 ActionChip(
                     avatar: const Icon(Icons.event, size: 18),

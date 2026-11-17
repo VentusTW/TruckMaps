@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'axle_strip.dart';
 import 'deck_view.dart';
 import 'panels.dart';
 import 'sim_view.dart';
@@ -1108,6 +1109,10 @@ class SimulatorCard extends StatelessWidget {
               'edit': Icons.open_with,
             }),
         const SizedBox(height: Gap.m),
+        if (plan?['vehicle'] case final Map<String, dynamic> vehicle) ...[
+          AxleStrip(vehicle: vehicle),
+          const SizedBox(height: Gap.m),
+        ],
         if (plan == null)
           Container(
             height: 220,
