@@ -615,3 +615,49 @@ def test_damage_report_prefill_signatures_and_print(client, company):
     assert "Pęknięte płytki" in page and "Sztuk brak. / uszk." in page and "CMR art. 17" in page
     printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
     assert printed.startswith(b"%PDF") and b"".join(_streams(printed)).count(b" Do Q") == 2
+
+
+def test_loading_report_prefill_signatures_and_print(client, company):
+    cid, owner = company["id"], as_user("olek")
+    body = {
+        "kind": "loading_report",
+        "company_id": cid,
+        "vehicle_id": company["tractor"],
+        "route": {
+            "stops": [
+                {"label": "Poznań, Magazynowa 1", "country": "PL", "at": "2026-11-19T06:15:00Z"},
+                {"label": "Berlin", "country": "DE"},
+            ]
+        },
+        "cargo": {
+            "items": [
+                {"kind": "euro", "count": 2, "weight_kg": 500, "label": "Płytki"},
+                {"kind": "half", "count": 3, "weight_kg": 120.5, "label": "Klej"},
+            ],
+            "ldm": 2.4,
+            "dangerous_goods": "UN 1263, FARBA, 3, III",
+        },
+    }
+    result = client.post(f"{API}/prefill", json=body, headers=as_user("jan")).json()
+    data, sources = result["data"], result["sources"]
+    assert data["loading_place"] == "Poznań, Magazynowa 1 (PL)"
+    assert data["loaded_at"] == "2026-11-19 06:15" and sources["loaded_at"] == "route"
+    assert data["total_kg"] == 1361.5 and data["ldm"] == 2.4 and sources["ldm"] == "cargo"
+    assert data["dangerous_goods"].startswith("UN 1263") and len(data["goods"]) == 2
+    assert data["carrier"].startswith("Trans-Miś") and data["driver_name"] == "Jan"
+    assert data["tractor_plate"] == "WGM 1234A" and data["trailer_plate"] == "WGM 9876B"
+    bare = {"kind": "loading_report", "company_id": cid}
+    today = client.post(f"{API}/prefill", json=bare, headers=as_user("jan")).json()
+    assert today["sources"]["loaded_at"] == "auto" and "loading_place" not in today["data"]
+
+    doc = client.post(f"{API}/documents", json={
+        "kind": "loading_report", "company_id": cid,
+        "data": data | {"securing": "6 pasów, maty antypoślizgowe",
+                        "sender_signature": _png(), "driver_signature": _png()},
+    }, headers=as_user("jan")).json()  # fmt: skip
+    assert doc["number"].startswith("PZ/")
+    page = client.get(f"{API}/documents/{doc['id']}/html", headers=owner).json()["html"]
+    assert page.count('class="sig" src="data:image/jpeg;base64,') == 2
+    assert "6 pasów" in page and "EN 12195-1" in page and "Podpis nadawcy / załadowcy" in page
+    printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
+    assert printed.startswith(b"%PDF") and b"".join(_streams(printed)).count(b" Do Q") == 2

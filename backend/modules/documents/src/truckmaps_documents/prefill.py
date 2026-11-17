@@ -340,6 +340,31 @@ def _damage(result: Prefill, src: Sources) -> None:
         result.set("goods", _goods(src.cargo, "nature packages packing gross_kg"), "cargo")
 
 
+def _loading(result: Prefill, src: Sources) -> None:
+    carrier = company_block(src.company, src.profile)
+    if src.profile.licence_number:
+        carrier += "\n" + t("documents.text.licence", value=src.profile.licence_number)
+    result.set("carrier", carrier, "company")
+    _vehicle(result, src.vehicle)
+    result.set("driver_name", src.driver_name, "driver")
+    first = src.route.stops[0] if src.route and src.route.stops else None
+    if first:
+        result.set("loading_place", _place(first), "route")
+    if first and first.at:
+        result.set("loaded_at", first.at.strftime("%Y-%m-%d %H:%M"), "route")
+    else:
+        result.set("loaded_at", src.today.isoformat(), "auto")
+    cargo = src.cargo
+    if cargo:
+        result.set("goods", _goods(cargo, "nature packages packing gross_kg"), "cargo")
+        if cargo.items:
+            total = sum(item.count * item.weight_kg for item in cargo.items)
+            result.set("total_kg", _number(total), "cargo")
+        if cargo.ldm is not None:
+            result.set("ldm", cargo.ldm, "cargo")
+        result.set("dangerous_goods", cargo.dangerous_goods, "cargo")
+
+
 def posting_operation(home: str, stops: list[Stop]) -> tuple[str, list[str]] | None:
     """Rodzaj przewozu z krajów załadunku i rozładunku (dyrektywa 2020/1057 art. 1):
     kabotaż – oba w tym samym obcym kraju, cross-trade – oba poza krajem siedziby i różne,
@@ -395,6 +420,7 @@ FILLERS = {
     "road_card": _road_card,
     "pod": _pod,
     "damage_report": _damage,
+    "loading_report": _loading,
     "posting_declaration": _posting,
 }
 

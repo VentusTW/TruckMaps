@@ -172,6 +172,33 @@ DAMAGE = Kind(
     ),
 )
 
+LOADING = Kind(
+    id="loading_report",
+    prefix="PZ",
+    fields=(
+        Field("document_ref", "text", 0.5),
+        Field("loaded_at", "text", 0.25),
+        Field("seal_number", "text", 0.25),
+        Field("loading_place", "text", 1.0),
+        Field("sender", "multiline", 0.5),
+        Field("carrier", "multiline", 0.5),
+        Field("driver_name", "text", 0.5),
+        Field("tractor_plate", "text", 0.25),
+        Field("trailer_plate", "text", 0.25),
+        Field("goods", "rows", 1.0, "", ("nature", "packages", "packing", "gross_kg")),
+        Field("total_kg", "number", 0.25),
+        Field("ldm", "number", 0.25),
+        Field("temperature", "text", 0.5),
+        Field("dangerous_goods", "text", 1.0),
+        Field("arrangement", "multiline", 1.0),
+        Field("securing", "multiline", 0.5),
+        Field("goods_condition", "multiline", 0.5),
+        Field("carrier_reservations", "multiline", 1.0),
+        Field("sender_signature", "signature", 0.5),
+        Field("driver_signature", "signature", 0.5),
+    ),
+)
+
 POSTING = Kind(
     id="posting_declaration",
     prefix="DEL",
@@ -198,4 +225,4 @@ POSTING = Kind(
     signatures=("carrier_rep",),
 )
 
-KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, POSTING, DAMAGE)}
+KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, POSTING, DAMAGE, LOADING)}
