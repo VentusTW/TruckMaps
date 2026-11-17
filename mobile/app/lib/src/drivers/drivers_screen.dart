@@ -7,6 +7,7 @@ import '../l10n.dart';
 import '../records/records.dart';
 import 'driver_actions.dart';
 import 'drivers_data.dart';
+import 'eco_score.dart';
 import 'tacho.dart';
 
 /// „Kierowcy i Czas Pracy”: lista kierowców firmy albo profil jednego ([driverId]) według projektu
@@ -710,7 +711,6 @@ class _DriversScreenState extends State<DriversScreen> {
                 subtitle: l.drvStatsSubtitle,
                 icon: Icons.eco_outlined,
                 iconColor: scheme.tertiaryContainer,
-                trailing: WipTag(what: l.drvEcoScore, onOpen: widget.onOpen),
               ),
               const SizedBox(height: Gap.l),
               if (stats == null)
@@ -731,6 +731,8 @@ class _DriversScreenState extends State<DriversScreen> {
                   const SizedBox(width: Gap.m),
                   tile(l.drvStatVehicles, l.number(v('vehicles')), ''),
                 ]),
+                const SizedBox(height: Gap.l),
+                EcoScoreView(stats: stats, vehicles: data.vehicles),
               ],
             ]),
           ),
