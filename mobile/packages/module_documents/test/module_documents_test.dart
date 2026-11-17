@@ -100,6 +100,23 @@ void main() {
           }
           if (path == '/api/m/documents/documents/d1/link') return json({'path': '/api/shared/abc', 'filename': 'x'});
           if (path == '/api/m/documents/templates/cmr' && request.method == 'GET') return json(templateOut());
+          if (path == '/api/m/documents/templates/pod') {
+            return json({
+              ...template,
+              'kind': 'pod',
+              'fields': [
+                {'key': 'received_by', 'type': 'text', 'label': 'Received by', 'width': 1.0, 'box': '', 'columns': []},
+                {
+                  'key': 'consignee_signature',
+                  'type': 'signature',
+                  'label': "Consignee's signature",
+                  'width': 0.5,
+                  'box': '',
+                  'columns': []
+                },
+              ],
+            });
+          }
           if (path == '/api/m/documents/templates/posting_declaration') {
             return json({...templateOut(), 'kind': 'posting_declaration'});
           }
@@ -194,6 +211,38 @@ void main() {
     await tester.tap(find.byKey(const Key('document-pdf')));
     await tester.pumpAndSettle();
     expect(opened.single.toString(), 'http://serwer.test/api/shared/abc');
+  });
+
+  testWidgets('POD: signature on screen is saved with the document and can be removed', (tester) async {
+    tall(tester);
+    await tester.pumpWidget(app(DocumentFormScreen(api: api(), companyId: 'c1', kind: 'pod')));
+    await tester.pumpAndSettle();
+    expect(find.text('Not signed – can be signed on the printout.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('sign-consignee_signature')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.byKey(const Key('signature-ok'))).onPressed, isNull);
+    await tester.drag(find.byKey(const Key('signature-pad')), const Offset(120, 30));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('signature-ok')));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('signed-consignee_signature')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('field-received_by')), 'Hans Müller');
+    await tester.tap(find.byKey(const Key('document-save')));
+    await tester.pumpAndSettle();
+    final saved = requests.lastWhere((r) => r.$1 == 'POST' && r.$2 == '/api/m/documents/documents').$3 as Map;
+    expect(saved['kind'], 'pod');
+    expect(saved['data']['received_by'], 'Hans Müller');
+    final png = base64Decode(saved['data']['consignee_signature'] as String);
+    expect(png.sublist(1, 4), 'PNG'.codeUnits);
+
+    await tester.tap(find.byKey(const Key('unsign-consignee_signature')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('signed-consignee_signature')), findsNothing);
   });
 
   testWidgets('route action: document from the planner route, prefill with route and cargo', (tester) async {

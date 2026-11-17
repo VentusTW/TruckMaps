@@ -8,7 +8,8 @@ Etykiety pól są w tłumaczeniach modułu: ``documents.field.<pole>``, kolumny 
 from dataclasses import dataclass, field
 from typing import Literal
 
-FieldType = Literal["text", "multiline", "date", "number", "rows"]
+FieldType = Literal["text", "multiline", "date", "number", "rows", "signature"]
+"""``signature`` – podpis złożony na ekranie (JPEG w base64)."""
 
 
 @dataclass(frozen=True)
@@ -119,6 +120,31 @@ ROAD_CARD = Kind(
     signatures=("driver", "issuer"),
 )
 
+POD = Kind(
+    id="pod",
+    prefix="POD",
+    fields=(
+        Field("document_ref", "text", 0.5),
+        Field("received_at", "text", 0.5),
+        Field("carrier", "multiline", 0.5),
+        Field("consignee", "multiline", 0.5),
+        Field("delivery_place", "multiline", 0.5),
+        Field("driver_name", "text", 0.5),
+        Field("tractor_plate", "text", 0.25),
+        Field("trailer_plate", "text", 0.25),
+        Field("arrival", "text", 0.25),
+        Field("unloaded_at", "text", 0.25),
+        Field("goods", "rows", 1.0, "", ("nature", "packages", "packing", "gross_kg")),
+        Field("seal_number", "text", 0.25),
+        Field("temperature", "text", 0.25),
+        Field("waiting_time", "text", 0.5),
+        Field("reservations", "multiline", 1.0),
+        Field("received_by", "text", 1.0),
+        Field("consignee_signature", "signature", 0.5),
+        Field("driver_signature", "signature", 0.5),
+    ),
+)
+
 POSTING = Kind(
     id="posting_declaration",
     prefix="DEL",
@@ -145,4 +171,4 @@ POSTING = Kind(
     signatures=("carrier_rep",),
 )
 
-KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POSTING)}
+KINDS: dict[str, Kind] = {k.id: k for k in (CMR, ORDER, ROAD_CARD, POD, POSTING)}

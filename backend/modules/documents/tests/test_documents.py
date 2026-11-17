@@ -514,3 +514,56 @@ def test_dashboard_counts_documents_issued_today(client, company):
         "/api/dashboard/overview", params={"company_id": company["id"]}, headers=as_user("olek")
     ).json()
     assert next(k for k in overview["kpis"] if k["key"] == "documents.today")["value"] == 1
+
+
+def test_pod_prefill_signature_on_screen_and_print(client, company):
+    import base64
+
+    cid, owner = company["id"], as_user("olek")
+    body = {
+        "kind": "pod",
+        "company_id": cid,
+        "vehicle_id": company["tractor"],
+        "route": {
+            "stops": [
+                {"label": "Poznań", "country": "PL", "type": "loading"},
+                {"label": "Berlin, Hafen 3", "country": "DE", "at": "2026-11-20T09:30:00Z"},
+            ]
+        },
+        "cargo": {"items": [{"kind": "euro", "count": 2, "weight_kg": 500, "label": "Płytki"}]},
+    }
+    data = client.post(f"{API}/prefill", json=body, headers=as_user("jan")).json()["data"]
+    assert data["delivery_place"] == "Berlin, Hafen 3 (DE)"
+    assert data["arrival"] == "2026-11-20 09:30"
+    assert data["goods"] == [
+        {"nature": "Płytki", "packages": 2, "packing": "palety EUR", "gross_kg": 1000}
+    ]
+    assert data["tractor_plate"] == "WGM 1234A" and data["carrier"].startswith("Trans-Miś")
+
+    # Podpis nie ma wartości domyślnej w szablonie.
+    saved = client.put(f"{API}/templates/pod", params={"company_id": cid},
+                       json={"defaults": {"consignee_signature": "x", "seal_number": "S1"}},
+                       headers=owner).json()  # fmt: skip
+    assert saved["defaults"] == {"seal_number": "S1"}
+    assert {f["key"]: f["type"] for f in saved["fields"]}["driver_signature"] == "signature"
+
+    bad = {"kind": "pod", "company_id": cid, "data": {"consignee_signature": "eA=="}}
+    assert client.post(f"{API}/documents", json=bad, headers=as_user("jan")).status_code == 422
+    doc = client.post(f"{API}/documents", json={
+        "kind": "pod", "company_id": cid,
+        "data": {"received_by": "Hans Müller", "consignee_signature": _png()},
+    }, headers=as_user("jan")).json()  # fmt: skip
+    assert doc["number"].startswith("POD/")
+    sign = doc["data"]["consignee_signature"]
+    assert base64.b64decode(sign)[:2] == b"\xff\xd8"  # JPEG
+    # Ponowny zapis – ten sam podpis, bez ponownej kompresji.
+    again = client.put(
+        f"{API}/documents/{doc['id']}", json={"data": doc["data"]}, headers=as_user("jan")
+    )
+    assert again.json()["data"]["consignee_signature"] == sign
+
+    page = client.get(f"{API}/documents/{doc['id']}/html", headers=owner).json()["html"]
+    assert 'class="sig" src="data:image/jpeg;base64,' in page and "Hans Müller" in page
+    assert sign not in page.replace('src="data:image/jpeg;base64,' + sign, "")
+    printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
+    assert b"/Subtype /Image" in printed and b"/Im1 Do" in b"".join(_streams(printed))

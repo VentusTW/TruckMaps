@@ -14,10 +14,11 @@ class DocumentsTexts {
 
   String get moduleName => _t('Dokumenty', 'Documents');
   String get moduleDescription => _t(
-      'List przewozowy CMR, zlecenie transportowe i karta drogowa wypełniane z danych firmy, pojazdu, '
-          'kierowcy, trasy i przejazdów; własne pola, logo firmy, wydruk PDF.',
-      'CMR consignment note, transport order and vehicle log sheet filled in from company, vehicle, '
-          'driver, route and trip data; custom fields, company logo, PDF print.');
+      'List przewozowy CMR, zlecenie transportowe, karta drogowa i potwierdzenie dostawy (POD) z podpisem '
+          'na ekranie wypełniane z danych firmy, pojazdu, kierowcy, trasy i przejazdów; własne pola, logo firmy, '
+          'wydruk PDF.',
+      'CMR consignment note, transport order, vehicle log sheet and proof of delivery (POD) signed on screen, '
+          'filled in from company, vehicle, driver, route and trip data; custom fields, company logo, PDF print.');
   String get menu => _t('Dokumenty', 'Documents');
   String get noCompany =>
       _t('Dokumenty są dostępne dla członków firmy.', 'Documents are available to company members.');
@@ -46,6 +47,13 @@ class DocumentsTexts {
   String get addRow => _t('Dodaj wiersz', 'Add row');
   String get removeRow => _t('Usuń wiersz', 'Remove row');
   String get pickDate => _t('Wybierz datę', 'Pick a date');
+  String get sign => _t('Podpisz na ekranie', 'Sign on screen');
+  String get signAgain => _t('Podpisz ponownie', 'Sign again');
+  String get signRemove => _t('Usuń podpis', 'Remove signature');
+  String get notSigned => _t('Bez podpisu – można podpisać na wydruku.', 'Not signed – can be signed on the printout.');
+  String get signHint => _t('Podpisz palcem albo myszą w ramce.', 'Sign with your finger or mouse in the box.');
+  String get signClear => _t('Wyczyść', 'Clear');
+  String get signAccept => _t('Zatwierdź podpis', 'Confirm signature');
   String get logo => _t('Logo firmy', 'Company logo');
   String get logoHint =>
       _t('Drukowane w prawym górnym rogu dokumentów.', 'Printed in the top right corner of documents.');

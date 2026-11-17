@@ -1,6 +1,6 @@
 """Dokumenty transportowe: szablony firmy, autouzupełnianie z danych systemu, PDF i HTML.
 
-Pierwsze rodzaje: list przewozowy CMR, zlecenie transportowe, karta drogowa (katalog
+Rodzaje: list przewozowy CMR, zlecenie transportowe, karta drogowa, potwierdzenie dostawy (katalog
 dokumentów i mapowanie pól – ``docs/dokumenty-transportowe.md``). Dane firmy, których nie
 ma w rdzeniu (adres, licencja, polisa OCP…), są w profilu dokumentów firmy. Trasę z planera
 i wynik Planu załadunku przekazuje aplikacja – moduł nie zależy od innych modułów.
@@ -56,6 +56,7 @@ MANAGERS = {"owner", "dispatcher"}
 MAX_LIST = 200
 MAX_LOGO_BYTES = 2 * 1024 * 1024
 LOGO_BOX = (800, 300)
+SIGNATURE_BOX = (600, 200)
 """Logo zapisujemy jako JPEG najwyżej tej wielkości [px]."""
 
 
@@ -238,7 +239,9 @@ def normalize_template(kind: Kind, data: Template) -> Template:
             key, n = f"{base}_{n}", n + 1
         used.add(key)
         extra.append(x.model_copy(update={"key": key, "label": x.label.strip()}))
-    texts = {f.key for f in kind.fields if f.type != "rows"} | {x.key for x in extra}
+    texts = {f.key for f in kind.fields if f.type not in ("rows", "signature")} | {
+        x.key for x in extra
+    }
     return Template(
         defaults={k: str(v)[:5000] for k, v in data.defaults.items() if k in texts},
         hidden=[k for k in dict.fromkeys(data.hidden) if k in used],
@@ -252,8 +255,8 @@ def normalize_template(kind: Kind, data: Template) -> Template:
     )
 
 
-def logo_jpeg(encoded: str) -> bytes:
-    """Obraz z aplikacji → JPEG (białe tło pod przezroczystością, najwyżej ``LOGO_BOX``)."""
+def _jpeg(encoded: str, box: tuple[int, int], error: str) -> bytes:
+    """Obraz z aplikacji (base64) → JPEG (białe tło pod przezroczystością, najwyżej ``box``)."""
     try:
         raw = base64.b64decode(encoded, validate=True)
         if len(raw) > MAX_LOGO_BYTES:
@@ -261,16 +264,30 @@ def logo_jpeg(encoded: str) -> bytes:
         source = PilImage.open(io.BytesIO(raw))
         source.load()
     except (binascii.Error, ValueError, UnidentifiedImageError, OSError):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, t("documents.bad_logo")
-        ) from None
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t(error)) from None
+    if (
+        source.format == "JPEG"
+        and source.mode == "RGB"
+        and source.width <= box[0]
+        and source.height <= box[1]
+    ):
+        return raw  # już zapisany podpis – bez ponownej kompresji
     rgba = source.convert("RGBA")
     image = PilImage.new("RGB", rgba.size, "white")
     image.paste(rgba, mask=rgba.getchannel("A"))
-    image.thumbnail(LOGO_BOX)
+    image.thumbnail(box)
     out = io.BytesIO()
     image.save(out, "JPEG", quality=88)
     return out.getvalue()
+
+
+def logo_jpeg(encoded: str) -> bytes:
+    return _jpeg(encoded, LOGO_BOX, "documents.bad_logo")
+
+
+def signature_jpeg(encoded: str) -> str:
+    """Podpis z ekranu (PNG albo JPEG w base64) → mały JPEG w base64 do danych dokumentu."""
+    return base64.b64encode(_jpeg(encoded, SIGNATURE_BOX, "documents.bad_signature")).decode()
 
 
 def clean(fields: list[DocField], data: dict) -> dict:
@@ -288,6 +305,8 @@ def clean(fields: list[DocField], data: dict) -> dict:
                 for row in value[:200]
                 if isinstance(row, dict)
             ]
+        elif f.type == "signature":
+            out[f.key] = signature_jpeg(str(value))
         elif isinstance(value, int | float) and not isinstance(value, bool):
             out[f.key] = value
         else:

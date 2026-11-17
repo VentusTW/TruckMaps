@@ -1,8 +1,13 @@
 """Wydruk dokumentu: PDF (``pdf.Pdf``) i strona HTML do druku z przeglądarki."""
 
 import base64
+import binascii
 import html
+import io
 from dataclasses import dataclass
+
+from PIL import Image as PilImage
+from PIL import UnidentifiedImageError
 
 from truckmaps.sdk.i18n import language, t
 from truckmaps_documents.catalog import Field, Kind
@@ -13,6 +18,7 @@ LABEL = 6.5
 VALUE = 9.0
 LEAD = 11.0
 PAD = 4.0
+SIGNATURE_H = 64.0
 
 
 @dataclass
@@ -44,6 +50,20 @@ def value_text(value: object) -> str:
     return str(value)
 
 
+def signature(value: object) -> Image | None:
+    """Podpis z danych dokumentu (JPEG w base64) do wydruku; ``None`` – brak albo uszkodzony."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        raw = base64.b64decode(value, validate=True)
+        with PilImage.open(io.BytesIO(raw)) as image:
+            if image.format != "JPEG" or image.mode != "RGB":
+                return None
+            return Image(raw, image.width, image.height)
+    except (binascii.Error, ValueError, UnidentifiedImageError, OSError):
+        return None
+
+
 def _rows(fields: list[Field]) -> list[list[Field]]:
     """Pola w wierszach wydruku wg szerokości (suma ≤ 1)."""
     rows: list[list[Field]] = []
@@ -72,16 +92,25 @@ class _Writer:
         cells = []
         for f in row:
             w = self.width * f.width
-            lines = wrap(value_text(data.get(f.key)), VALUE, w - 2 * PAD)
+            sign = f.type == "signature"
+            lines = [] if sign else wrap(value_text(data.get(f.key)), VALUE, w - 2 * PAD)
             title = wrap(label(f), LABEL, w - 2 * PAD)
             cells.append((f, w, title, lines))
         height = max(
-            PAD * 2 + len(title) * (LABEL + 1.5) + max(1, len(lines)) * LEAD
-            for _, _, title, lines in cells
+            PAD * 2
+            + len(title) * (LABEL + 1.5)
+            + (SIGNATURE_H if f.type == "signature" else max(1, len(lines)) * LEAD)
+            for f, _, title, lines in cells
         )
         self.room(height)
         x = MARGIN
-        for _, w, title, lines in cells:
+        for f, w, title, lines in cells:
+            if f.type == "signature" and (image := signature(data.get(f.key))):
+                # Podpis w polu pod etykietą, z zachowaniem proporcji.
+                top = self.y + PAD * 2 + len(title) * (LABEL + 1.5)
+                box_w, box_h = w - 2 * PAD, self.y + height - PAD - top
+                scale = min(box_w / image.width, box_h / image.height)
+                self.pdf.image(image, x + PAD, top, image.width * scale, image.height * scale)
             self.pdf.rect(x, self.y, w, height)
             y = self.y + PAD + LABEL
             for line in title:
@@ -195,6 +224,11 @@ def to_html(doc: Doc) -> str:
             continue
         for f in row:
             value = e(value_text(doc.data.get(f.key)))
+            if f.type == "signature":
+                value = ""
+                if signature(doc.data.get(f.key)):
+                    data = e(str(doc.data[f.key]))
+                    value = f'<img class="sig" src="data:image/jpeg;base64,{data}" alt="">'
             parts.append(
                 f'<div class="cell" style="width:{f.width * 100:.2f}%">'
                 f'<div class="l">{e(label(f))}</div><div class="v">{value}</div></div>'
@@ -221,6 +255,7 @@ h1{{font-size:20px;margin:0}} .basis{{font-size:10px;color:#555;margin:4px 0 10p
 .cell{{box-sizing:border-box;border-right:1px solid #000;border-bottom:1px solid #000;
 padding:4px;min-height:44px}} .full{{width:100%}}
 .l{{font-size:9px;color:#333}} .v{{white-space:pre-wrap}}
+.sig{{max-width:100%;height:70px;object-fit:contain}}
 table{{width:100%;border-collapse:collapse;margin-top:2px}}
 th,td{{border:1px solid #000;padding:2px 4px;text-align:left;vertical-align:top}}
 th{{background:#eee;font-size:10px}}
