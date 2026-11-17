@@ -30,6 +30,27 @@ TACHO_DOWNLOAD_DAYS = 90
 PeriodicJob = tuple[str, Callable[[Session], int]]
 
 
+DEADLINES = (
+    "inspection",
+    "insurance",
+    "ocp",
+    "tachograph",
+    "tachograph_download",
+    "adr",
+    "atp",
+    "tdt",
+    "udt",
+)
+
+
+def _deadlines(vehicle: VehicleProfile | None, prefix: str = "") -> dict[str, date]:
+    """Ustawione terminy pojazdu (``<termin>_until``) do dokumentów i list kontrolnych."""
+    if vehicle is None:
+        return {}
+    found = {name: getattr(vehicle, f"{name}_until") for name in DEADLINES}
+    return {prefix + name: day for name, day in found.items() if day is not None}
+
+
 def _info(vehicle: VehicleProfile, roles: dict) -> VehicleInfo:
     role = PRIVATE if vehicle.company_id is None else str(roles.get(vehicle.company_id))
     return VehicleInfo(
@@ -110,6 +131,7 @@ class CoreFleet:
             assigned_driver=vehicle.assigned_driver,
             trailer_plate=trailer.plate if trailer else None,
             odometer_km=vehicle.odometer_km,
+            deadlines=_deadlines(vehicle) | _deadlines(trailer, "trailer_"),
         )
 
     def assigned(self, db: Session, company_id: str) -> dict[str, str]:

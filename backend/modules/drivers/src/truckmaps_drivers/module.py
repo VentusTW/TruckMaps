@@ -42,10 +42,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from truckmaps.sdk import (
     DASHBOARD_FEED,
     DRIVER_CHECK,
+    DRIVER_DIRECTORY,
     CoreContext,
     DashboardAlert,
     DashboardKpi,
     DashboardPart,
+    DriverRecord,
     Module,
     Principal,
     TripInfo,
@@ -66,6 +68,10 @@ def _now() -> datetime:
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+DEADLINES = ("license", "code95", "medical", "psych", "card", "card_download", "adr", "attestation")
+"""Terminy kierowcy przekazywane innym modułom (``<termin>_until``)."""
 
 
 class Base(DeclarativeBase):
@@ -1396,6 +1402,31 @@ class DriversModule(Module):
                     for text in rules.problems(driver, info, today())
                 ]
 
+        class Directory:
+            """Dane kierowcy do dokumentów (moduł Dokumenty): imię i nazwisko, data
+            zatrudnienia, nr karty, kategorie i terminy – bez danych spoza kartoteki."""
+
+            def find(
+                self, db: Session, company_id: str, subject: str | None, name: str = ""
+            ) -> DriverRecord | None:
+                query = select(Driver).where(Driver.company_id == company_id)
+                driver = None
+                if subject:
+                    driver = db.scalar(query.where(Driver.subject == subject))
+                if driver is None and name.strip():
+                    driver = db.scalar(query.where(Driver.name == name.strip()))
+                if driver is None:
+                    return None
+                found = {key: getattr(driver, f"{key}_until") for key in DEADLINES}
+                return DriverRecord(
+                    name=driver.name,
+                    phone=driver.phone,
+                    hired_on=driver.hired_on,
+                    card_number=driver.card_number,
+                    license_categories=list(driver.license_categories or []),
+                    deadlines={k: v for k, v in found.items() if v is not None},
+                )
+
         class Feed:
             """Pulpit dyspozytora: kierowcy w pracy i ich terminy (badania, karta, kod 95…)."""
 
@@ -1451,5 +1482,6 @@ class DriversModule(Module):
                 )
 
         ctx.extensions.provide(DRIVER_CHECK, Check())
+        ctx.extensions.provide(DRIVER_DIRECTORY, Directory())
         ctx.extensions.provide(DASHBOARD_FEED, Feed())
         ctx.api.include_router(router)

@@ -6,10 +6,11 @@ Katalog dokumentów i mapowanie pól: `docs/dokumenty-transportowe.md`.
 
 - Osobny pakiet `truckmaps-module-documents` (`backend/modules/documents`), id `documents`,
   API pod `/api/m/documents`, licencja jak każdy moduł. Korzysta tylko z `truckmaps.sdk`.
-- Bez zależności od innych modułów. Dane z modułów Plan załadunku i Kierowcy oraz trasa
-  z planera trafiają do dokumentu przez aplikację (pola `route`, `cargo`, `driver`
-  w żądaniu autouzupełnienia). Gdy moduł Kierowcy zechce podawać dane osobowe kierowcy
-  (nr prawa jazdy, data urodzenia), dojdzie gniazdo rozszerzeń w SDK – bez importów.
+- Bez zależności od innych modułów. Plan załadunku i trasa z planera trafiają do dokumentu
+  przez aplikację (pola `route`, `cargo` w żądaniu autouzupełnienia). Dane kierowcy
+  z kartoteki (data zatrudnienia, nr karty, kategorie, terminy) podaje moduł Kierowcy przez
+  gniazdo SDK `DRIVER_DIRECTORY` – tylko gdy konto ma ten moduł. Dane osobowe spoza
+  kartoteki (data urodzenia, nr prawa jazdy, adres) wpisuje się w dokumencie.
 - Darmowo: PDF generuje własny, mały zapis PDF (czcionka standardowa Helvetica,
   kodowanie środkowoeuropejskie – polskie znaki bez dołączania plików czcionek),
   do tego strona HTML do druku jak protokół naprawy w module Serwis.
@@ -20,6 +21,10 @@ Katalog dokumentów i mapowanie pól: `docs/dokumenty-transportowe.md`.
 - `Fleet.company(db, company_id) -> CompanyInfo` (nazwa, NIP, rodzaj firmy).
 - `DrivingInfo.trailer_plate`, `DrivingInfo.odometer_km` – nr rejestracyjny podpiętej
   naczepy i stan licznika (CMR, zlecenie, karta drogowa).
+- `DrivingInfo.deadlines` – ustawione terminy pojazdu i naczepy (`trailer_…`): przegląd,
+  OC, OCP, tachograf, ADR, ATP, UDT, TDT (lista kontrolna „pakiet w kabinie”).
+- Gniazdo `DRIVER_DIRECTORY` (`DriverDirectory.find` → `DriverRecord`) – kierowca firmy
+  po koncie albo imieniu i nazwisku; domyślnie brak (rdzeń bez modułu Kierowcy).
 
 ## Dane modułu (migracje w gałęzi `documents`)
 
@@ -55,10 +60,24 @@ i dyspozytor; dokument poprawia lub usuwa jego autor albo obsługa firmy.
    z podpowiedziami (źródło przy polu), „Nowy dokument” z karty pojazdu, dane firmy i logo,
    edytor wzorów, PDF przez krótki link. Do zrobienia: „Dokument” z planera (trasa i plan
    załadunku przekazywane do `/prefill` – API je przyjmuje, w aplikacji brak przycisku).
-3. Kolejne szablony: POD / protokół załadunku z podpisem na ekranie, protokół szkody,
-   zaświadczenie o działalności (wzór 2009/959/UE), polecenie wyjazdu z dietami,
-   dokument przewozowy ADR, lista „pakiet w kabinie”, dane do IMI / SENT (do przepisania
-   w portalu, numer referencyjny wraca do dokumentu).
+3. **Zrobione:** „Dokument” z planera i kolejne wzory (19 rodzajów):
+
+   | Rodzaj | Numer | Autouzupełnianie |
+   | --- | --- | --- |
+   | `cmr`, `consignment_note` (krajowy list przewozowy) | CMR, LP | firma, trasa, ładunek, pojazd |
+   | `transport_order` | ZT | firma, pojazd, kierowca, przystanki, ładunek, koszt |
+   | `road_card` | KD | przejazdy w okresie, licznik |
+   | `pod`, `damage_report`, `loading_report` | POD, PS, PZ | trasa, ładunek; podpisy na ekranie |
+   | `posting_declaration` (IMI) | DEL | trasa (kabotaż / cross-trade), okres |
+   | `driver_activity` (2009/959/UE) | ZDK | firma, kierowca z kartoteki, okres; 6 przyczyn (pola 14–19) |
+   | `business_trip` (delegacja) | PWS | kraje i godziny z trasy, diety (krajowa 45 zł, stawki zagraniczne z tabeli, inne do wpisania) |
+   | `working_time` (ewidencja) | ECP | dni z przejazdów: jazda, km |
+   | `cabin_checklist` | LK | terminy pojazdu, naczepy, kierowcy; OCP i licencja z profilu |
+   | `vehicle_handover` | PP | pojazd, licznik, wyposażenie |
+   | `pallet_note` | KP | palety z planu załadunku |
+   | `securing_declaration` | OM | załadunek, towar, masa |
+   | `adr_document` | ADR | towar niebezpieczny z ładunku; instrukcje pisemne – odnośnik UNECE |
+   | `sent_data`, `edd_data`, `oversize_permit_data` | SENT, EDD, ZN | dane do przepisania w PUESC / wniosku – system nie wysyła |
 4. Książka kontrahentów (nadawcy, odbiorcy, zleceniodawcy) i podpowiedzi z poprzednich
    dokumentów.
 5. e-CMR / eFTI (rozporządzenie (UE) 2020/1056 – platformy eFTI, organy kontrolne mają przyjmować dane elektroniczne) – po wyborze darmowego, otwartego standardu wymiany (UN/CEFACT eCMR) – osobny

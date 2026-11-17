@@ -297,6 +297,14 @@ void main() {
     expect(body, contains('date_to'));
   });
 
+  test('new templates: planner route kinds and period kinds', () {
+    expect(routeKinds, containsAll(['consignment_note', 'securing_declaration', 'pallet_note', 'adr_document',
+        'business_trip', 'cabin_checklist', 'sent_data', 'edd_data', 'oversize_permit_data']));
+    expect(routeKinds, isNot(contains('working_time')));
+    expect(periodKinds, containsAll(['road_card', 'posting_declaration', 'driver_activity', 'business_trip',
+        'working_time']));
+  });
+
   testWidgets('template: rename, hide and add a company field', (tester) async {
     tall(tester);
     await tester.pumpWidget(app(TemplateScreen(api: api(), companyId: 'c1', kind: 'cmr')));
