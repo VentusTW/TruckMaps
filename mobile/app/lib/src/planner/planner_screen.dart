@@ -17,6 +17,7 @@ import 'route.dart';
 import '../vehicles/permits_screen.dart';
 import 'recent.dart';
 import '../live/send_route.dart';
+import 'route_actions.dart';
 import 'route_review.dart';
 import '../navigation/navigation_screen.dart';
 
@@ -968,6 +969,20 @@ class _PlannerScreenState extends State<PlannerScreen> {
           icon: const Icon(Icons.send_outlined),
           label: Text(l.livePlanSend),
         ),
+        if (_start != null && _end != null)
+          RouteActionButtons(
+            data: () => routeData(
+              companyId: companyId,
+              vehicleId: _vehicleId,
+              start: _start!,
+              end: _end!,
+              via: _via,
+              route: shown,
+              countries: result.countries,
+              departure: result.departure ?? _departure,
+              arrival: identical(shown, result.route) ? result.arrival : null,
+            ),
+          ),
       ],
       if (shown.cost != null) ...[
         Text([l.costEstimate, if (shown.cost!.summaryParts(l) case final parts?) parts].join(' · '),

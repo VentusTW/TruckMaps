@@ -388,6 +388,30 @@ class TachoOut(BaseModel):
     downloads: list[TachoDownloadOut]
 
 
+class ComplianceDriverOut(BaseModel):
+    driver_id: str
+    name: str
+    has_data: bool
+    """Czy są dane tachografu (karta albo pojazd)."""
+    violations: int
+    serious: int
+    """Naruszenia poważne (``serious``)."""
+    very_serious: int
+    last_violation: datetime | None
+    card_downloaded_on: date | None
+    card_download_until: date | None
+    dues_soon: int = 0
+    """Terminy dokumentów kierowcy (prawo jazdy, badania, karta…) wkrótce."""
+    dues_overdue: int = 0
+
+
+class ComplianceOut(BaseModel):
+    """Naruszenia 561/2006 kierowców firmy z ostatnich ``days`` dni danych tachografu."""
+
+    days: int
+    drivers: list[ComplianceDriverOut]
+
+
 class VehicleTachoOut(BaseModel):
     vehicle_id: str
     last_download: datetime | None
@@ -1029,7 +1053,9 @@ class DriversModule(Module):
         def driver_tacho(driver_id: str, user: User, db: Db, days: int = TACHO_DAYS) -> TachoOut:
             """Czas pracy kierowcy z plików .DDD: odcinki aktywności z ostatnich ``days`` dni
             danych, naruszenia 561/2006, liczniki pozostałego czasu jazdy, miejsca, odczyty."""
-            driver = load(db, user, driver_id)
+            return tacho_of(db, load(db, user, driver_id), days)
+
+        def tacho_of(db: Session, driver: Driver, days: int = TACHO_DAYS) -> TachoOut:
             days = max(1, min(days, 366))
             last = db.scalar(
                 select(func.max(TachoActivity.end)).where(TachoActivity.driver_id == driver.id)
@@ -1062,6 +1088,66 @@ class DriversModule(Module):
                 )
             )
             return tacho_view(driver.id, driver.card_number, rows, places, downloads, days)
+
+        @router.get("/compliance")
+        def compliance(
+            company_id: str, user: User, db: Db, days: int = TACHO_DAYS
+        ) -> ComplianceOut:
+            """Zgodność z 561/2006 w firmie: liczba naruszeń każdego kierowcy (z plików .DDD)
+            i termin pobrania karty. Tylko właściciel i dyspozytorzy."""
+            current = role(db, user, company_id)
+            if current is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, t("drivers.company_not_found"))
+            if current not in MANAGERS:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, t("drivers.edit_forbidden"))
+            days = max(1, min(days, 366))
+            day = today()
+            drivers = list(
+                db.scalars(
+                    select(Driver).where(Driver.company_id == company_id).order_by(Driver.name)
+                )
+            )
+            # Dwa zapytania dla całej firmy zamiast kilku na kierowcę: koniec danych każdego
+            # kierowcy, potem odcinki od najwcześniejszego potrzebnego dnia (jak w tacho_of).
+            lasts = {
+                driver_id: _aware(last)
+                for driver_id, last in db.execute(
+                    select(TachoActivity.driver_id, func.max(TachoActivity.end))
+                    .where(TachoActivity.driver_id.in_([d.id for d in drivers]))
+                    .group_by(TachoActivity.driver_id)
+                )
+            }
+            rows: dict[str, list] = defaultdict(list)
+            if lasts:
+                earliest = min(lasts.values()) - timedelta(days=days + 21)
+                for row in db.scalars(
+                    select(TachoActivity).where(
+                        TachoActivity.driver_id.in_(list(lasts)), TachoActivity.end > earliest
+                    )
+                ):
+                    if _aware(row.end) > lasts[row.driver_id] - timedelta(days=days + 21):
+                        rows[row.driver_id].append(row)
+            found = []
+            for driver in drivers:
+                view = tacho_view(driver.id, driver.card_number, rows[driver.id], [], [], days)
+                levels = [v.severity for v in view.violations]
+                states = [s for _, _, s in rules.dues(driver, day)]
+                found.append(
+                    ComplianceDriverOut(
+                        driver_id=driver.id,
+                        name=driver.name,
+                        has_data=bool(view.segments),
+                        violations=len(levels),
+                        serious=levels.count("serious"),
+                        very_serious=levels.count("very_serious"),
+                        last_violation=max((v.end for v in view.violations), default=None),
+                        card_downloaded_on=driver.card_downloaded_on,
+                        card_download_until=driver.card_download_until,
+                        dues_soon=states.count("soon"),
+                        dues_overdue=states.count("overdue"),
+                    )
+                )
+            return ComplianceOut(days=days, drivers=found)
 
         @router.get("/tacho/vehicles/{vehicle_id}")
         def vehicle_tacho(vehicle_id: str, user: User, db: Db) -> VehicleTachoOut:

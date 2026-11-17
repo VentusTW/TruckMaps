@@ -20,6 +20,7 @@ import 'account/account_screen.dart';
 import 'inbox_screen.dart';
 import 'l10n.dart';
 import 'planner/planner_screen.dart';
+import 'planner/route_actions.dart' show loadRouteActions;
 import 'service/eco_screen.dart';
 import 'service/parts_screen.dart';
 import 'live/live_screen.dart';
@@ -79,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadAccount();
     _checkUpdates();
+    loadRouteActions(widget.session.api, widget.registry);
   }
 
   Future<void> _loadAccount() async {

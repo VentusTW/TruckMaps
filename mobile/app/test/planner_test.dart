@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:module_documents/module_documents.dart';
 import 'package:truckmaps_app/src/planner/planner_screen.dart';
+import 'package:truckmaps_app/src/planner/route_actions.dart';
 import 'localized.dart';
 
 http.Response json(Object? body, [int status = 200]) =>
@@ -150,6 +152,85 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Masz zezwolenie na przejazd?'), findsNothing);
     expect(find.byKey(const Key('planner-send-driver')), findsOneWidget);
+  });
+
+  testWidgets('akcja modułu przy trasie („Dokument”): przystanki z krajem i ETA, koszt, plan załadunku',
+      (tester) async {
+    RouteData? data;
+    routeActions.value = [
+      RouteAction(id: 'documents', label: (_) => 'Dokument', icon: Icons.description, run: (_, d) async => data = d),
+    ];
+    currentCargo.value = {
+      'vehicle_id': 'v1',
+      'items': [
+        {'kind': 'euro', 'count': 10, 'weight_kg': 500.0, 'label': 'Paleta EUR'}
+      ],
+      'ldm': 4.0,
+    };
+    addTearDown(() {
+      routeActions.value = const [];
+      currentCargo.value = null;
+    });
+    Map<String, dynamic> country(String code, double km) =>
+        {'country': code, 'name': code, 'km': km, 'lat': 50.0, 'lon': 21.0, 'bans': 'no_ban', 'enter_at': null};
+    await pumpPlanner(tester, (request) async {
+      switch (request.url.path) {
+        case '/api/vehicles':
+          return json([
+            {'id': 'v1', 'name': 'MAN TGX', 'gvw_t': 40, 'height_m': 4.0, 'company_id': 'c1'}
+          ]);
+        case '/api/geocode/reverse':
+          return json({'label': 'Tarnów', 'lat': 50.0, 'lon': 21.0});
+        case '/api/routes':
+          return json({
+            ...route,
+            'cost': {'amount': 120.5, 'currency': 'PLN'},
+            'departure': '2026-10-29T18:00:00+01:00',
+            'countries': [country('PL', 0), country('SK', 10)],
+          });
+      }
+      return json(null, 404);
+    });
+
+    await tapMapTwice(tester);
+    await tester.tap(find.byKey(const Key('route-action-documents')));
+    await tester.pump();
+
+    expect(data?['company_id'], 'c1');
+    expect(data?['vehicle_id'], 'v1');
+    final sent = data!['route'] as Map<String, dynamic>;
+    final stops = (sent['stops'] as List).cast<Map<String, dynamic>>();
+    expect([for (final s in stops) (s['label'], s['country'], s['type'])],
+        [('Tarnów', 'PL', 'loading'), ('Tarnów', 'SK', 'unloading')]);
+    expect(DateTime.parse(stops.first['at'] as String), DateTime.parse('2026-10-29T17:00:00Z'));
+    expect(DateTime.parse(stops.last['at'] as String), DateTime.parse('2026-10-29T17:31:00Z')); // przyjazd
+    expect(sent['distance_km'], 22.4);
+    expect(sent['duration_min'], 31.0);
+    expect((sent['cost_amount'], sent['cost_currency']), (120.5, 'PLN'));
+    expect(data?['cargo'], {
+      'items': [
+        {'kind': 'euro', 'count': 10, 'weight_kg': 500.0, 'label': 'Paleta EUR'}
+      ],
+      'ldm': 4.0,
+    });
+  });
+
+  test('akcje trasy tylko z aktywnych modułów', () async {
+    addTearDown(() => routeActions.value = const []);
+    var granted = true;
+    final api = CoreApi(
+      baseUrl: 'http://serwer.test',
+      token: 't',
+      client: MockClient((request) async => json([
+            {'id': 'documents', 'name': 'Dokumenty', 'granted': granted}
+          ])),
+    );
+    final registry = ModuleRegistry([DocumentsModule()]);
+    await loadRouteActions(api, registry);
+    expect([for (final a in routeActions.value) a.id], ['documents']);
+    granted = false;
+    await loadRouteActions(api, registry);
+    expect(routeActions.value, isEmpty);
   });
 
   testWidgets('brak trasy – okno z wyjaśnieniem serwera', (tester) async {

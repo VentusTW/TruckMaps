@@ -129,5 +129,20 @@
   "documents.field.damage_description": "Opis szkody",
   "documents.field.damage_cause": "Przyczyna szkody",
   "documents.field.witnesses": "Obecni przy sporządzeniu (świadkowie)",
-  "documents.col.damaged": "Sztuk brak. / uszk."
+  "documents.col.damaged": "Sztuk brak. / uszk.",
+  "documents.kind.posting_declaration": "Oświadczenie o delegowaniu kierowcy (IMI)",
+  "documents.basis.posting_declaration": "Dyrektywa (UE) 2020/1057 art. 1 ust. 11, rozporządzenie wykonawcze (UE) 2021/2179. Oświadczenie składa się w portalu publicznym IMI (postingdeclaration.eu) przed rozpoczęciem delegowania – ten dokument zbiera dane do przepisania i jest kopią do kabiny.",
+  "documents.field.driver_birth_date": "Data urodzenia kierowcy",
+  "documents.field.driver_licence_number": "Nr prawa jazdy",
+  "documents.field.driver_address": "Adres kierowcy",
+  "documents.field.driver_id_document": "Dokument tożsamości (rodzaj i numer)",
+  "documents.field.contract_start": "Początek umowy o pracę",
+  "documents.field.applicable_law": "Prawo właściwe dla umowy",
+  "documents.field.host_country": "Państwo delegowania",
+  "documents.field.transport_type": "Rodzaj przewozu",
+  "documents.sign.carrier_rep": "Podpis przewoźnika",
+  "documents.text.cabotage": "kabotaż",
+  "documents.text.cross_trade": "przewóz cross-trade",
+  "documents.text.posting_notes": "Złóż oświadczenie w portalu IMI przed rozpoczęciem delegowania. W kabinie: kopia oświadczenia, dowód przewozu (CMR) i zapisy tachografu.",
+  "documents.warn.not_posting": "Trasa to przewóz dwustronny albo tranzyt – delegowanie zwykle nie obowiązuje (dyrektywa 2020/1057). Sprawdź kraje załadunku i rozładunku."
 }

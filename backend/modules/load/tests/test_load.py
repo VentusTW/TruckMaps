@@ -324,3 +324,53 @@ def test_plan_pdf_is_shared_under_a_short_link():
     assert link.status_code == 200 and link.json()["filename"].startswith("plan-MT-849102")
     pdf = client.get(link.json()["path"])
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+
+
+def test_plan_has_loads_on_every_axle():
+    result = plan(
+        make([{"kind": "euro", "count": 33, "weight_kg": 700}]), 13.6, 2.48, 32_000, SEMITRAILER
+    )
+    v, tr = result.vehicle, result.tractor
+    assert [a.id for a in v.axles] == ["steer", "drive", "trailer"]
+    # Te same naciski co w podsumowaniu ciągnika i osi naczepy.
+    assert [a.load_kg for a in v.axles] == [tr.front_kg, tr.drive_kg, result.axles[1].load_kg]
+    assert (v.gross_kg, v.cog_m) == (tr.gvw_kg, result.cog_m)
+    assert v.axles[0].x_m < 0 < v.axles[1].x_m < v.axles[2].x_m
+
+
+def test_rigid_load_at_the_back_warns_about_the_steer_axle():
+    rigid = CargoInfo(
+        deck_length_m=7.2, payload_kg=8_000, kind="rigid", axle_count=2, axle_load_t=11.5,
+        tare_kg=6_000, gvw_kg=18_000, height_m=3.4, wheelbase_m=4.5,
+    )  # fmt: skip
+    from truckmaps_load.module import Placed, evaluate
+
+    placed = [
+        Placed(item=0, x_m=5.4 + 0.6 * i, y_m=0.0, length_m=0.6, width_m=2.4, weight_kg=2_500,
+               stop=1)
+        for i in range(3)
+    ]  # fmt: skip
+    data = make([{"kind": "custom", "length_m": 0.6, "width_m": 2.4, "count": 3,
+                  "weight_kg": 2_500}])  # fmt: skip
+    result = evaluate(placed, 0, data, 7.2, 2.45, rigid)
+    assert {"steer_low", "cargo_back"} <= set(result.vehicle.problems)
+    assert any("oś kierowaną" in w for w in result.warnings)
+    assert any("za osiami tylnymi" in w for w in result.warnings)
+
+
+def test_tractor_weight_is_a_limit_when_the_load_can_be_moved():
+    # Przy ścianie czołowej 33 × 740 kg daje ok. 18,75 t na ciągniku – plan przekłada ładunek.
+    data = make([{"kind": "euro", "count": 33, "weight_kg": 740}], mats=True)
+    result = plan(data, 13.6, 2.48, 32_000, SEMITRAILER)
+    assert result.adjusted and result.vehicle.tractor_kg <= 18_000
+    assert "tractor" not in result.vehicle.problems
+
+
+def test_tractor_over_18_t_only_warns_when_the_load_cannot_be_moved():
+    # Jedna sztuka na całą długość (13,6 m, 24,5 t) – nie ma gdzie jej przesunąć.
+    data = make([{"kind": "custom", "length_m": 13.6, "width_m": 2.4, "count": 1,
+                  "weight_kg": 24_500}])  # fmt: skip
+    result = plan(data, 13.6, 2.48, 32_000, SEMITRAILER)
+    assert "tractor" in result.vehicle.problems
+    assert any(w.startswith("Masa ciągnika") for w in result.warnings)
+    assert next(n for n in result.norms if n.id == "art61").ok

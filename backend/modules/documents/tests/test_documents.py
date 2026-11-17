@@ -295,6 +295,50 @@ def test_prefill_road_card_from_trips(client, company):
     assert client.post(f"{API}/prefill", json=bad, headers=as_user("olek")).status_code == 422
 
 
+def test_prefill_posting_declaration_from_route_and_period(client, company):
+    cid = company["id"]
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=as_user("olek"))
+    stops = [
+        {"label": "Lyon", "country": "FR", "at": "2026-11-09T06:00:00Z"},
+        {"label": "Paryż", "country": "fr", "at": "2026-11-10T15:00:00Z"},
+    ]
+    body = {
+        "kind": "posting_declaration",
+        "company_id": cid,
+        "vehicle_id": company["tractor"],
+        "route": {"stops": stops},
+    }
+    result = client.post(f"{API}/prefill", json=body, headers=as_user("olek")).json()
+    data = result["data"]
+    assert data["carrier"].startswith("Trans-Miś") and "LW/0001/2026" in data["carrier"]
+    assert (data["transport_type"], data["host_country"]) == ("kabotaż", "FR")
+    assert (data["period_from"], data["period_to"]) == ("2026-11-09", "2026-11-10")
+    assert data["driver_name"] == "Jan" and data["applicable_law"] == "PL"
+    assert data["tractor_plate"] == "WGM 1234A"
+    assert "IMI" in data["notes"] and result["warnings"] == []
+    # Cross-trade: załadunek i rozładunek w dwóch obcych krajach; okres z żądania.
+    cross = body | {
+        "route": {"stops": [{"label": "Berlin", "country": "DE"}, stops[0]]},
+        "date_from": "2026-11-12",
+        "date_to": "2026-11-14",
+    }
+    data = client.post(f"{API}/prefill", json=cross, headers=as_user("olek")).json()["data"]
+    assert (data["transport_type"], data["host_country"]) == ("przewóz cross-trade", "DE, FR")
+    assert (data["period_from"], data["period_to"]) == ("2026-11-12", "2026-11-14")
+    # Przewóz dwustronny (z Polski) – bez delegowania, ostrzeżenie.
+    bilateral = body | {"route": {"stops": [{"label": "Poznań", "country": "PL"}, stops[0]]}}
+    result = client.post(f"{API}/prefill", json=bilateral, headers=as_user("olek")).json()
+    assert "transport_type" not in result["data"]
+    assert any("dwustronny" in w for w in result["warnings"])
+    # Kraje nieznane (jeden przystanek bez kraju) – bez zgadywania i bez ostrzeżenia.
+    unknown = body | {"route": {"stops": [{"label": "Lyon"}, stops[1]]}}
+    result = client.post(f"{API}/prefill", json=unknown, headers=as_user("olek")).json()
+    assert "transport_type" not in result["data"] and result["warnings"] == []
+    assert result["sources"]["period_from"] == "auto"
+    bad = body | {"date_from": "2026-11-14", "date_to": "2026-11-12"}
+    assert client.post(f"{API}/prefill", json=bad, headers=as_user("olek")).status_code == 422
+
+
 def test_documents_numbering_permissions_and_exports(client, company):
     cid = company["id"]
     body = {
