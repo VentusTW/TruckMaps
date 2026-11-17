@@ -1951,6 +1951,7 @@
   "mainMenuOrders": "Zlecenia i Załadunek",
   "mainMenuLoad3d": "Symulator 3D Załadunku",
   "mainMenuDrivers": "Kierowcy i Czas Pracy",
+  "mainMenuDocuments": "Dokumenty",
   "mainMenuService": "Warsztat i Serwis",
   "mainMenuReports": "Raporty i Analityka",
   "mainEditionNote": "Wydanie Flotowe v{version}",
