@@ -68,7 +68,7 @@ Future<String?> chooseKind(BuildContext context, CoreApi api, {Set<String>? only
 
 /// Dokumenty firmy: lista, nowy dokument, dane firmy i wzory (właściciel, dyspozytorzy).
 /// Rodzaje dokumentów, które wypełnia trasa z planera.
-const routeKinds = {'cmr', 'transport_order', 'road_card', 'posting_declaration', 'pod'};
+const routeKinds = {'cmr', 'transport_order', 'road_card', 'posting_declaration', 'pod', 'damage_report'};
 
 /// „Dokument” przy trasie z planera: wybór rodzaju i formularz wypełniony z trasy i ładunku
 /// (zob. [RouteData]).

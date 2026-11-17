@@ -567,3 +567,51 @@ def test_pod_prefill_signature_on_screen_and_print(client, company):
     assert sign not in page.replace('src="data:image/jpeg;base64,' + sign, "")
     printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
     assert b"/Subtype /Image" in printed and b"/Im1 Do" in b"".join(_streams(printed))
+
+
+def test_damage_report_prefill_signatures_and_print(client, company):
+    cid, owner = company["id"], as_user("olek")
+    client.put(f"{API}/profile", params={"company_id": cid}, json=PROFILE, headers=owner)
+    kinds = {k["id"]: k for k in client.get(f"{API}/kinds", headers=owner).json()}
+    assert kinds["damage_report"]["name"] == "Protokół szkody / reklamacji"
+    body = {
+        "kind": "damage_report",
+        "company_id": cid,
+        "vehicle_id": company["tractor"],
+        "route": {
+            "stops": [
+                {"label": "Poznań", "country": "PL"},
+                {"label": "Berlin, Hafen 3", "country": "DE", "at": "2026-11-20T09:30:00Z"},
+            ]
+        },
+        "cargo": {"items": [{"kind": "euro", "count": 2, "weight_kg": 500, "label": "Płytki"}]},
+    }
+    result = client.post(f"{API}/prefill", json=body, headers=as_user("jan")).json()
+    data, sources = result["data"], result["sources"]
+    assert data["found_place"] == "Berlin, Hafen 3 (DE)" and sources["found_place"] == "route"
+    assert data["found_at"] == "2026-11-20 09:30"
+    assert "LW/0001/2026" in data["carrier"] and data["driver_name"] == "Jan"
+    assert data["insurance"].startswith("Polisa OCP-77") and sources["insurance"] == "profile"
+    assert data["trailer_plate"] == "WGM 9876B"
+    assert data["goods"] == [
+        {"nature": "Płytki", "packages": 2, "packing": "palety EUR", "gross_kg": 1000}
+    ]
+    # Bez trasy – data stwierdzenia dzisiejsza.
+    bare = {"kind": "damage_report", "company_id": cid}
+    today = client.post(f"{API}/prefill", json=bare, headers=as_user("jan")).json()
+    assert today["sources"]["found_at"] == "auto" and "found_place" not in today["data"]
+
+    goods = data["goods"][0] | {"damaged": 1}
+    doc = client.post(f"{API}/documents", json={
+        "kind": "damage_report", "company_id": cid,
+        "data": data | {"goods": [goods], "damage_type": "uszkodzenie",
+                        "damage_description": "Pęknięte płytki na palecie 2",
+                        "witnesses": "Hans Müller", "driver_signature": _png(),
+                        "consignee_signature": _png()},
+    }, headers=as_user("jan")).json()  # fmt: skip
+    assert doc["number"].startswith("PS/")
+    page = client.get(f"{API}/documents/{doc['id']}/html", headers=owner).json()["html"]
+    assert page.count('class="sig" src="data:image/jpeg;base64,') == 2
+    assert "Pęknięte płytki" in page and "Sztuk brak. / uszk." in page and "CMR art. 17" in page
+    printed = client.get(f"{API}/documents/{doc['id']}/pdf", headers=owner).content
+    assert printed.startswith(b"%PDF") and b"".join(_streams(printed)).count(b" Do Q") == 2

@@ -272,7 +272,7 @@ void main() {
     )));
     await tester.tap(find.text('Document'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('kind-damage_report')), findsNothing);
+    expect(find.byKey(const Key('kind-damage_report')), findsOneWidget);
     await tester.tap(find.byKey(const Key('kind-cmr')));
     await tester.pumpAndSettle();
 
