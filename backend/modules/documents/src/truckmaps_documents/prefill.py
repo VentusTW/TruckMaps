@@ -317,7 +317,62 @@ def _pod(result: Prefill, src: Sources) -> None:
         result.set("goods", _goods(src.cargo, "nature packages packing gross_kg"), "cargo")
 
 
-FILLERS = {"cmr": _cmr, "transport_order": _order, "road_card": _road_card, "pod": _pod}
+def posting_operation(home: str, stops: list[Stop]) -> tuple[str, list[str]] | None:
+    """Rodzaj przewozu z krajów załadunku i rozładunku (dyrektywa 2020/1057 art. 1):
+    kabotaż – oba w tym samym obcym kraju, cross-trade – oba poza krajem siedziby i różne,
+    ``bilateral`` – przewóz z kraju siedziby albo do niego (bez delegowania).
+    ``None`` – nie wiadomo (brak kraju firmy albo krajów załadunku i rozładunku)."""
+    countries = [s.country.upper() for s in stops if s.country]
+    if len(countries) < 2 or not home:
+        return None
+    first, last = countries[0], countries[-1]
+    if home in (first, last):
+        return "bilateral", []
+    if first == last:
+        return "cabotage", [first]
+    return "cross_trade", [first, last]
+
+
+def _posting(result: Prefill, src: Sources) -> None:
+    carrier = company_block(src.company, src.profile)
+    if src.profile.licence_number:
+        carrier += "\n" + t("documents.text.licence", value=src.profile.licence_number)
+    result.set("carrier", carrier, "company")
+    profile = src.profile
+    contact = "\n".join(p for p in (profile.contact_person, profile.phone, profile.email) if p)
+    result.set("contact_person", contact, "profile")
+    result.set("driver_name", src.driver_name, "driver")
+    result.set("applicable_law", (profile.country or "").upper(), "profile")
+    _vehicle(result, src.vehicle)
+    start, end = src.period or (src.today, src.today)
+    stops = src.route.stops if src.route else []
+    source = "auto"
+    if src.period is None and stops and stops[0].at:
+        start = end = stops[0].at.date()
+        if stops[-1].at:
+            end = max(start, stops[-1].at.date())
+        source = "route"
+    result.set("period_from", start.isoformat(), source)
+    result.set("period_to", end.isoformat(), source)
+    operation = posting_operation((profile.country or "").upper(), stops)
+    if operation is not None:
+        kind, countries = operation
+        if kind == "bilateral":
+            result.warnings.append(t("documents.warn.not_posting"))
+        else:
+            result.set("transport_type", t(f"documents.text.{kind}"), "route")
+            result.set("host_country", ", ".join(countries), "route")
+    result.set("notes", t("documents.text.posting_notes"), "auto")
+    _issued(result, src)
+
+
+FILLERS = {
+    "cmr": _cmr,
+    "transport_order": _order,
+    "road_card": _road_card,
+    "pod": _pod,
+    "posting_declaration": _posting,
+}
 
 
 def prefill(kind: str, src: Sources) -> Prefill:

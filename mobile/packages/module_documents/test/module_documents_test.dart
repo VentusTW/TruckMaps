@@ -38,6 +38,8 @@ const kinds = [
       },
     ],
   },
+  // Rodzaj spoza dokumentów z trasy – nie ma go w wyborze z planera.
+  {'id': 'damage_report', 'name': 'Damage report', 'basis': '', 'fields': []},
 ];
 
 // 1×1 PNG
@@ -114,6 +116,9 @@ void main() {
                 },
               ],
             });
+          }
+          if (path == '/api/m/documents/templates/posting_declaration') {
+            return json({...templateOut(), 'kind': 'posting_declaration'});
           }
           if (path == '/api/m/documents/templates/cmr') {
             final extra = [
@@ -238,6 +243,58 @@ void main() {
     await tester.tap(find.byKey(const Key('unsign-consignee_signature')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('signed-consignee_signature')), findsNothing);
+  });
+
+  testWidgets('route action: document from the planner route, prefill with route and cargo', (tester) async {
+    tall(tester);
+    final route = {
+      'stops': [
+        {'label': 'Tarnów', 'country': 'PL', 'at': '2026-11-20T06:00:00.000Z', 'type': 'loading'},
+        {'label': 'Berlin', 'at': '2026-11-21T10:00:00.000Z', 'type': 'unloading'},
+      ],
+      'distance_km': 700.0,
+      'duration_min': 540.0,
+      'cost_amount': 2100.0,
+      'cost_currency': 'PLN',
+    };
+    final cargo = {
+      'items': [
+        {'kind': 'euro', 'count': 10, 'weight_kg': 500.0, 'label': 'Euro pallet'}
+      ],
+      'ldm': 4.0,
+    };
+    final action = DocumentsModule().routeActions(ModuleContext(api: api(), userName: 'Olek')).single;
+    await tester.pumpWidget(app(Builder(
+      builder: (context) => TextButton(
+        onPressed: () => action.run(context, {'company_id': 'c1', 'vehicle_id': 'v1', 'route': route, 'cargo': cargo}),
+        child: Text(action.label(const Locale('en'))),
+      ),
+    )));
+    await tester.tap(find.text('Document'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('kind-damage_report')), findsNothing);
+    await tester.tap(find.byKey(const Key('kind-cmr')));
+    await tester.pumpAndSettle();
+
+    final body = requests.where((r) => r.$2 == '/api/m/documents/prefill').single.$3 as Map;
+    expect(body['kind'], 'cmr');
+    expect(body['company_id'], 'c1');
+    expect(body['vehicle_id'], 'v1');
+    expect(body['route'], route);
+    expect(body['cargo'], cargo);
+    expect(find.text('from the load plan'), findsOneWidget);
+  });
+
+  testWidgets('posting declaration (IMI): period sent with the prefill', (tester) async {
+    tall(tester);
+    await tester.pumpWidget(app(DocumentFormScreen(api: api(), companyId: 'c1', kind: 'posting_declaration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('document-fill')));
+    await tester.pumpAndSettle();
+    final body = requests.lastWhere((r) => r.$2 == '/api/m/documents/prefill').$3 as Map;
+    expect(body['kind'], 'posting_declaration');
+    expect(body, contains('date_from'));
+    expect(body, contains('date_to'));
   });
 
   testWidgets('template: rename, hide and add a company field', (tester) async {

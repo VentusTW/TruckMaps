@@ -35,6 +35,7 @@ TYPICAL_TRACTOR_KG = 7_300
 TRACTOR_FRONT_SHARE = 0.7
 """Część masy własnej ciągnika na osi przedniej."""
 TRACTOR_WHEELBASE_M = 3.8
+"""Rozstaw osi typowego ciągnika 4×2 (d + e w ``axles.TractorSetup``)."""
 FIFTH_WHEEL_LEAD_M = 0.6
 """Siodło przed osią napędową."""
 STEER_AXLE_KG = 7_500

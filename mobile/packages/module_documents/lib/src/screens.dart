@@ -41,9 +41,12 @@ Widget _error(BuildContext context, Object? error, VoidCallback retry) => Center
 String _day(DateTime day) =>
     '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
 
-/// Wybór rodzaju dokumentu (`null` – anulowano).
-Future<String?> chooseKind(BuildContext context, CoreApi api) async {
-  final kinds = _list(await api.get('$_base/kinds'));
+/// Wybór rodzaju dokumentu (`null` – anulowano); [only] – tylko te rodzaje.
+Future<String?> chooseKind(BuildContext context, CoreApi api, {Set<String>? only}) async {
+  final kinds = [
+    for (final k in _list(await api.get('$_base/kinds')))
+      if (only == null || only.contains(k['id'])) k,
+  ];
   if (!context.mounted) return null;
   final t = DocumentsTexts.of(context);
   return showModalBottomSheet<String>(
@@ -64,6 +67,28 @@ Future<String?> chooseKind(BuildContext context, CoreApi api) async {
 }
 
 /// Dokumenty firmy: lista, nowy dokument, dane firmy i wzory (właściciel, dyspozytorzy).
+/// Rodzaje dokumentów, które wypełnia trasa z planera.
+const routeKinds = {'cmr', 'transport_order', 'road_card', 'posting_declaration', 'pod'};
+
+/// „Dokument” przy trasie z planera: wybór rodzaju i formularz wypełniony z trasy i ładunku
+/// (zob. [RouteData]).
+Future<void> openRouteDocument(BuildContext context, CoreApi api, RouteData data,
+    {LinkOpener linkOpener = openLink}) async {
+  final kind = await chooseKind(context, api, only: routeKinds);
+  if (kind == null || !context.mounted) return;
+  await Navigator.of(context).push<void>(MaterialPageRoute(
+    builder: (_) => DocumentFormScreen(
+      api: api,
+      companyId: '${data['company_id']}',
+      kind: kind,
+      vehicleId: data['vehicle_id'] as String?,
+      route: data['route'] as Map<String, dynamic>?,
+      cargo: data['cargo'] as Map<String, dynamic>?,
+      linkOpener: linkOpener,
+    ),
+  ));
+}
+
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key, required this.api, this.linkOpener = openLink, this.imagePicker = pickLogo});
 
@@ -215,6 +240,8 @@ class DocumentFormScreen extends StatefulWidget {
     required this.kind,
     this.document,
     this.vehicleId,
+    this.route,
+    this.cargo,
     this.linkOpener = openLink,
   });
 
@@ -225,6 +252,11 @@ class DocumentFormScreen extends StatefulWidget {
   /// Zapisany dokument (poprawka); `null` – nowy.
   final Map<String, dynamic>? document;
   final String? vehicleId;
+
+  /// Trasa z planera i ładunek z planu załadunku do autouzupełniania (jak `route` / `cargo`
+  /// w `POST /api/m/documents/prefill`).
+  final Map<String, dynamic>? route;
+  final Map<String, dynamic>? cargo;
   final LinkOpener linkOpener;
 
   @override
@@ -246,6 +278,9 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
   String? _vehicleId;
   DateTime _from = DateTime.now();
   DateTime _to = DateTime.now();
+
+  /// Wzory z okresem: karta drogowa (przejazdy) i oświadczenie o delegowaniu (IMI).
+  bool get _periodKind => widget.kind == 'road_card' || widget.kind == 'posting_declaration';
   bool _busy = false;
   String? _message;
 
@@ -254,6 +289,15 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
     super.initState();
     _document = widget.document;
     _vehicleId = widget.document?['vehicle_id'] as String? ?? widget.vehicleId;
+    // Okres karty drogowej z trasy: od wyjazdu do przyjazdu.
+    final times = [
+      for (final s in _list(widget.route?['stops']))
+        if (DateTime.tryParse('${s['at']}') case final at?) at.toLocal(),
+    ];
+    if (times.isNotEmpty) {
+      _from = times.first;
+      _to = times.last;
+    }
   }
 
   @override
@@ -295,7 +339,9 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
         _text[key] = TextEditingController(text: data[key] == null ? '' : '${data[key]}');
       }
     }
-    if (_document == null && _vehicleId != null) await _fill(quiet: true);
+    if (_document == null && (_vehicleId != null || widget.route != null || widget.cargo != null)) {
+      await _fill(quiet: true);
+    }
   }
 
   Map<String, TextEditingController> _rowControllers(Map<String, dynamic> field, Map<String, dynamic> row) => {
@@ -329,7 +375,9 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
         'kind': widget.kind,
         'company_id': widget.companyId,
         if (_vehicleId != null) 'vehicle_id': _vehicleId,
-        if (widget.kind == 'road_card') ...{'date_from': _day(_from), 'date_to': _day(_to)},
+        if (widget.route != null) 'route': widget.route,
+        if (widget.cargo != null) 'cargo': widget.cargo,
+        if (_periodKind) ...{'date_from': _day(_from), 'date_to': _day(_to)},
       }) as Map<String, dynamic>;
       final data = result['data'] as Map<String, dynamic>;
       setState(() {
@@ -582,7 +630,7 @@ class _DocumentFormScreenState extends State<DocumentFormScreen> {
               ],
               onChanged: (id) => setState(() => _vehicleId = id),
             ),
-            if (widget.kind == 'road_card')
+            if (_periodKind)
               Wrap(spacing: 8, children: [
                 ActionChip(
                     avatar: const Icon(Icons.event, size: 18),

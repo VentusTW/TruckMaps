@@ -32,6 +32,16 @@ class DocumentsModule extends TruckMapsModule {
       ];
 
   @override
+  List<RouteAction> routeActions(ModuleContext context) => [
+        RouteAction(
+          id: 'documents',
+          label: (locale) => DocumentsTexts(locale).routeAction,
+          icon: Icons.description_outlined,
+          run: (ctx, route) => openRouteDocument(ctx, context.api, route),
+        ),
+      ];
+
+  @override
   List<VehicleAction> vehicleActions(ModuleContext context) => [
         VehicleAction(
           id: 'documents',

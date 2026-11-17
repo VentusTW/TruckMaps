@@ -26,6 +26,7 @@ class DocumentsTexts {
   String get empty => _t('Brak dokumentów.', 'No documents.');
   String get add => _t('Nowy dokument', 'New document');
   String get chooseKind => _t('Rodzaj dokumentu', 'Document type');
+  String get routeAction => _t('Dokument', 'Document');
   String get profile => _t('Dane firmy i logo', 'Company details and logo');
   String get templates => _t('Wzory dokumentów', 'Document templates');
   String get vehicle => _t('Pojazd', 'Vehicle');

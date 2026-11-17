@@ -150,6 +150,12 @@ void main() {
     expect(find.text('Marża: 10800 PLN'), findsOneWidget);
     expect(find.text('Zlecenia z przychodem: 2 z 2'), findsOneWidget);
     expect(find.text('Bez kursu (poza sumą): HUF'), findsOneWidget);
+    // Koszt wozokilometra też z kart: 1500 PLN / 2200 km.
+    expect(find.text('• Paliwo z kart: 0,68 PLN/km'), findsOneWidget);
+    // Korytarze i zgodność zamiast „W budowie” (bez modułu Kierowcy – informacja).
+    expect(find.byKey(const Key('an-corridors')), findsOneWidget);
+    expect(find.textContaining('Moduł Kierowcy jest nieaktywny'), findsOneWidget);
+    expect(find.textContaining('W budowie'), findsNothing);
   });
 
   testWidgets('analityka bez kart paliwowych i bez dostępu do przychodów', (tester) async {
@@ -157,12 +163,13 @@ void main() {
     await tester.pumpWidget(screen(api([], fuel: false)));
     await tester.pumpAndSettle();
     expect(find.text('Koszty (trasy, serwis): 6000 PLN'), findsOneWidget);
+    expect(find.text('• Trasy (szacunek planera): 2,73 PLN/km'), findsOneWidget);
     expect(find.text('Marża: 6300 PLN'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(screen(api([], revenue: false)));
     await tester.pumpAndSettle();
-    expect(find.text('Przychody widzą właściciel i dyspozytor'), findsOneWidget);
+    expect(find.text('Przychody widzą właściciel i dyspozytor'), findsNWidgets(2)); // karta przychodu i korytarzy
     expect(find.byKey(const Key('an-margin')), findsNothing);
   });
 
@@ -173,7 +180,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('an-revenue-enter')));
     await tester.pumpAndSettle();
-    expect(find.text('Kraków → Lyon'), findsOneWidget);
+    expect(find.descendant(of: find.byType(RevenueOrdersDialog), matching: find.text('Kraków → Lyon')), findsOneWidget);
     expect(find.text('3300 PLN'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('revenue-order-a1')));
