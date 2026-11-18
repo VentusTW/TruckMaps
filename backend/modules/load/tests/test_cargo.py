@@ -275,3 +275,41 @@ def test_equipment_is_saved_per_user():
     assert client.get("/api/m/load/equipment", headers=other).json()["enabled"] is False
     bad = client.put("/api/m/load/equipment", json={"items": {"rakieta": 1}}, headers=ola)
     assert bad.status_code == 422
+
+
+def test_niepelne_rzedy_dopelnia_nastepny_rozladunek():
+    """33 palety EUR w trzech rozładunkach (11, 15, 7) mieszczą się na 13,6 m bez dziur."""
+    data = make(
+        [
+            {"count": 11, "weight_kg": 600, "stop": 1},
+            {"count": 15, "weight_kg": 550, "stop": 2},
+            {"count": 7, "weight_kg": 300, "stop": 3},
+        ],
+        body_code="L",
+        mats=True,
+    )
+    out = plan(data, 13.6, 2.48, None, CargoInfo(**{**SEMITRAILER, "payload_kg": None}))
+    assert out.unplaced == 0 and sum(p.pieces for p in out.placed) == 33
+    # Bez wpisanej ładowności ściana EN 12642 kod L liczona z masy ładunku (max 5000 daN).
+    assert out.forces.wall_kN == 50.0 and out.forces.wall_holds
+    assert all(n.ok for n in out.norms)
+
+
+def test_doradca_stawia_ciezszy_rozladunek_z_przodu_gdy_os_napedowa_za_lekka():
+    """Najcięższy rozładunek nr 1 z tyłu daje za mało na osi napędowej (< 25%) – plan stawia
+    go z przodu i mówi o zmianie kolejności rozładunku."""
+    data = make(
+        [
+            {"count": 15, "weight_kg": 600, "stop": 1},
+            {"count": 11, "weight_kg": 550, "stop": 2},
+            {"count": 7, "weight_kg": 150, "stop": 3},
+        ],
+        body_code="L",
+        mats=True,
+    )
+    cargo = CargoInfo(deck_length_m=13.5, payload_kg=None, kind="semitrailer", axle_count=3)
+    out = plan(data, 13.5, 2.48, None, cargo)
+    assert all(n.ok for n in out.norms) and out.tractor.drive_share >= 0.25
+    front = min(p.x_m for p in out.placed)
+    assert {p.stop for p in out.placed if p.x_m == front} == {1}
+    assert any("rozładunek nr 1" in w for w in out.warnings)

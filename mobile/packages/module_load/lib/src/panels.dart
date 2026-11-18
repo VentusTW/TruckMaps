@@ -199,7 +199,7 @@ class LoadHeader extends StatelessWidget {
   }
 }
 
-/// Legenda symulatora: grupy ładunku z zakresem mas, wolne miejsca, dane naczepy.
+/// Legenda symulatora: rozładunki (kolor, sztuki, masa), wolne miejsca, dane naczepy.
 class SimLegend extends StatelessWidget {
   const SimLegend({super.key, required this.plan, required this.kinds});
 
@@ -212,28 +212,14 @@ class SimLegend extends StatelessWidget {
     final theme = Theme.of(context);
     final caption = theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary);
     final scene = SimScene(plan, kinds);
-    final groups = <CargoGroup, List<double>>{};
-    final counts = <CargoGroup, int>{};
-    // Towar inny niż palety – osobno każdy rodzaj (nazwa, kolor grupy towaru).
-    final others = <String, (Color, List<double>, int)>{};
+    // Rozładunki: liczba sztuk i masa (każdy rozładunek – własny kolor).
+    final stops = <int, (int, double)>{};
     for (final p in scene.pieces) {
-      final each = p.weight / math.max(1, p.pieces);
-      if (p.group == CargoGroup.bulk) {
-        final name = p.look.name.isEmpty ? t.group('bulk') : p.look.name;
-        final (color, weights, count) = others[name] ?? (p.color, <double>[], 0);
-        others[name] = (color, weights..add(each), count + p.pieces);
-        continue;
-      }
-      groups.putIfAbsent(p.group, () => []).add(each);
-      counts[p.group] = (counts[p.group] ?? 0) + p.pieces;
+      final (count, weight) = stops[p.stop] ?? (0, 0.0);
+      stops[p.stop] = (count + p.pieces, weight + p.weight);
     }
-    final units = counts.values.fold<int>(0, (s, c) => s + c) + others.values.fold<int>(0, (s, o) => s + o.$3);
+    final units = stops.values.fold<int>(0, (s, v) => s + v.$1);
     final free = math.max(0, (plan['pallet_places'] as int? ?? 0) - (plan['places_used'] as int? ?? 0));
-    String range(List<double> w) {
-      final lo = w.reduce(math.min).round(), hi = w.reduce(math.max).round();
-      return lo == hi ? '$lo kg' : '$lo–$hi kg';
-    }
-
     Widget dot(Color color) => Container(
           width: 12,
           height: 12,
@@ -259,21 +245,12 @@ class SimLegend extends StatelessWidget {
           StatusChip(label: t.units(units), tone: StatusTone.info, uppercase: false),
         ]),
         const SizedBox(height: Gap.s),
-        for (final g in CargoGroup.values)
-          if (groups[g] != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(children: [
-                dot(groupColors[g]!),
-                Expanded(child: Text(t.groupLine(t.group(g.name), range(groups[g]!), counts[g]!), style: caption)),
-              ]),
-            ),
-        for (final MapEntry(key: name, value: (color, weights, count)) in others.entries)
+        for (final stop in stops.keys.toList()..sort())
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(children: [
-              dot(color),
-              Expanded(child: Text(t.groupLine(name, range(weights), count), style: caption)),
+              dot(stopColor(stop)),
+              Expanded(child: Text(t.stopLine(stop, stops[stop]!.$1, stops[stop]!.$2.round()), style: caption)),
             ]),
           ),
         Padding(

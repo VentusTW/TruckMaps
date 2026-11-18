@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:core_sdk/core_sdk.dart' show TruckPalette;
 import 'package:flutter/material.dart';
 
 import 'texts.dart';
@@ -19,6 +20,9 @@ const groupColors = {
   CargoGroup.light: Color(0xFF38BDF8),
   CargoGroup.bulk: Color(0xFFF59E0B),
 };
+
+/// Kolor rozładunku nr [stop] (1, 2, 3…).
+Color stopColor(int stop) => TruckPalette.series[(stop - 1) % TruckPalette.series.length];
 
 const strapColor = Color(0xFFE5532D);
 const beamColor = Color(0xFFD62828);
@@ -104,8 +108,8 @@ class SimPiece {
   /// Drewniana paleta pod spodem.
   bool get palletBase => look.shape == 'pallet';
 
-  Color get color =>
-      group == CargoGroup.bulk ? cargoGroupColors[look.group] ?? groupColors[group]! : groupColors[group]!;
+  /// Kolor wg numeru rozładunku – ten sam w widoku 3D, rzucie i legendzie.
+  Color get color => stopColor(stop);
 
   static CargoLook _look(Map<String, dynamic> json, List<CargoLook> looks) {
     final item = (json['item'] as int?) ?? 0;

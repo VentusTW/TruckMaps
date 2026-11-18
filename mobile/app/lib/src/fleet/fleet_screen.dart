@@ -55,7 +55,7 @@ class FleetScreen extends StatefulWidget {
   /// Kliknięcie wiersza – profil pojazdu (bez tego – „W budowie”).
   final void Function(String id, String name)? onOpenVehicle;
 
-  /// Przejście do innego ekranu aplikacji (`repairs`, `load3d`).
+  /// Przejście do innego ekranu aplikacji (`repairs`, `orders`).
   final ValueChanged<String>? onSection;
 
   /// „+ Dodaj pojazd” – formularz nowego pojazdu firmy.
@@ -1115,7 +1115,7 @@ class _FleetScreenState extends State<FleetScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: () => widget.onSection != null ? widget.onSection!('load3d') : widget.onOpen(l.mainMenuLoad3d),
+            onPressed: () => widget.onSection != null ? widget.onSection!('orders') : widget.onOpen(l.mainMenuOrders),
             child: Text(l.fleetOpen3d),
           ),
         ),

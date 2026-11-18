@@ -147,7 +147,7 @@ class LoadTexts {
       };
   String overlayStraps(int count) => _t('Pasy mocujące ($count)', 'Lashing straps ($count)');
   String get overlayVectors => _t('Wektory sił (CoG)', 'Force vectors (CoG)');
-  String get legendTitle => _t('Struktura i typ ładunku', 'Cargo structure and type');
+  String get legendTitle => _t('Kolejność rozładunku', 'Unloading order');
   String units(int count) => _t('$count jedn.', '$count units');
   String group(String value) => switch (value) {
         'heavy' => _t('Ciężkie', 'Heavy'),
@@ -157,6 +157,8 @@ class LoadTexts {
       };
   String groupLine(String name, String range, int count) =>
       _t('$name ($range) • $count szt.', '$name ($range) • $count pcs');
+  String stopLine(int stop, int count, int kg) =>
+      _t('Rozładunek $stop • $count szt. • $kg kg', 'Unloading $stop • $count pcs • $kg kg');
   String freeSlots(int count) => _t('Wolne miejsca paletowe • $count', 'Free pallet places • $count');
   String get simHint => _t('Wpisz ładunek zlecenia i policz plan – tu pojawi się symulacja załadunku.',
       'Enter the order cargo and calculate the plan – the load simulation will appear here.');

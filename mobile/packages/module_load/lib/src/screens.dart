@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core_sdk/core_sdk.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -243,6 +245,9 @@ InputDecoration _field(String label, {String? suffix}) =>
 
 /// Pozycja ładunku w formularzu.
 class _Item {
+  /// [stop] – numer rozładunku nowej pozycji (domyślnie kolejny po ostatniej).
+  _Item({int stop = 1}) : stop = TextEditingController(text: '$stop');
+
   String kind = 'euro';
 
   /// Rodzaj towaru z katalogu (`null` – paleta wg [kind]).
@@ -250,7 +255,7 @@ class _Item {
   final count = TextEditingController(text: '1');
   final weight = TextEditingController();
   final stack = TextEditingController(text: '1');
-  final stop = TextEditingController(text: '1');
+  final TextEditingController stop;
   final length = TextEditingController();
   final width = TextEditingController();
   final height = TextEditingController();
@@ -445,6 +450,9 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
 
   final _form = GlobalKey<FormState>();
   final _items = [_Item()];
+
+  /// Kolejny numer rozładunku: o jeden więcej niż największy w formularzu.
+  int _nextStop() => _items.fold<int>(0, (m, i) => math.max(m, int.tryParse(i.stop.text.trim()) ?? 0)) + 1;
   final _deck = TextEditingController();
   final _reference = TextEditingController();
   late String? _vehicleId = widget.vehicleId;
@@ -794,7 +802,7 @@ class _LoadPlanScreenState extends State<LoadPlanScreen> {
       title: t.orderItems,
       icon: Icons.inventory_2_outlined,
       action: TextButton.icon(
-        onPressed: () => _changed(() => _items.add(_Item())),
+        onPressed: () => _changed(() => _items.add(_Item(stop: _nextStop()))),
         icon: const Icon(Icons.add),
         label: Text(t.addItem),
       ),

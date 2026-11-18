@@ -14,6 +14,8 @@
   "load.axle_front_axle": "front axle",
   "load.axle_rear_axles": "rear axles",
   "load.axle_drawbar_front": "trailer front axle",
+  "load.stop_no": "unloading no. {stop}",
+  "load.stop_order": "Order changed against the unloading sequence: {front} stands at the front (heavier cargo), otherwise the rules cannot be met (tractor axle loads). Unload from the side (sliding curtain) or plan a reload.",
   "load.adjusted": "The load was arranged to meet the requirements: trailer and tractor axle loads, securing and standards.",
   "load.gap_front": "The load is {gap} m away from the front wall – block it at the front (beam, airbag) or add straps.",
   "load.too_high": "A stack is higher than the cargo space (about {height} m).",

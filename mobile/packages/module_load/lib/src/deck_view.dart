@@ -7,7 +7,7 @@ import 'sim_view.dart' show CargoLook;
 import 'texts.dart';
 
 /// Kolory rozładunków (1, 2, 3…) – te same w widoku z góry i z boku.
-const stopColors = TruckPalette.series;
+const stopColors = TruckPalette.series; // jak [stopColor] w widoku 3D
 
 /// Komputer (mysz): bez przybliżania kółkiem.
 bool get desktop =>

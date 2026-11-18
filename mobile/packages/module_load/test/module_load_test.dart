@@ -236,9 +236,8 @@ void main() {
     expect(find.text('Legal standards and vehicle certificates'), findsOneWidget);
     // VDI 2700 czeka na potwierdzenie sprzętu: 3 z 4.
     expect(find.text('3/4 met'), findsOneWidget);
-    expect(find.text('Heavy (500 kg) • 1 pcs'), findsNothing);
-    expect(find.text('Light (500 kg) • 1 pcs'), findsNothing);
-    expect(find.text('Medium (500 kg) • 1 pcs'), findsOneWidget);
+    // Legenda wg rozładunków (każdy własnym kolorem).
+    expect(find.textContaining(RegExp(r'^Unloading 1 • \d+ pcs • \d+ kg$')), findsOneWidget);
     expect(tester.getTopLeft(find.text('Axle load distribution')).dx, greaterThan(800));
 
     // Widoki: rzut z góry i przekrój.

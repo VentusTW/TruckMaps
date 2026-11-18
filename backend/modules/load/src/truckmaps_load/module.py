@@ -443,6 +443,8 @@ class _Row:
     length: float
     pieces: list[Placed]
     """Sztuki rzędu z ``x_m`` = 0."""
+    mixed: bool = False
+    """Rząd dopełniony sztukami następnego rozładunku (stoi na granicy rozładunków)."""
 
     @property
     def weight(self) -> float:
@@ -453,10 +455,15 @@ def _rows(
     data: PlanIn, deck_width: float, types: Types | None = None, narrow: bool = False
 ) -> list[_Row]:
     """Rzędy po kolei od przodu: ostatni rozładunek pierwszy. ``narrow`` – o jedną sztukę mniej
-    w rzędzie tam, gdzie pełnego rzędu nie da się zamocować pasami (kosztem długości)."""
+    w rzędzie tam, gdzie pełnego rzędu nie da się zamocować pasami (kosztem długości).
+    Niepełny ostatni rząd pozycji dopełniają sztuki następnej pozycji o tym samym ułożeniu –
+    inaczej każda pozycja z nieparzystą liczbą sztuk zostawia dziurę (np. 33 palety EUR
+    zajęłyby 14,4 m zamiast 13,6 m)."""
     types = types if types is not None else item_types(data)
     order = sorted(range(len(data.items)), key=lambda i: -data.items[i].stop)
     rows: list[_Row] = []
+    # Niepełny rząd poprzedniej pozycji: (rząd, długość, szerokość sztuki, sztuk w rzędzie).
+    open_row: tuple[_Row, float, float, int] | None = None
     for index in order:
         item = data.items[index]
         ctype = types[index]
@@ -468,22 +475,38 @@ def _rows(
         piece_m = item.height_m or (
             ctype.height_m if ctype and ctype.kind == "custom" else DEFAULT_HEIGHT_M
         )
-        left = item.count
-        for start in range(0, stacks, per_row):
-            pieces = []
-            for k in range(min(per_row, stacks - start)):
-                count = min(item.stack, left)
-                left -= count
-                pieces.append(
-                    Placed(
-                        item=index, x_m=0, y_m=round(k * across, 3), length_m=along,
-                        width_m=across, weight_kg=count * item.weight_kg, stop=item.stop,
-                        pieces=count, height_m=round(count * piece_m, 2),
-                        height_known=item.height_m is not None,
-                    )
-                )  # fmt: skip
-            rows.append(_Row(item.stop, along, pieces))
+        counts = [min(item.stack, item.count - s * item.stack) for s in range(stacks)]
+        # Stosy pozycji, jeszcze bez miejsca w poprzek (``y_m`` nadaje rząd).
+        waiting = [
+            Placed(
+                item=index, x_m=0, y_m=0, length_m=along, width_m=across,
+                weight_kg=count * item.weight_kg, stop=item.stop, pieces=count,
+                height_m=round(count * piece_m, 2), height_known=item.height_m is not None,
+            )
+            for count in counts
+        ]  # fmt: skip
+        if open_row and open_row[1:] == (along, across, per_row):
+            row = open_row[0]
+            free = per_row - len(row.pieces)
+            row.pieces += _in_row(waiting[:free], across, len(row.pieces))
+            row.mixed = True
+            waiting = waiting[free:]
+            if len(row.pieces) < per_row:
+                continue  # rząd nadal niepełny – dopełni go następna pozycja
+        open_row = None
+        for start in range(0, len(waiting), per_row):
+            row = _Row(item.stop, along, _in_row(waiting[start : start + per_row], across, 0))
+            rows.append(row)
+            if len(row.pieces) < per_row:
+                open_row = (row, along, across, per_row)
     return rows
+
+
+def _in_row(pieces: list[Placed], across: float, first: int) -> list[Placed]:
+    """Sztuki obok siebie w poprzek, od miejsca ``first``."""
+    return [
+        p.model_copy(update={"y_m": round((first + k) * across, 3)}) for k, p in enumerate(pieces)
+    ]
 
 
 def _lay(
@@ -509,9 +532,25 @@ def _variants(rows: list[_Row]) -> list[list[_Row]]:
     for row in rows:
         by_stop.setdefault(row.stop, []).append(row)
     stops = list(by_stop)
-    heavy_front = [r for s in stops for r in sorted(by_stop[s], key=lambda r: -r.weight)]
-    heavy_back = [r for s in stops for r in sorted(by_stop[s], key=lambda r: r.weight)]
-    return [rows, heavy_front, heavy_back]
+    # Rząd z dwóch rozładunków zostaje na końcu swojej grupy – przy sztukach następnego.
+    heavy_front = [r for s in stops for r in sorted(by_stop[s], key=lambda r: (r.mixed, -r.weight))]
+    heavy_back = [r for s in stops for r in sorted(by_stop[s], key=lambda r: (r.mixed, r.weight))]
+    if len(stops) < 2:
+        return [rows, heavy_front, heavy_back]
+
+    # Gdy kolejność rozładunków nie pozwala spełnić przepisów (np. za mało na osi napędowej):
+    # rozładunki w całości, najcięższy (kg na metr) z przodu, a w ostateczności – rzędy wg masy.
+    def density(stop: int) -> float:
+        group = by_stop[stop]
+        return sum(r.weight for r in group) / sum(r.length for r in group)
+
+    heavy_stops = [r for s in sorted(stops, key=lambda s: -density(s)) for r in by_stop[s]]
+    by_weight = sorted(rows, key=lambda r: -r.weight)
+    return [rows, heavy_front, heavy_back, heavy_stops, by_weight]
+
+
+ORDERED_VARIANTS = 3
+"""Tyle pierwszych wariantów z :func:`_variants` zachowuje kolejność rozładunków."""
 
 
 GAP_STEP_M = 0.1
@@ -567,6 +606,7 @@ def layouts(
             key = (
                 unplaced,
                 round(over),
+                rank >= ORDERED_VARIANTS,  # zmiana kolejności rozładunków – tylko gdy pomaga
                 offset > 0,
                 gap_at is not None,
                 round(offset + gap, 2),
@@ -594,7 +634,8 @@ def arrange(
         for step in range(steps + 1):
             offset = step * STEP_M
             laid = _lay(variant, offset, deck_length)
-            score = (round(_overload(axle_loads(laid[0], points))), laid[1], offset, rank)
+            over = round(_overload(axle_loads(laid[0], points)))
+            score = (over, laid[1], rank >= ORDERED_VARIANTS, offset, rank)
             if best is None or score < best[0]:
                 best = (score, laid, offset, rank)
     _, (placed, unplaced, end), offset, rank = best
@@ -631,7 +672,11 @@ def evaluate(
     mu = min((mu_of(p) for p in held), default=friction(data.mats))
     g = 9.81 / 1000
     rest_forward = sum(max(0.0, 0.8 - mu_of(p)) * p.weight_kg * g for p in held)
-    wall = wall_capacity_kN(data.body_code, payload)
+    # Ściana wg EN 12642 to ułamek ładowności P; bez wpisanej ładowności – masa ładunku
+    # (ładowność nie jest mniejsza, więc to bezpieczne oszacowanie).
+    wall = wall_capacity_kN(
+        data.body_code, payload or sum(i.count * i.weight_kg for i in data.items)
+    )
     holds = wall_holds(front_wall, data.body_code, wall, rest_forward)
     # Rzędy: sztuki zaczynające się w tym samym miejscu (po przeciągnięciu – każda osobno).
     by_x: dict[float, list[Placed]] = {}
@@ -702,13 +747,20 @@ def evaluate(
         warnings.append(t("load.gap_inside", gap=gap, x=x))
     if offset >= STEP_M:
         warnings.append(t("load.gap_front", gap=offset))
+    if _order_broken(placed):
+        first = min(p.x_m for p in placed)
+        front = sorted({p.stop for p in placed if p.x_m == first})
+        warnings.append(
+            t("load.stop_order", front=", ".join(t("load.stop_no", stop=s) for s in front))
+        )
     if not data.front_wall:
         warnings.append(t("load.no_front_wall"))
     if inner is not None and any(p.height_m > inner + 1e-6 and p.height_known for p in placed):
         warnings.append(t("load.too_high", height=inner))
-    if front_wall and not holds:
-        warnings.append(t("load.wall_weak", wall=wall or 0, force=round(rest_forward, 1)))
     straps_ok = all(r.straps <= max(1, math.floor(r.length_m * MAX_STRAPS_PER_M)) for r in rows)
+    # Słaba ściana nie jest błędem, jeśli pasy (liczone wtedy także do przodu) dają radę.
+    if front_wall and not holds and not straps_ok:
+        warnings.append(t("load.wall_weak", wall=wall or 0, force=round(rest_forward, 1)))
     if not straps_ok:
         warnings.append(t("load.too_many_straps"))
     lashing = max(lcs, default=0.0)
@@ -775,7 +827,8 @@ def evaluate(
     if vehicle and {"gross", "drive_share"} & set(vehicle.problems):
         tractor_ok = False
     norms = [
-        Norm(id="en12642", ok=data.body_code != "unknown" and (holds or not front_wall)),
+        # Ściana przejmuje siłę albo pasy mocują ładunek także do przodu.
+        Norm(id="en12642", ok=data.body_code != "unknown" and (holds or not front_wall or secured)),
         Norm(id="en12195", ok=secured),
         Norm(id="vdi2700", ok=secured and not _overlaps(placed) and not outside),
         Norm(id="art61", ok=fits and tractor_ok),
@@ -895,6 +948,17 @@ def _extra_gear(
         "net": math.ceil(net / 4) if net else 0,
         "stakes": 2 * (math.ceil(stakes / 3) + 1) if stakes else 0,
     }
+
+
+def _order_broken(placed: list[Placed]) -> bool:
+    """Sztuka wcześniejszego rozładunku stoi przed sztuką późniejszego (bliżej ściany
+    czołowej) – przy rozładunku od tyłu trzeba by ją przestawiać."""
+    latest_behind = 0
+    for p in sorted(placed, key=lambda p: -p.x_m):  # od tyłu do przodu
+        if p.stop < latest_behind:
+            return True
+        latest_behind = max(latest_behind, p.stop)
+    return False
 
 
 def _overlaps(placed: list[Placed]) -> bool:

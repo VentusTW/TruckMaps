@@ -187,7 +187,7 @@ class MainDashboard extends StatefulWidget {
   /// Kafel kierowców – ekran „Kierowcy i Czas Pracy”.
   final VoidCallback? onDrivers;
 
-  /// Przejście do ekranu aplikacji (`live`, `repairs`, `load3d`…) dla akcji alertu albo kafla modułu,
+  /// Przejście do ekranu aplikacji (`live`, `repairs`, `orders`…) dla akcji alertu albo kafla modułu,
   /// który ma już swój ekran (`dashboardSection`); inne – [onOpen].
   final ValueChanged<String>? onSection;
 
@@ -204,7 +204,7 @@ class MainDashboard extends StatefulWidget {
 String? dashboardSection(String? icon) => switch (icon) {
       'alt_route' || 'route' || 'map' => 'live',
       'support' || 'build' || 'tire' => 'repairs',
-      'view_in_ar' => 'load3d',
+      'view_in_ar' => 'orders',
       'receipt' || 'inventory' => 'orders',
       'badge' || 'timer' || 'schedule' => 'drivers',
       'truck' => 'fleet',

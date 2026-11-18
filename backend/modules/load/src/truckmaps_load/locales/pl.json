@@ -14,6 +14,8 @@
   "load.axle_front_axle": "oś przednia",
   "load.axle_rear_axles": "osie tylne",
   "load.axle_drawbar_front": "przednia oś przyczepy",
+  "load.stop_no": "rozładunek nr {stop}",
+  "load.stop_order": "Zmieniona kolejność względem rozładunków: z przodu stoi {front} (cięższy towar), bo inaczej nie da się spełnić przepisów (naciski osi ciągnika). Rozładunek bokiem (rozsuwana plandeka) albo zaplanuj przeładunek.",
   "load.adjusted": "Ładunek ułożono tak, żeby spełnić wymagania: naciski osi naczepy i ciągnika, mocowanie i normy.",
   "load.gap_front": "Ładunek odsunięty od ściany czołowej o {gap} m – zablokuj go z przodu (belka, poduszka) albo dodaj pasy.",
   "load.too_high": "Stos wyższy niż przestrzeń ładunkowa (ok. {height} m).",
