@@ -115,7 +115,7 @@ def test_import_matches_vehicles_cards_and_skips_duplicates(client):
     out = result.json()
     assert (out["imported"], out["duplicates"], out["skipped"]) == (4, 0, 1)
     assert out["unmatched"] == ["KR 99999"]
-    assert out["liters"] == 542.5  # bez myjni
+    assert out["liters"] == 512.5  # paliwo – bez AdBlue i myjni (jak w podsumowaniu)
     assert out["amount"] == {"PLN": 3347.56}
     again = client.post(url, json=body, headers=as_user("owner")).json()
     assert (again["imported"], again["duplicates"]) == (0, 4)
@@ -133,7 +133,9 @@ def test_import_matches_vehicles_cards_and_skips_duplicates(client):
         "data": base64.b64encode(DKV.encode()).decode(),
         "vehicle_id": truck["id"],
     }
-    assert client.post(url, json=dkv, headers=as_user("owner")).json()["amount"] == {"EUR": 1075.4}
+    imported = client.post(url, json=dkv, headers=as_user("owner")).json()
+    assert imported["amount"] == {"EUR": 1075.4}
+    assert imported["liters"] == 500.25  # bez 20 l AdBlue
 
     summary = client.get(
         f"/api/companies/{cid}/fuel-cards/summary", params={"months": 36}, headers=as_user("owner")

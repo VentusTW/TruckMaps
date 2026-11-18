@@ -393,7 +393,8 @@ def build_router(current_user) -> APIRouter:
                 )
             )  # fmt: skip
             imported += 1
-            if row.product_type != "other":
+            if row.product_type == "diesel":
+                # Jak w podsumowaniu: litry paliwa, bez AdBlue i towarów.
                 liters += row.liters
             _add(totals, currency, row.amount)
         db.commit()

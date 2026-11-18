@@ -306,6 +306,10 @@ def supports(cargo: CargoInfo | None, deck_length: float) -> list[Support]:
         # Z dokumentów naczepy (sworzeń, środek osi), inaczej typowa geometria.
         kingpin = cargo.kingpin_m or TYPICAL_KINGPIN_M
         axle_x = cargo.axles_m or round(deck_length * 0.7, 2)
+        if axle_x <= kingpin:
+            # Osie przed sworzniem (np. sam środek osi przy typowym sworzniu) – geometria typowa.
+            kingpin = TYPICAL_KINGPIN_M
+            axle_x = max(round(deck_length * 0.7, 2), TYPICAL_KINGPIN_M + 1)
         return [
             Support("kingpin", kingpin, KINGPIN_LIMIT_KG, trailer_tare * 0.35),
             Support("trailer_axles", axle_x, group(axles), trailer_tare * 0.65),

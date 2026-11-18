@@ -123,6 +123,8 @@ def _text(raw: bytes) -> str:
 
 def _name(raw: bytes) -> str:
     """Name – strona kodowa (1 B) i tekst; strony 1–16 to ISO 8859-n."""
+    if not raw:
+        return ""
     page, text = raw[0], raw[1:]
     try:
         decoded = text.decode(f"iso8859_{page}") if 1 <= page <= 16 and page != 12 else _text(text)
@@ -353,7 +355,7 @@ def _insertion(raw: bytes) -> _Insertion:
         card_number=_text(raw[74:90]),
         holder_name=_holder(raw[:72]),
         inserted=_time(raw, offset + 4),
-        slot=raw[offset + 11],
+        slot=_u(raw, offset + 11, 1),
         withdrawn=_time(raw, offset + 12),
     )
 
@@ -509,8 +511,14 @@ def parse(data: bytes) -> TachoFile:
     """Plik .DDD karty kierowcy albo tachografu pojazdu."""
     if len(data) < 8:
         raise TachoError("tacho.not_ddd")
-    if data[0] == 0x76 and (data[1] <= 0x05 or 0x21 <= data[1] <= 0x25 or 0x31 <= data[1] <= 0x35):
-        return parse_vu(data)
-    if data[:3] in (b"\x00\x02\x00", b"\x00\x02\x02") or data[:2] in (b"\x05\x01", b"\x05\x20"):
-        return parse_card(data)
-    raise TachoError("tacho.not_ddd")
+    vu = data[0] == 0x76 and (data[1] <= 0x05 or 0x21 <= data[1] <= 0x25 or 0x31 <= data[1] <= 0x35)
+    card = data[:3] in (b"\x00\x02\x00", b"\x00\x02\x02") or data[:2] in (b"\x05\x01", b"\x05\x20")
+    if not (vu or card):
+        raise TachoError("tacho.not_ddd")
+    try:
+        return parse_vu(data) if vu else parse_card(data)
+    except TachoError:
+        raise
+    except (IndexError, ValueError, OverflowError) as error:
+        # Uszkodzony plik – komunikat zamiast błędu serwera.
+        raise TachoError("tacho.truncated") from error

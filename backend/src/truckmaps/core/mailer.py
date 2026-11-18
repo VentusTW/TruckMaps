@@ -68,7 +68,7 @@ def pending(db: Session, now: datetime) -> list[tuple[Message, UserSettings]]:
         .order_by(Message.created_at)
         .limit(100)
     )
-    return list(rows.tuples())
+    return [(message, settings) for message, settings in rows]
 
 
 def send_pending(db: Session, smtp: SmtpSettings, now: datetime | None = None) -> int:
