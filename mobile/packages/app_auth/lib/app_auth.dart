@@ -207,9 +207,7 @@ class BrowserLogin {
       final code = request.uri.queryParameters['code'];
       request.response
         ..headers.contentType = ContentType.html
-        ..write('<!doctype html><meta charset="utf-8"><title>TruckMaps</title>'
-            '<p style="font:16px system-ui;margin:40px">'
-            '${htmlEscape.convert(code == null ? failedPage : donePage)}</p>');
+        ..write(callbackPage(code == null ? failedPage : donePage, failed: code == null));
       await request.response.close();
       if (code == null) {
         throw LoginFailure(LoginProblem.failed, request.uri.queryParameters['error']);
@@ -218,6 +216,28 @@ class BrowserLogin {
     } finally {
       await server.close(force: true);
     }
+  }
+
+  /// Strona w przeglądarce po powrocie z logowania – w wyglądzie ekranów logowania TruckMaps.
+  static String callbackPage(String message, {bool failed = false}) {
+    final text = htmlEscape.convert(message);
+    final color = failed ? 'var(--bad)' : 'var(--text)';
+    return '<!doctype html><html><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1"><title>TruckMaps</title>'
+        '<style>:root{--bg:#f6f8fb;--card:#fff;--text:#16202e;--line:#dde3ec;--bad:#c2410c}'
+        '@media (prefers-color-scheme:dark){:root{--bg:#0f1722;--card:#16202e;--text:#e8eef7;'
+        '--line:#2a3646;--bad:#f2994a}}'
+        'body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;'
+        'background:var(--bg);color:var(--text);font:16px/1.6 "Segoe UI",system-ui,sans-serif}'
+        'main{max-width:380px;width:100%;background:var(--card);border:1px solid var(--line);'
+        'border-radius:14px;padding:24px;text-align:center}'
+        '.logo{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:20px}'
+        'p{margin:16px 0 0;color:$color}</style></head><body><main><div class="logo">'
+        '<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" '
+        'height="32" rx="8" fill="#0f5bd8"/><g fill="none" stroke="#fff" stroke-width="2.4" '
+        'stroke-linecap="round"><circle cx="9" cy="23" r="3"/><circle cx="23" cy="9" r="3"/>'
+        '<path d="M12 23h8a4 4 0 0 0 0-8h-8a4 4 0 0 1 0-8h8"/></g></svg>TruckMaps</div>'
+        '<p>$text</p></main></body></html>';
   }
 
   /// Adres powrotu wersji przeglądarkowej: ta sama strona bez zapytania i fragmentu

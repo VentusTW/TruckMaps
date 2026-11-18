@@ -17,4 +17,11 @@ void main() {
     final tokens = Tokens.fromServer({'access_token': 'b', 'expires_in': 60}, previousName: 'Anna', previousRefresh: 'r');
     expect((tokens.refresh, tokens.userName), ('r', 'Anna'));
   });
+
+  test('strona po powrocie z logowania ma logo TruckMaps i bezpieczny tekst', () {
+    final page = BrowserLogin.callbackPage('<b>Gotowe</b>');
+    expect(page, contains('TruckMaps</div>'));
+    expect(page, contains('&lt;b&gt;Gotowe'));
+    expect(page, isNot(contains('<b>')));
+  });
 }

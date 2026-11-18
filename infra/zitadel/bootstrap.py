@@ -2,6 +2,7 @@
 
 - projekt "TruckMaps" i aplikacja OIDC "truckmaps-dev" (PKCE, bez sekretu, tokeny JWT),
 - wysyłka maili przez Mailpit (http://localhost:8025), domyślnie po polsku,
+- wygląd ekranów logowania jak TruckMaps (kolory, logo z ``branding/``, teksty bez „Zitadel”),
 - konto techniczne serwera (reset i zmiana hasła, rola ORG_USER_MANAGER),
 - zapisuje TRUCKMAPS_OIDC_* do pliku .env w katalogu głównym repozytorium.
 
@@ -50,6 +51,44 @@ SMTP = {
 }
 
 
+BRANDING_DIR = Path(__file__).resolve().parent / "branding"
+
+# Kolory ekranów logowania – te same co na stronie TruckMaps (website/assets/css/style.css).
+LABEL_POLICY = {
+    "primaryColor": "#0f5bd8",
+    "backgroundColor": "#f6f8fb",
+    "warnColor": "#c2410c",
+    "fontColor": "#16202e",
+    "primaryColorDark": "#6ea8ff",
+    "backgroundColorDark": "#0f1722",
+    "warnColorDark": "#f2994a",
+    "fontColorDark": "#e8eef7",
+    "hideLoginNameSuffix": True,
+    "disableWatermark": True,
+    "themeMode": "THEME_MODE_AUTO",
+}
+
+# Plik → zasób polityki wyglądu (logo i ikona w jasnym i ciemnym motywie).
+BRANDING_ASSETS = {
+    "logo-light.svg": "logo",
+    "logo-dark.svg": "logo/dark",
+    "icon.svg": "icon",
+    "icon.svg#dark": "icon/dark",
+}
+
+# Teksty ekranu logowania, które domyślnie mówią „Zitadel” – w każdym języku aplikacji.
+LOGIN_TEXTS = {
+    "pl": {
+        "common": {"title": "Zaloguj się do TruckMaps"},
+        "register": {"description": "Utwórz konto TruckMaps."},
+    },
+    "en": {
+        "common": {"title": "Sign in to TruckMaps"},
+        "register": {"description": "Create your TruckMaps account."},
+    },
+}
+
+
 def main() -> None:
     if not PAT_FILE.exists():
         sys.exit(f"Brak {PAT_FILE} – najpierw uruchom docker compose (patrz README).")
@@ -64,6 +103,7 @@ def main() -> None:
     ensure_smtp(client)
     # Domyślny język maili i ekranów dla użytkowników bez wybranego języka.
     call(client, "PUT", "/admin/v1/languages/default/pl", {}, allow={400})
+    ensure_branding(client)
 
     server_token = ensure_server_user(client)
 
@@ -79,6 +119,7 @@ def main() -> None:
     print(f"Projekt {PROJECT_NAME}: {project_id}")
     print(f"Aplikacja {APP_NAME}: client_id={client_id}")
     print(f"Zapisano {ENV_FILE}")
+    print("Nowy wygląd logowania: docker compose -f infra/docker-compose.yml restart zitadel-login")
 
 
 def ensure_project(client: httpx.Client) -> str:
@@ -135,6 +176,25 @@ def ensure_smtp(client: httpx.Client) -> None:
         mailpit = {"id": call(client, "POST", "/admin/v1/smtp", SMTP)["id"]}
     if mailpit.get("state") != "SMTP_CONFIG_ACTIVE":
         call(client, "POST", f"/admin/v1/smtp/{mailpit['id']}/_activate", {})
+
+
+def ensure_branding(client: httpx.Client) -> None:
+    """Wygląd ekranów logowania jak TruckMaps: kolory, logo, bez znaku wodnego Zitadela."""
+    # 400 = polityka już ma te wartości (Zitadel odrzuca zmianę bez zmian).
+    call(client, "PUT", "/admin/v1/policies/label", LABEL_POLICY, allow={400})
+    for name, asset in BRANDING_ASSETS.items():
+        path = BRANDING_DIR / name.split("#")[0]
+        response = client.post(
+            f"/assets/v1/instance/policy/label/{asset}",
+            files={"file": (path.name, path.read_bytes(), "image/svg+xml")},
+        )
+        if response.is_error:
+            sys.exit(f"Logo {asset} → {response.status_code}: {response.text}")
+    # Zmiany wyglądu czekają w podglądzie, dopóki ich nie aktywujemy.
+    call(client, "POST", "/admin/v1/policies/label/_activate", {})
+    for locale, texts in LOGIN_TEXTS.items():
+        body = {"instance": True, "locale": locale, "translations": texts}
+        call(client, "PUT", "/v2/settings/hosted_login_translation", body)
 
 
 def call(
