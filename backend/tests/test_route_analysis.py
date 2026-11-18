@@ -1,7 +1,12 @@
+import json
 import math
+import os
+import time
+from pathlib import Path
 
 import pytest
 
+from truckmaps.core import thresholds
 from truckmaps.core.parkings import parking_kind
 from truckmaps.core.restrictions import (
     Kind,
@@ -462,3 +467,69 @@ def test_gvw_defaults_to_actual_weight_and_cannot_be_lower():
     assert restrictions_from_tags({"maxweightrating": "18"}) == [
         (Kind.WEIGHT_RATING, 18.0, "maxweightrating=18")
     ]
+
+
+@pytest.fixture
+def tuned(tmp_path, monkeypatch):
+    """Zapisuje progi do pliku jak na serwerze (``TRUCKMAPS_ROUTE_THRESHOLDS``)."""
+    path = tmp_path / "route_thresholds.json"
+    monkeypatch.setenv(thresholds.ENV, str(path))
+
+    writes = iter(range(1, 1000))
+
+    def write(**values):
+        path.write_text(json.dumps(values), encoding="utf-8")
+        stamp = time.time() + next(writes)  # nowa data zmiany – jak edycja pliku na serwerze
+        os.utime(path, (stamp, stamp))
+
+    yield write
+    monkeypatch.delenv(thresholds.ENV)
+    thresholds.current()  # z powrotem domyślne dla kolejnych testów
+
+
+def test_thresholds_parse_rejects_unknown_and_negative():
+    assert thresholds.parse({"wide_lanes": 3.0}).wide_lanes == 3
+    with pytest.raises(ValueError, match="nieznane"):
+        thresholds.parse({"bend_factor": 1})
+    with pytest.raises(ValueError):
+        thresholds.parse({"long_vehicle_m": -1})
+    with pytest.raises(ValueError):
+        thresholds.parse({"long_vehicle_m": "12"})
+
+
+def test_example_thresholds_file_lists_all_defaults():
+    example = Path(__file__).parents[2] / "infra" / "route_thresholds.example.json"
+    assert json.loads(example.read_text(encoding="utf-8")) == thresholds.as_dict(
+        thresholds.DEFAULTS
+    )
+
+
+def test_bend_thresholds_from_file_without_restart(tuned):
+    points = arc_points(radius_m=10)
+    edges = [RouteEdge(way_id=1, begin_index=0, end_index=len(points) - 1)]
+    assert run(TRUCK, points=points, edges=edges).level == "yellow"
+
+    tuned(bend_orange_max_m=12.5, bend_orange_factor=0.8)  # zestaw 16,5 m: łuk < 12,5 m
+    assert run(TRUCK, points=points, edges=edges).level == "orange"
+
+    tuned(bend_yellow_max_m=9.0, bend_orange_max_m=6.0)  # łagodniej: 10 m wystarcza
+    assert run(TRUCK, points=points, edges=edges).warnings == []
+
+
+def test_narrow_road_thresholds_from_file(tuned):
+    edges = [
+        RouteEdge(way_id=1, begin_index=10, end_index=20, road_class="residential", names=["Długa"])
+    ]
+    assert run(SOLO, edges=edges, points=LONG_LINE).level == "yellow"
+    assert run(TRUCK, edges=edges, points=LONG_LINE).level == "orange"
+
+    tuned(medium_vehicle_m=10.0, long_vehicle_m=17.0)
+    assert run(SOLO, edges=edges, points=LONG_LINE).warnings == []
+    assert run(TRUCK, edges=edges, points=LONG_LINE).level == "yellow"
+
+
+def test_broken_thresholds_file_keeps_previous_values(tuned):
+    tuned(long_vehicle_m=17.0)
+    assert thresholds.current().long_vehicle_m == 17.0
+    tuned(long_vehicle_m="dużo", extra=1)
+    assert thresholds.current().long_vehicle_m == 17.0

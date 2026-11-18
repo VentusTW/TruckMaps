@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps nutzt die Kamera, um den Code und die Daten der Zulassungsbescheinigung zu lesen.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps liest Fahrzeugdaten aus dem von Ihnen gewählten Foto der Zulassungsbescheinigung.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps nutzt Ihren Standort für die Navigation und um zu prüfen, ob Sie der geplanten Route folgen.";

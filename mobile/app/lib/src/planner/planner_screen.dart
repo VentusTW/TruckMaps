@@ -12,6 +12,7 @@ import '../vehicles/vehicle_form.dart';
 import '../vehicles/vehicle_state.dart' show vehicleHeadline;
 import 'clusters.dart';
 import 'country_bans_screen.dart';
+import 'house_numbers.dart';
 import 'place_field.dart';
 import 'route.dart';
 import '../vehicles/permits_screen.dart';
@@ -196,7 +197,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
         // Wybrany pojazd zostaje, jeśli nadal jest na liście (np. po zmianie wymiarów).
         // Pojazd w naprawie jest wyłączony z użytku – planer wybiera inny.
         // Domyślnie: przydzielony mi pojazd, potem ostatnio używany, potem pierwszy sprawny.
-        final usable = [for (final v in list) if (v['in_repair'] != true) v];
+        final usable = [
+          for (final v in list)
+            if (v['in_repair'] != true) v
+        ];
         if (!usable.any((v) => v['id'] == _vehicleId)) {
           final preferred = usable.where((v) => v['assigned_to_me'] == true).firstOrNull ??
               usable.where((v) => v['id'] == _memory.vehicleId).firstOrNull ??
@@ -350,7 +354,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
       return;
     }
     if (!mounted) return;
-    final chosen = {..._permitIds ?? {for (final p in permits) '${p['id']}'}};
+    final chosen = {
+      ..._permitIds ?? {for (final p in permits) '${p['id']}'}
+    };
     final result = await showDialog<Set<String>>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -363,7 +369,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
               for (final p in permits)
                 CheckboxListTile(
                   value: chosen.contains('${p['id']}'),
-                  onChanged: (on) => setLocal(() => on == true ? chosen.add('${p['id']}') : chosen.remove('${p['id']}')),
+                  onChanged: (on) =>
+                      setLocal(() => on == true ? chosen.add('${p['id']}') : chosen.remove('${p['id']}')),
                   title: Text('${p['number']}'),
                   subtitle: Text(permitSummary(l, p)),
                 ),
@@ -491,6 +498,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
             for (final report in [...result.destinationPoints, ...result.driverReports]) _reportMarker(report),
           for (final report in _myReports) _reportMarker(report),
         ]),
+        if (shown != null) HouseNumberLayer(shown.houseNumbers),
         MarkerLayer(markers: [
           if (_start != null) _stopMarker(_start!.point, 'A', TruckPalette.start, stop: -1),
           if (_end != null) _stopMarker(_end!.point, 'B', TruckPalette.end, stop: -2),
@@ -741,16 +749,16 @@ class _PlannerScreenState extends State<PlannerScreen> {
   Widget _sign(RoutePlace place, {bool dashed = false}) => Opacity(
         opacity: dashed ? 0.85 : 1,
         child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: levelColor(place.level), width: 4),
-                ),
-                child: Center(
-                  child: Text(place.limit ?? '!',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
-                ),
-              ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: levelColor(place.level), width: 4),
+          ),
+          child: Center(
+            child: Text(place.limit ?? '!',
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+          ),
+        ),
       );
 
   Widget _buildPanel({ScrollController? scroll}) {
@@ -842,8 +850,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
           label: Text(_permitIds == null ? l.permitsChoose : l.permitsChosen(_permitIds!.length)),
         ),
         OutlinedButton.icon(
-          onPressed: () => Navigator.of(context)
-              .push(MaterialPageRoute<void>(builder: (_) => CountryBansScreen(api: widget.api))),
+          onPressed: () =>
+              Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CountryBansScreen(api: widget.api))),
           icon: const Icon(Icons.event_busy_outlined),
           label: Text(l.menuBans),
         ),
@@ -935,10 +943,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     api: widget.api,
                     result: result,
                     vehicleId: _vehicleId!,
-                    vehicleHeadline: _vehicles
-                        .where((v) => v['id'] == _vehicleId)
-                        .map((v) => vehicleHeadline(l, v))
-                        .firstOrNull,
+                    vehicleHeadline:
+                        _vehicles.where((v) => v['id'] == _vehicleId).map((v) => vehicleHeadline(l, v)).firstOrNull,
                     destination: _end!.point,
                     via: [for (final v in _via) v.point],
                     viaNames: [for (final v in _via) v.label],
@@ -1002,8 +1008,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
             TextButton.icon(
               icon: const Icon(Icons.event_busy_outlined, size: 18),
               label: Text(l.bansShowCountry(country)),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => CountryBansScreen(api: widget.api, country: country))),
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute<void>(builder: (_) => CountryBansScreen(api: widget.api, country: country))),
             ),
         ]),
         if (result.arrival != null)
@@ -1054,8 +1060,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
       if (shown.warnings.isNotEmpty) ...[
         const SizedBox(height: 12),
         Text(l.onRouteTitle, style: theme.textTheme.titleSmall),
-        for (final w in shown.warnings)
-          _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: placeColor(w))),
+        for (final w in shown.warnings) _placeTile(w, leading: CircleAvatar(radius: 6, backgroundColor: placeColor(w))),
         if (identical(shown, result.route) && result.permitsUsed.isNotEmpty)
           Text(l.permitsUsed(result.permitsUsed.join(', ')),
               style: theme.textTheme.bodySmall?.copyWith(color: permittedColor)),

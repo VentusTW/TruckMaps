@@ -1,5 +1,5 @@
 import base64
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from truckmaps.core import fuel_cards
 from truckmaps.core.app import create_app
 from truckmaps.core.auth import InvalidToken
 from truckmaps.core.config import Settings
+from truckmaps.core.currency import store_rates
 from truckmaps.sdk import Principal
 
 TRACTOR = {
@@ -100,7 +101,7 @@ def test_numbers(text, value):
     assert fuel_cards._number(text) == value
 
 
-def test_import_matches_vehicles_cards_and_skips_duplicates(client):
+def test_import_matches_vehicles_cards_and_skips_duplicates(client, database):
     company = client.post("/api/companies", json={"name": "Trans"}, headers=as_user("owner")).json()
     cid = company["id"]
     truck = client.post(
@@ -142,6 +143,17 @@ def test_import_matches_vehicles_cards_and_skips_duplicates(client):
     ).json()
     assert summary["count"] == 6
     assert summary["amount"] == {"PLN": 3347.56, "EUR": 1075.4}
+    assert (summary["total"], summary["total_currency"]) == (None, "EUR")  # bez kursu EBC
+    with database.session() as db:
+        store_rates(db, date(2026, 10, 28), {"PLN": 4.0})
+    converted = client.get(
+        f"/api/companies/{cid}/fuel-cards/summary",
+        params={"months": 36, "currency": "PLN"},
+        headers=as_user("owner"),
+    ).json()
+    assert (converted["total"], converted["total_currency"]) == (7649.16, "PLN")
+    assert converted["rates_day"] == "2026-10-28"
+    assert converted["vehicles"][0]["total"] is not None
     top = summary["vehicles"][0]
     assert (top["vehicle_id"], top["plate"], top["count"]) == (truck["id"], "WX 12345", 5)
     assert (top["liters"], top["adblue_liters"]) == (912.75, 50.0)

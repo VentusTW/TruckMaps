@@ -15,6 +15,7 @@ import base64
 import hashlib
 import html
 import json
+import re
 import secrets
 import time
 from importlib import resources
@@ -26,7 +27,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
 from truckmaps.core.auth import InvalidToken, OidcProvider
-from truckmaps.core.i18n import t
+from truckmaps.core.i18n import language, t
+from truckmaps.sdk.i18n import DEFAULT_LANGUAGE, catalog, lookup
 
 FLOW_COOKIE = "tm_flow"
 ACCESS_COOKIE = "tm_access"
@@ -40,6 +42,8 @@ LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 
 class AppCode(BaseModel):
     code: str
+    verifier: str | None = None
+    """PKCE aplikacji (RFC 7636): wymagany, gdy logowanie podało ``challenge``."""
 
 
 class AppToken(BaseModel):
@@ -65,7 +69,8 @@ def build_router(
     # Serwer pod https: ciasteczka sesji tylko po szyfrowanym połączeniu.
     secure = public_url.startswith("https://")
     # Jednorazowe kody dla aplikacji: kod → (ważny do, token).
-    app_codes: dict[str, tuple[float, AppToken]] = {}
+    # kod → (ważny do, tokeny, challenge PKCE aplikacji albo None)
+    app_codes: dict[str, tuple[float, AppToken, str | None]] = {}
 
     @router.get("/")
     def welcome(request: Request, error: str | None = None) -> Response:
@@ -85,21 +90,27 @@ def build_router(
             return RedirectResponse("/", status_code=303)
         # Strona testowa woła API z nagłówkiem Bearer, więc dostaje token w kodzie strony.
         token = _js(request.cookies[ACCESS_COOKIE])
-        template = resources.files("truckmaps.core").joinpath("templates/planner.html")
-        page = template.read_text(encoding="utf-8").replace("__ACCESS_TOKEN__", token)
         # Nazwa widoczna dla innych członków firmy (token dostępu nie zawiera nazwiska).
-        return HTMLResponse(page.replace("__USER_NAME__", _js(user["name"] or user["email"])))
+        return HTMLResponse(planner_page(token, _js(user["name"] or user["email"])))
 
     @router.get("/auth/login")
-    def login(register: bool = False, app: str | None = None) -> Response:
+    def login(
+        register: bool = False, app: str | None = None, challenge: str | None = None
+    ) -> Response:
         if app is not None and not allowed_return(app, web_origins):
             return _back_with_error(
                 "Aplikacja może wrócić tylko na adres lokalny (127.0.0.1), "
                 "do aplikacji (truckmaps://auth/callback) albo na adres wersji przeglądarkowej."
             )
+        if challenge is not None and not PKCE_CHALLENGE.fullmatch(challenge):
+            return _back_with_error(t("auth.challenge_invalid"))
+        if app is not None and app.split("?")[0] == APP_CALLBACK and challenge is None:
+            # Schemat aplikacji może zarejestrować też obca aplikacja – kod bez PKCE byłby
+            # do przechwycenia.
+            return _back_with_error(t("auth.challenge_required"))
         state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
         verifier = secrets.token_urlsafe(64)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        server_challenge = pkce_challenge(verifier)
         params = {
             "client_id": provider.client_id,
             "redirect_uri": redirect_uri,
@@ -107,7 +118,7 @@ def build_router(
             "scope": APP_SCOPES if app is not None else SCOPES,
             "state": state,
             "nonce": nonce,
-            "code_challenge": challenge.rstrip(b"=").decode(),
+            "code_challenge": server_challenge,
             "code_challenge_method": "S256",
         }
         if register:
@@ -117,6 +128,8 @@ def build_router(
         flow = {"state": state, "nonce": nonce, "verifier": verifier}
         if app is not None:
             flow["app"] = app
+            if challenge is not None:
+                flow["challenge"] = challenge
         flow = encode_flow(flow)
         response.set_cookie(
             FLOW_COOKIE, flow, max_age=600, httponly=True, samesite="lax", secure=secure
@@ -160,7 +173,7 @@ def build_router(
         max_age = int(tokens.get("expires_in", 3600))
         if app := flow.get("app"):
             now = time.monotonic()
-            for old in [c for c, (until, _) in app_codes.items() if until < now]:
+            for old in [c for c, (until, *_) in app_codes.items() if until < now]:
                 del app_codes[old]
             code = secrets.token_urlsafe(24)
             name = id_claims.get("name") or id_claims.get("email") or ""
@@ -172,6 +185,7 @@ def build_router(
                     name=name,
                     refresh_token=tokens.get("refresh_token"),
                 ),
+                flow.get("challenge"),
             )
             separator = "&" if "?" in app else "?"
             response = RedirectResponse(f"{app}{separator}{urlencode({'code': code})}", 303)
@@ -194,7 +208,13 @@ def build_router(
         found = app_codes.pop(data.code, None)
         if found is None or found[0] < time.monotonic():
             raise HTTPException(status.HTTP_400_BAD_REQUEST, t("error.login_code_invalid"))
-        return found[1]
+        until, token, challenge = found
+        if challenge is not None and (
+            data.verifier is None
+            or not secrets.compare_digest(pkce_challenge(data.verifier), challenge)
+        ):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, t("error.login_code_invalid"))
+        return token
 
     @router.post("/auth/app/refresh")
     def app_refresh(data: AppRefresh) -> AppToken:
@@ -243,6 +263,15 @@ def build_router(
 
 
 APP_CALLBACK = "truckmaps://auth/callback"
+PKCE_CHALLENGE = re.compile(r"[A-Za-z0-9_-]{43,128}")
+
+
+def pkce_challenge(verifier: str) -> str:
+    """S256 z RFC 7636: base64url(SHA-256(verifier)) bez dopełnienia."""
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
 """Powrót do aplikacji na telefonie (schemat zarejestrowany przez aplikację, AppAuth)."""
 
 
@@ -269,9 +298,37 @@ def _loopback(url: str) -> bool:
         return False
 
 
-def _js(value: str) -> str:
+def _js(value: object) -> str:
     """Wartość jako literał JavaScript, bezpieczny wewnątrz <script>."""
-    return json.dumps(value).replace("</", "<\\/")
+    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+
+
+PLANNER_TEXT = re.compile(r"\{\{(planner\.\w+)\}\}")
+# Format liczb i dat w planerze (toLocaleString) dla języka strony.
+JS_LOCALES = {
+    "pl": "pl-PL", "en": "en-GB", "de": "de-DE", "cs": "cs-CZ", "sk": "sk-SK", "lt": "lt-LT",
+    "ro": "ro-RO", "uk": "uk-UA",
+}  # fmt: skip
+
+
+def planner_page(token_js: str, user_name_js: str) -> str:
+    """Strona planera w języku zapytania: ``{{planner.x}}`` w HTML i teksty ``planner.*`` dla JS."""
+    template = resources.files("truckmaps.core").joinpath("templates/planner.html")
+    page = template.read_text(encoding="utf-8")
+    keys = sorted(
+        set(PLANNER_TEXT.findall(page))
+        | {k for k in catalog(DEFAULT_LANGUAGE) if k.startswith("planner.")}
+    )
+    texts = {key: lookup(key) or key for key in keys}
+    lang = language()
+    page = PLANNER_TEXT.sub(lambda m: html.escape(texts[m.group(1)]), page)
+    return (
+        page.replace("__LANG__", lang)
+        .replace("__LOCALE__", _js(JS_LOCALES.get(lang, lang)))
+        .replace("__TEXTS__", _js(texts))
+        .replace("__ACCESS_TOKEN__", token_js)
+        .replace("__USER_NAME__", user_name_js)
+    )
 
 
 def encode_flow(flow: dict[str, str]) -> str:

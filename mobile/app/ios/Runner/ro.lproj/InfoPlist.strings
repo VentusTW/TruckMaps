@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps folosește camera pentru a citi codul și datele din certificatul de înmatriculare.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps citește datele vehiculului din fotografia certificatului de înmatriculare aleasă de dvs.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps folosește locația dvs. pentru navigație și pentru a verifica dacă urmați traseul planificat.";

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -18,6 +19,11 @@ class Module(ABC):
     """Stały identyfikator: małe litery, cyfry, ``_``. Wyznacza prefiks API ``/api/m/<id>``."""
 
     name: ClassVar[str]
+    names: ClassVar[Mapping[str, str]] = {}
+    """Nazwa w językach użytkownika ``{"en": "Documents", …}``.
+
+    Brak języka – nazwa angielska, a bez niej ``name`` (po polsku).
+    """
     version: ClassVar[str]
 
     requires_core: ClassVar[str]

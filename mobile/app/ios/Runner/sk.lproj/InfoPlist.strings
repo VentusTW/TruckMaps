@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps používa fotoaparát na čítanie kódu a údajov z osvedčenia o evidencii vozidla.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps číta údaje vozidla z vami vybranej fotografie osvedčenia o evidencii.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps používa vašu polohu na navigáciu a na kontrolu, či idete po naplánovanej trase.";

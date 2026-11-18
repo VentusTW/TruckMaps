@@ -8,15 +8,20 @@
 
 Uruchomienie (po ``docker compose -f infra/docker-compose.yml up -d --wait``):
     .venv\\Scripts\\python infra\\zitadel\\bootstrap.py
+
+Produkcja (``infra/docker-compose.prod.yml``, Zitadel pod https): zmienne środowiskowe
+``ZITADEL_ISSUER=https://auth.twojadomena.pl`` i ``TRUCKMAPS_PUBLIC_URL=https://…`` – adresy
+przekierowań wtedy tylko https, bez trybu deweloperskiego (``devMode``).
 """
 
+import os
 import sys
 from pathlib import Path
 
 import httpx
 
-ISSUER = "http://localhost:8080"
-PUBLIC_URL = "http://localhost:8000"
+ISSUER = os.environ.get("ZITADEL_ISSUER", "http://localhost:8080").rstrip("/")
+PUBLIC_URL = os.environ.get("TRUCKMAPS_PUBLIC_URL", "http://localhost:8000").rstrip("/")
 PROJECT_NAME = "TruckMaps"
 APP_NAME = "truckmaps-dev"
 SERVER_USER = "truckmaps-server"
@@ -36,8 +41,8 @@ OIDC_APP = {
     "authMethodType": "OIDC_AUTH_METHOD_TYPE_NONE",
     "accessTokenType": "OIDC_TOKEN_TYPE_JWT",
     "idTokenUserinfoAssertion": True,
-    # Zezwala na http://localhost w adresach przekierowania – tylko do rozwoju.
-    "devMode": True,
+    # Zezwala na http://localhost w adresach przekierowania – tylko do rozwoju; pod https wyłączony.
+    "devMode": not (ISSUER.startswith("https://") and PUBLIC_URL.startswith("https://")),
 }
 
 SMTP = {

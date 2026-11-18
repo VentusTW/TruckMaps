@@ -4,10 +4,27 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>pl.truckmaps.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>truckmaps</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>pl</string>
 		<string>en</string>
+		<string>de</string>
+		<string>cs</string>
+		<string>sk</string>
+		<string>lt</string>
+		<string>ro</string>
+		<string>uk</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>TruckMaps uses the camera to read the code and data from the vehicle registration certificate.</string>

@@ -20,3 +20,6 @@ infra/data/
 # IDE
 .idea/
 .vscode/
+
+# Progi oceny trasy dostrojone na serwerze (wzór: infra/route_thresholds.example.json)
+infra/route_thresholds.json

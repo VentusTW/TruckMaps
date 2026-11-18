@@ -632,6 +632,15 @@ def _user_name(user: Principal) -> str:
 class DriversModule(Module):
     id = "drivers"
     name = "Kierowcy"
+    names = {
+        "en": "Drivers",
+        "de": "Fahrer",
+        "cs": "Řidiči",
+        "sk": "Vodiči",
+        "lt": "Vairuotojai",
+        "ro": "Șoferi",
+        "uk": "Водії",
+    }
     version = "0.1.0"
     requires_core = ">=0.1,<1.0"
 

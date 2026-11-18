@@ -257,3 +257,41 @@ def test_web_app_origins_get_cors_and_secure_cookies(provider):
 
     assert preflight.headers["access-control-allow-origin"] == "https://app.truckmaps.test"
     assert "secure" in login.headers["set-cookie"].lower()
+
+
+def test_app_scheme_return_requires_pkce_from_the_app(provider):
+    def token_endpoint(request: httpx.Request) -> httpx.Response:
+        nonce = devlogin.decode_flow(client.cookies[devlogin.FLOW_COOKIE])["nonce"]
+        return httpx.Response(
+            200,
+            json={
+                "access_token": make_token(),
+                "id_token": make_token(aud=CLIENT_ID, nonce=nonce),
+                "expires_in": 1800,
+            },
+        )
+
+    verifier = "v" * 64
+    challenge = devlogin.pkce_challenge(verifier)
+    app = dev_login_app(provider, token_endpoint)
+    with TestClient(app, follow_redirects=False) as client:
+        without = client.get("/auth/login", params={"app": devlogin.APP_CALLBACK})
+        assert "error=" in without.headers["location"]
+        bad = client.get("/auth/login", params={"app": devlogin.APP_CALLBACK, "challenge": "x"})
+        assert "error=" in bad.headers["location"]
+
+        def code_for_app() -> str:
+            login = client.get(
+                "/auth/login", params={"app": devlogin.APP_CALLBACK, "challenge": challenge}
+            )
+            state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+            back = client.get("/auth/callback", params={"code": "c", "state": state})
+            assert back.headers["location"].startswith("truckmaps://auth/callback?code=")
+            return parse_qs(urlparse(back.headers["location"]).query)["code"][0]
+
+        stolen = code_for_app()
+        assert client.post("/auth/app/token", json={"code": stolen}).status_code == 400
+        wrong = {"code": code_for_app(), "verifier": "w" * 64}
+        assert client.post("/auth/app/token", json=wrong).status_code == 400
+        right = {"code": code_for_app(), "verifier": verifier}
+        assert client.post("/auth/app/token", json=right).status_code == 200

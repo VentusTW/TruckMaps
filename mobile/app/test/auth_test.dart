@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -59,5 +61,37 @@ void main() {
 
     expect(session, isNotNull);
     expect(store.tokens, isNotNull);
+  });
+
+  test('PKCE S256 – wektor z RFC 7636', () {
+    expect(BrowserLogin.pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),
+        'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    expect(BrowserLogin.pkceVerifier(), hasLength(43));
+  });
+
+  test('powrót przez truckmaps:// po zamknięciu aplikacji – kod z weryfikatorem PKCE', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel('truckmaps/links');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'initial');
+      return 'truckmaps://auth/callback?code=kod-1';
+    });
+    addTearDown(() =>
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    FlutterSecureStorage.setMockInitialValues({'truckmaps.login.verifier': 'w' * 43});
+    final store = MemoryStore();
+    final client = MockClient((request) async {
+      expect(request.url.path, '/auth/app/token');
+      expect(jsonDecode(request.body), {'code': 'kod-1', 'verifier': 'w' * 43});
+      return http.Response(jsonEncode({'access_token': 'a', 'expires_in': 900, 'name': 'Ola'}), 200);
+    });
+
+    final login = BrowserLogin('https://serwer.test',
+        client: client, store: store, redirect: LoginRedirect.appScheme, links: AppLinks(channel));
+    final session = await login.restore();
+
+    expect(session?.userName, 'Ola');
+    expect(store.tokens?.access, 'a');
+    expect(await const FlutterSecureStorage().read(key: 'truckmaps.login.verifier'), isNull);
   });
 }

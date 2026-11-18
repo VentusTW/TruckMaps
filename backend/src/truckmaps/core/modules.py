@@ -19,6 +19,7 @@ from truckmaps.core.licensing import StaticLicensing
 from truckmaps.core.version import CORE_VERSION
 from truckmaps.sdk import Event, ExtensionPoint, Module
 from truckmaps.sdk.fleet import DriverAssignedHandler
+from truckmaps.sdk.i18n import DEFAULT_LANGUAGE, pick
 
 ENTRY_POINT_GROUP = "truckmaps.modules"
 MODULE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,31}$")
@@ -40,6 +41,11 @@ class ModuleStatus:
     name: str | None = None
     version: str | None = None
     error: str | None = None
+    names: tuple[tuple[str, str], ...] = ()
+    """Nazwy w językach (``Module.names``) – do listy modułów w języku użytkownika."""
+
+    def display_name(self) -> str:
+        return pick(dict(self.names)) or self.name or self.id
 
 
 class _ModuleApi:
@@ -173,7 +179,12 @@ class ModuleManager:
 
         self._commit(module_id, ctx)
         log.info("Moduł '%s' %s aktywny", module_id, version)
-        return self._record(ModuleStatus(module_id, ModuleState.ACTIVE, name, version))
+        # ``name`` jest po polsku (język domyślny), ``names`` – pozostałe języki.
+        localized = dict(getattr(module, "names", None) or {})
+        if name:
+            localized.setdefault(DEFAULT_LANGUAGE, name)
+        names = tuple(sorted(localized.items()))
+        return self._record(ModuleStatus(module_id, ModuleState.ACTIVE, name, version, names=names))
 
     def _commit(self, module_id: str, ctx: ModuleContext) -> None:
         license_check = Depends(self._licensing.dependency(module_id))

@@ -19,7 +19,7 @@ from enum import IntEnum
 
 from pydantic import BaseModel
 
-from truckmaps.core import conditional, timebans
+from truckmaps.core import conditional, thresholds, timebans
 from truckmaps.core.i18n import num, t
 from truckmaps.core.restrictions import (
     CONDITIONAL_TAGS,
@@ -32,12 +32,8 @@ from truckmaps.core.restrictions import (
 )
 from truckmaps.core.vehicles import VehicleIn
 
-# Zapas do zmierzonego prześwitu (maxheight:physical, maxwidth:physical) bez znaku – poniżej
-# tej wartości miejsce jest pomarańczowe i omijane. Wartość ze znaku jest dopuszczalna bez zapasu.
-MEASURED_MARGIN_M = {
-    Kind.HEIGHT: 0.20,
-    Kind.WIDTH: 0.30,
-}
+# Progi liczbowe (zakręty, wąskie drogi, zapasy, strefy przy końcach trasy) są w
+# ``truckmaps.core.thresholds`` – zmieniane plikiem JSON bez przebudowy.
 
 # Wartości spoza tych zakresów to prawie na pewno błędy w danych (np. 615 m wysokości).
 PLAUSIBLE = {
@@ -49,25 +45,10 @@ PLAUSIBLE = {
     Kind.AXLE_LOAD: (1.0, 25.0),
 }
 
-LONG_VEHICLE_M = 12.0
-MEDIUM_VEHICLE_M = 8.0
-# Szerokość jezdni z OSM (tag width): od tej wartości dwa zestawy mijają się bez problemu,
-# poniżej drugiej nawet w strefie przemysłowej jest ciasno.
-WIDE_ROAD_M = 6.0
-NARROW_ROAD_M = 4.5
 NARROW_USES = {"living_street", "track", "driveway", "alley", "parking_aisle", "drive_through"}
 MINOR_CLASSES = {"residential", "service_other"}
-# Ulica z kilkoma pasami w kierunku jazdy nie jest ciasna, nawet gdy w danych jest osiedlowa.
-WIDE_LANES = 2
-# Dojazd do startu i celu: kierowca i tak musi tamtędy przejechać, więc ulica osiedlowa jest
-# tu tylko żółta. Strefa zamieszkania (living_street) zostaje pomarańczowa.
-END_ZONE_M = 1000.0
 END_STREET = "route.end_street"
-# Strefa „ciężarówki tylko dojazd” dalej niż tyle od startu i celu to przejazd tranzytem –
-# pomarańczowy, więc trasa go omija, jeśli jest rozsądny objazd.
-TRANSIT_ZONE_M = 5000.0
 """Klucz tekstu: dojazd do startu / celu ulicą osiedlową (planer podpowiada wtedy parking)."""
-BEND_SPACING_M = 10.0
 NODE_MATCH_M = 4.0
 
 
@@ -201,16 +182,17 @@ def analyze(
     findings: list[_Finding] = []
     cumulative = cumulative_m(points)
     total = cumulative[-1]
+    th = thresholds.current()
     begin_s = 0.0
     for edge in edges:
         last = min(edge.end_index, len(cumulative) - 1)
         near_end = (
-            cumulative[min(edge.begin_index, last)] < END_ZONE_M
-            or cumulative[last] > total - END_ZONE_M
+            cumulative[min(edge.begin_index, last)] < th.end_zone_m
+            or cumulative[last] > total - th.end_zone_m
         )
         transit = (
-            cumulative[min(edge.begin_index, last)] > TRANSIT_ZONE_M
-            and cumulative[last] < total - TRANSIT_ZONE_M
+            cumulative[min(edge.begin_index, last)] > th.transit_zone_m
+            and cumulative[last] < total - th.transit_zone_m
         )
         moment = None
         if departure is not None and edge.end_s is not None:
@@ -339,25 +321,26 @@ def _road_level(
     z kilkoma pasami nie są problemem, a w strefach przemysłowych drogi "osiedlowe" są
     zwykle szerokie. Przy starcie i celu (``near_end``) ulica osiedlowa jest tylko żółta.
     """
+    th = thresholds.current()
     length = vehicle.length_m
     width = context[Kind.ROAD_WIDTH].value if Kind.ROAD_WIDTH in context else None
-    if Kind.HGV_DESIGNATED in context or (width is not None and width >= WIDE_ROAD_M):
+    if Kind.HGV_DESIGNATED in context or (width is not None and width >= th.wide_road_m):
         return None
-    if (edge.lane_count or 0) >= WIDE_LANES:
+    if (edge.lane_count or 0) >= th.wide_lanes:
         return None
     if edge.use in NARROW_USES or edge.road_class in MINOR_CLASSES:
-        if Kind.INDUSTRIAL_AREA in context and (width is None or width >= NARROW_ROAD_M):
-            if length > MEDIUM_VEHICLE_M:
+        if Kind.INDUSTRIAL_AREA in context and (width is None or width >= th.narrow_road_m):
+            if length > th.medium_vehicle_m:
                 return Level.YELLOW, t("route.industrial_road")
             return None
-        if length > LONG_VEHICLE_M and near_end and edge.use != "living_street":
+        if length > th.long_vehicle_m and near_end and edge.use != "living_street":
             return Level.YELLOW, t(END_STREET)
-        if length > LONG_VEHICLE_M:
+        if length > th.long_vehicle_m:
             return Level.ORANGE, t("route.minor_street_long")
-        if length > MEDIUM_VEHICLE_M or edge.use in NARROW_USES:
+        if length > th.medium_vehicle_m or edge.use in NARROW_USES:
             return Level.YELLOW, t("route.minor_street_narrow")
         return None
-    if edge.road_class == "unclassified" and length > LONG_VEHICLE_M:
+    if edge.road_class == "unclassified" and length > th.long_vehicle_m:
         return Level.YELLOW, t("route.local_road")
     return None
 
@@ -452,7 +435,9 @@ def _compare(restriction: Restriction, vehicle: VehicleIn) -> tuple[Level, str] 
     if sign is not None:
         return None  # znak dopuszcza pojazd, a pomiar go mieści
     # Sam pomiar bez znaku: mały zapas = bardzo trudne miejsce, więc planer szuka objazdu.
-    if spare < MEASURED_MARGIN_M[kind]:
+    th = thresholds.current()
+    margin = th.measured_height_margin_m if kind == Kind.HEIGHT else th.measured_width_margin_m
+    if spare < margin:
         return (
             Level.ORANGE,
             t("route.size_small_margin", what=what, limit=num(value), spare=round(spare * 100)),
@@ -482,8 +467,8 @@ def _sign_value(raw: str) -> float | None:
 
 def _bend_findings(points, cumulative: list[float], edges: list[RouteEdge], vehicle: VehicleIn):
     """Ostre łuki wewnątrz dróg (skręty na skrzyżowaniach to manewry; ronda oceniane osobno)."""
-    yellow_radius = min(max(0.9 * vehicle.length_m, 8.0), 20.0)
-    orange_radius = min(max(0.6 * vehicle.length_m, 6.0), 12.0)
+    th = thresholds.current()
+    yellow_radius, orange_radius = th.bend_radii(vehicle.length_m)
     junctions = {e.begin_index for e in edges} | {e.end_index for e in edges}
     in_roundabout = {
         i for e in edges if e.roundabout for i in range(e.begin_index, e.end_index + 1)
@@ -491,8 +476,8 @@ def _bend_findings(points, cumulative: list[float], edges: list[RouteEdge], vehi
     for i in range(1, len(points) - 1):
         if i in junctions or i in in_roundabout:
             continue
-        before = _point_at_distance(points, cumulative, i, -BEND_SPACING_M)
-        after = _point_at_distance(points, cumulative, i, BEND_SPACING_M)
+        before = _point_at_distance(points, cumulative, i, -th.bend_spacing_m)
+        after = _point_at_distance(points, cumulative, i, th.bend_spacing_m)
         if before is None or after is None:
             continue
         radius = _circle_radius(points[before], points[i], points[after])
