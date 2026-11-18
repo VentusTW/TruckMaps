@@ -199,10 +199,10 @@ def build_router(current_user) -> APIRouter:
             route = decode_polyline6(data.route)
         except (IndexError, ValueError) as exc:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, t("error.bad_route_line")
+                status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.bad_route_line")
             ) from exc
         if len(route) < 2:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, t("error.route_too_short"))
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, t("error.route_too_short"))
         corridor = build_corridor(db, route, vehicle, data.buffer_m)
         mark_in_use(load_owned(db, data.vehicle_id, user), user)
         db.commit()

@@ -218,6 +218,20 @@ def test_axles_from_vehicle_documents():
     )  # 5,2 m od osi przedniej, która jest 1,2 m przed skrzynią
 
 
+def test_axles_before_kingpin_fall_back_to_typical_geometry():
+    """Środek osi przed (typowym) sworzniem – bez dzielenia przez zero i ujemnych nacisków."""
+    for axles_m in (1.0, 1.6):
+        cargo = CargoInfo(
+            deck_length_m=13.6, payload_kg=24_000, kind="semitrailer", axle_count=3,
+            tare_kg=7_000, gvw_kg=40_000, height_m=4.0, axles_m=axles_m,
+        )  # fmt: skip
+        kingpin, axles = supports(cargo, 13.6)
+        assert axles.x > kingpin.x
+        data = make([{"kind": "euro", "count": 33, "weight_kg": 700}])
+        result = plan(data, 13.6, 2.48, 24_000, cargo)
+        assert all(a.load_kg >= 0 for a in result.axles)
+
+
 def test_force_balance_en_12195_and_tractor_axles():
     data = make([{"kind": "euro", "count": 33, "weight_kg": 700}], body_code="XL")
     result = plan(data, 13.6, 2.48, 32_000, SEMITRAILER)

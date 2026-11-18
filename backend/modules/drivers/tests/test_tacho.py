@@ -1,3 +1,5 @@
+import contextlib
+import random
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -122,6 +124,31 @@ def test_bad_files(data, code):
     with pytest.raises(tacho.TachoError) as error:
         tacho.parse(data)
     assert error.value.code == code
+
+
+def test_corrupted_files_never_crash(ddd):
+    """Ucięte i przekłamane pliki – zawsze TachoError (422), nigdy błąd serwera."""
+    words = [
+        _change("rest", 0),
+        _change("driving", 360),
+        _change("rest", 600),
+        _change("rest", 0, slot=1),
+    ]
+    seeds = [
+        ddd.card({MON: DAY1}, generation=1),
+        ddd.card({MON: DAY1}, generation=2),
+        ddd.vu1(MON, words),
+        ddd.vu2(MON, words),
+    ]
+    rng = random.Random(7)
+    for _ in range(2000):
+        data = bytearray(rng.choice(seeds))
+        if rng.random() < 0.4:
+            data = data[: rng.randint(2, len(data))]
+        for _ in range(rng.randint(1, 8)):
+            data[rng.randrange(len(data))] = rng.randrange(256)
+        with contextlib.suppress(tacho.TachoError):
+            tacho.parse(bytes(data))
 
 
 # ── 561/2006 ──────────────────────────────────────────────────────────────────────────────────

@@ -1192,7 +1192,7 @@ def build_router(current_user) -> APIRouter:
             places = "; ".join(f"km {num(w.km, 1, trim=False)}: {w.message}" for w in exc.warnings)
             timed = any(w.kind == "conditional" and " – (" in w.message for w in exc.warnings)
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 t(
                     "route.impassable",
                     places=places,
@@ -1207,7 +1207,7 @@ def build_router(current_user) -> APIRouter:
                 reasons = " ".join(found) + " " + t("route.move_point")
             reasons = reasons or t("route.probably_restricted_zone")
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, t("route.no_route", reasons=reasons)
+                status.HTTP_422_UNPROCESSABLE_CONTENT, t("route.no_route", reasons=reasons)
             ) from exc
         except RoutingUnavailable as exc:
             raise HTTPException(

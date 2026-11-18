@@ -753,9 +753,16 @@ class DriversModule(Module):
             return result
 
         def log(db: Session, driver: Driver, user: Principal | None, action: str, changes: dict):
+            # Czas zawsze późniejszy od poprzedniego wpisu – kolejność historii bez remisów,
+            # także gdy dwie zmiany trafią w ten sam takt zegara.
+            at = _now()
+            last = db.scalar(select(func.max(Change.at)).where(Change.driver_id == driver.id))
+            if last is not None:
+                last = last if last.tzinfo else last.replace(tzinfo=UTC)
+                at = max(at, last + timedelta(microseconds=1))
             db.add(
                 Change(
-                    driver_id=driver.id, action=action, changes=changes,
+                    driver_id=driver.id, action=action, changes=changes, at=at,
                     by_subject=user.subject if user else "",
                     by_name=_user_name(user) if user else "",
                 )

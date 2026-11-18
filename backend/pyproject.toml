@@ -9,6 +9,7 @@ description = "Rdzeń TruckMaps: API, SDK modułów, routing dla ciężarówek"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
+    "starlette>=0.48",  # HTTP_422_UNPROCESSABLE_CONTENT
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
     "packaging>=24",
