@@ -194,6 +194,15 @@ class BrowserLogin {
   Future<Session> login({required String donePage, required String failedPage, bool register = false}) async {
     if (kIsWeb) return _webLogin(register: register);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final returned = Completer<Uri>();
+    // Serwer odpowiada na wszystko (favicon, powtórzony powrót) i nie zrywa połączeń – zerwane
+    // połączenie przeglądarka (np. Firefox: „error in input stream”) pokazuje jako błąd.
+    server.listen((request) async {
+      final page = request.uri.path == '/callback';
+      if (page && !returned.isCompleted) returned.complete(request.uri);
+      final failed = !page || request.uri.queryParameters['code'] == null;
+      await _answer(request, page ? callbackPage(failed ? failedPage : donePage, failed: failed) : null);
+    }, onError: (_) {}); // uszkodzone zapytanie (np. próba https) – pomijamy, czekamy na właściwe
     try {
       final callback = 'http://127.0.0.1:${server.port}/callback';
       final url = Uri.parse('$serverUrl/auth/login')
@@ -201,20 +210,33 @@ class BrowserLogin {
       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
         throw const LoginFailure(LoginProblem.browser);
       }
-      final request = await server
-          .firstWhere((r) => r.uri.path == '/callback')
-          .timeout(timeout, onTimeout: () => throw const LoginFailure(LoginProblem.timeout));
-      final code = request.uri.queryParameters['code'];
-      request.response
-        ..headers.contentType = ContentType.html
-        ..write(callbackPage(code == null ? failedPage : donePage, failed: code == null));
-      await request.response.close();
-      if (code == null) {
-        throw LoginFailure(LoginProblem.failed, request.uri.queryParameters['error']);
-      }
-      return exchange(code);
+      final back =
+          await returned.future.timeout(timeout, onTimeout: () => throw const LoginFailure(LoginProblem.timeout));
+      final code = back.queryParameters['code'];
+      if (code == null) throw LoginFailure(LoginProblem.failed, back.queryParameters['error']);
+      return await exchange(code);
     } finally {
-      await server.close(force: true);
+      // Bez wymuszenia: otwarte połączenia kończą wysyłanie strony, nowe nie są przyjmowane.
+      unawaited(server.close());
+    }
+  }
+
+  /// Odpowiedź serwera lokalnego: strona (z długością, bez keep-alive) albo pusta 204.
+  static Future<void> _answer(HttpRequest request, String? html) async {
+    final response = request.response..persistentConnection = false;
+    try {
+      if (html == null) {
+        response.statusCode = HttpStatus.noContent;
+      } else {
+        final body = utf8.encode(html);
+        response
+          ..headers.contentType = ContentType.html
+          ..contentLength = body.length
+          ..add(body);
+      }
+      await response.close();
+    } on IOException {
+      // przeglądarka sama zamknęła połączenie – nic do zrobienia
     }
   }
 
