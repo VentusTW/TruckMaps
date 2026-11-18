@@ -167,6 +167,15 @@ class TollAndFuelCosts:
 class CostsModule(Module):
     id = "costs"
     name = "Opłaty drogowe i koszty"
+    names = {
+        "en": "Tolls and costs",
+        "de": "Maut und Kosten",
+        "cs": "Mýtné a náklady",
+        "sk": "Mýto a náklady",
+        "lt": "Kelių mokesčiai ir išlaidos",
+        "ro": "Taxe de drum și costuri",
+        "uk": "Дорожні збори та витрати",
+    }
     version = "0.1.0"
     requires_core = ">=0.1,<1.0"
 

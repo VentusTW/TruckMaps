@@ -1,5 +1,7 @@
+import json
 import re
 from datetime import date
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,14 +12,30 @@ from truckmaps.core.config import Settings
 from truckmaps.core.restrictions import Kind, Restriction
 from truckmaps.core.route_analysis import _compare
 from truckmaps.core.vehicles import VehicleIn
-from truckmaps.sdk.i18n import catalog, languages, negotiate
+from truckmaps.sdk.i18n import languages, negotiate, pick, register, t
 
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
-@pytest.mark.parametrize("language", [lang for lang in languages() if lang != "pl"])
-def test_every_language_has_all_texts_with_same_placeholders(language):
-    polish, other = catalog("pl"), catalog(language)
+ROOT = Path(__file__).parents[2]
+# Rdzeń i każdy moduł mają własny katalog tekstów; moduł może mieć mniej języków niż rdzeń
+# (brakujący język – teksty angielskie), ale każdy jego plik ma komplet kluczy.
+LOCALE_FILES = [
+    file
+    for folder in [
+        ROOT / "backend/src/truckmaps/core/locales",
+        *ROOT.glob("backend/modules/*/src/*/locales"),
+    ]
+    for file in sorted(folder.glob("*.json"))
+    if file.name != "pl.json"
+]
+CORE_LANGUAGES = {"pl", "en", "de", "cs", "sk", "lt", "ro", "uk"}
+
+
+@pytest.mark.parametrize("path", LOCALE_FILES, ids=lambda p: f"{p.parent.parent.name}/{p.name}")
+def test_every_language_has_all_texts_with_same_placeholders(path):
+    polish = json.loads((path.parent / "pl.json").read_text("utf-8"))
+    other = json.loads(path.read_text("utf-8"))
 
     assert sorted(set(polish) - set(other)) == []
     assert sorted(set(other) - set(polish)) == []
@@ -25,10 +43,25 @@ def test_every_language_has_all_texts_with_same_placeholders(language):
         assert set(PLACEHOLDER.findall(other[key])) == set(PLACEHOLDER.findall(text)), key
 
 
+def test_core_languages():
+    assert set(languages()) >= CORE_LANGUAGES
+    assert "en" in {p.stem for p in LOCALE_FILES}
+
+
+def test_missing_text_falls_back_to_english_then_polish():
+    register("pl", {"test.only_pl": "tylko PL", "test.both": "PL"})
+    register("en", {"test.both": "EN"})
+    with i18n.use("de"):
+        assert (t("test.both"), t("test.only_pl")) == ("EN", "tylko PL")
+    assert pick({"pl": "Kierowcy", "en": "Drivers", "de": "Fahrer"}, "de") == "Fahrer"
+    assert pick({"pl": "Kierowcy", "en": "Drivers"}, "lt") == "Drivers"
+
+
 def test_language_from_accept_language():
     assert negotiate(None) == "pl"
     assert negotiate("en-GB,en;q=0.9") == "en"
-    assert negotiate("de-DE,de;q=0.9,en;q=0.8") == "en"  # niemieckiego jeszcze nie ma
+    assert negotiate("de-DE,de;q=0.9,en;q=0.8") == "de"
+    assert negotiate("uk-UA") == "uk"
     assert negotiate("en;q=0.5,pl;q=0.9") == "pl"
     assert negotiate("fr") == "pl"
     assert negotiate("en;q=0") == "pl"
@@ -67,3 +100,18 @@ def test_api_answers_in_requested_language():
     assert polish.headers["content-language"] == "pl"
     assert english.json()["detail"] == "Login required."
     assert english.headers["content-language"] == "en"
+
+
+@pytest.mark.parametrize("language", sorted(CORE_LANGUAGES))
+def test_planner_page_is_translated(language):
+    from truckmaps.core.devlogin import planner_page
+
+    with i18n.use(language):
+        page = planner_page('"token"', '"Jan"')
+    assert "{{" not in page and "__TEXTS__" not in page and "__LANG__" not in page
+    assert f'<html lang="{language}">' in page
+    used = set(re.findall(r'T\("(planner\.\w+)"', page)) | {
+        f"planner.level_{level}" for level in ("green", "lime", "yellow", "orange", "red")
+    }
+    texts = json.loads(re.search(r"const TEXTS = (\{.*?\});\n", page).group(1))
+    assert sorted(used - set(texts)) == []

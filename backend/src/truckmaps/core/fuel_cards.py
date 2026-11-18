@@ -17,7 +17,7 @@ import io
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,7 +25,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from truckmaps.core.companies import membership, require_member
+from truckmaps.core.companies import Company, membership, require_member
+from truckmaps.core.currency import Rates, latest_rates
 from truckmaps.core.db import get_session
 from truckmaps.core.i18n import t
 from truckmaps.core.records import WRITERS, EntityRecord
@@ -295,6 +296,8 @@ class VehicleFuel(BaseModel):
     liters: float
     adblue_liters: float
     amount: dict[str, float]
+    total: float | None = None
+    """Suma w walucie ``total_currency`` po kursie EBC; ``None`` – brak kursu którejś waluty."""
     last: datetime | None
 
 
@@ -303,11 +306,26 @@ class SummaryOut(BaseModel):
     count: int
     liters: float
     amount: dict[str, float]
+    total: float | None = None
+    """Wszystkie kwoty przeliczone na ``total_currency`` (kurs EBC, szacunkowo)."""
+    total_currency: str
+    rates_day: date | None = None
     vehicles: list[VehicleFuel]
 
 
 def _add(totals: dict[str, float], currency: str, amount: float) -> None:
     totals[currency] = round(totals.get(currency, 0) + amount, 2)
+
+
+def convert_total(amounts: dict[str, float], rates: Rates, target: str) -> float | None:
+    """Suma kwot w różnych walutach w walucie ``target``; ``None`` – brak kursu."""
+    total = 0.0
+    for currency, amount in amounts.items():
+        value = rates.convert(amount, currency, target)
+        if value is None:
+            return None
+        total += value
+    return round(total, 2)
 
 
 def build_router(current_user) -> APIRouter:
@@ -406,11 +424,22 @@ def build_router(current_user) -> APIRouter:
 
     @router.get("/api/companies/{company_id}/fuel-cards/summary")
     def summary(
-        company_id: str, user: User, db: Db, months: Annotated[int, Query(ge=1, le=36)] = 3
+        company_id: str,
+        user: User,
+        db: Db,
+        months: Annotated[int, Query(ge=1, le=36)] = 3,
+        currency: Annotated[str | None, Query(min_length=3, max_length=3)] = None,
     ) -> SummaryOut:
-        """Tankowania z kart z ostatnich ``months`` miesięcy: razem i według pojazdów."""
+        """Tankowania z kart z ostatnich ``months`` miesięcy: razem i według pojazdów.
+
+        Kwoty zostają w walutach wyciągu, obok suma przeliczona na ``currency`` (domyślnie
+        waluta kosztów firmy) po ostatnim kursie EBC.
+        """
         if membership(db, company_id, user) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, t("error.company_not_found"))
+        company = db.get(Company, company_id)
+        target = (currency or (company.cost_currency if company else None) or "PLN").upper()
+        rates = latest_rates(db)
         since = datetime.now(UTC) - timedelta(days=30 * months)
         plates = {
             v.id: v.plate
@@ -446,11 +475,16 @@ def build_router(current_user) -> APIRouter:
             at = datetime.fromisoformat(str(item["at"])) if item.get("at") else None
             if at and (group.last is None or at > group.last):
                 group.last = at
+        for group in groups.values():
+            group.total = convert_total(group.amount, rates, target)
         return SummaryOut(
             since=since,
             count=len(records),
             liters=round(liters, 2),
             amount=totals,
+            total=convert_total(totals, rates, target),
+            total_currency=target,
+            rates_day=rates.day,
             vehicles=sorted(groups.values(), key=lambda g: -g.liters),
         )
 

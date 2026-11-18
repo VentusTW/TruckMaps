@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pl">
+<html lang="__LANG__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Planer trasy – TruckMaps</title>
+<title>{{planner.title}} – TruckMaps</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
   :root { --bg:#f6f5f1; --card:#fff; --text:#1f1e1c; --muted:#5f5e5a; --border:#d3d1c7;
@@ -50,7 +50,7 @@
   .sign.orange { border-color:#f08c00; } .sign.yellow { border-color:#f5c518; }
   .sign.red { animation:pulse 1s steps(2, start) infinite; }
   .sign.avoided { opacity:.9; border-style:dashed; }
-  .sign.avoided::after { content:"ominięto"; position:absolute; top:38px; font:600 10px system-ui; color:#fff;
+  .sign.avoided::after { content:attr(data-avoided); position:absolute; top:38px; font:600 10px system-ui; color:#fff;
                          background:#5f5e5a; padding:1px 4px; border-radius:4px; white-space:nowrap; }
   @keyframes pulse { to { border-color:#fff; } }
   .avoided-list { margin:4px 0 0; padding-left:18px; font-size:13px; }
@@ -123,102 +123,102 @@
 </head>
 <body>
 <aside>
-  <h1>Planer trasy <a href="/">← Konto</a></h1>
+  <h1>{{planner.title}} <a href="/">← {{planner.account}}</a></h1>
 
   <details class="company" id="company-panel">
-    <summary id="company-summary">Firma i flota</summary>
+    <summary id="company-summary">{{planner.company_fleet}}</summary>
     <div id="company-list" class="row" style="flex-wrap:wrap;margin-top:6px"></div>
     <div id="company-details"></div>
-    <h3>Dołącz do firmy</h3>
+    <h3>{{planner.join_company}}</h3>
     <div class="row">
-      <input id="join-code" placeholder="Kod zaproszenia, np. K7MP-2QXR" maxlength="20" autocomplete="off">
-      <button type="button" id="join" class="small">Dołącz</button>
+      <input id="join-code" placeholder="{{planner.invite_code}}" maxlength="20" autocomplete="off">
+      <button type="button" id="join" class="small">{{planner.join}}</button>
     </div>
-    <h3>Załóż firmę</h3>
+    <h3>{{planner.create_company}}</h3>
     <form id="company-form" class="stack">
-      <input name="name" placeholder="Nazwa firmy" required minlength="2" maxlength="200">
-      <input name="tax_id" placeholder="NIP (opcjonalnie)" maxlength="30">
-      <button type="submit">Załóż firmę</button>
+      <input name="name" placeholder="{{planner.company_name}}" required minlength="2" maxlength="200">
+      <input name="tax_id" placeholder="{{planner.tax_id}}" maxlength="30">
+      <button type="submit">{{planner.create_company}}</button>
     </form>
   </details>
 
-  <h2>Pojazd</h2>
-  <select id="vehicle-select" aria-label="Wybierz pojazd"></select>
+  <h2>{{planner.vehicle}}</h2>
+  <select id="vehicle-select" aria-label="{{planner.choose_vehicle}}"></select>
   <form id="vehicle-form">
-    <label>Nazwa <input name="name" required maxlength="100" style="grid-column:2"></label>
-    <label>Należy do <select name="company_id" id="vehicle-owner"><option value="">mnie (prywatny)</option></select></label>
-    <label>Wysokość [m] <input name="height_m" type="number" step="0.05" min="1.5" max="6" required></label>
-    <label>Szerokość [m] <input name="width_m" type="number" step="0.05" min="1.5" max="4.5" required></label>
-    <label>Długość [m] <input name="length_m" type="number" step="0.1" min="3" max="40" required></label>
-    <label>Masa rzeczywista [t] <input name="weight_t" type="number" step="0.1" min="1" max="150" required></label>
-    <label>DMC [t] <input name="gvw_t" type="number" step="0.1" min="1" max="150" required title="Dopuszczalna masa całkowita – z dowodu rejestracyjnego (pole F.2)"></label>
-    <label>Nacisk osi [t] <input name="axle_load_t" type="number" step="0.5" min="1" max="20" required></label>
-    <label>Liczba osi <input name="axle_count" type="number" step="1" min="2" max="20" required></label>
-    <label>Naczepa
+    <label>{{planner.name}} <input name="name" required maxlength="100" style="grid-column:2"></label>
+    <label>{{planner.owner}} <select name="company_id" id="vehicle-owner"><option value="">{{planner.owner_me}}</option></select></label>
+    <label>{{planner.height}} <input name="height_m" type="number" step="0.05" min="1.5" max="6" required></label>
+    <label>{{planner.width}} <input name="width_m" type="number" step="0.05" min="1.5" max="4.5" required></label>
+    <label>{{planner.length}} <input name="length_m" type="number" step="0.1" min="3" max="40" required></label>
+    <label>{{planner.weight}} <input name="weight_t" type="number" step="0.1" min="1" max="150" required></label>
+    <label>{{planner.gvw}} <input name="gvw_t" type="number" step="0.1" min="1" max="150" required title="{{planner.gvw_hint}}"></label>
+    <label>{{planner.axle_load}} <input name="axle_load_t" type="number" step="0.5" min="1" max="20" required></label>
+    <label>{{planner.axle_count}} <input name="axle_count" type="number" step="1" min="2" max="20" required></label>
+    <label>{{planner.trailer}}
       <select name="trailer_type">
-        <option value="curtain">plandeka</option><option value="box">kontener / izoterma</option>
-        <option value="reefer">chłodnia</option><option value="tanker">cysterna</option>
-        <option value="flatbed">platforma</option><option value="container">kontener</option>
-        <option value="lowloader">niskopodwoziowa</option><option value="none">brak (solówka)</option>
+        <option value="curtain">{{planner.trailer_curtain}}</option><option value="box">{{planner.trailer_box}}</option>
+        <option value="reefer">{{planner.trailer_reefer}}</option><option value="tanker">{{planner.trailer_tanker}}</option>
+        <option value="flatbed">{{planner.trailer_flatbed}}</option><option value="container">{{planner.trailer_container}}</option>
+        <option value="lowloader">{{planner.trailer_lowloader}}</option><option value="none">{{planner.trailer_none}}</option>
       </select>
     </label>
     <label>ADR <input name="hazmat" type="checkbox" style="width:auto;justify-self:start"></label>
-    <label>Waluta stawek <select name="cost_currency"></select></label>
-    <label>Koszt za km <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="brak" title="Koszt eksploatacji za kilometr; puste = stawka firmy"></label>
-    <label>Koszt za h jazdy <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="brak" title="Np. kierowca; puste = stawka firmy"></label>
+    <label>{{planner.rates_currency}} <select name="cost_currency"></select></label>
+    <label>{{planner.cost_km}} <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="{{planner.none}}" title="{{planner.cost_km_hint}}"></label>
+    <label>{{planner.cost_hour}} <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="{{planner.none}}" title="{{planner.cost_hour_hint}}"></label>
     <div class="row" style="margin-top:8px">
-      <button type="submit" class="primary" id="save">Zapisz pojazd</button>
-      <button type="button" id="new">Nowy</button>
+      <button type="submit" class="primary" id="save">{{planner.save_vehicle}}</button>
+      <button type="button" id="new">{{planner.new}}</button>
     </div>
-    <p class="muted" id="read-only" hidden>Pojazd firmy – zmieniają go właściciel i dyspozytorzy. Możesz nim wyznaczać trasy.</p>
+    <p class="muted" id="read-only" hidden>{{planner.read_only}}</p>
   </form>
   <div class="row">
-    <button type="button" data-preset="truck">+ Zestaw 40 t</button>
-    <button type="button" data-preset="solo">+ Solówka 12 t</button>
-    <button type="button" data-preset="van" title="DMC do 3,5 t: zakazy dla ciężarówek nie obowiązują">+ Bus 3,5 t</button>
+    <button type="button" data-preset="truck">+ {{planner.preset_truck}}</button>
+    <button type="button" data-preset="solo">+ {{planner.preset_solo}}</button>
+    <button type="button" data-preset="van" title="{{planner.van_hint}}">+ {{planner.preset_van}}</button>
   </div>
 
-  <h2>Trasa</h2>
-  <label>Wyjazd <input id="departure" type="datetime-local" title="Do zakazów ruchu w czasie (święta, weekendy, wakacje) i ograniczeń w godzinach na drogach (np. zakaz dla ciężarówek 22–6); puste = teraz"></label>
-  <label>Waluta kosztów <select id="currency" title="Zapisywana w ustawieniach konta"></select></label>
+  <h2>{{planner.route}}</h2>
+  <label>{{planner.departure}} <input id="departure" type="datetime-local" title="{{planner.departure_hint}}"></label>
+  <label>{{planner.cost_currency}} <select id="currency" title="{{planner.cost_currency_hint}}"></select></label>
   <p class="muted" id="rates-day"></p>
   <div class="search">
-    <label class="addr"><span class="pin a">A</span><input id="from" placeholder="Skąd – adres, miejscowość, firma" autocomplete="off"></label>
+    <label class="addr"><span class="pin a">A</span><input id="from" placeholder="{{planner.from}}" autocomplete="off"></label>
     <ul class="suggestions" id="from-list" hidden></ul>
   </div>
-  <button type="button" id="swap" class="swap" title="Zamień start z celem (trasa w drugą stronę)">⇅ Zamień start z celem</button>
+  <button type="button" id="swap" class="swap" title="{{planner.swap_hint}}">⇅ {{planner.swap}}</button>
   <div class="search">
-    <label class="addr"><span class="pin b">B</span><input id="to" placeholder="Dokąd – adres, miejscowość, firma" autocomplete="off"></label>
+    <label class="addr"><span class="pin b">B</span><input id="to" placeholder="{{planner.to}}" autocomplete="off"></label>
     <ul class="suggestions" id="to-list" hidden></ul>
   </div>
   <div class="search">
-    <label class="addr"><span class="pin via">+</span><input id="via-input" placeholder="Punkt pośredni – adres albo GPS" autocomplete="off"></label>
+    <label class="addr"><span class="pin via">+</span><input id="via-input" placeholder="{{planner.via_input}}" autocomplete="off"></label>
     <ul class="suggestions" id="via-list" hidden></ul>
   </div>
   <ol class="via-items" id="via-items"></ol>
-  <p class="muted" id="hint">Wpisz adresy albo współrzędne GPS (np. 50.0131, 21.0214), albo kliknij na mapie punkt startu (A), potem cel (B).</p>
-  <label class="check"><input type="checkbox" id="avoid" checked> Omijaj trudne drogi (pomarańczowe i czerwone), jeśli jest rozsądny objazd</label>
+  <p class="muted" id="hint">{{planner.hint_initial}}</p>
+  <label class="check"><input type="checkbox" id="avoid" checked> {{planner.avoid}}</label>
   <div class="row">
-    <button type="button" class="primary" id="calc">Wyznacz trasę</button>
-    <button type="button" id="via-mode">+ Punkt pośredni</button>
+    <button type="button" class="primary" id="calc">{{planner.calc}}</button>
+    <button type="button" id="via-mode">+ {{planner.via}}</button>
   </div>
   <div class="row">
-    <select id="test-routes" aria-label="Trasy testowe" style="flex:1"></select>
-    <button type="button" id="clear" style="flex:none">Wyczyść</button>
+    <select id="test-routes" aria-label="{{planner.test_routes}}" style="flex:1"></select>
+    <button type="button" id="clear" style="flex:none">{{planner.clear}}</button>
   </div>
-  <p class="muted">Punkty A, B i pośrednie można przeciągać – trasa przeliczy się sama. Dwuklik na drodze dodaje punkt pośredni, prawy przycisk myszy na punkcie pośrednim usuwa go.</p>
+  <p class="muted">{{planner.drag_hint}}</p>
   <ul class="legend">
-    <li><span class="dot green"></span>bez uwag</li>
-    <li><span class="dot lime"></span>rondo</li>
-    <li><span class="dot yellow"></span>trudne miejsce</li>
-    <li><span class="dot orange"></span>bardzo trudne dla tego pojazdu</li>
-    <li><span class="dot red blink"></span>nie przejedzie</li>
+    <li><span class="dot green"></span>{{planner.legend_green}}</li>
+    <li><span class="dot lime"></span>{{planner.legend_lime}}</li>
+    <li><span class="dot yellow"></span>{{planner.legend_yellow}}</li>
+    <li><span class="dot orange"></span>{{planner.legend_orange}}</li>
+    <li><span class="dot red blink"></span>{{planner.legend_red}}</li>
   </ul>
   <div id="issues" hidden></div>
   <div class="result" id="result" hidden></div>
   <div class="row" id="corridor-tools" hidden>
-    <button type="button" id="corridor">Korytarz dla telefonu</button>
-    <button type="button" id="simulate" title="Kliknij na mapie miejsce – sprawdzenie jak w telefonie bez zasięgu">Symulacja jazdy</button>
+    <button type="button" id="corridor">{{planner.corridor}}</button>
+    <button type="button" id="simulate" title="{{planner.simulate_hint}}">{{planner.simulate}}</button>
   </div>
   <p class="muted" id="corridor-info" hidden></p>
   <div class="error" id="error" hidden></div>
@@ -226,22 +226,26 @@
 <div id="map"></div>
 <div class="modal" id="problem" hidden role="alertdialog" aria-labelledby="problem-title">
   <div class="box">
-    <h3 id="problem-title">Nie da się wyznaczyć trasy</h3>
+    <h3 id="problem-title">{{planner.no_route}}</h3>
     <p id="problem-text"></p>
-    <div class="row"><button type="button" class="primary" id="problem-ok">Rozumiem</button></div>
+    <div class="row"><button type="button" class="primary" id="problem-ok">{{planner.ok}}</button></div>
   </div>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
 const TOKEN = __ACCESS_TOKEN__;
+// Teksty strony w języku użytkownika (klucze planner.* z truckmaps/core/locales).
+const TEXTS = __TEXTS__;
+const LOCALE = __LOCALE__;
+const T = (key, params = {}) => (TEXTS[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? ""));
 const USER_NAME = __USER_NAME__;
 const PRESETS = {
-  truck: { name: "Zestaw 40 t", height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40, gvw_t: 40,
+  truck: { name: T("planner.preset_truck"), height_m: 4.0, width_m: 2.55, length_m: 16.5, weight_t: 40, gvw_t: 40,
            axle_load_t: 11.5, axle_count: 5, trailer_type: "curtain", hazmat: false },
-  van: { name: "Bus 3,5 t", height_m: 2.7, width_m: 2.1, length_m: 6.0, weight_t: 3.2, gvw_t: 3.5,
+  van: { name: T("planner.preset_van"), height_m: 2.7, width_m: 2.1, length_m: 6.0, weight_t: 3.2, gvw_t: 3.5,
          axle_load_t: 2.0, axle_count: 2, trailer_type: "none", hazmat: false },
-  solo: { name: "Solówka 12 t", height_m: 3.5, width_m: 2.55, length_m: 9.5, weight_t: 12, gvw_t: 18,
+  solo: { name: T("planner.preset_solo"), height_m: 3.5, width_m: 2.55, length_m: 9.5, weight_t: 12, gvw_t: 18,
           axle_load_t: 8, axle_count: 2, trailer_type: "none", hazmat: false },
 };
 const $ = (id) => document.getElementById(id);
@@ -262,7 +266,7 @@ async function api(path, options = {}) {
   });
   if (response.status === 401) { location.href = "/"; return; }
   const body = response.status === 204 ? null : await response.json();
-  if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Nieprawidłowe dane pojazdu.");
+  if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : T("planner.bad_data"));
   return body;
 }
 
@@ -275,7 +279,7 @@ function fillForm(vehicle) {
     // Kierowca nie dodaje pojazdów firmy, więc jej nie ma na liście – pokazujemy ją tylko do odczytu.
     const company = companies.find((c) => c.id === vehicle.company_id);
     owner.insertAdjacentHTML("beforeend",
-      `<option value="${escapeHtml(vehicle.company_id)}" data-temp>${escapeHtml(company?.name ?? "firma")}</option>`);
+      `<option value="${escapeHtml(vehicle.company_id)}" data-temp>${escapeHtml(company?.name ?? T("planner.company"))}</option>`);
   }
   for (const element of form.elements) {
     if (!element.name) continue;
@@ -307,7 +311,7 @@ function showCompanyRates() {
   const company = companies.find((c) => c.id === form.elements.company_id.value);
   for (const field of ["cost_per_km", "cost_per_hour"]) {
     const rate = company?.[field];
-    form.elements[field].placeholder = rate != null ? `firmy: ${money(rate, company.cost_currency, 2)}` : "brak";
+    form.elements[field].placeholder = rate != null ? T("planner.company_rate", { rate: money(rate, company.cost_currency, 2) }) : T("planner.none");
   }
 }
 
@@ -318,9 +322,9 @@ async function loadVehicles(selectId) {
     ? vehicles.map((v) => {
         const company = companies.find((c) => c.id === v.company_id);
         const prefix = company ? `${company.name}: ` : "";
-        return `<option value="${escapeHtml(v.id)}">${escapeHtml(prefix + v.name)} –${v.height_m} m, ${v.weight_t} t / DMC ${v.gvw_t} t</option>`;
+        return `<option value="${escapeHtml(v.id)}">${escapeHtml(prefix + v.name)} –${v.height_m} m, ${v.weight_t} t / ${T("planner.gvw_short")} ${v.gvw_t} t</option>`;
       }).join("")
-    : '<option value="">Brak pojazdów – dodaj pierwszy</option>';
+    : `<option value="">${T("planner.no_vehicles")}</option>`;
   if (selectId) select.value = selectId;
   fillForm(vehicles.find((v) => v.id === select.value) ?? PRESETS.truck);
 }
@@ -358,7 +362,7 @@ const map = new maplibregl.Map({
     version: 8,
     sources: {
       osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256,
-             attribution: "© współtwórcy OpenStreetMap" },
+             attribution: T("planner.osm") },
     },
     layers: [{ id: "osm", type: "raster", source: "osm" }],
   },
@@ -427,7 +431,7 @@ function matchingBases(query) {
   if (!words.length) return [];
   return bases
     .filter((b) => {
-      const text = `baza ${b.name} ${b.company_name}`.toLowerCase();
+      const text = `${T("planner.base_word")} ${b.name} ${b.company_name}`.toLowerCase();
       return words.every((w) => text.includes(w));
     })
     .map((b) => ({ label: `🏠 ${b.name}${b.label ? ` – ${b.label}` : ""}`, lat: b.lat, lon: b.lon, base: true }));
@@ -472,7 +476,7 @@ function setupSearch(input, list, onPick) {
       } catch (e) {
         places = [];
         hide();
-        showError(e.message + " Kliknij punkt na mapie.");
+        showError(e.message + " " + T("planner.click_map"));
       }
     }, 250);
   });
@@ -554,7 +558,7 @@ function addVia(lngLat, label) {
   };
   point.marker.getElement().addEventListener("contextmenu", remove);
   point.marker.getElement().addEventListener("dblclick", remove);
-  point.marker.getElement().title = "Prawy przycisk myszy – usuń punkt";
+  point.marker.getElement().title = T("planner.remove_point_hint");
   via.splice(bestIndex, 0, point);
   renumberVia();
   if (!label) describeVia(point);
@@ -581,7 +585,7 @@ function renumberVia() {
   via.forEach((v, i) => { v.marker.getElement().textContent = String(i + 1); });
   $("via-items").innerHTML = via.map((v, i) =>
     `<li><span class="num">${i + 1}</span><span class="text">${escapeHtml(v.label)}</span>` +
-    `<button type="button" class="small" data-remove-via="${i}" title="Usuń punkt pośredni">✕</button></li>`).join("");
+    `<button type="button" class="small" data-remove-via="${i}" title="${T("planner.remove_via")}">✕</button></li>`).join("");
   $("via-items").querySelectorAll("[data-remove-via]").forEach((b) =>
     b.addEventListener("click", () => removeVia(via[Number(b.dataset.removeVia)])));
 }
@@ -589,13 +593,13 @@ function renumberVia() {
 function setViaMode(on) {
   viaMode = on;
   $("via-mode").classList.toggle("active", on);
-  $("hint").textContent = on ? "Kliknij na mapie miejsce, przez które ma prowadzić trasa." : hintText();
+  $("hint").textContent = on ? T("planner.via_mode_hint") : hintText();
 }
 
 function hintText() {
-  if (!start) return "Kliknij na mapie punkt startu (A), potem cel (B).";
-  if (!end) return "Teraz kliknij cel (B).";
-  return "Gotowe. Przeciągnij punkty albo kliknij dwukrotnie na drogę, żeby dodać punkt pośredni.";
+  if (!start) return T("planner.hint_start");
+  if (!end) return T("planner.hint_end");
+  return T("planner.hint_ready");
 }
 
 function clearAll() {
@@ -701,25 +705,21 @@ function routeFeatures(route) {
   return route.analysis.segments.map((s) => line(s.start_index, s.end_index, s.level));
 }
 
-const LEVEL_TEXT = {
-  green: "Bez problemów dla tego pojazdu",
-  lime: "Bez problemów (ronda na trasie)",
-  yellow: "Uwaga: trudne miejsca na trasie",
-  orange: "Bardzo trudne miejsca dla tego pojazdu",
-  red: "Trasa nieprzejezdna dla tego pojazdu",
-};
+const LEVEL_TEXT = Object.fromEntries(["green", "lime", "yellow", "orange", "red"]
+  .map((level) => [level, T(`planner.level_${level}`)]));
 
 function analysisHtml(route) {
   const analysis = route.analysis;
-  if (!analysis) return '<p class="muted">Nie udało się ocenić trasy (brak danych o odcinkach).</p>';
+  if (!analysis) return `<p class="muted">${T("planner.not_rated")}</p>`;
   const items = analysis.warnings.map((w, i) =>
     `<li><button type="button" data-warning="${i}"><span class="dot ${w.level}"></span>` +
-    `<span>km ${w.km.toLocaleString("pl-PL")} – ${escapeHtml(w.message)}</span></button></li>`).join("");
+    `<span>km ${w.km.toLocaleString(LOCALE)} – ${escapeHtml(w.message)}</span></button></li>`).join("");
   const avoidedItems = (route.avoided_warnings ?? []).map((w, i) =>
     `<li><button type="button" class="link" data-avoided="${i}">${escapeHtml(w.message)}</button></li>`).join("");
   const detour = route.avoided.length
-    ? `<p class="muted">Ominięto trudne miejsca: +${(route.distance_km - route.base_distance_km).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} km ` +
-      `względem najkrótszej trasy (${route.base_distance_km.toLocaleString("pl-PL")} km).</p>` +
+    ? `<p class="muted">${T("planner.detour", {
+        extra: (route.distance_km - route.base_distance_km).toLocaleString(LOCALE, { maximumFractionDigits: 1 }),
+        base: route.base_distance_km.toLocaleString(LOCALE) })}</p>` +
       (avoidedItems ? `<ul class="avoided-list">${avoidedItems}</ul>` : "")
     : "";
   return `<span class="badge ${analysis.level}">${LEVEL_TEXT[analysis.level]}</span>` + detour +
@@ -748,7 +748,7 @@ const TEST_ROUTES = [
     a: [50.9930, 13.8070], b: [49.1951, 16.6068], departure: "2026-07-04T06:00" },
 ];
 
-$("test-routes").innerHTML = '<option value="">Trasy testowe…</option>' +
+$("test-routes").innerHTML = `<option value="">${T("planner.test_routes")}…</option>` +
   TEST_ROUTES.map((r, i) => `<option value="${i}">${escapeHtml(r.name)}</option>`).join("");
 $("test-routes").addEventListener("change", (event) => {
   const route = TEST_ROUTES[Number(event.target.value)];
@@ -768,7 +768,7 @@ $("clear").addEventListener("click", clearAll);
 $("avoid").addEventListener("change", recalculate);
 $("departure").addEventListener("change", recalculate);
 $("via-mode").addEventListener("click", () => {
-  if (!start || !end) return showError("Najpierw zaznacz start (A) i cel (B).");
+  if (!start || !end) return showError(T("planner.mark_ends_first"));
   setViaMode(!viaMode);
 });
 
@@ -790,8 +790,8 @@ const point = (lngLat) => ({ lat: lngLat.lat, lon: lngLat.lng });
 async function calculate(options = {}) {
   showError("");
   const vehicleId = $("vehicle-select").value;
-  if (!vehicleId) return showError("Najpierw zapisz pojazd.");
-  if (!start || !end) return showError("Zaznacz na mapie start (A) i cel (B).");
+  if (!vehicleId) return showError(T("planner.save_first"));
+  if (!start || !end) return showError(T("planner.mark_ends"));
   $("calc").disabled = true;
   try {
     const route = await api("/api/routes", { method: "POST", body: JSON.stringify({
@@ -832,9 +832,10 @@ function showRoute(route, options = {}) {
     map.fitBounds(bounds, { padding: 60 });
   }
   $("result").className = `result ${route.analysis?.level ?? ""}`;
-  $("result").innerHTML = `<strong>${route.distance_km.toLocaleString("pl-PL")} km</strong> · ${duration(route)}` +
+  $("result").innerHTML = `<strong>${route.distance_km.toLocaleString(LOCALE)} km</strong> · ${duration(route)}` +
     costHtml(route) + timeBansHtml(route) +
-    `<p class="muted">Dla: ${escapeHtml(route.vehicle.name)} (${route.vehicle.height_m} m, ${route.vehicle.length_m} m dł., ${route.vehicle.weight_t} t, DMC ${route.vehicle.gvw_t} t)</p>` +
+    `<p class="muted">${T("planner.for_vehicle", { name: escapeHtml(route.vehicle.name), height: route.vehicle.height_m,
+      length: route.vehicle.length_m, weight: route.vehicle.weight_t, gvw: route.vehicle.gvw_t })}</p>` +
     analysisHtml(route) + alternativesHtml(route);
   $("result").querySelectorAll("[data-warning]").forEach((button) => button.addEventListener("click", () => {
     const w = route.analysis.warnings[Number(button.dataset.warning)];
@@ -871,7 +872,7 @@ function clearTimeBans() {
   banMarkers = [];
 }
 
-const when = (iso) => new Date(iso).toLocaleString("pl-PL",
+const when = (iso) => new Date(iso).toLocaleString(LOCALE,
   { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 const hoursMin = (min) => `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
 
@@ -884,24 +885,24 @@ function localInput(iso) {
 function timeBansHtml(route) {
   const t = route.time_bans;
   if (!t) return "";
-  const arrival = `<p class="muted">Przyjazd ok. ${when(t.arrival)}` +
-    (t.wait_min ? `, w tym postój w czasie zakazów ${hoursMin(t.wait_min)}` : "") +
-    " (czas jazdy bez przerw kierowcy).</p>";
+  const arrival = `<p class="muted">${T("planner.arrival", { time: when(t.arrival) })}` +
+    (t.wait_min ? T("planner.arrival_wait", { wait: hoursMin(t.wait_min) }) : "") +
+    `${T("planner.arrival_note")}</p>`;
   if (!t.bans.length) {
-    return `<p class="muted">Zakazy ruchu w czasie: brak przy wyjeździe ${when(route.departure)}.</p>` + arrival;
+    return `<p class="muted">${T("planner.no_bans", { time: when(route.departure) })}</p>` + arrival;
   }
   const items = t.bans.map((b, i) => {
     const parkings = b.parkings.map((p) =>
-      `${escapeHtml(p.name || p.kind_label)} (${(p.distance_m / 1000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} km)`).join(" · ");
+      `${escapeHtml(p.name || p.kind_label)} (${(p.distance_m / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} km)`).join(" · ");
     return `<li><button type="button" data-ban="${i}"><span>⛔</span>` +
-      `<span>km ${b.km.toLocaleString("pl-PL")} – ${escapeHtml(b.message)}</span></button>` +
-      (parkings && b.verified ? `<div class="parkings">Parkingi w pobliżu: ${parkings}</div>` : "") + "</li>";
+      `<span>km ${b.km.toLocaleString(LOCALE)} – ${escapeHtml(b.message)}</span></button>` +
+      (parkings && b.verified ? `<div class="parkings">${T("planner.parkings_nearby", { list: parkings })}</div>` : "") + "</li>";
   }).join("");
   const free = t.free_departure
-    ? `<button type="button" id="free-departure" style="width:100%;margin-top:6px">Wyjedź ${when(t.free_departure)} – bez postoju w czasie zakazów</button>`
+    ? `<button type="button" id="free-departure" style="width:100%;margin-top:6px">${T("planner.free_departure", { time: when(t.free_departure) })}</button>`
     : "";
-  return `<h3>Zakazy ruchu w czasie</h3><ul class="warnings time-bans">${items}</ul>${arrival}${free}` +
-    '<p class="muted">Wyjątki (np. towary szybko psujące się, żywe zwierzęta, transport kombinowany) zależą od ładunku – sprawdź przepisy kraju.</p>';
+  return `<h3>${T("planner.time_bans")}</h3><ul class="warnings time-bans">${items}</ul>${arrival}${free}` +
+    `<p class="muted">${T("planner.ban_exceptions")}</p>`;
 }
 
 function showTimeBans(route) {
@@ -932,11 +933,12 @@ function clearSigns() {
 function signMarker(warning, avoided) {
   const element = document.createElement("div");
   element.className = `sign ${warning.level}${avoided ? " avoided" : ""}`;
+  if (avoided) element.dataset.avoided = T("planner.avoided");
   element.textContent = warning.limit ?? "!";
   element.title = warning.message;
   element.addEventListener("click", (event) => event.stopPropagation());
   element.addEventListener("dblclick", (event) => event.stopPropagation());
-  const note = avoided ? "Ominięte – trasa jedzie objazdem." : `km ${warning.km.toLocaleString("pl-PL")} trasy.`;
+  const note = avoided ? T("planner.avoided_note") : T("planner.route_km", { km: warning.km.toLocaleString(LOCALE) });
   const marker = new maplibregl.Marker({ element })
     .setLngLat([warning.lon, warning.lat])
     .setPopup(new maplibregl.Popup({ offset: 22 }).setHTML(`<strong>${escapeHtml(warning.message)}</strong><br>${note}`))
@@ -948,7 +950,7 @@ function signMarker(warning, avoided) {
 // To samo sprawdzenie pozycji co w telefonie bez zasięgu (truckmaps.core.corridor.check_position):
 // na trasie – spokój; poza trasą, na drodze czerwonej dla pojazdu – alarm.
 const OFF_ROUTE_M = 40, ON_ROAD_M = 15;
-const LEVEL_NAME = { red: "nieprzejezdnych", orange: "bardzo trudnych", yellow: "trudnych" };
+const LEVEL_NAME = { red: T("planner.count_red"), orange: T("planner.count_orange"), yellow: T("planner.count_yellow") };
 let corridor = null;
 let simulating = false;
 let simulationPopup = null;
@@ -1033,7 +1035,7 @@ async function loadCorridor() {
       body: JSON.stringify({ vehicle_id: $("vehicle-select").value, route: encodePolyline6(currentRoute.geometry) }),
     });
     const text = await response.text();
-    if (!response.ok) throw new Error(JSON.parse(text).detail ?? "Nie udało się pobrać korytarza.");
+    if (!response.ok) throw new Error(JSON.parse(text).detail ?? T("planner.corridor_failed"));
     const data = JSON.parse(text);
     corridor = {
       ...data,
@@ -1052,9 +1054,10 @@ async function loadCorridor() {
     });
     const counts = ["red", "orange", "yellow"].map((level) =>
       `${corridor.items.filter((i) => i.level === level).length} ${LEVEL_NAME[level]}`).join(", ");
-    $("corridor-info").textContent = `Korytarz ${corridor.buffer_m} m wokół trasy: ${corridor.items.length} ograniczeń (${counts}), ` +
-      `${(text.length / 1024).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} kB przed kompresją, ` +
-      `${Math.round(performance.now() - started)} ms. Przerywane linie – to, co dostaje telefon.`;
+    $("corridor-info").textContent = T("planner.corridor_info", {
+      buffer: corridor.buffer_m, count: corridor.items.length, counts,
+      kb: (text.length / 1024).toLocaleString(LOCALE, { maximumFractionDigits: 0 }),
+      ms: Math.round(performance.now() - started) });
     $("corridor-info").hidden = false;
   } catch (e) {
     showError(e.message);
@@ -1067,7 +1070,7 @@ function setSimulating(on) {
   simulating = on;
   $("simulate").classList.toggle("active", on);
   simulationPopup?.remove();
-  if (on) $("hint").textContent = "Symulacja: kliknij na mapie pozycję ciężarówki – sprawdzenie jak w telefonie bez zasięgu.";
+  if (on) $("hint").textContent = T("planner.simulation_hint");
   else $("hint").textContent = hintText();
 }
 
@@ -1076,10 +1079,10 @@ async function simulatePosition(lngLat) {
   if (!corridor) return;
   const result = checkPosition(corridor, lngLat);
   const html = result.onRoute
-    ? "<strong>Na trasie</strong> – bez alarmu."
+    ? `<strong>${T("planner.on_route")}</strong> – ${T("planner.no_alarm")}`
     : result.alarm
-      ? `<strong style="color:#d62828">ALARM: ${escapeHtml(result.alarm.message)}</strong><br>Zawróć – ten pojazd tu nie przejedzie.`
-      : "<strong>Poza trasą</strong> – droga bez ograniczeń dla tego pojazdu (przeliczenie trasy).";
+      ? `<strong style="color:#d62828">${T("planner.alarm", { message: escapeHtml(result.alarm.message) })}</strong><br>${T("planner.turn_back")}`
+      : `<strong>${T("planner.off_route")}</strong> – ${T("planner.off_route_ok")}`;
   simulationPopup?.remove();
   simulationPopup = new maplibregl.Popup({ closeOnClick: false }).setLngLat(lngLat).setHTML(html).addTo(map);
 }
@@ -1108,7 +1111,7 @@ function midpoint(geometry) {
 }
 
 function routeLabelText(r) {
-  const km = r.distance_km.toLocaleString("pl-PL", { maximumFractionDigits: 0 });
+  const km = r.distance_km.toLocaleString(LOCALE, { maximumFractionDigits: 0 });
   return `${km} km · ${duration(r)}${r.cost ? ` · ≈ ${money(r.cost.amount, r.cost.currency)}` : ""}`;
 }
 
@@ -1119,7 +1122,7 @@ function showRouteLabels(route) {
     const element = document.createElement("div");
     element.className = `route-label${alt ? " alt" : ""}`;
     element.textContent = routeLabelText(r);
-    element.title = alt ? "Trasa alternatywna – kliknij, żeby wybrać" : "Wybrana trasa (koszt szacunkowy)";
+    element.title = alt ? T("planner.alt_label_hint") : T("planner.chosen_label_hint");
     element.addEventListener("dblclick", (event) => event.stopPropagation());
     element.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1164,7 +1167,7 @@ function smallMarker(lngLat, text, color, title, popupHtml) {
   return marker;
 }
 
-const ROLE_TEXT = { origin: "Start (A)", destination: "Cel (B)", via: "Punkt pośredni" };
+const ROLE_TEXT = { origin: T("planner.role_origin"), destination: T("planner.role_destination"), via: T("planner.via") };
 
 function showIssues(issues) {
   clearIssues();
@@ -1175,22 +1178,22 @@ function showIssues(issues) {
       lines.push({ type: "Feature", properties: {}, geometry: { type: "LineString",
         coordinates: [[issue.requested.lon, issue.requested.lat], [issue.reachable.lon, issue.reachable.lat]] } });
       smallMarker([issue.reachable.lon, issue.reachable.lat], "✓", "#185fa5",
-        "Najbliżej dostępne dla tego pojazdu", "Najbliższe miejsce, do którego dojedzie ten pojazd");
+        T("planner.nearest_title"), T("planner.nearest_popup"));
     }
     const parkings = issue.parkings.map((p, j) => {
       const label = escapeHtml(p.name || p.kind_label);
-      const km = (p.distance_m / 1000).toLocaleString("pl-PL", { maximumFractionDigits: 1 });
+      const km = (p.distance_m / 1000).toLocaleString(LOCALE, { maximumFractionDigits: 1 });
       smallMarker([p.lon, p.lat], "P", "#0c447c", `${p.kind_label} – ${km} km`,
-        `<strong>${label}</strong><br>${escapeHtml(p.kind_label)}<br>${km} km od punktu` +
-        (p.hgv_capacity ? `<br>miejsc dla ciężarówek: ${p.hgv_capacity}` : ""));
+        `<strong>${label}</strong><br>${escapeHtml(p.kind_label)}<br>${T("planner.from_point", { km })}` +
+        (p.hgv_capacity ? `<br>${T("planner.hgv_spaces", { count: p.hgv_capacity })}` : ""));
       return `<li><button type="button" data-parking="${i}:${j}"><span class="dot parking"></span>` +
-        `<span>${label} · ${km} km${issue.role !== "via" ? " · <u>jedź tutaj</u>" : ""}</span></button></li>`;
+        `<span>${label} · ${km} km${issue.role !== "via" ? ` · <u>${T("planner.go_here")}</u>` : ""}</span></button></li>`;
     }).join("");
-    return `<div class="issue ${issue.kind}"><strong>${ROLE_TEXT[issue.role]}${issue.role === "via" ? " nr " + issue.index : ""}</strong>` +
+    return `<div class="issue ${issue.kind}"><strong>${ROLE_TEXT[issue.role]}${issue.role === "via" ? T("planner.via_number", { n: issue.index }) : ""}</strong>` +
       `<p>${escapeHtml(issue.message)}</p>` +
-      (parkings ? `<p class="muted">Parkingi dla ciężarówek w pobliżu:</p><ul class="warnings">${parkings}</ul>` : "") +
+      (parkings ? `<p class="muted">${T("planner.truck_parkings")}</p><ul class="warnings">${parkings}</ul>` : "") +
       (issue.role !== "via" && !issue.parkings.length && issue.kind === "unreachable"
-        ? '<p class="muted">W promieniu 20 km nie ma oznaczonych parkingów dla ciężarówek.</p>' : "") +
+        ? `<p class="muted">${T("planner.no_parkings")}</p>` : "") +
       `</div>`;
   }).join("");
   map.getSource("issues").setData({ type: "FeatureCollection", features: lines });
@@ -1208,24 +1211,23 @@ function showIssues(issues) {
   }));
 }
 
-const money = (value, currency, digits = 0) => value.toLocaleString("pl-PL",
+const money = (value, currency, digits = 0) => value.toLocaleString(LOCALE,
   { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: digits });
-const plDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString("pl-PL");
-const COST_SOURCE = { vehicle: "stawki pojazdu", company: "stawki firmy", mixed: "stawki pojazdu i firmy" };
+const plDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(LOCALE);
+const COST_SOURCE = { vehicle: T("planner.source_vehicle"), company: T("planner.source_company"), mixed: T("planner.source_mixed") };
 
 function costHtml(route) {
   if (!route.cost) {
-    return '<p class="muted">Koszt: podaj stawkę za km w pojeździe albo w firmie, żeby zobaczyć szacunek ' +
-      '(przy stawkach w różnych walutach potrzebny jest też kurs EBC).</p>';
+    return `<p class="muted">${T("planner.cost_missing")}</p>`;
   }
   const c = route.cost;
   const converted = c.exchange_day
-    ? ` Stawki w ${c.rates_currencies.join(" i ")} przeliczone po kursie EBC z ${plDate(c.exchange_day)}.` : "";
+    ? T("planner.converted", { currencies: c.rates_currencies.join(T("planner.and")), day: plDate(c.exchange_day) }) : "";
   const other = currencyChoice && currencyChoice !== c.currency
-    ? ` Brak kursu ${currencyChoice} – koszt w walucie stawek.` : "";
-  return `<p class="cost">≈ ${money(c.amount, c.currency)} <span class="muted">szacunkowo</span></p>` +
-    `<p class="muted">${money(c.per_km, c.currency, 2)}/km${c.per_hour ? ` + ${money(c.per_hour, c.currency, 2)}/h jazdy` : ""}, ${COST_SOURCE[c.source]}.${converted}${other} ` +
-    `Bez paliwa i myta liczonych osobno – to tylko twoje stawki.</p>`;
+    ? T("planner.no_rate", { currency: currencyChoice }) : "";
+  return `<p class="cost">≈ ${money(c.amount, c.currency)} <span class="muted">${T("planner.estimate")}</span></p>` +
+    `<p class="muted">${money(c.per_km, c.currency, 2)}/km${c.per_hour ? ` + ${money(c.per_hour, c.currency, 2)}${T("planner.per_driving_hour")}` : ""}, ${COST_SOURCE[c.source]}.${converted}${other} ` +
+    `${T("planner.own_rates_only")}</p>`;
 }
 
 function duration(route) {
@@ -1240,13 +1242,13 @@ function alternativesHtml(route) {
     const count = alt.analysis?.warnings.filter((w) => ["orange", "red"].includes(w.level)).length ?? 0;
     const delta = alt.distance_km - route.distance_km;
     return `<li><button type="button" data-alt="${i}"><span class="dot ${level}"></span><span>` +
-      `${alt.distance_km.toLocaleString("pl-PL")} km (${delta >= 0 ? "+" : ""}${delta.toLocaleString("pl-PL", { maximumFractionDigits: 1 })}) · ${duration(alt)}` +
+      `${alt.distance_km.toLocaleString(LOCALE)} km (${delta >= 0 ? "+" : ""}${delta.toLocaleString(LOCALE, { maximumFractionDigits: 1 })}) · ${duration(alt)}` +
       (alt.cost ? ` · ≈ ${money(alt.cost.amount, alt.cost.currency)}` : "") +
-      ` · ${count ? `${count} bardzo trudnych miejsc` : LEVEL_TEXT[level] ?? "bez oceny"}</span></button></li>`;
+      ` · ${count ? T("planner.very_difficult_count", { count }) : LEVEL_TEXT[level] ?? T("planner.no_rating")}</span></button></li>`;
   }).join("");
-  return `<h2 style="margin-top:12px">Trasy alternatywne</h2>` +
-    (difficult ? '<p class="muted alt-hint">Na wybranej trasie są bardzo trudne miejsca – porównaj alternatywy (półprzezroczyste na mapie).</p>'
-               : '<p class="muted">Półprzezroczyste na mapie – kliknij, żeby wybrać.</p>') +
+  return `<h2 style="margin-top:12px">${T("planner.alternatives")}</h2>` +
+    (difficult ? `<p class="muted alt-hint">${T("planner.alt_difficult")}</p>`
+               : `<p class="muted">${T("planner.alt_hint")}</p>`) +
     `<ul class="warnings">${items}</ul>`;
 }
 
@@ -1264,7 +1266,7 @@ function chooseAlternative(index) {
 }
 
 // --- Firma i flota ------------------------------------------------------------------
-const ROLES = { owner: "właściciel", dispatcher: "dyspozytor", driver: "kierowca" };
+const ROLES = { owner: T("planner.role_owner"), dispatcher: T("planner.role_dispatcher"), driver: T("planner.role_driver") };
 let companies = [];
 let openCompanyId = null;
 
@@ -1272,8 +1274,8 @@ async function loadCompanies() {
   companies = await api("/api/companies");
   bases = await api("/api/bases");
   $("company-summary").textContent = companies.length
-    ? `Firma i flota: ${companies.map((c) => c.name).join(", ")}`
-    : "Firma i flota";
+    ? `${T("planner.company_fleet")}: ${companies.map((c) => c.name).join(", ")}`
+    : T("planner.company_fleet");
   if (!companies.some((c) => c.id === openCompanyId)) openCompanyId = companies[0]?.id ?? null;
   $("company-list").innerHTML = companies.length > 1
     ? companies.map((c) => `<button type="button" class="small${c.id === openCompanyId ? " active" : ""}" data-company="${escapeHtml(c.id)}">${escapeHtml(c.name)}</button>`).join("")
@@ -1281,7 +1283,7 @@ async function loadCompanies() {
   $("company-list").querySelectorAll("[data-company]").forEach((b) =>
     b.addEventListener("click", () => companyAction(() => { openCompanyId = b.dataset.company; })));
   // Lista „Należy do” w formularzu pojazdu: firmy, w których wolno dodawać pojazdy.
-  $("vehicle-owner").innerHTML = '<option value="">mnie (prywatny)</option>' + companies
+  $("vehicle-owner").innerHTML = `<option value="">${T("planner.owner_me")}</option>` + companies
     .filter((c) => c.role !== "driver")
     .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join("");
   await openCompany(openCompanyId);
@@ -1290,7 +1292,7 @@ async function loadCompanies() {
 async function openCompany(id) {
   const box = $("company-details");
   if (!id) {
-    box.innerHTML = '<p class="muted">Nie należysz do żadnej firmy. Załóż firmę albo dołącz kodem od przewoźnika.</p>';
+    box.innerHTML = `<p class="muted">${T("planner.no_company")}</p>`;
     return;
   }
   const company = await api(`/api/companies/${id}`);
@@ -1300,52 +1302,53 @@ async function openCompany(id) {
     `<option value="${value}"${value === selected ? " selected" : ""}>${label}</option>`).join("");
   const members = company.members.map((m) => {
     const role = owner && !m.is_me
-      ? `<select data-role="${escapeHtml(m.id)}" aria-label="Rola">${roleOptions(m.role)}</select>`
+      ? `<select data-role="${escapeHtml(m.id)}" aria-label="${T("planner.role")}">${roleOptions(m.role)}</select>`
       : `<em>${ROLES[m.role]}</em>`;
     const remove = m.is_me
-      ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" data-me>Opuść</button>`
-      : owner ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" title="Usuń z firmy">✕</button>` : "";
-    return `<li><span>${escapeHtml(m.display_name)}${m.is_me ? " (ty)" : ""}</span>${role}${remove}</li>`;
+      ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" data-me>${T("planner.leave")}</button>`
+      : owner ? `<button type="button" class="small" data-remove="${escapeHtml(m.id)}" title="${T("planner.remove_member")}">✕</button>` : "";
+    return `<li><span>${escapeHtml(m.display_name)}${m.is_me ? T("planner.you") : ""}</span>${role}${remove}</li>`;
   }).join("");
   const roleChoice = owner
-    ? `<select id="invite-role" style="width:auto" aria-label="Rola zapraszanej osoby">${roleOptions("driver")}</select>`
+    ? `<select id="invite-role" style="width:auto" aria-label="${T("planner.invite_role")}">${roleOptions("driver")}</select>`
     : '<input type="hidden" id="invite-role" value="driver">';
   box.innerHTML = `
-    <h3>${escapeHtml(company.name)}${company.tax_id ? `, NIP ${escapeHtml(company.tax_id)}` : ""} – jesteś: ${ROLES[company.role]}</h3>
+    <h3>${escapeHtml(company.name)}${company.tax_id ? `, ${T("planner.tax_id_short")} ${escapeHtml(company.tax_id)}` : ""} – ${T("planner.you_are", { role: ROLES[company.role] })}</h3>
     <ul class="members">${members}</ul>
     ${owner ? `
-      <h3>Waluta firmy i domyślne stawki pojazdów (szacunek kosztu trasy)</h3>
+      <h3>${T("planner.company_rates")}</h3>
       <form id="company-rates" class="row">
-        <select name="cost_currency" aria-label="Waluta firmy" style="width:auto">${currencyOptions(company.cost_currency)}</select>
-        <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="za km" aria-label="Koszt za km" value="${company.cost_per_km ?? ""}">
-        <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="za h jazdy" aria-label="Koszt za godzinę jazdy" value="${company.cost_per_hour ?? ""}">
-        <button type="submit" class="small">Zapisz</button>
+        <select name="cost_currency" aria-label="${T("planner.company_currency")}" style="width:auto">${currencyOptions(company.cost_currency)}</select>
+        <input name="cost_per_km" type="number" step="any" min="0" max="100000" placeholder="${T("planner.per_km")}" aria-label="${T("planner.cost_km")}" value="${company.cost_per_km ?? ""}">
+        <input name="cost_per_hour" type="number" step="any" min="0" max="10000000" placeholder="${T("planner.per_hour")}" aria-label="${T("planner.cost_hour")}" value="${company.cost_per_hour ?? ""}">
+        <button type="submit" class="small">${T("planner.save")}</button>
       </form>` : ""}
-    <h3>Bazy firmy (wpisz „baza” w polu adresu)</h3>
+    <h3>${T("planner.bases")}</h3>
     <ul class="bases">${bases.filter((b) => b.company_id === id).map((b) =>
       `<li><span>🏠 <strong>${escapeHtml(b.name)}</strong>${b.label ? ` – ${escapeHtml(b.label)}` : ""}</span>` +
-      (manager ? `<button type="button" class="small" data-delete-base="${escapeHtml(b.id)}" title="Usuń bazę">✕</button>` : "") +
-      "</li>").join("") || '<li class="muted">Brak baz.</li>'}</ul>
+      (manager ? `<button type="button" class="small" data-delete-base="${escapeHtml(b.id)}" title="${T("planner.remove_base")}">✕</button>` : "") +
+      "</li>").join("") || `<li class="muted">${T("planner.no_bases")}</li>`}</ul>
     ${manager ? `
       <div class="stack" style="margin-top:6px">
-        <input id="base-name" placeholder="Nazwa bazy, np. Baza Tarnów" maxlength="100">
+        <input id="base-name" placeholder="${T("planner.base_name")}" maxlength="100">
         <div class="search">
-          <input id="base-address" placeholder="Adres albo GPS bazy – wybierz z listy" autocomplete="off">
+          <input id="base-address" placeholder="${T("planner.base_address")}" autocomplete="off">
           <ul class="suggestions" id="base-list" hidden style="left:0"></ul>
         </div>
       </div>` : ""}
     ${manager ? `
-      <h3>Zaproś do firmy</h3>
-      <div class="row">${roleChoice}<input id="invite-note" placeholder="Dla kogo (opcjonalnie)" maxlength="200"></div>
-      <button type="button" id="invite" style="margin-top:6px;width:100%">Utwórz kod zaproszenia</button>
+      <h3>${T("planner.invite")}</h3>
+      <div class="row">${roleChoice}<input id="invite-note" placeholder="${T("planner.invite_for")}" maxlength="200"></div>
+      <button type="button" id="invite" style="margin-top:6px;width:100%">${T("planner.create_invite")}</button>
       <div id="invites"></div>` : ""}
-    ${owner ? '<button type="button" class="small" id="delete-company" style="margin-top:8px">Usuń firmę</button>' : ""}`;
+    ${owner ? `<button type="button" class="small" id="delete-company" style="margin-top:8px">${T("planner.delete_company")}</button>` : ""}`;
 
   box.querySelectorAll("[data-role]").forEach((select) => select.addEventListener("change", () =>
     companyAction(() => api(`/api/companies/${id}/members/${select.dataset.role}`,
       { method: "PUT", body: JSON.stringify({ role: select.value }) }))));
   box.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
-    const question = button.hasAttribute("data-me") ? `Opuścić firmę ${company.name}?` : "Usunąć tę osobę z firmy?";
+    const question = button.hasAttribute("data-me")
+      ? T("planner.confirm_leave", { name: company.name }) : T("planner.confirm_remove_member");
     if (confirm(question)) companyAction(() => api(`/api/companies/${id}/members/${button.dataset.remove}`, { method: "DELETE" }));
   }));
   if ($("company-rates")) watchRateCurrency($("company-rates"));
@@ -1357,21 +1360,21 @@ async function openCompany(id) {
       cost_per_km: rate("cost_per_km"), cost_per_hour: rate("cost_per_hour") }) }));
   });
   $("delete-company")?.addEventListener("click", () => {
-    if (confirm(`Usunąć firmę ${company.name}? Pojazdy firmy wrócą do osób, które je dodały.`))
+    if (confirm(T("planner.confirm_delete_company", { name: company.name })))
       companyAction(() => api(`/api/companies/${id}`, { method: "DELETE" }));
   });
   $("invite")?.addEventListener("click", () => companyAction(() =>
     api(`/api/companies/${id}/invites`, { method: "POST",
       body: JSON.stringify({ role: $("invite-role").value, note: $("invite-note").value }) })));
   box.querySelectorAll("[data-delete-base]").forEach((button) => button.addEventListener("click", () => {
-    if (confirm("Usunąć tę bazę?"))
+    if (confirm(T("planner.confirm_delete_base")))
       companyAction(() => api(`/api/companies/${id}/bases/${button.dataset.deleteBase}`, { method: "DELETE" }));
   }));
   if (manager) {
     // Baza zapisuje się od razu po wybraniu adresu z listy.
     setupSearch($("base-address"), $("base-list"), (place) => companyAction(() =>
       api(`/api/companies/${id}/bases`, { method: "POST", body: JSON.stringify({
-        name: $("base-name").value.trim() || "Baza",
+        name: $("base-name").value.trim() || T("planner.base_default"),
         label: place.label.replace(/^🏠 /, ""),
         lat: place.lat,
         lon: place.lon,
@@ -1385,17 +1388,17 @@ async function loadInvites(id) {
   $("invites").innerHTML = invites.map((i) => {
     const code = `${i.code.slice(0, 4)}-${i.code.slice(4)}`;
     const link = `${location.origin}/planer?zaproszenie=${i.code}`;
-    const until = new Date(i.expires_at).toLocaleDateString("pl-PL");
+    const until = new Date(i.expires_at).toLocaleDateString(LOCALE);
     return `<div class="invite-box">
       <div class="row" style="align-items:center"><span class="code">${code}</span>
-        <button type="button" class="small" data-copy="${escapeHtml(link)}">Kopiuj link</button>
-        <button type="button" class="small" data-cancel="${i.code}" title="Anuluj zaproszenie">✕</button></div>
-      ${ROLES[i.role]}${i.note ? ` – ${escapeHtml(i.note)}` : ""}, ważny do ${until}, jednorazowy
+        <button type="button" class="small" data-copy="${escapeHtml(link)}">${T("planner.copy_link")}</button>
+        <button type="button" class="small" data-cancel="${i.code}" title="${T("planner.cancel_invite")}">✕</button></div>
+      ${ROLES[i.role]}${i.note ? ` – ${escapeHtml(i.note)}` : ""}${T("planner.invite_valid", { date: until })}
     </div>`;
   }).join("");
   $("invites").querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
     await navigator.clipboard.writeText(b.dataset.copy);
-    b.textContent = "Skopiowano";
+    b.textContent = T("planner.copied");
   }));
   $("invites").querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () =>
     companyAction(() => api(`/api/companies/${id}/invites/${b.dataset.cancel}`, { method: "DELETE" }))));
@@ -1423,7 +1426,7 @@ $("company-form").addEventListener("submit", (event) => {
 
 $("join").addEventListener("click", () => companyAction(async () => {
   const code = $("join-code").value.trim();
-  if (!code) throw new Error("Wpisz kod zaproszenia.");
+  if (!code) throw new Error(T("planner.enter_code"));
   const joined = await api(`/api/invites/${encodeURIComponent(code)}/accept`, { method: "POST",
     body: JSON.stringify({ display_name: USER_NAME || null }) });
   openCompanyId = joined.id;
@@ -1450,7 +1453,7 @@ function convertRates(formElement, from, to) {
     .filter((input) => input.value !== "");
   if (!fields.length || from === to) return;
   if (!rateFrom || !rateTo) {
-    showError(`Brak kursu EBC dla ${!rateFrom ? from : to} – stawki nie zostały przeliczone, sprawdź je.`);
+    showError(T("planner.no_rate_for", { currency: !rateFrom ? from : to }));
     return;
   }
   for (const input of fields) {
@@ -1484,10 +1487,10 @@ async function loadCurrencies() {
   currencies = list.currencies;
   currencyChoice = settings.currency;
   perEur = list.per_eur;
-  $("currency").innerHTML = '<option value="">jak firma pojazdu / stawki</option>' + currencyOptions(currencyChoice);
+  $("currency").innerHTML = `<option value="">${T("planner.currency_default")}</option>` + currencyOptions(currencyChoice);
   form.elements.cost_currency.innerHTML = currencyOptions();
   $("rates-day").textContent = list.rates_day
-    ? `Kursy walut: EBC z ${plDate(list.rates_day)}.` : "Brak kursów EBC – koszty tylko w walucie stawek.";
+    ? T("planner.rates_day", { day: plDate(list.rates_day) }) : T("planner.no_rates");
 }
 
 watchRateCurrency(form);

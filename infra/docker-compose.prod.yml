@@ -1,0 +1,64 @@
+# Produkcja: Zitadel pod https (nakładka na docker-compose.yml).
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --wait
+#
+# Wymaga domeny wskazującej na serwer (rekord A/AAAA dla AUTH_DOMAIN) i otwartych portów
+# 80 i 443. Certyfikat wystawia za darmo Let's Encrypt (Traefik, wyzwanie HTTP-01) i sam go
+# odnawia. W infra/.env ustaw:
+#   AUTH_DOMAIN=auth.twojadomena.pl      – adres logowania (issuer: https://AUTH_DOMAIN)
+#   ACME_EMAIL=admin@twojadomena.pl      – kontakt Let's Encrypt (wygasanie certyfikatu)
+# Po starcie: ZITADEL_ISSUER=https://AUTH_DOMAIN TRUCKMAPS_PUBLIC_URL=https://… \
+#   .venv\Scripts\python infra\zitadel\bootstrap.py   (aplikacja OIDC bez devMode).
+# Lokalnie (bez domeny) zostaje sam docker-compose.yml z http://localhost:8080.
+
+services:
+  proxy:
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=truckmaps
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:?Ustaw ACME_EMAIL w infra/.env}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --ping=true
+      - --ping.entrypoint=web
+      - --log.level=WARN
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./data/letsencrypt:/letsencrypt
+
+  zitadel-api:
+    environment:
+      ZITADEL_EXTERNALDOMAIN: ${AUTH_DOMAIN:?Ustaw AUTH_DOMAIN w infra/.env}
+      ZITADEL_EXTERNALPORT: 443
+      ZITADEL_EXTERNALSECURE: "true"
+      # TLS kończy się na Traefiku; do Zitadela ruch idzie w sieci Dockera (h2c).
+      ZITADEL_TLS_ENABLED: "false"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: https://${AUTH_DOMAIN}/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: https://${AUTH_DOMAIN}/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: https://${AUTH_DOMAIN}/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: https://${AUTH_DOMAIN}/ui/v2/login/login?samlRequest=
+    labels:
+      - traefik.http.routers.zitadel-api-alias.rule=Host(`${AUTH_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.zitadel-api-alias.entrypoints=websecure
+      - traefik.http.routers.zitadel-api-alias.tls.certresolver=le
+      - traefik.http.routers.zitadel-canonical.rule=Host(`${AUTH_DOMAIN}`) && !PathPrefix(`/ui/v2/login`) && !PathPrefix(`/api`) && !Path(`/`)
+      - traefik.http.routers.zitadel-canonical.entrypoints=websecure
+      - traefik.http.routers.zitadel-canonical.tls.certresolver=le
+
+  zitadel-login:
+    environment:
+      CUSTOM_REQUEST_HEADERS: Host:${AUTH_DOMAIN},X-Forwarded-Proto:https
+    labels:
+      - traefik.http.routers.zitadel-root.rule=Host(`${AUTH_DOMAIN}`) && Path(`/`)
+      - traefik.http.routers.zitadel-root.entrypoints=websecure
+      - traefik.http.routers.zitadel-root.tls.certresolver=le
+      - traefik.http.routers.zitadel-login.rule=Host(`${AUTH_DOMAIN}`) && PathPrefix(`/ui/v2/login`)
+      - traefik.http.routers.zitadel-login.entrypoints=websecure
+      - traefik.http.routers.zitadel-login.tls.certresolver=le

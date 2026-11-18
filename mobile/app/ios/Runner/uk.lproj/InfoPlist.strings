@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps використовує камеру, щоб зчитати код і дані зі свідоцтва про реєстрацію транспорту.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps зчитує дані транспорту з вибраного вами фото свідоцтва про реєстрацію.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps використовує ваше місцезнаходження для навігації та перевірки, чи ви їдете запланованим маршрутом.";

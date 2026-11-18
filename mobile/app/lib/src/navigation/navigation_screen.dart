@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
 import '../planner/clusters.dart';
+import '../planner/house_numbers.dart';
 import '../planner/place_field.dart' show Place;
 import '../planner/planner_screen.dart' show mapTiles, nightMapTiles;
 import '../planner/route.dart';
@@ -31,8 +32,7 @@ abstract class PositionSource {
 enum GpsProblem { disabled, denied }
 
 /// Ustawienia GPS nawigacji: najlepsza dokładność co 5 m, praca w tle i przy wygaszonym ekranie.
-LocationSettings navigationLocationSettings(String title, String text,
-    {TargetPlatform? platform}) {
+LocationSettings navigationLocationSettings(String title, String text, {TargetPlatform? platform}) {
   const accuracy = LocationAccuracy.bestForNavigation;
   const distanceFilter = 5;
   switch (kIsWeb ? null : platform ?? defaultTargetPlatform) {
@@ -145,7 +145,6 @@ LatLng? pointAlong(List<LatLng> line, double alongM) {
   }
   return null;
 }
-
 
 /// Dane trasy do nawigacji (z planera).
 class NavigationRequest {
@@ -311,7 +310,12 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
           if (item.level == 'red' && item.line.length > 1)
             Polyline(points: item.line, strokeWidth: 3, color: levelColor('red').withOpacity(0.6)),
         for (final (points, level) in _route.coloredParts)
-          Polyline(points: points, strokeWidth: 6, color: levelColor(level), borderStrokeWidth: 2, borderColor: Colors.white),
+          Polyline(
+              points: points,
+              strokeWidth: 6,
+              color: levelColor(level),
+              borderStrokeWidth: 2,
+              borderColor: Colors.white),
       ];
     }
     return _lines;
@@ -565,7 +569,16 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
   }
 
   static String _speechLanguage(Locale locale) =>
-      const {'pl': 'pl-PL', 'en': 'en-US', 'de': 'de-DE', 'cs': 'cs-CZ', 'sk': 'sk-SK'}[locale.languageCode] ??
+      const {
+        'pl': 'pl-PL',
+        'en': 'en-US',
+        'de': 'de-DE',
+        'cs': 'cs-CZ',
+        'sk': 'sk-SK',
+        'lt': 'lt-LT',
+        'ro': 'ro-RO',
+        'uk': 'uk-UA',
+      }[locale.languageCode] ??
       locale.toLanguageTag();
 
   Future<void> _startAlarm() async {
@@ -616,7 +629,9 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
           if (_headingDeg case final heading?) 'heading': heading,
         },
         'destination': {'lat': widget.request.destination.latitude, 'lon': widget.request.destination.longitude},
-        'via': [for (final (v, _, _) in remaining) {'lat': v.latitude, 'lon': v.longitude}],
+        'via': [
+          for (final (v, _, _) in remaining) {'lat': v.latitude, 'lon': v.longitude}
+        ],
         'vehicle_id': widget.request.vehicleId,
         'avoid_difficult': widget.request.avoidDifficult,
         // Przeliczenie w trakcie jazdy nie zużywa limitu tras planu.
@@ -753,17 +768,21 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
         FlutterMap(
           mapController: _map,
           options: MapOptions(
-            initialCameraFit: CameraFit.bounds(
-                bounds: LatLngBounds.fromPoints(_route.points), padding: const EdgeInsets.all(48)),
+            initialCameraFit:
+                CameraFit.bounds(bounds: LatLngBounds.fromPoints(_route.points), padding: const EdgeInsets.all(48)),
             onTap: (_, point) => _simulation.jump(point),
             onPositionChanged: (_, gesture) {
               if (gesture && _follow) setState(() => _follow = false);
             },
           ),
           children: [
-            if (_night) nightMapTiles?.call() ?? ColorFiltered(colorFilter: _nightTiles, child: mapTiles()) else mapTiles(),
+            if (_night)
+              nightMapTiles?.call() ?? ColorFiltered(colorFilter: _nightTiles, child: mapTiles())
+            else
+              mapTiles(),
             PolylineLayer(polylines: _routeLines),
             ClusteredMarkerLayer(color: navPanelColor, markers: _eventMarkers),
+            HouseNumberLayer(_route.houseNumbers),
             MarkerLayer(markers: [
               Marker(
                 point: widget.request.destination,
@@ -879,18 +898,22 @@ class _NavigationScreenState extends State<NavigationScreen> with SingleTickerPr
                 left: 12,
                 right: 12,
                 bottom: 12,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+                child:
+                    Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        SpeedPanel(
-                          limit: check?.alongM == null ? null : _limits.at(along),
-                          change: check?.alongM == null ? null : _limits.nextChange(along),
-                          speedKmh: _speedKmh,
-                        ),
-                        const SizedBox(height: 8),
-                        _simulationControls(),
-                      ]),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SpeedPanel(
+                              limit: check?.alongM == null ? null : _limits.at(along),
+                              change: check?.alongM == null ? null : _limits.nextChange(along),
+                              speedKmh: _speedKmh,
+                            ),
+                            const SizedBox(height: 8),
+                            _simulationControls(),
+                          ]),
                     ),
                     if (_position != null)
                       Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1000,8 +1023,10 @@ class _StatusBanner extends StatelessWidget {
       _ when corridorError != null => (TruckPalette.navOffRoute, corridorError!),
       (_, null) => (navPanelColor, l.loadingCorridor),
       (null, _) => (navPanelColor, l.waitingForPosition),
-      (final c?, final k?) when c.onRoute =>
-        (TruckPalette.navOnRoute, l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))),
+      (final c?, final k?) when c.onRoute => (
+          TruckPalette.navOnRoute,
+          l.onRouteRemaining(l.km((k.lengthM - (c.alongM ?? 0)) / 1000))
+        ),
       (final c?, _) when c.alarm != null => (TruckPalette.navAlarm, c.alarm!.message),
       _ => (TruckPalette.navOffRoute, recalculating ? l.offRouteRecalculating : l.offRoute),
     };
@@ -1027,8 +1052,8 @@ class PoiSheet extends StatefulWidget {
 }
 
 class _PoiSheetState extends State<PoiSheet> {
-  late final Future<dynamic> _parkings = widget.api
-      .get('/api/routes/parkings?lat=${widget.position.latitude}&lon=${widget.position.longitude}');
+  late final Future<dynamic> _parkings =
+      widget.api.get('/api/routes/parkings?lat=${widget.position.latitude}&lon=${widget.position.longitude}');
 
   @override
   Widget build(BuildContext context) {

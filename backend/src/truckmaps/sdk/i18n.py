@@ -3,7 +3,8 @@
 Teksty są w katalogach ``{klucz: szablon}`` dla każdego języka (rdzeń: pliki
 ``truckmaps/core/locales/<język>.json``; moduł dodaje własne przez :func:`register`).
 Język bieżącego zapytania ustawia rdzeń z nagłówka ``Accept-Language``; bez niego –
-polski. Brakujący tekst w danym języku → tekst polski.
+polski. Brakujący tekst w danym języku → tekst angielski, a gdy i tego brak – polski
+(moduł może mieć mniej języków niż rdzeń).
 
     t("route.bend", radius=12)          # "Ostry zakręt – promień ok. 12 m"
     num(4.05)                           # "4,05" po polsku, "4.05" po angielsku
@@ -18,6 +19,7 @@ from contextvars import ContextVar
 from typing import NamedTuple
 
 DEFAULT_LANGUAGE = "pl"
+FALLBACK_LANGUAGE = "en"
 
 _catalogs: dict[str, dict[str, str]] = {}
 _language: ContextVar[str] = ContextVar("truckmaps_language", default=DEFAULT_LANGUAGE)
@@ -87,7 +89,7 @@ def t(key: "str | Msg", /, **params: object) -> str:
     if isinstance(key, Msg):
         params = dict(key.params) | params
         key = key.key
-    template = _lookup(key) or key
+    template = lookup(key) or key
     return template.format(**{name: _value(value) for name, value in params.items()})
 
 
@@ -96,12 +98,24 @@ def num(value: float, digits: int = 2, *, trim: bool = True) -> str:
     text = f"{value:.{digits}f}"
     if trim and "." in text:
         text = text.rstrip("0").rstrip(".")
-    return text.replace(".", _lookup("number.decimal_separator") or ",")
+    return text.replace(".", lookup("number.decimal_separator") or ",")
 
 
-def _lookup(key: str) -> str | None:
-    found = _catalogs.get(language(), {}).get(key)
-    return found if found is not None else _catalogs.get(DEFAULT_LANGUAGE, {}).get(key)
+def lookup(key: str, lang: str | None = None) -> str | None:
+    """Szablon tekstu w języku ``lang`` (domyślnie zapytania) albo zastępczym; ``None`` – brak."""
+    for code in (lang or language(), FALLBACK_LANGUAGE, DEFAULT_LANGUAGE):
+        found = _catalogs.get(code, {}).get(key)
+        if found is not None:
+            return found
+    return None
+
+
+def pick(names: Mapping[str, str], lang: str | None = None) -> str | None:
+    """Wartość dla języka z mapy ``{język: tekst}`` (np. nazwa modułu), z tym samym zastępstwem."""
+    for code in (lang or language(), FALLBACK_LANGUAGE, DEFAULT_LANGUAGE):
+        if names.get(code):
+            return names[code]
+    return None
 
 
 def _value(value: object) -> object:

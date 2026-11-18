@@ -1056,6 +1056,15 @@ def type_out(c: CargoType) -> CargoTypeOut:
 class LoadModule(Module):
     id = "load"
     name = "Plan załadunku"
+    names = {
+        "en": "Load plan",
+        "de": "Ladeplan",
+        "cs": "Plán nakládky",
+        "sk": "Plán nakládky",
+        "lt": "Krovinio išdėstymo planas",
+        "ro": "Plan de încărcare",
+        "uk": "План завантаження",
+    }
     version = "0.2.0"
     requires_core = ">=0.1,<1.0"
 

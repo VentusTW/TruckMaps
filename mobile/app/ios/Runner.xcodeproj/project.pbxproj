@@ -43,6 +43,12 @@
 /* Begin PBXFileReference section */
 		7A1C0E2B2F9A40D100A1B203 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		7A1C0E2B2F9A40D100A1B204 /* pl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl; path = pl.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B210 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B211 /* cs */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = cs; path = cs.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B212 /* sk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = sk; path = sk.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B213 /* lt */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = lt; path = lt.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B214 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7A1C0E2B2F9A40D100A1B215 /* uk */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uk; path = uk.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -192,6 +198,12 @@
 			knownRegions = (
 				en,
 				pl,
+				de,
+				cs,
+				sk,
+				lt,
+				ro,
+				uk,
 				Base,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
@@ -311,6 +323,12 @@
 			children = (
 				7A1C0E2B2F9A40D100A1B203 /* en */,
 				7A1C0E2B2F9A40D100A1B204 /* pl */,
+				7A1C0E2B2F9A40D100A1B210 /* de */,
+				7A1C0E2B2F9A40D100A1B211 /* cs */,
+				7A1C0E2B2F9A40D100A1B212 /* sk */,
+				7A1C0E2B2F9A40D100A1B213 /* lt */,
+				7A1C0E2B2F9A40D100A1B214 /* ro */,
+				7A1C0E2B2F9A40D100A1B215 /* uk */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";

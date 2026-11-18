@@ -10,6 +10,15 @@ class HelloModule(Module):
 
     id = "hello"
     name = "Hello (moduł testowy)"
+    names = {
+        "en": "Hello (test module)",
+        "de": "Hello (Testmodul)",
+        "cs": "Hello (testovací modul)",
+        "sk": "Hello (testovací modul)",
+        "lt": "Hello (bandomasis modulis)",
+        "ro": "Hello (modul de test)",
+        "uk": "Hello (тестовий модуль)",
+    }
     version = "0.1.0"
     requires_core = ">=0.1,<1.0"
 

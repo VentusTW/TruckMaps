@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "TruckMaps naudoja kamerą transporto priemonės registracijos liudijimo kodui ir duomenims nuskaityti.";
+"NSPhotoLibraryUsageDescription" = "TruckMaps nuskaito transporto priemonės duomenis iš jūsų pasirinktos registracijos liudijimo nuotraukos.";
+"NSLocationWhenInUseUsageDescription" = "TruckMaps naudoja jūsų buvimo vietą navigacijai ir patikrinti, ar važiuojate suplanuotu maršrutu.";

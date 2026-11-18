@@ -289,6 +289,15 @@ def _name(user: Principal) -> str:
 class ServiceModule(Module):
     id = "service"
     name = "Serwis"
+    names = {
+        "en": "Service",
+        "de": "Werkstatt",
+        "cs": "Servis",
+        "sk": "Servis",
+        "lt": "Servisas",
+        "ro": "Service",
+        "uk": "Сервіс",
+    }
     version = "0.1.0"
     requires_core = ">=0.1,<1.0"
 

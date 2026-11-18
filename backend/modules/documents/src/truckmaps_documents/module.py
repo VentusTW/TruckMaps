@@ -342,6 +342,15 @@ def driver_record(
 class DocumentsModule(Module):
     id = "documents"
     name = "Dokumenty"
+    names = {
+        "en": "Documents",
+        "de": "Dokumente",
+        "cs": "Dokumenty",
+        "sk": "Dokumenty",
+        "lt": "Dokumentai",
+        "ro": "Documente",
+        "uk": "Документи",
+    }
     version = "0.1.0"
     requires_core = ">=0.1,<1.0"
 

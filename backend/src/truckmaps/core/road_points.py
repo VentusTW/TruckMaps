@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import BigInteger, Float, Index, String, Text, or_, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from truckmaps.core import thresholds
 from truckmaps.core.db import Base
 from truckmaps.core.polyline import decode_polyline6
 from truckmaps.core.restrictions import (
@@ -71,13 +72,8 @@ class RoadEvent(BaseModel):
     speed_kmh: float | None = None
 
 
-# Jak blisko linii trasy musi leżeć punkt; sygnalizacja – ciaśniej (stoi też przy drogach obok).
-ON_ROUTE_M = {PointKind.TRAFFIC_SIGNALS: 12.0}
-DEFAULT_ON_ROUTE_M = 25.0
-LINE_ON_ROUTE_M = 15.0
-# Kawałki zakazu wyprzedzania (drogi OSM dzielone na odcinki) łączone przy przerwie do tylu m.
-MERGE_GAP_M = 150.0
-MIN_LINE_M = 100.0
+# Jak blisko linii trasy musi leżeć punkt (sygnalizacja – ciaśniej, stoi też przy drogach obok)
+# i jak łączone są kawałki zakazu wyprzedzania: ``truckmaps.core.thresholds``.
 
 
 def parse_speed(raw: str | None) -> float | None:
@@ -94,7 +90,8 @@ def parse_speed(raw: str | None) -> float | None:
 
 
 def _candidates(db: Session, geometry: list[tuple[float, float]]) -> list[RoadPoint]:
-    margin_lat = DEFAULT_ON_ROUTE_M / 111_000
+    th = thresholds.current()
+    margin_lat = max(th.point_on_route_m, th.signals_on_route_m, th.line_on_route_m) / 111_000
     margin_lon = 2 * margin_lat
     boxes = []
     for chunk in route_chunks(geometry):
@@ -124,6 +121,7 @@ def along_route(db: Session, geometry: list[tuple[float, float]]) -> list[RoadEv
         return []
     grid = segment_grid(geometry)
     cumulative = cumulative_m(geometry)
+    th = thresholds.current()
 
     def along(lon: float, lat: float, max_m: float) -> float | None:
         index = grid.nearest(lon, lat, max_m)
@@ -139,19 +137,22 @@ def along_route(db: Session, geometry: list[tuple[float, float]]) -> list[RoadEv
             alongs = [
                 a
                 for lon, lat in decode_polyline6(point.line or "")
-                if (a := along(lon, lat, LINE_ON_ROUTE_M)) is not None
+                if (a := along(lon, lat, th.line_on_route_m)) is not None
             ]
             if len(alongs) >= 2:
                 lines.append((min(alongs), max(alongs), point))
             continue
-        start = along(point.lon, point.lat, ON_ROUTE_M.get(point.kind, DEFAULT_ON_ROUTE_M))
+        signals = point.kind == PointKind.TRAFFIC_SIGNALS
+        start = along(
+            point.lon, point.lat, th.signals_on_route_m if signals else th.point_on_route_m
+        )
         if start is None:
             continue
         end = None
         if point.kind == PointKind.AVERAGE_SPEED:
             if point.end_lat is None or point.end_lon is None:
                 continue
-            end = along(point.end_lon, point.end_lat, DEFAULT_ON_ROUTE_M)
+            end = along(point.end_lon, point.end_lat, th.point_on_route_m)
             if end is None or end <= start:
                 continue  # pomiar w drugą stronę albo poza trasą
         events.append(
@@ -167,12 +168,12 @@ def along_route(db: Session, geometry: list[tuple[float, float]]) -> list[RoadEv
     # Zakaz wyprzedzania: sąsiednie kawałki drogi jako jeden odcinek.
     merged: list[list] = []
     for start, end, point in sorted(lines, key=lambda item: item[0]):
-        if merged and start - merged[-1][1] <= MERGE_GAP_M:
+        if merged and start - merged[-1][1] <= th.line_merge_gap_m:
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end, point])
     for start, end, _point in merged:
-        if end - start >= MIN_LINE_M:
+        if end - start >= th.line_min_m:
             lon, lat = _point_at(geometry, cumulative, start)
             events.append(
                 RoadEvent(

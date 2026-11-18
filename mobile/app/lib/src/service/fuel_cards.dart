@@ -47,6 +47,17 @@ String fuelAmounts(AppLocalizations l, Object? amounts) {
   return [for (final e in map.entries) '${format.format(e.value as num)} ${e.key}'].join(' + ');
 }
 
+/// Kwoty jak [fuelAmounts], obok suma przeliczona na walutę firmy po kursie EBC
+/// („1 050,40 EUR (≈ 4 465 zł)”), gdy któraś kwota jest w innej walucie.
+String fuelAmountsConverted(AppLocalizations l, Object? amounts, Object? total, Object? currency) {
+  final main = fuelAmounts(l, amounts);
+  final map = (amounts as Map?) ?? const {};
+  if (total is! num || currency is! String || map.isEmpty || (map.length == 1 && map.containsKey(currency))) {
+    return main;
+  }
+  return l.costWithLocal(main, l.money(total.toDouble(), currency));
+}
+
 /// Wczytanie wyciągu: wybór pliku, wysłanie, komunikat z wynikiem. `true` – wczytano.
 Future<bool> importFuelCsv(BuildContext context, CoreApi api, String companyId, {CsvPicker? picker}) async {
   final l = context.l;
@@ -159,7 +170,8 @@ class _FuelCardsSummaryState extends State<FuelCardsSummary> {
             ? '…'
             : count == 0
                 ? l.fuelNoneShort
-                : l.fuelSummary(count, l.number(s['liters'] as num? ?? 0, decimals: 0), fuelAmounts(l, s['amount']));
+                : l.fuelSummary(count, l.number(s['liters'] as num? ?? 0, decimals: 0),
+                    fuelAmountsConverted(l, s['amount'], s['total'], s['total_currency']));
     return InkWell(
       key: const Key('fuel-cards'),
       onTap: widget.companyId == null ? null : _open,
@@ -259,7 +271,7 @@ class _FuelCardsDialogState extends State<_FuelCardsDialog> {
                       DataCell(Text(l.number(v['liters'] as num? ?? 0, decimals: 1))),
                       DataCell(Text(l.number(v['adblue_liters'] as num? ?? 0, decimals: 1))),
                       DataCell(Text(consumption(v))),
-                      DataCell(Text(fuelAmounts(l, v['amount']))),
+                      DataCell(Text(fuelAmountsConverted(l, v['amount'], v['total'], _summary?['total_currency']))),
                       DataCell(Text(DateTime.tryParse('${v['last']}') == null
                           ? '–'
                           : day.format(DateTime.parse('${v['last']}').toLocal()))),

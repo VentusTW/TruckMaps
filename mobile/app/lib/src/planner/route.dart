@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../l10n.dart';
+import 'house_numbers.dart';
 
 /// Kolory oceny jak w planerze w przeglądarce (zielony → czerwony).
 const levelColors = {
@@ -23,8 +24,7 @@ const permittedColor = TruckPalette.permitted;
 Color placeColor(RoutePlace place) => place.kind == 'permitted' ? permittedColor : levelColor(place.level);
 
 List<LatLng> _points(dynamic geometry) => [
-      for (final p in geometry as List<dynamic>)
-        LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
+      for (final p in geometry as List<dynamic>) LatLng((p[1] as num).toDouble(), (p[0] as num).toDouble()),
     ];
 
 double _d(dynamic value) => (value as num).toDouble();
@@ -275,7 +275,8 @@ class Cost {
           parts: [
             for (final part in (json['parts'] as List<dynamic>? ?? [])) CostPart.fromJson(part as Map<String, dynamic>),
           ],
-          fuelPricesDay: json['fuel_prices_day'] is String ? DateTime.tryParse(json['fuel_prices_day'] as String) : null,
+          fuelPricesDay:
+              json['fuel_prices_day'] is String ? DateTime.tryParse(json['fuel_prices_day'] as String) : null,
         );
 
   /// „w tym paliwo ≈ 140 € (30/100 km), AdBlue ≈ 3 €” albo `null`, gdy paliwa nie liczono.
@@ -297,16 +298,18 @@ class Cost {
     String km(double? value) => NumberFormat.decimalPattern(l.localeName).format((value ?? 0).round());
     return [
       for (final country in countries)
-        l.costCountryLine(country, [
-          for (final part in parts.where((p) => p.country == country))
-            switch (part.kind) {
-              'fuel' => l.costFuelItem(part.money(l, currency)),
-              'adblue' => l.costAdBluePart(part.money(l, currency)),
-              'toll' when part.unknown => l.costTollUnknown(km(part.km)),
-              'toll' => l.costTollItem(part.money(l, currency), km(part.km)),
-              _ => '',
-            },
-        ].where((text) => text.isNotEmpty).join(', ')),
+        l.costCountryLine(
+            country,
+            [
+              for (final part in parts.where((p) => p.country == country))
+                switch (part.kind) {
+                  'fuel' => l.costFuelItem(part.money(l, currency)),
+                  'adblue' => l.costAdBluePart(part.money(l, currency)),
+                  'toll' when part.unknown => l.costTollUnknown(km(part.km)),
+                  'toll' => l.costTollItem(part.money(l, currency), km(part.km)),
+                  _ => '',
+                },
+            ].where((text) => text.isNotEmpty).join(', ')),
       if (fuelPricesDay != null) l.costFuelPricesDay(DateFormat.yMd(l.localeName).format(fuelPricesDay!)),
     ];
   }
@@ -325,6 +328,7 @@ class PlannedRoute {
     this.cost,
     this.speedLimits = const [],
     this.roadEvents = const [],
+    this.houseNumbers = const [],
   });
 
   factory PlannedRoute.fromJson(Map<String, dynamic> json) {
@@ -339,8 +343,7 @@ class PlannedRoute {
           Segment(s['start_index'] as int, s['end_index'] as int, s['level'] as String),
       ],
       warnings: [
-        for (final w in (analysis?['warnings'] as List<dynamic>? ?? []))
-          RoutePlace.fromJson(w as Map<String, dynamic>),
+        for (final w in (analysis?['warnings'] as List<dynamic>? ?? [])) RoutePlace.fromJson(w as Map<String, dynamic>),
       ],
       maneuvers: [
         for (final m in (json['maneuvers'] as List<dynamic>? ?? [])) Maneuver.fromJson(m as Map<String, dynamic>),
@@ -352,6 +355,10 @@ class PlannedRoute {
       ],
       roadEvents: [
         for (final e in (json['road_events'] as List<dynamic>? ?? [])) RoadEvent.fromJson(e as Map<String, dynamic>),
+      ],
+      houseNumbers: [
+        for (final h in (json['house_numbers'] as List<dynamic>? ?? []))
+          HouseNumber.fromJson(h as Map<String, dynamic>),
       ],
     );
   }
@@ -368,6 +375,9 @@ class PlannedRoute {
   /// Ograniczenia prędkości i punkty z OSM – tylko w trasie wybranej (nie w alternatywach).
   final List<SpeedLimit> speedLimits;
   final List<RoadEvent> roadEvents;
+
+  /// Numery domów tylko przy starcie i celu (pomoc przy nieregularnej numeracji).
+  final List<HouseNumber> houseNumbers;
 
   /// Kawałki linii trasy w kolorach oceny (bez oceny – jedna szara linia) – liczone raz (mapa rysuje je przy każdej pozycji GPS).
   late final List<(List<LatLng>, String)> coloredParts = segments.isEmpty
@@ -476,8 +486,7 @@ class RouteResult {
       driverWarnings: [for (final w in (json['driver_warnings'] as List<dynamic>? ?? [])) '$w'],
       departure: json['departure'] == null ? null : DateTime.parse(json['departure'] as String).toLocal(),
       countries: [
-        for (final c in (json['countries'] as List<dynamic>? ?? []))
-          CountryOnRoute.fromJson(c as Map<String, dynamic>),
+        for (final c in (json['countries'] as List<dynamic>? ?? [])) CountryOnRoute.fromJson(c as Map<String, dynamic>),
       ],
       avoidedWarnings: [
         for (final w in (json['avoided_warnings'] as List<dynamic>? ?? []))

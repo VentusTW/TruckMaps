@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:core_sdk/core_sdk.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -150,19 +153,84 @@ class Session {
       );
 }
 
-/// Logowanie przez przeglądarkę systemową (RFC 8252): aplikacja nasłuchuje na adresie
-/// lokalnym 127.0.0.1, serwer po zalogowaniu wraca tam z jednorazowym kodem, a aplikacja
-/// wymienia kod na tokeny. Hasło ani token nie przechodzą przez aplikację w adresie.
-/// Na telefonie działa tak samo (przeglądarka i aplikacja na tym samym urządzeniu).
+/// Dokąd przeglądarka oddaje jednorazowy kod po zalogowaniu.
+enum LoginRedirect {
+  /// Adres lokalny 127.0.0.1 (RFC 8252) – komputer; telefon tylko z `adb reverse` do serwera.
+  loopback,
+
+  /// Schemat aplikacji `truckmaps://auth/callback` z PKCE – telefon; Windows po rejestracji
+  /// schematu przy starcie aplikacji.
+  appScheme;
+
+  /// `--dart-define=TRUCKMAPS_LOGIN_REDIRECT=app|loopback`; domyślnie schemat na telefonie,
+  /// adres lokalny na komputerze.
+  static LoginRedirect get platformDefault {
+    const configured = String.fromEnvironment('TRUCKMAPS_LOGIN_REDIRECT');
+    if (configured == 'app') return appScheme;
+    if (configured == 'loopback' || kIsWeb) return loopback;
+    return Platform.isAndroid || Platform.isIOS ? appScheme : loopback;
+  }
+}
+
+/// Linki `truckmaps://…` od systemu (kanał `truckmaps/links` w kodzie natywnym aplikacji:
+/// `MainActivity`, `AppDelegate`, `flutter_window.cpp`).
+class AppLinks {
+  AppLinks([this._channel = const MethodChannel('truckmaps/links')]) {
+    _channel.setMethodCallHandler((call) async {
+      final link = call.method == 'link' && call.arguments is String ? Uri.tryParse(call.arguments as String) : null;
+      if (link != null) _links.add(link);
+    });
+  }
+
+  final MethodChannel _channel;
+  final _links = StreamController<Uri>.broadcast();
+
+  Stream<Uri> get links => _links.stream;
+
+  /// Link, którym system uruchomił aplikację (powrót z przeglądarki po zamknięciu aplikacji).
+  Future<Uri?> initial() async {
+    try {
+      final link = await _channel.invokeMethod<String>('initial');
+      return link == null ? null : Uri.tryParse(link);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+}
+
+/// Logowanie przez przeglądarkę systemową (RFC 8252): serwer po zalogowaniu wraca do
+/// aplikacji z jednorazowym kodem, a aplikacja wymienia kod na tokeny. Hasło ani token nie
+/// przechodzą przez aplikację w adresie. Powrót ([LoginRedirect]): adres lokalny 127.0.0.1
+/// (komputer) albo schemat `truckmaps://auth/callback` z PKCE (telefon – bez adresu lokalnego,
+/// serwer z konfiguracji `TRUCKMAPS_SERVER`).
 class BrowserLogin {
-  BrowserLogin(this.serverUrl, {http.Client? client, SessionStore? store})
+  BrowserLogin(this.serverUrl,
+      {http.Client? client,
+      SessionStore? store,
+      LoginRedirect? redirect,
+      AppLinks? links,
+      FlutterSecureStorage? pending})
       : _client = client ?? http.Client(),
-        _store = store ?? SecureSessionStore();
+        _store = store ?? SecureSessionStore(),
+        redirect = redirect ?? LoginRedirect.platformDefault,
+        _givenLinks = links,
+        _pending = pending ?? const FlutterSecureStorage();
 
   final String serverUrl;
   final http.Client _client;
   final SessionStore _store;
+  final LoginRedirect redirect;
+  final AppLinks? _givenLinks;
+  late final AppLinks _links = _givenLinks ?? AppLinks();
+
+  /// Weryfikator PKCE logowania w toku – przetrwa zamknięcie aplikacji przez system,
+  /// gdy użytkownik jest w przeglądarce.
+  final FlutterSecureStorage _pending;
+  static const _pendingKey = 'truckmaps.login.verifier';
   static const timeout = Duration(minutes: 5);
+  static const appCallback = 'truckmaps://auth/callback';
 
   /// Sesja zapisana przy poprzednim uruchomieniu (odświeżona, jeśli token wygasł).
   Future<Session?> restore() async {
@@ -174,6 +242,18 @@ class BrowserLogin {
           return await exchange(code);
         } on LoginFailure {
           // Kod już użyty (np. odświeżona strona) – zostaje zapisana sesja albo logowanie.
+        }
+      }
+    }
+    if (!kIsWeb && redirect == LoginRedirect.appScheme) {
+      // Powrót z przeglądarki, gdy system w międzyczasie zamknął aplikację.
+      final link = await _links.initial();
+      final verifier = link != null && _isCallback(link) ? await _readPending() : null;
+      if (link != null && verifier != null) {
+        try {
+          return await _finishAppLink(link, verifier);
+        } on LoginFailure {
+          // Kod już użyty albo przeterminowany – zostaje zapisana sesja albo logowanie.
         }
       }
     }
@@ -193,6 +273,7 @@ class BrowserLogin {
   /// [register] – najpierw formularz nowego konta, potem od razu zalogowanie.
   Future<Session> login({required String donePage, required String failedPage, bool register = false}) async {
     if (kIsWeb) return _webLogin(register: register);
+    if (redirect == LoginRedirect.appScheme) return _appSchemeLogin(register: register);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     try {
       final callback = 'http://127.0.0.1:${server.port}/callback';
@@ -255,12 +336,70 @@ class BrowserLogin {
     return Completer<Session>().future;
   }
 
+  /// Powrót przez schemat aplikacji: przeglądarka otwiera `truckmaps://auth/callback?code=…`,
+  /// system przekazuje link aplikacji, a kod działa tylko z weryfikatorem PKCE tej aplikacji.
+  Future<Session> _appSchemeLogin({required bool register}) async {
+    final verifier = pkceVerifier();
+    await _writePending(verifier);
+    final returned = _links.links
+        .firstWhere(_isCallback)
+        .timeout(timeout, onTimeout: () => throw const LoginFailure(LoginProblem.timeout));
+    final url = Uri.parse('$serverUrl/auth/login').replace(queryParameters: {
+      'app': appCallback,
+      'challenge': pkceChallenge(verifier),
+      if (register) 'register': 'true',
+    });
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      returned.ignore();
+      throw const LoginFailure(LoginProblem.browser);
+    }
+    return _finishAppLink(await returned, verifier);
+  }
+
+  Future<Session> _finishAppLink(Uri link, String verifier) async {
+    await _writePending(null);
+    final code = link.queryParameters['code'];
+    if (code == null) throw LoginFailure(LoginProblem.failed, link.queryParameters['error']);
+    return exchange(code, verifier: verifier);
+  }
+
+  static bool _isCallback(Uri link) => '${link.scheme}://${link.host}${link.path}' == appCallback;
+
+  Future<String?> _readPending() async {
+    try {
+      return await _pending.read(key: _pendingKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writePending(String? verifier) async {
+    try {
+      verifier == null
+          ? await _pending.delete(key: _pendingKey)
+          : await _pending.write(key: _pendingKey, value: verifier);
+    } catch (_) {
+      // Bez magazynu logowanie i tak działa, dopóki system nie zamknie aplikacji.
+    }
+  }
+
+  /// Losowy weryfikator PKCE (RFC 7636): 32 bajty w base64url bez dopełnienia (43 znaki).
+  static String pkceVerifier([Random? random]) {
+    final source = random ?? Random.secure();
+    return base64Url.encode(List.generate(32, (_) => source.nextInt(256))).replaceAll('=', '');
+  }
+
+  /// S256: base64url(SHA-256(weryfikator)) bez dopełnienia – to samo liczy serwer.
+  static String pkceChallenge(String verifier) =>
+      base64Url.encode(sha256.convert(ascii.encode(verifier)).bytes).replaceAll('=', '');
+
   /// Jednorazowy kod → tokeny (`POST /auth/app/token`), zapisane na kolejne uruchomienia.
-  Future<Session> exchange(String code) async {
+  /// [verifier] – PKCE, gdy kod wrócił przez schemat aplikacji.
+  Future<Session> exchange(String code, {String? verifier}) async {
     final response = await _client.post(
       Uri.parse('$serverUrl/auth/app/token'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'code': code}),
+      body: jsonEncode({'code': code, if (verifier != null) 'verifier': verifier}),
     );
     final body = jsonDecode(utf8.decode(response.bodyBytes));
     if (response.statusCode != 200) {

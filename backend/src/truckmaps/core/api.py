@@ -37,7 +37,7 @@ def build_router(current_user) -> APIRouter:
         return [
             {
                 "id": status.id,
-                "name": status.name or status.id,
+                "name": status.display_name(),
                 "version": status.version,
                 "granted": licensing.is_granted(user, status.id),
             }

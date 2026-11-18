@@ -46,11 +46,13 @@ Future<Map<String, dynamic>?> loadRevenueSummary(CoreApi api, String? companyId,
 Future<Map<String?, double>?> loadFuelCardCost(CoreApi api, String? companyId, {int months = 6}) async {
   if (companyId == null) return null;
   try {
-    final r = await api.get('/api/companies/${Uri.encodeComponent(companyId)}/fuel-cards/summary?months=$months');
+    final r = await api
+        .get('/api/companies/${Uri.encodeComponent(companyId)}/fuel-cards/summary?months=$months&currency=PLN');
     if (r is! Map || ((r['count'] as num?) ?? 0) == 0) return null;
     return {
       for (final v in uiMaps(r['vehicles']))
-        v['vehicle_id'] as String?: (((v['amount'] as Map?)?['PLN'] as num?) ?? 0).toDouble(),
+        // Suma przeliczona po kursie EBC; bez kursu – tylko kwoty w PLN.
+        v['vehicle_id'] as String?: ((v['total'] as num?) ?? ((v['amount'] as Map?)?['PLN'] as num?) ?? 0).toDouble(),
     };
   } catch (_) {
     return null;

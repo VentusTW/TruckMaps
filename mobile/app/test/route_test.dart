@@ -10,7 +10,12 @@ void main() {
     final result = RouteResult.fromJson({
       'distance_km': 125.4,
       'duration_min': 95.0,
-      'geometry': [[20.0, 50.0], [20.1, 50.0], [20.2, 50.1], [20.3, 50.1]],
+      'geometry': [
+        [20.0, 50.0],
+        [20.1, 50.0],
+        [20.2, 50.1],
+        [20.3, 50.1]
+      ],
       'analysis': {
         'level': 'orange',
         'segments': [
@@ -23,11 +28,23 @@ void main() {
       },
       'cost': {'amount': 432.5, 'currency': 'PLN'},
       'alternatives': [
-        {'distance_km': 130.0, 'duration_min': 99.0, 'geometry': [[20.0, 50.0], [20.3, 50.1]], 'analysis': null},
+        {
+          'distance_km': 130.0,
+          'duration_min': 99.0,
+          'geometry': [
+            [20.0, 50.0],
+            [20.3, 50.1]
+          ],
+          'analysis': null
+        },
       ],
-      'stop_issues': [{'message': 'Trudny dojazd do celu'}],
+      'stop_issues': [
+        {'message': 'Trudny dojazd do celu'}
+      ],
       'time_bans': {
-        'bans': [{'message': 'Zakaz ruchu w Polsce', 'km': 50.0, 'lat': 50.05, 'lon': 20.15}],
+        'bans': [
+          {'message': 'Zakaz ruchu w Polsce', 'km': 50.0, 'lat': 50.05, 'lon': 20.15}
+        ],
         'arrival': '2026-11-01T22:00:00+01:00',
         'wait_min': 240,
         'free_departure': '2026-11-01T22:00:00+01:00',
@@ -77,5 +94,24 @@ void main() {
     expect(parseCoords('50.0131, 21.0214')?.point.latitude, 50.0131);
     expect(parseCoords('50, 21'), isNull);
     expect(parseCoords('Tarnów'), isNull);
+  });
+
+  test('numery domów przy starcie i celu', () {
+    final route = PlannedRoute.fromJson({
+      'distance_km': 1.0,
+      'duration_min': 2.0,
+      'geometry': [
+        [20.0, 50.0],
+        [20.01, 50.0],
+      ],
+      'house_numbers': [
+        {'lat': 50.0002, 'lon': 20.0098, 'number': '12A', 'street': 'Długa', 'end': 'end'},
+        {'lat': 50.0003, 'lon': 20.0005, 'number': '1', 'end': 'start'},
+      ],
+    });
+
+    expect([for (final h in route.houseNumbers) (h.number, h.atDestination)], [('12A', true), ('1', false)]);
+    expect(route.houseNumbers.first.street, 'Długa');
+    expect(PlannedRoute.fromJson({'distance_km': 1.0, 'duration_min': 2.0, 'geometry': []}).houseNumbers, isEmpty);
   });
 }

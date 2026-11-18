@@ -20,11 +20,13 @@ from truckmaps.core import (
     reports,
     restrictions,
     road_points,
+    thresholds,
     timebans,
 )
 from truckmaps.core.companies import Company
 from truckmaps.core.currency import latest_rates, user_currency
 from truckmaps.core.db import get_session
+from truckmaps.core.house_numbers import HouseNumberOut, near_route_ends
 from truckmaps.core.i18n import language, num, t
 from truckmaps.core.polyline import decode_polyline6, encode_polyline6
 from truckmaps.core.restrictions import distance_m
@@ -43,8 +45,12 @@ from truckmaps.sdk import DRIVER_CHECK, Principal
 
 log = logging.getLogger(__name__)
 
-# Język komunikatów manewrów w Valhalli dla języka zapytania (bez tłumaczenia – angielski).
-VALHALLA_LANGUAGES = {"pl": "pl-PL", "en": "en-US", "de": "de-DE", "cs": "cs-CZ", "sk": "sk-SK"}
+# Język komunikatów manewrów w Valhalli dla języka zapytania (bez tłumaczenia – angielski;
+# Valhalla nie ma litewskiego).
+VALHALLA_LANGUAGES = {
+    "pl": "pl-PL", "en": "en-US", "de": "de-DE", "cs": "cs-CZ", "sk": "sk-SK", "ro": "ro-RO",
+    "uk": "uk-UA",
+}  # fmt: skip
 # Kody Valhalli: 442 – "No path could be found", 171 – "No suitable edges near location".
 VALHALLA_NO_ROUTE = {442, 171}
 EDGE_ATTRIBUTES = [
@@ -73,10 +79,8 @@ AVOID_ROUNDS = 3
 # Miejsce nieprzejezdne omijamy dłużej: silnik tras często wybiera najpierw równoległy
 # odcinek tej samej drogi (np. druga jezdnia), więc wykluczenia trzeba dokładać.
 IMPASSABLE_ROUNDS = 8
-MAX_DETOUR_FACTOR = 1.25
-MAX_DETOUR_EXTRA_KM = 3.0
-# Miejsc przy starcie, celu i punktach pośrednich nie omijamy – tam trzeba dojechać.
-KEEP_NEAR_STOPS_M = 400.0
+# Objazd (max_detour_*) i strefa przy punktach trasy, w której trudnych miejsc nie omijamy
+# (keep_near_stops_m) – w ``truckmaps.core.thresholds``.
 # Kierunek jazdy przy starcie (z GPS): silnik tras wybiera drogę w tym kierunku, zamiast
 # kazać zawracać. Tolerancja w stopniach – większa wpuszcza też drugą jezdnię.
 START_HEADING_TOLERANCE = 45
@@ -318,6 +322,10 @@ class RouteResponse(Route):
     road_events: list[road_points.RoadEvent] = Field(
         default=[],
         description="Przejazdy kolejowe, fotoradary, światła, odcinkowy pomiar, zakaz wyprzedzania",
+    )
+    house_numbers: list[HouseNumberOut] = Field(
+        default=[],
+        description="Numery domów przy linii trasy – tylko kilkaset metrów od startu i celu",
     )
 
 
@@ -723,7 +731,8 @@ def plan(
     difficult: list[RouteWarning] = []
 
     excluded: list[Point] = []
-    max_km = first.distance_km * MAX_DETOUR_FACTOR + MAX_DETOUR_EXTRA_KM
+    th = thresholds.current()
+    max_km = first.distance_km * th.max_detour_factor + th.max_detour_extra_km
     # Kolejne wykluczenia bierzemy z ostatniego wariantu – także gorszego, gdy najlepszy
     # wciąż jest nieprzejezdny (objazd trafił w ten sam problem kawałek obok).
     current, current_analysis = best, best_analysis
@@ -1088,9 +1097,10 @@ def _avoid_points(
             continue
         span = list(range(warning.index, max(warning.end_index, warning.index + 1)))
         step = max(len(span) // 4, 1)
+        keep_m = thresholds.current().keep_near_stops_m
         for i in span[step // 2 :: step][:4]:
             lon, lat = route.geometry[i]
-            near_stop = any(distance_m(lon, lat, s.lon, s.lat) < KEEP_NEAR_STOPS_M for s in stops)
+            near_stop = any(distance_m(lon, lat, s.lon, s.lat) < keep_m for s in stops)
             if warning.level == IMPASSABLE or not near_stop:
                 points.append(Point(lat=lat, lon=lon))
     return points
@@ -1253,6 +1263,7 @@ def build_router(current_user) -> APIRouter:
                 {w.permit for w in (analysis.warnings if analysis else []) if w.permit}
             ),
             road_events=road_points.along_route(db, route.geometry),
+            house_numbers=near_route_ends(db, route.geometry),
             driver_warnings=driver_warnings(extensions, licensing, db, user, profile.id),
         )
 
