@@ -71,6 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic> _settings = const {};
   List<Map<String, dynamic>> _companies = const [];
 
+  /// Pierwsze wczytanie konta zakończone (również błędem – wtedy pulpit w stanie pustym).
+  bool _accountLoaded = false;
+
   /// Ścieżka do bieżącego ekranu (np. Pojazdy i Tabor › WI 4022P) i poprzednie ścieżki (przycisk „Cofnij”).
   List<_Crumb> _trail = const [_Crumb('dashboard')];
   final List<List<_Crumb>> _history = [];
@@ -95,9 +98,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _settings = settings;
         _companies = (results[1] as List<dynamic>).cast<Map<String, dynamic>>();
+        _accountLoaded = true;
       });
     } catch (_) {
       // Bez konta z serwera pulpit pokazuje stany puste.
+      if (mounted) setState(() => _accountLoaded = true);
     }
   }
 
@@ -351,189 +356,206 @@ class _HomeScreenState extends State<HomeScreen> {
         footer: [
           if (narrow) ListTile(leading: const Icon(Icons.logout), title: Text(l.logout), onTap: widget.onLogout),
         ],
-        body: IndexedStack(index: page, children: [
-          MainDashboard(
-            key: ValueKey(company?['id']),
-            api: widget.session.api,
-            companyId: company?['id'] as String?,
-            userName: _userName,
-            onOpen: (what) => switch (what) {
-              _ when what == l.mainNewOrder => _select('orders'),
-              _ when what == l.mainAssign => _select('live'),
-              _ when what == l.mainReport => _select('reports'),
-              _ when what == l.mainChannel => _go([_Crumb('inbox', l.menuInbox)]),
-              _ => _openWip(what),
-            },
-            onSection: _select,
-            onDrivers: () => _select('drivers'),
-            onScreen: (s) => setState(() => _screen = s),
-          ),
-          FleetScreen(
-            key: ValueKey(('fleet', company?['id'], _driversVersion)),
-            api: widget.session.api,
-            companyId: company?['id'] as String?,
-            onOpen: _openWip,
-            onOpenDriver: (name) => _openDriver(null, name),
-            onOpenVehicle: _openVehicle,
-            onSection: _select,
-            onAddVehicle:
-                company == null ? null : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
-          ),
-          DriversScreen(
-            key: ValueKey(('drivers', company?['id'], _driversVersion)),
-            api: widget.session.api,
-            companyId: company?['id'] as String?,
-            driverId: profile?.arg,
-            driverName: profile?.title,
-            onOpen: _openWip,
-            onOpenDriver: (id, name) => _openDriver(id, name),
-            onOpenVehicle: _openVehicle,
-            onEdit: (id, name) => _go([
-              const _Crumb('drivers'),
-              _Crumb('driver', name, id),
-              _Crumb('driver-edit', l.drvEditCrumb, id),
-            ]),
-          ),
-          if (current.id == 'driver-edit')
-            DriverEditScreen(
-              key: ValueKey(('driver-edit', current.arg)),
-              api: widget.session.api,
-              companyId: company?['id'] as String?,
-              driverId: current.arg ?? '',
-              onOpen: _openWip,
-              onDone: (saved) {
-                if (saved) _driversVersion++;
-                _back();
-              },
-            )
-          else
-            const SizedBox(),
-          if (vehicle?.arg case final String id)
-            VehicleScreen(
-              key: ValueKey(('vehicle', id, _driversVersion)),
-              api: widget.session.api,
-              vehicleId: id,
-              onOpen: _openWip,
-              onOpenVehicle: _openVehicle,
-              onOpenDriver: (name) => _openDriver(null, name),
-              onSection: _select,
-              onEdit: (id, name) => _go([
-                const _Crumb('fleet'),
-                _Crumb('vehicle', name, id),
-                _Crumb('vehicle-edit', l.vehEditCrumb, id),
+        // Do wczytania konta (firma, rola) bez ekranów – inaczej pulpit mignąłby pustym stanem bez firmy.
+        body: !_accountLoaded
+            ? const Center(child: CircularProgressIndicator())
+            : IndexedStack(index: page, children: [
+                MainDashboard(
+                  key: ValueKey(company?['id']),
+                  api: widget.session.api,
+                  companyId: company?['id'] as String?,
+                  userName: _userName,
+                  onOpen: (what) => switch (what) {
+                    _ when what == l.mainNewOrder => _select('orders'),
+                    _ when what == l.mainAssign => _select('live'),
+                    _ when what == l.mainReport => _select('reports'),
+                    _ when what == l.mainChannel => _go([_Crumb('inbox', l.menuInbox)]),
+                    _ => _openWip(what),
+                  },
+                  onSection: _select,
+                  onDrivers: () => _select('drivers'),
+                  onScreen: (s) => setState(() => _screen = s),
+                ),
+                FleetScreen(
+                  key: ValueKey(('fleet', company?['id'], _driversVersion)),
+                  api: widget.session.api,
+                  companyId: company?['id'] as String?,
+                  onOpen: _openWip,
+                  onOpenDriver: (name) => _openDriver(null, name),
+                  onOpenVehicle: _openVehicle,
+                  onSection: _select,
+                  onAddVehicle: company == null
+                      ? null
+                      : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
+                ),
+                DriversScreen(
+                  key: ValueKey(('drivers', company?['id'], _driversVersion)),
+                  api: widget.session.api,
+                  companyId: company?['id'] as String?,
+                  driverId: profile?.arg,
+                  driverName: profile?.title,
+                  onOpen: _openWip,
+                  onOpenDriver: (id, name) => _openDriver(id, name),
+                  onOpenVehicle: _openVehicle,
+                  onEdit: (id, name) => _go([
+                    const _Crumb('drivers'),
+                    _Crumb('driver', name, id),
+                    _Crumb('driver-edit', l.drvEditCrumb, id),
+                  ]),
+                ),
+                if (current.id == 'driver-edit')
+                  DriverEditScreen(
+                    key: ValueKey(('driver-edit', current.arg)),
+                    api: widget.session.api,
+                    companyId: company?['id'] as String?,
+                    driverId: current.arg ?? '',
+                    onOpen: _openWip,
+                    onDone: (saved) {
+                      if (saved) _driversVersion++;
+                      _back();
+                    },
+                  )
+                else
+                  const SizedBox(),
+                if (vehicle?.arg case final String id)
+                  VehicleScreen(
+                    key: ValueKey(('vehicle', id, _driversVersion)),
+                    api: widget.session.api,
+                    vehicleId: id,
+                    onOpen: _openWip,
+                    onOpenVehicle: _openVehicle,
+                    onOpenDriver: (name) => _openDriver(null, name),
+                    onSection: _select,
+                    onEdit: (id, name) => _go([
+                      const _Crumb('fleet'),
+                      _Crumb('vehicle', name, id),
+                      _Crumb('vehicle-edit', l.vehEditCrumb, id),
+                    ]),
+                  )
+                else
+                  const SizedBox(),
+                if (current.id == 'vehicle-edit')
+                  VehicleEditScreen(
+                    key: ValueKey(('vehicle-edit', current.arg)),
+                    api: widget.session.api,
+                    vehicleId: current.arg ?? '',
+                    companyId: company?['id'] as String?,
+                    onNewVehicle: company == null
+                        ? null
+                        : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
+                    onOpen: _openWip,
+                    onDone: (saved) {
+                      if (saved) _driversVersion++;
+                      _back();
+                    },
+                  )
+                else
+                  const SizedBox(),
+                if (page == 6)
+                  WorkshopScreen(
+                    key: ValueKey(('service', company?['id'], _driversVersion)),
+                    api: widget.session.api,
+                    companyId: company?['id'] as String?,
+                    companyName: companyName,
+                    onOpen: _openWip,
+                    onOpenOrder: openOrder,
+                    onOpenRepairs: () => _select('repairs'),
+                    onOpenTco: () => _select('tco'),
+                    onSection: _select,
+                  )
+                else
+                  const SizedBox(),
+                if (page == 7)
+                  RepairsScreen(
+                    key: ValueKey(('repairs', company?['id'])),
+                    api: widget.session.api,
+                    companyId: company?['id'] as String?,
+                    orderId: order?.arg,
+                    onOpen: _openWip,
+                    onOpenOrder: openOrder,
+                    onOpenVehicle: _openVehicle,
+                    onClearOrder: () => _go([const _Crumb('repairs')]),
+                  )
+                else
+                  const SizedBox(),
+                if (page == 8)
+                  AnalyticsScreen(
+                    key: ValueKey(('reports', company?['id'])),
+                    api: widget.session.api,
+                    companyId: company?['id'] as String?,
+                    companyName: companyName,
+                    onOpen: _openWip,
+                    onOpenVehicle: _openVehicle,
+                  )
+                else
+                  const SizedBox(),
+                if (page == 9)
+                  TcoScreen(
+                    key: ValueKey(('tco', company?['id'])),
+                    api: widget.session.api,
+                    companyId: company?['id'] as String?,
+                    onOpen: _openWip,
+                    onOpenDriver: (id, name) => _openDriver(id, name),
+                  )
+                else
+                  const SizedBox(),
+                // Zlecenia i załadunek oraz symulator 3D – jeden ekran.
+                if (page == 10)
+                  LoadPlanScreen(key: ValueKey(('orders', company?['id'])), api: widget.session.api)
+                else
+                  const SizedBox(),
+                // Centrala & Live Map – pozycje pojazdów z aplikacji kierowców.
+                if (page == 11)
+                  LiveScreen(
+                      key: ValueKey(('live', company?['id'])),
+                      api: widget.session.api,
+                      companyId: company?['id'] as String?)
+                else
+                  const SizedBox(),
+                if (page == 12)
+                  PlannerScreen(key: const ValueKey('planner'), api: widget.session.api)
+                else
+                  const SizedBox(),
+                if (page == 13)
+                  InboxScreen(key: const ValueKey('inbox'), api: widget.session.api)
+                else
+                  const SizedBox(),
+                if (page == 14)
+                  AccountScreen(
+                    key: ValueKey(('account', _settings['display_name'])),
+                    api: widget.session.api,
+                    settings: _settings,
+                    onChanged: _loadAccount,
+                    onLanguage: widget.onLanguage ?? (_) {},
+                    onLogout: widget.onLogout,
+                  )
+                else
+                  const SizedBox(),
+                if (page == 15)
+                  PartsScreen(
+                      key: ValueKey(('parts', company?['id'])),
+                      api: widget.session.api,
+                      companyId: company?['id'] as String?)
+                else
+                  const SizedBox(),
+                if (page == 16)
+                  EcoScreen(
+                      key: ValueKey(('eco', company?['id'])),
+                      api: widget.session.api,
+                      companyId: company?['id'] as String?)
+                else
+                  const SizedBox(),
+                // Dokumenty firmy pogrupowane tematycznie (moduł Dokumenty).
+                if (page == 17)
+                  DocumentsScreen(key: ValueKey(('documents', company?['id'])), api: widget.session.api)
+                else
+                  const SizedBox(),
+                UnderConstructionScreen(
+                  title: title,
+                  icon: items.where((i) => i.id == current.id).firstOrNull?.icon ?? Icons.construction_outlined,
+                  onBack: () => _go(const [_Crumb('dashboard')]),
+                ),
               ]),
-            )
-          else
-            const SizedBox(),
-          if (current.id == 'vehicle-edit')
-            VehicleEditScreen(
-              key: ValueKey(('vehicle-edit', current.arg)),
-              api: widget.session.api,
-              vehicleId: current.arg ?? '',
-              companyId: company?['id'] as String?,
-              onNewVehicle:
-                  company == null ? null : () => _go([const _Crumb('fleet'), _Crumb('vehicle-edit', l.fleetAdd, '')]),
-              onOpen: _openWip,
-              onDone: (saved) {
-                if (saved) _driversVersion++;
-                _back();
-              },
-            )
-          else
-            const SizedBox(),
-          if (page == 6)
-            WorkshopScreen(
-              key: ValueKey(('service', company?['id'], _driversVersion)),
-              api: widget.session.api,
-              companyId: company?['id'] as String?,
-              companyName: companyName,
-              onOpen: _openWip,
-              onOpenOrder: openOrder,
-              onOpenRepairs: () => _select('repairs'),
-              onOpenTco: () => _select('tco'),
-              onSection: _select,
-            )
-          else
-            const SizedBox(),
-          if (page == 7)
-            RepairsScreen(
-              key: ValueKey(('repairs', company?['id'])),
-              api: widget.session.api,
-              companyId: company?['id'] as String?,
-              orderId: order?.arg,
-              onOpen: _openWip,
-              onOpenOrder: openOrder,
-              onOpenVehicle: _openVehicle,
-              onClearOrder: () => _go([const _Crumb('repairs')]),
-            )
-          else
-            const SizedBox(),
-          if (page == 8)
-            AnalyticsScreen(
-              key: ValueKey(('reports', company?['id'])),
-              api: widget.session.api,
-              companyId: company?['id'] as String?,
-              companyName: companyName,
-              onOpen: _openWip,
-              onOpenVehicle: _openVehicle,
-            )
-          else
-            const SizedBox(),
-          if (page == 9)
-            TcoScreen(
-              key: ValueKey(('tco', company?['id'])),
-              api: widget.session.api,
-              companyId: company?['id'] as String?,
-              onOpen: _openWip,
-              onOpenDriver: (id, name) => _openDriver(id, name),
-            )
-          else
-            const SizedBox(),
-          // Zlecenia i załadunek oraz symulator 3D – jeden ekran.
-          if (page == 10)
-            LoadPlanScreen(key: ValueKey(('orders', company?['id'])), api: widget.session.api)
-          else
-            const SizedBox(),
-          // Centrala & Live Map – pozycje pojazdów z aplikacji kierowców.
-          if (page == 11)
-            LiveScreen(
-                key: ValueKey(('live', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
-          else
-            const SizedBox(),
-          if (page == 12) PlannerScreen(key: const ValueKey('planner'), api: widget.session.api) else const SizedBox(),
-          if (page == 13) InboxScreen(key: const ValueKey('inbox'), api: widget.session.api) else const SizedBox(),
-          if (page == 14)
-            AccountScreen(
-              key: ValueKey(('account', _settings['display_name'])),
-              api: widget.session.api,
-              settings: _settings,
-              onChanged: _loadAccount,
-              onLanguage: widget.onLanguage ?? (_) {},
-              onLogout: widget.onLogout,
-            )
-          else
-            const SizedBox(),
-          if (page == 15)
-            PartsScreen(
-                key: ValueKey(('parts', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
-          else
-            const SizedBox(),
-          if (page == 16)
-            EcoScreen(
-                key: ValueKey(('eco', company?['id'])), api: widget.session.api, companyId: company?['id'] as String?)
-          else
-            const SizedBox(),
-          // Dokumenty firmy pogrupowane tematycznie (moduł Dokumenty).
-          if (page == 17)
-            DocumentsScreen(key: ValueKey(('documents', company?['id'])), api: widget.session.api)
-          else
-            const SizedBox(),
-          UnderConstructionScreen(
-            title: title,
-            icon: items.where((i) => i.id == current.id).firstOrNull?.icon ?? Icons.construction_outlined,
-            onBack: () => _go(const [_Crumb('dashboard')]),
-          ),
-        ]),
       ),
     );
   }
