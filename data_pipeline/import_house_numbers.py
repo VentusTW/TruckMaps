@@ -26,16 +26,11 @@ import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
 
-import osmium
-import shapely
 from sqlalchemy import delete, insert
 
 from truckmaps.core.config import load_env_file
 from truckmaps.core.db import Database
 from truckmaps.core.house_numbers import HouseNumber, puwg92_to_wgs84
-
-sys.path.insert(0, str(Path(__file__).parent))
-from import_restrictions import file_date  # noqa: E402
 
 BATCH = 50_000
 # Obiekty GML PRG (schemat PRGAD i starsze) i ich pola.
@@ -66,6 +61,9 @@ def main() -> None:
         db.execute(delete(HouseNumber).where(HouseNumber.source == args.source))
         for path in args.files:
             if args.source == "osm":
+                sys.path.insert(0, str(Path(__file__).parent))
+                from import_restrictions import file_date  # osmium – tylko dla źródła OSM
+
                 rows = read_osm(path, file_date(path))
             else:
                 rows = read_prg(path, _mtime(path), xy=args.xy)
@@ -107,6 +105,10 @@ def _row(lat, lon, number, street, source, source_date) -> dict:
 
 
 def read_osm(path: Path, source_date: str):
+    # Biblioteki OSM tylko tutaj – czytnik PRG (i testy) działa bez nich.
+    import osmium
+    import shapely
+
     objects = (
         osmium.FileProcessor(str(path))
         .with_areas()
